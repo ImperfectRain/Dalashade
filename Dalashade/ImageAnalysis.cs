@@ -1,8 +1,8 @@
 using System;
-using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace Dalashade;
 
@@ -99,12 +99,13 @@ public sealed class ImageAnalysisService
             lastSourceWriteTime = latest.LastWriteTimeUtc;
             LastMessage = $"Analyzed {latest.Name}: {Current.ProfileBucket}.";
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or ExternalException or OutOfMemoryException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or OutOfMemoryException)
         {
             Current = ImageAnalysisResult.Empty;
             LastMessage = $"Image analysis skipped this file: {ex.Message}";
         }
     }
+    
 
     public static FileInfo? FindLatestImage(string folderPath)
     {
@@ -127,10 +128,10 @@ public sealed class ImageAnalysisService
         stream.CopyTo(memory);
         memory.Position = 0;
 
-        using var bitmap = new Bitmap(memory);
+        using var image = Image.Load<Rgba32>(memory);
 
-        var stepX = Math.Max(1, bitmap.Width / 160);
-        var stepY = Math.Max(1, bitmap.Height / 90);
+        var stepX = Math.Max(1, image.Width / 160);
+        var stepY = Math.Max(1, image.Height / 90);
         var count = 0;
         double luminanceSum = 0;
         double luminanceSquaredSum = 0;
@@ -140,11 +141,11 @@ public sealed class ImageAnalysisService
         var shadowCount = 0;
         var highlightCount = 0;
 
-        for (var y = 0; y < bitmap.Height; y += stepY)
+        for (var y = 0; y < image.Height; y += stepY)
         {
-            for (var x = 0; x < bitmap.Width; x += stepX)
+            for (var x = 0; x < image.Width; x += stepX)
             {
-                var pixel = bitmap.GetPixel(x, y);
+                var pixel = image[x, y];
                 var r = pixel.R / 255f;
                 var g = pixel.G / 255f;
                 var b = pixel.B / 255f;
