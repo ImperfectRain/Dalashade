@@ -11,6 +11,7 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 - Watches territory, combat, cutscene, night/day, and zone-entry weather.
 - Classifies the current place as a city, field zone, duty, or interior-ish space.
 - Optionally analyzes the newest screenshot in a folder for brightness, contrast, saturation, crushed shadows, and clipped highlights.
+- Optionally analyzes a master image folder, so you can point it at a look you like and let Dalashade bias the generated preset toward it.
 - Generates a separate ReShade preset from your chosen base preset.
 - Supports free iMMERSE variables by default.
 - Can also adjust installed iMMERSE Pro/Ultimate variables when you turn that option on.
@@ -47,6 +48,26 @@ Turn on `Auto-adjust from screenshots`, set the screenshot folder, then take scr
 
 It is not live video analysis yet. Think of it as the first rung on the ladder before a ReShade add-on bridge.
 
+## Master Preset Images
+
+This is the part for stealing a vibe, in the harmless color-grading sense.
+
+Set `Master preset image folder` to a folder with one or more reference screenshots. It can be an FFXV screenshot, a movie frame, a moody GPose shot, whatever. Dalashade analyzes the image style, then nudges the generated preset toward that look.
+
+Right now it looks at broad visual traits:
+
+- overall brightness
+- contrast
+- saturation
+- shadow crush
+- highlight clipping
+- warm/cool color bias
+- green/magenta-ish bias
+
+If `Include master preset subfolders` is on, you can make a folder of looks and toss subfolders inside it. Dalashade will average the newest images up to `Master style max images`. That is optional; one image is enough to start.
+
+This will not perfectly recreate another game's renderer. It is more like, "this reference is warmer, punchier, and less shadow-crushed than my current scene, so move the ReShade values that direction." Small, useful, not magic.
+
 ## iMMERSE Support
 
 Free iMMERSE support is on by default for installed preset variables such as MXAO and Sharpen.
@@ -74,7 +95,7 @@ For dev loading, add that DLL path in Dalamud's dev plugin settings.
 This is the practical MVP:
 
 - context-aware preset generation
-- world and screenshot feedback
+- world, screenshot, and reference-image feedback
 - conservative shader mapping
 - clean generated-preset workflow
 

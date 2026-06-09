@@ -26,6 +26,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly MainWindow mainWindow;
     private readonly GameContextService contextService = new();
     private readonly ImageAnalysisService imageAnalysisService = new();
+    private readonly MasterStyleService masterStyleService = new();
     private readonly ProfileEngine profileEngine = new();
     private readonly PresetWriter presetWriter = new();
 
@@ -36,7 +37,9 @@ public sealed class Plugin : IDalamudPlugin
     public WindowSystem WindowSystem { get; } = new("Dalashade");
     public GameContext CurrentContext => contextService.Current;
     public ImageAnalysisResult CurrentImageAnalysis => imageAnalysisService.Current;
+    public ImageAnalysisResult CurrentMasterStyle => masterStyleService.Current;
     public string ImageAnalysisMessage => imageAnalysisService.LastMessage;
+    public string MasterStyleMessage => masterStyleService.LastMessage;
     public VisualProfile CurrentProfile { get; private set; } = VisualProfile.Neutral;
     public PresetWriteResult LastWriteResult { get; private set; } = PresetWriteResult.Skipped("No preset has been generated yet.");
     public string DefaultGeneratedPresetPath => Path.Combine(PluginInterface.ConfigDirectory.FullName, "Dalashade_Generated.ini");
@@ -94,9 +97,10 @@ public sealed class Plugin : IDalamudPlugin
     {
         contextService.Refresh();
         imageAnalysisService.Refresh(Configuration, true);
-        CurrentProfile = profileEngine.Create(CurrentContext, CurrentImageAnalysis, Configuration);
+        masterStyleService.Refresh(Configuration, true);
+        CurrentProfile = profileEngine.Create(CurrentContext, CurrentImageAnalysis, CurrentMasterStyle, Configuration);
         LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile);
-        lastProfileKey = CurrentContext.ProfileKey(Configuration, CurrentImageAnalysis);
+        lastProfileKey = CreateProfileKey();
         lastWrite = DateTimeOffset.UtcNow;
         return LastWriteResult;
     }
@@ -110,9 +114,10 @@ public sealed class Plugin : IDalamudPlugin
 
         contextService.Refresh();
         imageAnalysisService.Refresh(Configuration);
-        CurrentProfile = profileEngine.Create(CurrentContext, CurrentImageAnalysis, Configuration);
+        masterStyleService.Refresh(Configuration);
+        CurrentProfile = profileEngine.Create(CurrentContext, CurrentImageAnalysis, CurrentMasterStyle, Configuration);
 
-        var profileKey = CurrentContext.ProfileKey(Configuration, CurrentImageAnalysis);
+        var profileKey = CreateProfileKey();
         if (profileKey == lastProfileKey)
         {
             return;
@@ -135,6 +140,12 @@ public sealed class Plugin : IDalamudPlugin
     private void OnCommand(string command, string args)
     {
         mainWindow.Toggle();
+    }
+
+    private string CreateProfileKey()
+    {
+        var master = Configuration.MatchMasterPresetStyle ? CurrentMasterStyle.ProfileBucket : "ignored";
+        return $"{CurrentContext.ProfileKey(Configuration, CurrentImageAnalysis)}:{master}:{Configuration.MasterPresetStyleStrength}";
     }
 
     private void OnZoneInit(ZoneInitEventArgs args)
