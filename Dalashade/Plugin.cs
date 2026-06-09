@@ -1,0 +1,156 @@
+using Dalamud.Game.Command;
+using Dalamud.Game.ClientState;
+using Dalamud.IoC;
+using Dalamud.Interface.Windowing;
+using Dalamud.Plugin;
+using Dalamud.Plugin.Services;
+using Dalashade.Windows;
+using System;
+using System.IO;
+
+namespace Dalashade;
+
+public sealed class Plugin : IDalamudPlugin
+{
+    [PluginService] internal static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
+    [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
+    [PluginService] internal static IClientState ClientState { get; private set; } = null!;
+    [PluginService] internal static ICondition Condition { get; private set; } = null!;
+    [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
+    [PluginService] internal static IFramework Framework { get; private set; } = null!;
+    [PluginService] internal static IPluginLog Log { get; private set; } = null!;
+
+    private const string CommandName = "/dalashade";
+
+    private readonly ConfigWindow configWindow;
+    private readonly MainWindow mainWindow;
+    private readonly GameContextService contextService = new();
+    private readonly ImageAnalysisService imageAnalysisService = new();
+    private readonly ProfileEngine profileEngine = new();
+    private readonly PresetWriter presetWriter = new();
+
+    private DateTimeOffset lastWrite = DateTimeOffset.MinValue;
+    private string lastProfileKey = string.Empty;
+
+    public Configuration Configuration { get; }
+    public WindowSystem WindowSystem { get; } = new("Dalashade");
+    public GameContext CurrentContext => contextService.Current;
+    public ImageAnalysisResult CurrentImageAnalysis => imageAnalysisService.Current;
+    public string ImageAnalysisMessage => imageAnalysisService.LastMessage;
+    public VisualProfile CurrentProfile { get; private set; } = VisualProfile.Neutral;
+    public PresetWriteResult LastWriteResult { get; private set; } = PresetWriteResult.Skipped("No preset has been generated yet.");
+    public string DefaultGeneratedPresetPath => Path.Combine(PluginInterface.ConfigDirectory.FullName, "Dalashade_Generated.ini");
+    public string DefaultScreenshotFolderPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+        "My Games",
+        "FINAL FANTASY XIV - A Realm Reborn",
+        "screenshots");
+
+    public Plugin()
+    {
+        Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+        if (string.IsNullOrWhiteSpace(Configuration.GeneratedPresetPath))
+        {
+            Configuration.GeneratedPresetPath = DefaultGeneratedPresetPath;
+            Configuration.Save();
+        }
+
+        configWindow = new ConfigWindow(this);
+        mainWindow = new MainWindow(this);
+
+        WindowSystem.AddWindow(configWindow);
+        WindowSystem.AddWindow(mainWindow);
+
+        CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
+        {
+            HelpMessage = "Open the Dalashade control window."
+        });
+
+        PluginInterface.UiBuilder.Draw += WindowSystem.Draw;
+        PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
+        PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
+        ClientState.ZoneInit += OnZoneInit;
+        Framework.Update += OnFrameworkUpdate;
+
+        Log.Information("Dalashade loaded.");
+    }
+
+    public void Dispose()
+    {
+        Framework.Update -= OnFrameworkUpdate;
+        PluginInterface.UiBuilder.Draw -= WindowSystem.Draw;
+        PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
+        PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
+        ClientState.ZoneInit -= OnZoneInit;
+
+        WindowSystem.RemoveAllWindows();
+        configWindow.Dispose();
+        mainWindow.Dispose();
+
+        CommandManager.RemoveHandler(CommandName);
+    }
+
+    public PresetWriteResult GenerateNow()
+    {
+        contextService.Refresh();
+        imageAnalysisService.Refresh(Configuration, true);
+        CurrentProfile = profileEngine.Create(CurrentContext, CurrentImageAnalysis, Configuration);
+        LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile);
+        lastProfileKey = CurrentContext.ProfileKey(Configuration, CurrentImageAnalysis);
+        lastWrite = DateTimeOffset.UtcNow;
+        return LastWriteResult;
+    }
+
+    private void OnFrameworkUpdate(IFramework framework)
+    {
+        if (!Configuration.Enabled)
+        {
+            return;
+        }
+
+        contextService.Refresh();
+        imageAnalysisService.Refresh(Configuration);
+        CurrentProfile = profileEngine.Create(CurrentContext, CurrentImageAnalysis, Configuration);
+
+        var profileKey = CurrentContext.ProfileKey(Configuration, CurrentImageAnalysis);
+        if (profileKey == lastProfileKey)
+        {
+            return;
+        }
+
+        var minimumInterval = TimeSpan.FromSeconds(Math.Max(1, Configuration.MinimumSecondsBetweenWrites));
+        if (DateTimeOffset.UtcNow - lastWrite < minimumInterval)
+        {
+            return;
+        }
+
+        LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile);
+        if (LastWriteResult.Success)
+        {
+            lastProfileKey = profileKey;
+            lastWrite = DateTimeOffset.UtcNow;
+        }
+    }
+
+    private void OnCommand(string command, string args)
+    {
+        mainWindow.Toggle();
+    }
+
+    private void OnZoneInit(ZoneInitEventArgs args)
+    {
+        try
+        {
+            contextService.UpdateWeather(args.Weather.RowId, args.Weather.Value.Name.ToString());
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Could not read ZoneInit weather.");
+            contextService.UpdateWeather(null, "Unknown");
+        }
+    }
+
+    public void ToggleConfigUi() => configWindow.Toggle();
+
+    public void ToggleMainUi() => mainWindow.Toggle();
+}

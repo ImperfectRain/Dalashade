@@ -1,78 +1,81 @@
-> ⚠️ **Don't click Fork!**
-> 
-> This is a GitHub Template repo. If you want to use this for a plugin, [use this template][new-repo] to make a new repo!
->
-> ![image](https://github.com/goatcorp/SamplePlugin/assets/16760685/d9732094-e1ed-4769-a70b-58ed2b92580c)
+# Dalashade
 
-# SamplePlugin
+Dalashade is a Dalamud plugin that writes a ReShade preset for the game state you are actually in.
 
-[![Use This Template badge](https://img.shields.io/badge/Use%20This%20Template-0?logo=github&labelColor=grey)][new-repo]
+The idea is simple: FFXIV changes a lot. A preset that looks great in a quiet night scene can get weird in combat, washed out in bright interiors, or crunchy when the weather rolls in. Dalashade tries to keep the preset pointed in the right direction without making you hand-author a giant spreadsheet of zone rules.
 
+This is early. It works by carefully editing a generated `.ini` preset, not by talking to ReShade's renderer directly. That means it is intentionally conservative: small adjustments, known shader variables only, and no touching your base preset.
 
-Simple example plugin for Dalamud.
+## What It Does
 
-This is not designed to be the simplest possible example, but it is also not designed to cover everything you might want to do. For more detailed questions, come ask in [the Discord](https://discord.gg/holdshift).
+- Watches territory, combat, cutscene, night/day, and zone-entry weather.
+- Classifies the current place as a city, field zone, duty, or interior-ish space.
+- Optionally analyzes the newest screenshot in a folder for brightness, contrast, saturation, crushed shadows, and clipped highlights.
+- Generates a separate ReShade preset from your chosen base preset.
+- Supports free iMMERSE variables by default.
+- Can also adjust installed iMMERSE Pro/Ultimate variables when you turn that option on.
 
-## Main Points
+## What It Does Not Do
 
-* Simple functional plugin
-  * Slash command
-  * Main UI
-  * Settings UI
-  * Image loading
-  * Plugin json
-* Simple, slightly-improved plugin configuration handling
-* Project organization
-  * Copies all necessary plugin files to the output directory
-    * Does not copy dependencies that are provided by dalamud
-    * Output directory can be zipped directly and have exactly what is required
-  * Hides data files from visual studio to reduce clutter
-    * Also allows having data files in different paths than VS would usually allow if done in the IDE directly
+- It does not bundle iMMERSE, iMMERSE Pro, iMMERSE Ultimate, RTGI, or any paid shader files.
+- It does not modify your base preset in place.
+- It does not capture live frames yet.
+- It does not magically know taste. It has opinions, but they are intentionally mild.
 
+## Basic Setup
 
-The intention is less that any of this is used directly in other projects, and more to show how similar things can be done.
+1. Install ReShade and your shader packs normally.
+2. In ReShade, make or pick a base preset you already like.
+3. In Dalashade, set `Base preset path` to that preset.
+4. Click `Use Dalamud config folder` for the generated preset path.
+5. Click `Generate Now`.
+6. In ReShade, load the generated preset.
 
-## How To Use
+The generated preset should live somewhere writable, usually Dalamud's plugin config folder. Keeping it away from the game folder avoids a lot of Windows permission nonsense.
 
-### Getting Started
+## Screenshot Analysis
 
-To begin, [clone this template repository][new-repo] to your own GitHub account. This will automatically bring in everything you need to get a jumpstart on development. You do not need to fork this repository unless you intend to contribute modifications to it.
+Screenshot analysis is optional.
 
-Be sure to also check out the [Dalamud Developer Docs][dalamud-docs] for helpful information about building your own plugin. The Developer Docs includes helpful information about all sorts of things, including [how to submit][submit] your newly-created plugin to the official repository. Assuming you use this template repository, the provided project build configuration and license are already chosen to make everything a breeze.
+Turn on `Auto-adjust from screenshots`, set the screenshot folder, then take screenshots as you move around. Dalashade reads the newest image and uses rough scene metrics to nudge the generated preset:
 
-[new-repo]: https://github.com/new?template_name=SamplePlugin&template_owner=goatcorp
-[dalamud-docs]: https://dalamud.dev
-[submit]: https://dalamud.dev/plugin-publishing/submission
+- dark or crushed scenes get more lift and less heavy AO
+- bright or clipped scenes back off exposure and bloom
+- very muted scenes get a little saturation
+- oversaturated scenes get cooled down a bit
+- very flat scenes get a little contrast and clarity
 
-### Prerequisites
+It is not live video analysis yet. Think of it as the first rung on the ladder before a ReShade add-on bridge.
 
-SamplePlugin assumes all the following prerequisites are met:
+## iMMERSE Support
 
-* XIVLauncher, FINAL FANTASY XIV, and Dalamud have all been installed and the game has been run with Dalamud at least once.
-* XIVLauncher is installed to its default directories and configurations.
-  * If a custom path is required for Dalamud's dev directory, it must be set with the `DALAMUD_HOME` environment variable.
-* A .NET Core 8 SDK has been installed and configured, or is otherwise available. (In most cases, the IDE will take care of this.)
+Free iMMERSE support is on by default for installed preset variables such as MXAO and Sharpen.
 
-### Building
+The Pro/Ultimate toggle only changes values that already exist in your preset. If RTGI, ReGrade+, ReLight, or other paid effects are not in the preset, Dalashade leaves them alone. This keeps the free path free and avoids pretending paid shaders are required.
 
-1. Open up `SamplePlugin.sln` in your C# editor of choice (likely [Visual Studio](https://visualstudio.microsoft.com) or [JetBrains Rider](https://www.jetbrains.com/rider/)).
-2. Build the solution. By default, this will build a `Debug` build, but you can switch to `Release` in your IDE.
-3. The resulting plugin can be found at `SamplePlugin/bin/x64/Debug/SamplePlugin.dll` (or `Release` if appropriate.)
+## Building
 
-### Activating in-game
+Open `Dalashade.sln` or run:
 
-1. Launch the game and use `/xlsettings` in chat or `xlsettings` in the Dalamud Console to open up the Dalamud settings.
-    * In here, go to `Experimental`, and add the full path to the `SamplePlugin.dll` to the list of Dev Plugin Locations.
-2. Next, use `/xlplugins` (chat) or `xlplugins` (console) to open up the Plugin Installer.
-    * In here, go to `Dev Tools > Installed Dev Plugins`, and the `SamplePlugin` should be visible. Enable it.
-3. You should now be able to use `/pmycommand` (chat) or `pmycommand` (console)!
+```powershell
+dotnet build
+```
 
-Note that you only need to add it to the Dev Plugin Locations once (Step 1); it is preserved afterwards. You can disable, enable, or load your plugin on startup through the Plugin Installer.
+The debug build outputs to:
 
-### Reconfiguring for your own uses
+```text
+Dalashade/bin/x64/Debug/Dalashade.dll
+```
 
-Replace all references to `SamplePlugin` in all the files and filenames with your desired name, then start building the plugin of your dreams. You'll figure it out 😁
+For dev loading, add that DLL path in Dalamud's dev plugin settings.
 
-Dalamud will load the JSON file (by default, `SamplePlugin/SamplePlugin.json`) next to your DLL and use it for metadata, including the description for your plugin in the Plugin Installer. Make sure to update this with information relevant to _your_ plugin!
+## Current Shape
 
-All participation in this repository is governed by our [Code of Conduct](https://dalamud.dev/code-of-conduct). If you used AI tooling at any point, review the [AI Usage Policy](https://dalamud.dev/plugin-publishing/ai-policy) and disclose your level of AI use. Entirely AI-generated submissions will be rejected, and undisclosed AI use may result in a ban.
+This is the practical MVP:
+
+- context-aware preset generation
+- world and screenshot feedback
+- conservative shader mapping
+- clean generated-preset workflow
+
+Next sensible steps are live weather refresh between zone changes, better content-type classification, and eventually a ReShade add-on bridge so this stops relying on preset reloads.
