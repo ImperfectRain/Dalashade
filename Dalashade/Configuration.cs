@@ -36,12 +36,17 @@ public class Configuration : IPluginConfiguration
     public bool AutoAdjustForWeather { get; set; } = true;
     public bool AutoAdjustForTerritory { get; set; } = true;
     public bool AutoAdjustFromScreenshots { get; set; } = false;
+    public bool MatchMasterPresetStyle { get; set; } = false;
     public bool AutoAdjustInCutscenes { get; set; } = true;
     public bool UsePremiumImmerseEffects { get; set; } = false;
     public bool WriteBackups { get; set; } = true;
     public int MinimumSecondsBetweenWrites { get; set; } = 10;
     public int MinimumSecondsBetweenImageSamples { get; set; } = 10;
+    public int MasterPresetStyleStrength { get; set; } = 55;
+    public int MasterPresetMaxImages { get; set; } = 24;
     public string ScreenshotFolderPath { get; set; } = string.Empty;
+    public string MasterPresetFolderPath { get; set; } = string.Empty;
+    public bool MasterPresetIncludeSubfolders { get; set; } = false;
 
     public void Save()
     {

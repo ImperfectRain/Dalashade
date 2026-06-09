@@ -61,6 +61,8 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Sharpness: {profile.Sharpness:0.###}");
         ImGui.TextUnformatted($"Clarity: {profile.Clarity:0.###}");
         ImGui.TextUnformatted($"Shadow Lift: {profile.ShadowLift:0.###}");
+        ImGui.TextUnformatted($"Temperature: {profile.Temperature:0.###}");
+        ImGui.TextUnformatted($"Tint: {profile.Tint:0.###}");
 
         ImGui.Separator();
 
@@ -71,8 +73,21 @@ public sealed class MainWindow : Window, IDisposable
             ImGui.TextUnformatted($"Image Luma: {image.AverageLuminance:0.###}");
             ImGui.TextUnformatted($"Image Contrast: {image.Contrast:0.###}");
             ImGui.TextUnformatted($"Image Saturation: {image.AverageSaturation:0.###}");
+            ImGui.TextUnformatted($"Image Warmth: {image.Warmth:0.###}");
             ImGui.TextUnformatted($"Shadow Clip: {image.ShadowClipping:P1}");
             ImGui.TextUnformatted($"Highlight Clip: {image.HighlightClipping:P1}");
+        }
+
+        ImGui.Separator();
+
+        var master = plugin.CurrentMasterStyle;
+        ImGui.TextWrapped(plugin.MasterStyleMessage);
+        if (master.Available)
+        {
+            ImGui.TextUnformatted($"Master Luma: {master.AverageLuminance:0.###}");
+            ImGui.TextUnformatted($"Master Contrast: {master.Contrast:0.###}");
+            ImGui.TextUnformatted($"Master Saturation: {master.AverageSaturation:0.###}");
+            ImGui.TextUnformatted($"Master Warmth: {master.Warmth:0.###}");
         }
 
         ImGui.Separator();

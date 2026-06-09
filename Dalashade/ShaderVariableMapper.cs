@@ -12,6 +12,8 @@ public sealed class ShaderVariableMapper
         var contrastDelta = profile.Contrast - 1f;
         var saturationDelta = profile.Saturation - 1f;
         var shadowLiftDelta = profile.ShadowLift;
+        var temperatureDelta = profile.Temperature;
+        var tintDelta = profile.Tint;
 
         var adjustments = new Dictionary<string, Func<string, string?>>(StringComparer.OrdinalIgnoreCase)
         {
@@ -53,6 +55,9 @@ public sealed class ShaderVariableMapper
             adjustments["GRADE_GAMMA"] = value => Add(value, shadowLiftDelta * 0.5f, -5f, 5f);
             adjustments["GRADE_SATURATION"] = value => Add(value, saturationDelta * 0.5f, -5f, 5f);
             adjustments["GRADE_VIBRANCE"] = value => Add(value, saturationDelta * 0.5f, -5f, 5f);
+            adjustments["INPUT_COLOR_TEMPERATURE"] = value => Add(value, temperatureDelta * 1800f, 3000f, 12000f);
+            adjustments["INPUT_COLOR_LAB_A"] = value => Add(value, tintDelta * 0.40f, -1f, 1f);
+            adjustments["INPUT_COLOR_LAB_B"] = value => Add(value, temperatureDelta * 0.40f, -1f, 1f);
             adjustments["TONECURVE_SHADOWS"] = value => Add(value, shadowLiftDelta * 0.25f, -1f, 1f);
             adjustments["TONECURVE_DARKS"] = value => Add(value, shadowLiftDelta * 0.15f, -1f, 1f);
 
@@ -62,6 +67,8 @@ public sealed class ShaderVariableMapper
             adjustments["E_GAMMA"] = value => Add(value, shadowLiftDelta * 0.5f, -5f, 5f);
             adjustments["E_SATURATION"] = value => Add(value, saturationDelta * 0.5f, -5f, 5f);
             adjustments["E_VIBRANCE"] = value => Add(value, saturationDelta * 0.5f, -5f, 5f);
+            adjustments["E_TEMP"] = value => Add(value, temperatureDelta * 0.50f, -1f, 1f);
+            adjustments["E_TINT"] = value => Add(value, tintDelta * 0.50f, -1f, 1f);
 
             // iMMERSE RTGI diffuse/specular. These only apply once those sections exist in a preset.
             adjustments["RT_AO_AMOUNT"] = value => Scale(value, profile.AmbientOcclusion, 0f, 10f);

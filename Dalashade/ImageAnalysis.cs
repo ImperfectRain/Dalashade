@@ -14,9 +14,11 @@ public sealed record ImageAnalysisResult(
     float Contrast,
     float AverageSaturation,
     float ShadowClipping,
-    float HighlightClipping)
+    float HighlightClipping,
+    float Warmth,
+    float GreenBias)
 {
-    public static ImageAnalysisResult Empty { get; } = new(false, string.Empty, DateTimeOffset.MinValue, 0f, 0f, 0f, 0f, 0f);
+    public static ImageAnalysisResult Empty { get; } = new(false, string.Empty, DateTimeOffset.MinValue, 0f, 0f, 0f, 0f, 0f, 0f, 0f);
 
     public string ProfileBucket
     {
@@ -44,7 +46,7 @@ public sealed record ImageAnalysisResult(
 
 public sealed class ImageAnalysisService
 {
-    private static readonly string[] SupportedExtensions = [".png", ".jpg", ".jpeg", ".bmp"];
+    public static readonly string[] SupportedExtensions = [".png", ".jpg", ".jpeg", ".bmp"];
 
     private DateTimeOffset lastSample = DateTimeOffset.MinValue;
     private string lastSourcePath = string.Empty;
@@ -79,7 +81,7 @@ public sealed class ImageAnalysisService
 
         try
         {
-            var latest = FindLatestScreenshot(configuration.ScreenshotFolderPath);
+            var latest = FindLatestImage(configuration.ScreenshotFolderPath);
             if (latest == null)
             {
                 Current = ImageAnalysisResult.Empty;
@@ -104,7 +106,7 @@ public sealed class ImageAnalysisService
         }
     }
 
-    private static FileInfo? FindLatestScreenshot(string folderPath)
+    public static FileInfo? FindLatestImage(string folderPath)
     {
         var directory = new DirectoryInfo(folderPath);
         if (!directory.Exists)
@@ -118,7 +120,7 @@ public sealed class ImageAnalysisService
             .FirstOrDefault();
     }
 
-    private static ImageAnalysisResult Analyze(string imagePath, DateTime sourceWriteTimeUtc)
+    public static ImageAnalysisResult Analyze(string imagePath, DateTime sourceWriteTimeUtc)
     {
         using var stream = File.Open(imagePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var memory = new MemoryStream();
@@ -133,6 +135,8 @@ public sealed class ImageAnalysisService
         double luminanceSum = 0;
         double luminanceSquaredSum = 0;
         double saturationSum = 0;
+        double warmthSum = 0;
+        double greenBiasSum = 0;
         var shadowCount = 0;
         var highlightCount = 0;
 
@@ -152,6 +156,8 @@ public sealed class ImageAnalysisService
                 luminanceSum += luminance;
                 luminanceSquaredSum += luminance * luminance;
                 saturationSum += saturation;
+                warmthSum += r - b;
+                greenBiasSum += g - ((r + b) * 0.5f);
                 count++;
 
                 if (luminance < 0.035f)
@@ -178,6 +184,8 @@ public sealed class ImageAnalysisService
             contrast,
             averageSaturation,
             shadowCount / (float)count,
-            highlightCount / (float)count);
+            highlightCount / (float)count,
+            (float)(warmthSum / count),
+            (float)(greenBiasSum / count));
     }
 }

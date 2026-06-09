@@ -79,6 +79,24 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.SameLine();
         ImGui.TextUnformatted("For screenshot analysis");
 
+        DrawCheckbox("Match master preset style", configuration.MatchMasterPresetStyle, value => configuration.MatchMasterPresetStyle = value);
+        DrawTextInput("Master preset image folder", configuration.MasterPresetFolderPath, value => configuration.MasterPresetFolderPath = value);
+        DrawCheckbox("Include master preset subfolders", configuration.MasterPresetIncludeSubfolders, value => configuration.MasterPresetIncludeSubfolders = value);
+
+        var masterStrength = configuration.MasterPresetStyleStrength;
+        if (ImGui.SliderInt("Master style strength", ref masterStrength, 0, 100))
+        {
+            configuration.MasterPresetStyleStrength = masterStrength;
+            configuration.Save();
+        }
+
+        var masterMaxImages = configuration.MasterPresetMaxImages;
+        if (ImGui.SliderInt("Master style max images", ref masterMaxImages, 1, 100))
+        {
+            configuration.MasterPresetMaxImages = masterMaxImages;
+            configuration.Save();
+        }
+
         DrawCheckbox("Use installed iMMERSE Pro/Ultimate variables", configuration.UsePremiumImmerseEffects, value => configuration.UsePremiumImmerseEffects = value);
         DrawCheckbox("Write generated preset backups", configuration.WriteBackups, value => configuration.WriteBackups = value);
 
