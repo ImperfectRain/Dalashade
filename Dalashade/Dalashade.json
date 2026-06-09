@@ -1,0 +1,12 @@
+{
+  "Author": "ImperfectRain",
+  "Name": "Dalashade",
+  "Punchline": "A ReShade preset that pays attention to where you are.",
+  "Description": "Dalashade generates a separate ReShade preset from your base preset, then nudges known shader values using territory, weather, time, combat, cutscenes, and optional screenshot analysis. Use /dalashade to open it.",
+  "ApplicableVersion": "any",
+  "Tags": [
+    "reshade",
+    "preset",
+    "graphics"
+  ]
+}
