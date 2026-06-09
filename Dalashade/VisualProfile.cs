@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Dalashade;
 
@@ -19,7 +20,20 @@ public sealed record VisualProfile(
 
 public sealed class ProfileEngine
 {
+    public ProfileResult CreateWithRules(GameContext context, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration)
+    {
+        var rules = new List<AppliedRule>();
+        var profile = Create(context, imageAnalysis, masterStyle, configuration, rules);
+
+        return new ProfileResult(profile, rules);
+    }
+
     public VisualProfile Create(GameContext context, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration)
+    {
+        return Create(context, imageAnalysis, masterStyle, configuration, null);
+    }
+
+    private VisualProfile Create(GameContext context, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration, List<AppliedRule>? rules)
     {
         var exposure = 1f;
         var contrast = 1f;
@@ -33,12 +47,14 @@ public sealed class ProfileEngine
         var tint = 0f;
 
         ApplyBasePolish(context, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift);
+        rules?.Add(new AppliedRule("Base polish", "Small default lift so the generated preset feels like an upgrade, not just a safety mode.", "contrast, saturation, clarity, shadow lift"));
 
         if (configuration.AutoAdjustAtNight && context.IsNight)
         {
             exposure += 0.08f;
             shadowLift += 0.10f;
             ao -= 0.15f;
+            rules?.Add(new AppliedRule("Night", "Lift the darks and ease off AO so night stays readable.", "exposure +8%, shadow lift +10%, AO -15%"));
         }
 
         if (configuration.AutoAdjustForWeather && IsSoftWeather(context.WeatherName))
@@ -47,11 +63,13 @@ public sealed class ProfileEngine
             bloom -= 0.10f;
             sharpness -= 0.10f;
             saturation -= 0.05f;
+            rules?.Add(new AppliedRule("Soft weather", $"Weather is {context.WeatherName}, so bloom and sharpening get pulled back.", "contrast +5%, bloom -10%, sharpen -10%, saturation -5%"));
         }
 
         if (configuration.AutoAdjustForTerritory)
         {
             ApplyTerritory(context.WorldCategory, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift);
+            rules?.Add(new AppliedRule("Area type", $"Current area classified as {context.WorldCategory}.", "generic territory adjustment"));
         }
 
         if (configuration.AutoAdjustInCombat && context.InCombat)
@@ -60,6 +78,7 @@ public sealed class ProfileEngine
             bloom -= 0.20f;
             sharpness -= 0.10f;
             clarity -= 0.15f;
+            rules?.Add(new AppliedRule("Combat clarity", "Combat gets readability first; cinematic effects back off.", "AO -30%, bloom -20%, sharpen -10%, clarity -15%"));
         }
 
         if (configuration.AutoAdjustInCutscenes && context.InCutscene)
@@ -67,20 +86,25 @@ public sealed class ProfileEngine
             ao += 0.15f;
             bloom += 0.10f;
             contrast += 0.05f;
+            rules?.Add(new AppliedRule("Cutscene", "Cutscene detected, so Dalashade allows a little more drama.", "AO +15%, bloom +10%, contrast +5%"));
         }
 
         if (configuration.AutoAdjustFromScreenshots && imageAnalysis.Available)
         {
             ApplyImageAnalysis(imageAnalysis, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift);
+            rules?.Add(new AppliedRule("Screenshot feedback", $"Current image reads as {imageAnalysis.ProfileBucket}.", "brightness, clipping, saturation, and contrast correction"));
         }
 
         if (configuration.MatchMasterPresetStyle && masterStyle.Available)
         {
             ApplyMasterStyle(imageAnalysis, masterStyle, configuration, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift, ref temperature, ref tint);
+            rules?.Add(new AppliedRule("Master style", $"Reference look reads as {masterStyle.ProfileBucket}; matching at {configuration.MasterPresetStyleStrength}% strength.", "exposure, contrast, saturation, warmth, tint"));
         }
 
         ApplyStyle(configuration.Style, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness);
+        rules?.Add(new AppliedRule("Style target", $"{configuration.Style} style preference applied.", "style weighting"));
         ApplyPerformanceBudget(configuration.PerformanceBudget, context, ref ao);
+        rules?.Add(new AppliedRule("Performance target", $"{configuration.PerformanceBudget} budget applied where needed.", "performance weighting"));
 
         return new VisualProfile(
             Clamp(exposure, 0.85f, 1.20f),
@@ -269,3 +293,7 @@ public sealed class ProfileEngine
 
     private static float Scale01(float value, float range) => Clamp(value / range, 0f, 1f);
 }
+
+public sealed record ProfileResult(VisualProfile Profile, IReadOnlyList<AppliedRule> Rules);
+
+public sealed record AppliedRule(string Name, string Reason, string Changes);

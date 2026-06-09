@@ -53,13 +53,13 @@ public sealed class MainWindow : Window, IDisposable
 
         ImGui.Separator();
 
-        ImGui.TextUnformatted($"Exposure: {profile.Exposure:0.###}");
-        ImGui.TextUnformatted($"Contrast: {profile.Contrast:0.###}");
-        ImGui.TextUnformatted($"Saturation: {profile.Saturation:0.###}");
-        ImGui.TextUnformatted($"Bloom: {profile.Bloom:0.###}");
-        ImGui.TextUnformatted($"Ambient Occlusion: {profile.AmbientOcclusion:0.###}");
-        ImGui.TextUnformatted($"Sharpness: {profile.Sharpness:0.###}");
-        ImGui.TextUnformatted($"Clarity: {profile.Clarity:0.###}");
+        ImGui.TextUnformatted($"Exposure Multiplier: {profile.Exposure:0.###}x");
+        ImGui.TextUnformatted($"Contrast Multiplier: {profile.Contrast:0.###}x");
+        ImGui.TextUnformatted($"Saturation Multiplier: {profile.Saturation:0.###}x");
+        ImGui.TextUnformatted($"Bloom Multiplier: {profile.Bloom:0.###}x");
+        ImGui.TextUnformatted($"AO Multiplier: {profile.AmbientOcclusion:0.###}x");
+        ImGui.TextUnformatted($"Sharpen Multiplier: {profile.Sharpness:0.###}x");
+        ImGui.TextUnformatted($"Clarity Multiplier: {profile.Clarity:0.###}x");
         ImGui.TextUnformatted($"Shadow Lift: {profile.ShadowLift:0.###}");
         ImGui.TextUnformatted($"Temperature: {profile.Temperature:0.###}");
         ImGui.TextUnformatted($"Tint: {profile.Tint:0.###}");
@@ -88,6 +88,15 @@ public sealed class MainWindow : Window, IDisposable
             ImGui.TextUnformatted($"Master Contrast: {master.Contrast:0.###}");
             ImGui.TextUnformatted($"Master Saturation: {master.AverageSaturation:0.###}");
             ImGui.TextUnformatted($"Master Warmth: {master.Warmth:0.###}");
+        }
+
+        ImGui.Separator();
+
+        ImGui.TextUnformatted("Applied rules");
+        foreach (var rule in plugin.CurrentRules)
+        {
+            ImGui.BulletText($"{rule.Name}: {rule.Changes}");
+            ImGui.TextWrapped(rule.Reason);
         }
 
         ImGui.Separator();

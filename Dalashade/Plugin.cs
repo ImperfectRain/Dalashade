@@ -6,6 +6,7 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using Dalashade.Windows;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Dalashade;
@@ -41,6 +42,7 @@ public sealed class Plugin : IDalamudPlugin
     public string ImageAnalysisMessage => imageAnalysisService.LastMessage;
     public string MasterStyleMessage => masterStyleService.LastMessage;
     public VisualProfile CurrentProfile { get; private set; } = VisualProfile.Neutral;
+    public IReadOnlyList<AppliedRule> CurrentRules { get; private set; } = Array.Empty<AppliedRule>();
     public PresetWriteResult LastWriteResult { get; private set; } = PresetWriteResult.Skipped("No preset has been generated yet.");
     public string DefaultGeneratedPresetPath => Path.Combine(PluginInterface.ConfigDirectory.FullName, "Dalashade_Generated.ini");
     public string DefaultScreenshotFolderPath => Path.Combine(
@@ -98,7 +100,9 @@ public sealed class Plugin : IDalamudPlugin
         contextService.Refresh();
         imageAnalysisService.Refresh(Configuration, true);
         masterStyleService.Refresh(Configuration, true);
-        CurrentProfile = profileEngine.Create(CurrentContext, CurrentImageAnalysis, CurrentMasterStyle, Configuration);
+        var result = profileEngine.CreateWithRules(CurrentContext, CurrentImageAnalysis, CurrentMasterStyle, Configuration);
+        CurrentProfile = result.Profile;
+        CurrentRules = result.Rules;
         LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile);
         lastProfileKey = CreateProfileKey();
         lastWrite = DateTimeOffset.UtcNow;
@@ -115,7 +119,9 @@ public sealed class Plugin : IDalamudPlugin
         contextService.Refresh();
         imageAnalysisService.Refresh(Configuration);
         masterStyleService.Refresh(Configuration);
-        CurrentProfile = profileEngine.Create(CurrentContext, CurrentImageAnalysis, CurrentMasterStyle, Configuration);
+        var result = profileEngine.CreateWithRules(CurrentContext, CurrentImageAnalysis, CurrentMasterStyle, Configuration);
+        CurrentProfile = result.Profile;
+        CurrentRules = result.Rules;
 
         var profileKey = CreateProfileKey();
         if (profileKey == lastProfileKey)
