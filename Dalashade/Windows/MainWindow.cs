@@ -56,9 +56,9 @@ public sealed class MainWindow : Window, IDisposable
             DrawSetupItem("Generated at least once", plugin.LastWriteResult.Success);
             DrawSetupItem("Reload attempted", plugin.LastReloadResult.Success);
 
-            if (ImGui.Button("Scan Shaders###MainScanShaders"))
+            if (ImGui.Button("Scan Preset###MainScanPreset"))
             {
-                plugin.ScanShaderSupport();
+                plugin.ScanPresetCompatibility();
             }
 
             ImGui.SameLine();
@@ -145,6 +145,90 @@ public sealed class MainWindow : Window, IDisposable
         {
             ImGui.BulletText($"{rule.Name}: {rule.Changes}");
             ImGui.TextWrapped(rule.Reason);
+        }
+
+        ImGui.Separator();
+
+        if (ImGui.CollapsingHeader("Preset compatibility"))
+        {
+            var analysis = plugin.LastPresetAnalysis;
+            var report = analysis.Report;
+            ImGui.TextWrapped(analysis.Message);
+            ImGui.TextUnformatted($"Risk: {report.Level}");
+            ImGui.TextUnformatted($"Recommended mode: {PresetAnalyzer.FormatRecommendedMode(report.RecommendedCompatibilityMode)}");
+            ImGui.TextUnformatted($"Active controlled: {report.ActiveSupportedEffects.Count}");
+            ImGui.TextUnformatted($"Active partial: {report.ActivePartiallySupportedEffects.Count}");
+            ImGui.TextUnformatted($"Active unsupported: {report.ActiveUnsupportedEffects.Count}");
+            ImGui.TextUnformatted($"High-risk active: {report.HighRiskActiveEffects.Count}");
+
+            if (ImGui.TreeNode("Active controlled effects"))
+            {
+                foreach (var technique in report.ActiveSupportedEffects)
+                {
+                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatRole(technique.Role)}, fully controlled)");
+                }
+
+                foreach (var technique in report.ActivePartiallySupportedEffects)
+                {
+                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatRole(technique.Role)}, partially controlled)");
+                }
+
+                if (report.ActiveSupportedEffects.Count == 0 && report.ActivePartiallySupportedEffects.Count == 0)
+                {
+                    ImGui.TextUnformatted("No active controlled effects detected yet.");
+                }
+
+                ImGui.TreePop();
+            }
+
+            if (ImGui.TreeNode("Effect authorities"))
+            {
+                foreach (var authority in report.Authorities)
+                {
+                    ImGui.BulletText($"{PresetAnalyzer.FormatRole(authority.Role)}: {authority.PrimaryShader}");
+                    foreach (var secondary in authority.SecondaryShaders)
+                    {
+                        ImGui.TextWrapped($"  secondary: {secondary}");
+                    }
+                }
+
+                ImGui.TreePop();
+            }
+
+            if (ImGui.TreeNode("Active unsupported effects"))
+            {
+                foreach (var technique in report.ActiveUnsupportedEffects)
+                {
+                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatRole(technique.Role)}, {PresetAnalyzer.FormatRisk(technique.Risk)})");
+                }
+
+                ImGui.TreePop();
+            }
+
+            if (ImGui.TreeNode("High-risk effects"))
+            {
+                foreach (var technique in report.HighRiskActiveEffects)
+                {
+                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatRole(technique.Role)}, {PresetAnalyzer.FormatRisk(technique.Risk)})");
+                }
+
+                ImGui.TreePop();
+            }
+
+            if (ImGui.TreeNode("Warnings"))
+            {
+                if (report.Warnings.Count == 0)
+                {
+                    ImGui.TextUnformatted("No preset compatibility warnings yet.");
+                }
+
+                foreach (var warning in report.Warnings)
+                {
+                    ImGui.BulletText(warning);
+                }
+
+                ImGui.TreePop();
+            }
         }
 
         ImGui.Separator();

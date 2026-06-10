@@ -31,6 +31,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly MasterStyleService masterStyleService = new();
     private readonly ProfileEngine profileEngine = new();
     private readonly PresetWriter presetWriter = new();
+    private readonly PresetAnalyzer presetAnalyzer = new();
     private readonly ReShadeController reShadeController = new();
 
     private DateTimeOffset lastWrite = DateTimeOffset.MinValue;
@@ -49,6 +50,7 @@ public sealed class Plugin : IDalamudPlugin
     public PresetWriteResult LastWriteResult { get; private set; } = PresetWriteResult.Skipped("No preset has been generated yet.");
     public ReloadResult LastReloadResult { get; private set; } = ReloadResult.Skipped("Shaders have not been reloaded yet.");
     public ShaderSupportScan LastShaderSupportScan { get; private set; } = ShaderSupportScan.Skipped("Shader support has not been scanned yet.");
+    public PresetAnalysisResult LastPresetAnalysis { get; private set; } = PresetAnalysisResult.Skipped("Preset has not been analyzed yet.");
     public string DefaultGeneratedPresetPath => Path.Combine(PluginInterface.ConfigDirectory.FullName, "Dalashade_Generated.ini");
     public string DefaultScreenshotFolderPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
@@ -108,7 +110,7 @@ public sealed class Plugin : IDalamudPlugin
         var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration);
         CurrentProfile = result.Profile;
         CurrentRules = result.Rules;
-        LastShaderSupportScan = presetWriter.ScanSupportedVariables(Configuration);
+        ScanPresetCompatibility();
         LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile);
         ReloadShadersIfNeeded();
         lastProfileKey = CreateProfileKey();
@@ -118,8 +120,15 @@ public sealed class Plugin : IDalamudPlugin
 
     public ShaderSupportScan ScanShaderSupport()
     {
-        LastShaderSupportScan = presetWriter.ScanSupportedVariables(Configuration);
+        ScanPresetCompatibility();
         return LastShaderSupportScan;
+    }
+
+    public PresetAnalysisResult ScanPresetCompatibility()
+    {
+        LastShaderSupportScan = presetWriter.ScanSupportedVariables(Configuration);
+        LastPresetAnalysis = presetAnalyzer.Analyze(Configuration);
+        return LastPresetAnalysis;
     }
 
     public ReloadResult ReloadShadersNow()
@@ -162,7 +171,7 @@ public sealed class Plugin : IDalamudPlugin
         LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile);
         if (LastWriteResult.Success)
         {
-            LastShaderSupportScan = presetWriter.ScanSupportedVariables(Configuration);
+            ScanPresetCompatibility();
             ReloadShadersIfNeeded();
             lastProfileKey = profileKey;
             lastWrite = DateTimeOffset.UtcNow;

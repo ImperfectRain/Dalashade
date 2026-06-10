@@ -68,7 +68,7 @@ public sealed class PresetWriter
 
             var adjustments = mapper.CreateAdjustments(profile, configuration);
             var lines = File.ReadAllLines(basePresetPath);
-            var activeTechniques = ParseActiveTechniques(lines);
+            var activeTechniques = PresetAnalyzer.ParseActiveTechniqueSections(lines);
             var changes = new List<ChangedShaderVariable>();
             var currentSection = string.Empty;
 
@@ -93,7 +93,7 @@ public sealed class PresetWriter
                     continue;
                 }
 
-                var techniqueActive = IsTechniqueActive(activeTechniques, currentSection);
+                var techniqueActive = PresetAnalyzer.IsTechniqueActive(activeTechniques, currentSection);
                 if (!techniqueActive && configuration.InactiveShaderWriteMode == InactiveShaderWriteMode.Never)
                 {
                     continue;
@@ -177,7 +177,7 @@ public sealed class PresetWriter
 
             var adjustments = mapper.CreateAdjustments(VisualProfile.Neutral, configuration);
             var lines = File.ReadAllLines(basePresetPath);
-            var activeTechniques = ParseActiveTechniques(lines);
+            var activeTechniques = PresetAnalyzer.ParseActiveTechniqueSections(lines);
             var items = new List<ShaderSupportItem>();
             var seen = new HashSet<ShaderVariableKey>(ShaderVariableKeyComparer.Instance);
             var currentSection = string.Empty;
@@ -213,7 +213,7 @@ public sealed class PresetWriter
                     key,
                     true,
                     adjust.ReasonCategory,
-                    IsTechniqueActive(activeTechniques, currentSection)));
+                    PresetAnalyzer.IsTechniqueActive(activeTechniques, currentSection)));
             }
 
             var activeCount = items.Count(item => item.TechniqueActive);
@@ -271,46 +271,6 @@ public sealed class PresetWriter
 
         section = string.Empty;
         return false;
-    }
-
-    private static HashSet<string> ParseActiveTechniques(IEnumerable<string> lines)
-    {
-        var activeTechniques = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var line in lines)
-        {
-            var separatorIndex = line.IndexOf('=');
-            if (separatorIndex <= 0)
-            {
-                continue;
-            }
-
-            var key = line[..separatorIndex].Trim();
-            if (!string.Equals(key, "Techniques", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var value = line[(separatorIndex + 1)..];
-            foreach (var entry in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            {
-                activeTechniques.Add(entry);
-                var shaderSeparator = entry.LastIndexOf('@');
-                if (shaderSeparator >= 0 && shaderSeparator < entry.Length - 1)
-                {
-                    activeTechniques.Add(entry[(shaderSeparator + 1)..]);
-                }
-            }
-
-            break;
-        }
-
-        return activeTechniques;
-    }
-
-    private static bool IsTechniqueActive(IReadOnlySet<string> activeTechniques, string section)
-    {
-        return activeTechniques.Count == 0 || string.IsNullOrWhiteSpace(section) || activeTechniques.Contains(section);
     }
 
     private static void ReplaceFile(string tempPath, string generatedPresetPath)

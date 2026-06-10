@@ -147,13 +147,13 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.Save();
         }
 
-        if (ImGui.Button("Scan Shader Support"))
+        if (ImGui.Button("Scan Preset Compatibility"))
         {
-            plugin.ScanShaderSupport();
+            plugin.ScanPresetCompatibility();
         }
 
         ImGui.SameLine();
-        ImGui.TextWrapped(plugin.LastShaderSupportScan.Message);
+        ImGui.TextWrapped(plugin.LastPresetAnalysis.Message);
 
         var minimumSeconds = configuration.MinimumSecondsBetweenWrites;
         if (ImGui.SliderInt("Minimum seconds between writes", ref minimumSeconds, 1, 120))

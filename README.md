@@ -15,6 +15,7 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 - Optionally analyzes a master image folder, so you can point it at a look you like and let Dalashade bias the generated preset toward it.
 - Shows the actual preset variables it changed, with old and new values, plus whether that shader is active in ReShade.
 - Scans your base preset for shader variables Dalashade can really control.
+- Analyzes the whole active preset stack for compatibility risk, unsupported effects, high-risk effects, and visual authorities.
 - Generates a separate ReShade preset from your chosen base preset.
 - Supports free iMMERSE variables by default.
 - Can also adjust installed iMMERSE Pro/Ultimate variables when you turn that option on.
@@ -111,6 +112,22 @@ The `Inactive shader writes` option controls how much of that preset scaffolding
 Use the `Changed variables` panel after generation to see the exact values it wrote. If a generated value hits a shader's min or max, Dalashade marks it as clamped so you can tell when a rule wanted to go further than the shader variable safely allows.
 
 Backups are capped by `Max generated preset backups` so automatic generation does not fill the config folder forever. The default keeps the latest 10 generated backups.
+
+## Preset Compatibility Report
+
+`Scan Preset Compatibility` looks at the preset as a full visual stack before Dalashade tries to get clever with it.
+
+It reads:
+
+- active techniques from `Techniques=`
+- sorted or available techniques from `TechniqueSorting=`
+- shader sections already present in the preset
+- known controlled variables
+- risky ReGrade+ hue, saturation, and Colorista HSL entries
+
+The report classifies effects by role: color grade, tonemap, bloom, AO/GI, sharpen, anti-aliasing, deband, clarity, LUT, diffusion, DOF, film grain, vignette, UI/utility, or unknown. It also marks support as fully controlled, partially controlled, detected-only, or unsupported, then picks primary/secondary authorities for the main visual roles.
+
+This is reporting only for now. It does not disable techniques, neutralize color grades, sanitize ReGrade+, or change generated preset output. The point of this pass is to make compatibility visible first, so Rain/iMMERSE-style presets stay protected while heavier third-party presets can be understood before future sanitize modes touch them.
 
 ## Scene Lock
 
