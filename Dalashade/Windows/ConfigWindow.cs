@@ -49,6 +49,7 @@ public sealed class ConfigWindow : Window, IDisposable
 
         DrawCheckbox("Reload shaders after generation", configuration.ReloadShadersAfterGeneration, value => configuration.ReloadShadersAfterGeneration = value);
         DrawCheckbox("Sync reload key to ReShade.ini", configuration.SyncReloadHotkeyToReShadeIni, value => configuration.SyncReloadHotkeyToReShadeIni = value);
+        DrawReShadeReloadSettings();
 
         DrawReloadHotkeyPicker();
 
@@ -263,6 +264,33 @@ public sealed class ConfigWindow : Window, IDisposable
 
             ImGui.EndCombo();
         }
+    }
+
+    private void DrawReShadeReloadSettings()
+    {
+        DrawTextInput("ReShade.ini path", configuration.ReShadeIniPath, value => configuration.ReShadeIniPath = value);
+
+        if (ImGui.Button("Browse###BrowseReShadeIni"))
+        {
+            plugin.BrowseReShadeIniPath();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Auto-detect###AutoDetectReShadeIni"))
+        {
+            plugin.AutoDetectReShadeIniPath();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Test Reload###ConfigTestReloadInline"))
+        {
+            plugin.ReloadShadersNow();
+        }
+
+        var diagnostics = plugin.LastReloadResult.Diagnostics;
+        ImGui.TextWrapped($"ReShade.ini: {(diagnostics.ReShadeIniFound ? diagnostics.ReShadeIniPath : "not found")}");
+        ImGui.TextWrapped($"KeyReload: {diagnostics.KeyReloadValue}; configured: {diagnostics.ConfiguredReloadKey}; sync: {(diagnostics.HotkeySyncEnabled ? "on" : "off")}");
+        ImGui.TextWrapped($"PostMessage: {(diagnostics.PostMessageSucceeded ? "ok" : "failed")}; SendInput: {(diagnostics.SendInputSucceeded ? "ok" : "failed")}");
     }
 
     private void DrawTextInput(string label, string currentValue, Action<string> update)

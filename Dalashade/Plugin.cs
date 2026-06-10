@@ -210,8 +210,50 @@ public sealed class Plugin : IDalamudPlugin
 
     public ReloadResult ReloadShadersNow()
     {
-        LastReloadResult = reShadeController.ReloadAfterPresetWrite(Configuration);
+        LastReloadResult = reShadeController.TestReload(Configuration);
         return LastReloadResult;
+    }
+
+    public ReloadResult AutoDetectReShadeIniPath()
+    {
+        var path = reShadeController.AutoDetectReShadeIni(Configuration);
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            LastReloadResult = ReloadResult.Skipped("ReShade.ini auto-detect did not find a file.", Configuration);
+            return LastReloadResult;
+        }
+
+        Configuration.ReShadeIniPath = path;
+        Configuration.Save();
+        LastReloadResult = new ReloadResult(true, $"ReShade.ini auto-detected: {path}", new ReloadDiagnostics(true, path, "not read", Keybind.FromConfiguration(Configuration).DisplayName, Configuration.SyncReloadHotkeyToReShadeIni, false, false));
+        return LastReloadResult;
+    }
+
+    public void BrowseReShadeIniPath()
+    {
+        try
+        {
+            var path = Configuration.ReShadeIniPath;
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                path = reShadeController.AutoDetectReShadeIni(Configuration);
+            }
+
+            var browseTarget = !string.IsNullOrWhiteSpace(path) && File.Exists(path)
+                ? $"/select,\"{path}\""
+                : PluginInterface.ConfigDirectory.FullName;
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = browseTarget,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            Log.Warning(ex, "Could not browse to ReShade.ini.");
+        }
     }
 
     private void OnFrameworkUpdate(IFramework framework)
@@ -281,6 +323,7 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.SelectedBasePresetFileName,
             Configuration.UseBasePresetFolder,
             Configuration.GeneratedPresetPath,
+            Configuration.ReShadeIniPath,
             Configuration.UsePremiumImmerseEffects,
             Configuration.CompatibilityMode,
             Configuration.ShaderMatchingMode,
@@ -345,7 +388,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         if (!LastWriteResult.Success)
         {
-            LastReloadResult = ReloadResult.Skipped("Preset was not written, so shaders were not reloaded.");
+            LastReloadResult = ReloadResult.Skipped("Preset was not written, so shaders were not reloaded.", Configuration);
             return;
         }
 

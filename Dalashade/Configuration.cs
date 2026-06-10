@@ -68,6 +68,7 @@ public class Configuration : IPluginConfiguration
     public string SelectedBasePresetFileName { get; set; } = string.Empty;
     public bool UseBasePresetFolder { get; set; } = true;
     public string GeneratedPresetPath { get; set; } = string.Empty;
+    public string ReShadeIniPath { get; set; } = string.Empty;
     public bool ReloadShadersAfterGeneration { get; set; } = true;
     public bool SyncReloadHotkeyToReShadeIni { get; set; } = true;
     public int ReloadHotkeyVirtualKey { get; set; } = 116;

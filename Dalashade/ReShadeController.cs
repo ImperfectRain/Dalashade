@@ -7,28 +7,67 @@ using System.Threading;
 
 namespace Dalashade;
 
-public sealed record ReloadResult(bool Success, string Message)
+public sealed record ReloadDiagnostics(
+    bool ReShadeIniFound,
+    string ReShadeIniPath,
+    string KeyReloadValue,
+    string ConfiguredReloadKey,
+    bool HotkeySyncEnabled,
+    bool PostMessageSucceeded,
+    bool SendInputSucceeded)
 {
-    public static ReloadResult Skipped(string message) => new(false, message);
+    public static ReloadDiagnostics Empty(Configuration configuration) => new(
+        false,
+        string.Empty,
+        "not found",
+        Keybind.FromConfiguration(configuration).DisplayName,
+        configuration.SyncReloadHotkeyToReShadeIni,
+        false,
+        false);
+}
+
+public sealed record ReloadResult(bool Success, string Message, ReloadDiagnostics Diagnostics)
+{
+    public static ReloadResult Skipped(string message) => new(false, message, new ReloadDiagnostics(false, string.Empty, "not found", "not configured", false, false, false));
+    public static ReloadResult Skipped(string message, Configuration configuration) => new(false, message, ReloadDiagnostics.Empty(configuration));
 }
 
 public sealed class ReShadeController
 {
     public ReloadResult ReloadAfterPresetWrite(Configuration configuration)
     {
+        return Reload(configuration, true);
+    }
+
+    public ReloadResult TestReload(Configuration configuration)
+    {
+        return Reload(configuration, false);
+    }
+
+    public string? AutoDetectReShadeIni(Configuration configuration)
+    {
+        return TryFindReShadeIni(configuration, false);
+    }
+
+    private ReloadResult Reload(Configuration configuration, bool respectReloadEnabled)
+    {
         if (!configuration.ReloadShadersAfterGeneration)
         {
-            return ReloadResult.Skipped("Shader reload is disabled.");
+            if (respectReloadEnabled)
+            {
+                return ReloadResult.Skipped("Shader reload is disabled.", configuration);
+            }
         }
 
         var keybind = Keybind.FromConfiguration(configuration);
         if (!keybind.IsConfigured)
         {
-            return ReloadResult.Skipped("Reload hotkey is not configured.");
+            return ReloadResult.Skipped("Reload hotkey is not configured.", configuration);
         }
 
         var reshadeIniPath = TryFindReShadeIni(configuration);
         var liveIniKeybind = reshadeIniPath != null ? TryReadReloadHotkey(reshadeIniPath) : null;
+        var liveIniValue = reshadeIniPath != null ? TryReadReloadHotkeyValue(reshadeIniPath) ?? "not found" : "not found";
         var syncMessage = configuration.SyncReloadHotkeyToReShadeIni
             ? "ReShade.ini was not found for hotkey sync."
             : "ReShade.ini hotkey sync is off.";
@@ -42,25 +81,46 @@ public sealed class ReShadeController
             }
 
             syncMessage = $"Synced ReShade.ini to {keybind.DisplayName}.";
+            liveIniKeybind = keybind;
+            liveIniValue = keybind.ReShadeValue;
         }
 
         Thread.Sleep(250);
         var attempts = BuildReloadAttempts(liveIniKeybind, keybind);
-        var sent = false;
+        var posted = false;
+        var injected = false;
         foreach (var attempt in attempts)
         {
-            sent |= SendKey(attempt);
+            var sendResult = SendKey(attempt);
+            posted |= sendResult.PostMessageSucceeded;
+            injected |= sendResult.SendInputSucceeded;
             Thread.Sleep(120);
         }
 
+        var diagnostics = new ReloadDiagnostics(
+            reshadeIniPath != null,
+            reshadeIniPath ?? string.Empty,
+            liveIniValue,
+            keybind.DisplayName,
+            configuration.SyncReloadHotkeyToReShadeIni,
+            posted,
+            injected);
         var sentKeys = string.Join(", ", attempts.ConvertAll(attempt => attempt.DisplayName));
-        return sent
-            ? new ReloadResult(true, $"Reload hotkey sent ({sentKeys}). {syncMessage}")
-            : ReloadResult.Skipped($"Could not send reload hotkey ({sentKeys}). {syncMessage}");
+        var diagnosticMessage = FormatDiagnostics(diagnostics);
+        return posted || injected
+            ? new ReloadResult(true, $"Reload hotkey sent ({sentKeys}). {syncMessage} {diagnosticMessage}", diagnostics)
+            : new ReloadResult(false, $"Could not send reload hotkey ({sentKeys}). {syncMessage} {diagnosticMessage}", diagnostics);
     }
 
-    private static string? TryFindReShadeIni(Configuration configuration)
+    private static string? TryFindReShadeIni(Configuration configuration, bool includeConfiguredPath = true)
     {
+        if (includeConfiguredPath
+            && !string.IsNullOrWhiteSpace(configuration.ReShadeIniPath)
+            && File.Exists(configuration.ReShadeIniPath))
+        {
+            return Path.GetFullPath(configuration.ReShadeIniPath);
+        }
+
         var candidates = new[]
         {
             configuration.BasePresetPath,
@@ -90,6 +150,30 @@ public sealed class ReShadeController
 
                 directory = Directory.GetParent(directory)?.FullName;
             }
+        }
+
+        return null;
+    }
+
+    private static string? TryReadReloadHotkeyValue(string reshadeIniPath)
+    {
+        try
+        {
+            foreach (var line in File.ReadLines(reshadeIniPath))
+            {
+                if (line.StartsWith("KeyReload=", StringComparison.OrdinalIgnoreCase))
+                {
+                    return line["KeyReload=".Length..].Trim();
+                }
+            }
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
         }
 
         return null;
@@ -167,25 +251,25 @@ public sealed class ReShadeController
                 File.AppendAllText(reshadeIniPath, $"{Environment.NewLine}{expected}{Environment.NewLine}");
             }
 
-            return new ReloadResult(true, $"ReShade reload hotkey synced to {keybind.DisplayName}.");
+            return new ReloadResult(true, $"ReShade reload hotkey synced to {keybind.DisplayName}.", new ReloadDiagnostics(true, reshadeIniPath, keybind.ReShadeValue, keybind.DisplayName, true, false, false));
         }
         catch (UnauthorizedAccessException ex)
         {
-            return ReloadResult.Skipped($"Could not update ReShade.ini for reload: {ex.Message}");
+            return new ReloadResult(false, $"Could not update ReShade.ini for reload: {ex.Message}", new ReloadDiagnostics(true, reshadeIniPath, "not found", keybind.DisplayName, true, false, false));
         }
         catch (IOException ex)
         {
-            return ReloadResult.Skipped($"Could not update ReShade.ini for reload: {ex.Message}");
+            return new ReloadResult(false, $"Could not update ReShade.ini for reload: {ex.Message}", new ReloadDiagnostics(true, reshadeIniPath, "not found", keybind.DisplayName, true, false, false));
         }
     }
 
-    private static bool SendKey(Keybind keybind)
+    private static ReloadSendResult SendKey(Keybind keybind)
     {
         var posted = PostWindowKey(keybind);
         Thread.Sleep(40);
         var injected = SendInputKey(keybind);
 
-        return posted || injected;
+        return new ReloadSendResult(posted, injected);
     }
 
     private static bool SendInputKey(Keybind keybind)
@@ -326,6 +410,14 @@ public sealed class ReShadeController
                left.Shift == right.Shift &&
                left.Alt == right.Alt;
     }
+
+    private static string FormatDiagnostics(ReloadDiagnostics diagnostics)
+    {
+        var path = diagnostics.ReShadeIniFound ? diagnostics.ReShadeIniPath : "not found";
+        return $"Diagnostics: ReShade.ini={path}; KeyReload={diagnostics.KeyReloadValue}; configured={diagnostics.ConfiguredReloadKey}; sync={(diagnostics.HotkeySyncEnabled ? "on" : "off")}; PostMessage={(diagnostics.PostMessageSucceeded ? "ok" : "failed")}; SendInput={(diagnostics.SendInputSucceeded ? "ok" : "failed")}.";
+    }
+
+    private sealed record ReloadSendResult(bool PostMessageSucceeded, bool SendInputSucceeded);
 
     private const uint InputKeyboard = 1;
     private const uint MapVkToVsc = 0;
