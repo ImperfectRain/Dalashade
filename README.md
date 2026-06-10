@@ -101,6 +101,8 @@ The writer is section-aware and defaults to strict section matching, so it edits
 
 The mapper also treats shader values differently depending on what the INI value represents. Strength/amount/radius values are multiplied. Zero-centered grading offsets like exposure, contrast, saturation, gamma, tone curve, tint, and temperature are added to. Thresholds and black/white point controls get small relative offsets instead of raw scaling, because scaling a value like `INPUT_BLACK_LVL=0` or a delicate threshold can either do nothing or jump too hard.
 
+The mapper has scalar and vector value plumbing now. Existing mappings are still scalar, so Rain/iMMERSE behavior should stay the same, but future compatibility work can safely handle two-, three-, and four-component shader values instead of pretending everything is a single float. Vector Colorista-style cleanup is not turned on yet.
+
 Use `Scan Shader Support` to see what Dalashade found in your base preset. Dalashade reads the top-level `Techniques=` list and marks supported variables as active or inactive. That matters because a preset can contain a `[MartysMods_MXAO.fx]` section while MXAO itself is not currently enabled, so the value is real but will not be visible yet.
 
 The `Inactive shader writes` option controls how much of that preset scaffolding Dalashade edits:

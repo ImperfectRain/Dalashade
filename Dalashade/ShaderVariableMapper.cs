@@ -10,10 +10,50 @@ public enum ShaderValueMode
     Scale,
     Add,
     InvertAdd,
-    RelativeAdd
+    RelativeAdd,
+    ScaleAll,
+    AddAll,
+    ScaleComponent,
+    AddComponent,
+    MoveTowardNeutral
+}
+
+public enum ShaderValueShape
+{
+    Scalar,
+    Vector2,
+    Vector3,
+    Vector4
 }
 
 public readonly record struct ShaderVariableKey(string? Section, string Key);
+
+public readonly record struct ShaderValue(float X, float Y = 0f, float Z = 0f, float W = 0f)
+{
+    public float ComponentAt(int index)
+    {
+        return index switch
+        {
+            0 => X,
+            1 => Y,
+            2 => Z,
+            3 => W,
+            _ => X
+        };
+    }
+
+    public ShaderValue WithComponent(int index, float value)
+    {
+        return index switch
+        {
+            0 => this with { X = value },
+            1 => this with { Y = value },
+            2 => this with { Z = value },
+            3 => this with { W = value },
+            _ => this
+        };
+    }
+}
 
 public sealed record ShaderAdjustment(Func<string, ShaderAdjustmentResult?> Apply, string ReasonCategory);
 
@@ -22,11 +62,12 @@ public sealed record ShaderAdjustmentResult(string NewValue, bool HitMin, bool H
 public sealed record ShaderVariableDefinition(
     string? Section,
     string Key,
+    ShaderValueShape Shape,
     ShaderValueMode Mode,
     string ReasonCategory,
     float Min,
     float Max,
-    Func<VisualProfile, float> Amount,
+    Func<VisualProfile, ShaderValue> Amount,
     bool AllowFallback = false);
 
 public sealed class ShaderVariableKeyComparer : IEqualityComparer<ShaderVariableKey>
@@ -188,22 +229,52 @@ public sealed class ShaderVariableMapper
 
     private static void AddScale(List<ShaderVariableDefinition> definitions, string? section, string key, string reason, float min, float max, Func<VisualProfile, float> amount, bool allowFallback = false)
     {
-        definitions.Add(new ShaderVariableDefinition(section, key, ShaderValueMode.Scale, reason, min, max, amount, allowFallback));
+        AddScalar(definitions, section, key, ShaderValueMode.Scale, reason, min, max, amount, allowFallback);
     }
 
     private static void AddAdd(List<ShaderVariableDefinition> definitions, string? section, string key, string reason, float min, float max, Func<VisualProfile, float> amount, bool allowFallback = false)
     {
-        definitions.Add(new ShaderVariableDefinition(section, key, ShaderValueMode.Add, reason, min, max, amount, allowFallback));
+        AddScalar(definitions, section, key, ShaderValueMode.Add, reason, min, max, amount, allowFallback);
     }
 
     private static void AddInvert(List<ShaderVariableDefinition> definitions, string? section, string key, string reason, float min, float max, Func<VisualProfile, float> amount, bool allowFallback = false)
     {
-        definitions.Add(new ShaderVariableDefinition(section, key, ShaderValueMode.InvertAdd, reason, min, max, amount, allowFallback));
+        AddScalar(definitions, section, key, ShaderValueMode.InvertAdd, reason, min, max, amount, allowFallback);
     }
 
     private static void AddRelative(List<ShaderVariableDefinition> definitions, string? section, string key, string reason, float min, float max, Func<VisualProfile, float> amount, bool allowFallback = false)
     {
-        definitions.Add(new ShaderVariableDefinition(section, key, ShaderValueMode.RelativeAdd, reason, min, max, amount, allowFallback));
+        AddScalar(definitions, section, key, ShaderValueMode.RelativeAdd, reason, min, max, amount, allowFallback);
+    }
+
+    private static void AddVectorScaleAll(List<ShaderVariableDefinition> definitions, string? section, string key, ShaderValueShape shape, string reason, float min, float max, Func<VisualProfile, float> amount, bool allowFallback = false)
+    {
+        AddVector(definitions, section, key, shape, ShaderValueMode.ScaleAll, reason, min, max, profile => new ShaderValue(amount(profile)), allowFallback);
+    }
+
+    private static void AddVectorAddAll(List<ShaderVariableDefinition> definitions, string? section, string key, ShaderValueShape shape, string reason, float min, float max, Func<VisualProfile, float> amount, bool allowFallback = false)
+    {
+        AddVector(definitions, section, key, shape, ShaderValueMode.AddAll, reason, min, max, profile => new ShaderValue(amount(profile)), allowFallback);
+    }
+
+    private static void AddVectorMoveTowardNeutral(List<ShaderVariableDefinition> definitions, string? section, string key, ShaderValueShape shape, string reason, float min, float max, Func<VisualProfile, float> amount, bool allowFallback = false)
+    {
+        AddVector(definitions, section, key, shape, ShaderValueMode.MoveTowardNeutral, reason, min, max, profile => new ShaderValue(amount(profile)), allowFallback);
+    }
+
+    private static void AddScalar(List<ShaderVariableDefinition> definitions, string? section, string key, ShaderValueMode mode, string reason, float min, float max, Func<VisualProfile, float> amount, bool allowFallback)
+    {
+        definitions.Add(new ShaderVariableDefinition(section, key, ShaderValueShape.Scalar, mode, reason, min, max, profile => new ShaderValue(amount(profile)), allowFallback));
+    }
+
+    private static void AddVector(List<ShaderVariableDefinition> definitions, string? section, string key, ShaderValueShape shape, ShaderValueMode mode, string reason, float min, float max, Func<VisualProfile, ShaderValue> amount, bool allowFallback = false)
+    {
+        if (shape == ShaderValueShape.Scalar)
+        {
+            throw new ArgumentException("Vector definitions must use a vector shape.", nameof(shape));
+        }
+
+        definitions.Add(new ShaderVariableDefinition(section, key, shape, mode, reason, min, max, amount, allowFallback));
     }
 
     private static void Add(Dictionary<ShaderVariableKey, ShaderAdjustment> adjustments, ShaderVariableDefinition definition, VisualProfile profile, string? section)
@@ -213,17 +284,30 @@ public sealed class ShaderVariableMapper
 
     private static ShaderAdjustmentResult? Apply(string rawValue, ShaderVariableDefinition definition, VisualProfile profile)
     {
-        if (!TryParseSingle(rawValue, out var current))
+        if (definition.Shape == ShaderValueShape.Scalar)
+        {
+            if (!TryParseSingle(rawValue, out var current))
+            {
+                return null;
+            }
+
+            var result = ApplyScalarMode(current, definition.Amount(profile).X, definition.Mode, definition.Min, definition.Max);
+            var warning = CreateSafetyWarning(definition, result.UnclampedValue);
+            return new ShaderAdjustmentResult(Format(result.Value), result.HitMin, result.HitMax, warning);
+        }
+
+        var componentCount = GetComponentCount(definition.Shape);
+        if (!TryParseVector(rawValue, componentCount, out var currentVector))
         {
             return null;
         }
 
-        var result = ApplyMode(current, definition.Amount(profile), definition.Mode, definition.Min, definition.Max);
-        var warning = CreateSafetyWarning(definition, result.UnclampedValue);
-        return new ShaderAdjustmentResult(Format(result.Value), result.HitMin, result.HitMax, warning);
+        var vectorResult = ApplyVectorMode(currentVector, definition.Amount(profile), definition.Mode, definition.Min, definition.Max, componentCount);
+        var vectorWarning = CreateSafetyWarning(definition, vectorResult.UnclampedValue, componentCount);
+        return new ShaderAdjustmentResult(FormatVector(vectorResult.Value, componentCount), vectorResult.HitMin, vectorResult.HitMax, vectorWarning);
     }
 
-    private static (float Value, float UnclampedValue, bool HitMin, bool HitMax) ApplyMode(float current, float amount, ShaderValueMode mode, float min, float max)
+    private static (float Value, float UnclampedValue, bool HitMin, bool HitMax) ApplyScalarMode(float current, float amount, ShaderValueMode mode, float min, float max)
     {
         var value = mode switch
         {
@@ -238,6 +322,59 @@ public sealed class ShaderVariableMapper
         var hitMin = value < min;
         var hitMax = value > max;
         return (clamped, value, hitMin, hitMax);
+    }
+
+    private static (ShaderValue Value, ShaderValue UnclampedValue, bool HitMin, bool HitMax) ApplyVectorMode(ShaderValue current, ShaderValue amount, ShaderValueMode mode, float min, float max, int componentCount)
+    {
+        var value = new ShaderValue();
+        var unclamped = new ShaderValue();
+        var hitMin = false;
+        var hitMax = false;
+
+        for (var i = 0; i < componentCount; i++)
+        {
+            var currentComponent = current.ComponentAt(i);
+            var amountComponent = amount.ComponentAt(i);
+            var next = mode switch
+            {
+                ShaderValueMode.Scale => currentComponent * amountComponent,
+                ShaderValueMode.Add => currentComponent + amountComponent,
+                ShaderValueMode.InvertAdd => currentComponent - amountComponent,
+                ShaderValueMode.RelativeAdd => currentComponent + amountComponent,
+                ShaderValueMode.ScaleAll => currentComponent * amount.X,
+                ShaderValueMode.AddAll => currentComponent + amount.X,
+                ShaderValueMode.ScaleComponent => currentComponent * amountComponent,
+                ShaderValueMode.AddComponent => currentComponent + amountComponent,
+                ShaderValueMode.MoveTowardNeutral => currentComponent + ((0f - currentComponent) * amount.X),
+                _ => currentComponent
+            };
+
+            unclamped = unclamped.WithComponent(i, next);
+            value = value.WithComponent(i, Clamp(next, min, max));
+            hitMin |= next < min;
+            hitMax |= next > max;
+        }
+
+        return (value, unclamped, hitMin, hitMax);
+    }
+
+    private static string? CreateSafetyWarning(ShaderVariableDefinition definition, ShaderValue value, int componentCount)
+    {
+        if (!IsTemperatureLikeKey(definition.Key))
+        {
+            return null;
+        }
+
+        for (var i = 0; i < componentCount; i++)
+        {
+            var component = value.ComponentAt(i);
+            if (component is < 1000f or > 20000f)
+            {
+                return $"{definition.Section ?? "Any section"} / {definition.Key} wanted to write {Format(component)}, which is outside the temperature safety range.";
+            }
+        }
+
+        return null;
     }
 
     private static string? CreateSafetyWarning(ShaderVariableDefinition definition, float value)
@@ -264,7 +401,57 @@ public sealed class ShaderVariableMapper
         return float.TryParse(rawValue.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
     }
 
+    private static bool TryParseVector(string rawValue, int componentCount, out ShaderValue value)
+    {
+        value = default;
+        var trimmed = rawValue.Trim();
+        if (trimmed.Length >= 2 && trimmed[0] == '(' && trimmed[^1] == ')')
+        {
+            trimmed = trimmed[1..^1];
+        }
+
+        var parts = trimmed.Split(',');
+        if (parts.Length != componentCount)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (!TryParseSingle(parts[i], out var component))
+            {
+                return false;
+            }
+
+            value = value.WithComponent(i, component);
+        }
+
+        return true;
+    }
+
+    private static int GetComponentCount(ShaderValueShape shape)
+    {
+        return shape switch
+        {
+            ShaderValueShape.Vector2 => 2,
+            ShaderValueShape.Vector3 => 3,
+            ShaderValueShape.Vector4 => 4,
+            _ => 1
+        };
+    }
+
     private static float Clamp(float value, float min, float max) => MathF.Min(max, MathF.Max(min, value));
 
     private static string Format(float value) => value.ToString("0.######", CultureInfo.InvariantCulture);
+
+    private static string FormatVector(ShaderValue value, int componentCount)
+    {
+        var components = new string[componentCount];
+        for (var i = 0; i < componentCount; i++)
+        {
+            components[i] = Format(value.ComponentAt(i));
+        }
+
+        return string.Join(",", components);
+    }
 }
