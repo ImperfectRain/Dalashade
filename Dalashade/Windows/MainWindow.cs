@@ -12,8 +12,11 @@ public sealed class MainWindow : Window, IDisposable
 {
     private static readonly Vector4 WarningColor = new(1.0f, 0.72f, 0.28f, 1.0f);
     private static readonly Vector4 DangerColor = new(1.0f, 0.38f, 0.34f, 1.0f);
+    private const float MeaningfulColorFamilyAdjustmentScore = 0.0005f;
+    private const float LowColorFamilyConfidence = 0.10f;
 
     private readonly Plugin plugin;
+    private bool showAllMasterColorFamilies;
 
     public MainWindow(Plugin plugin)
         : base("Dalashade###DalashadeMain")
@@ -602,8 +605,30 @@ public sealed class MainWindow : Window, IDisposable
         }
     }
 
-    private static void DrawColorFamilyComparison(ImageAnalysisResult current, ImageAnalysisResult master, VisualProfile profile)
+    private void DrawColorFamilyComparison(ImageAnalysisResult current, ImageAnalysisResult master, VisualProfile profile)
     {
+        ImGui.Checkbox("Show all color families###MainShowAllMasterColorFamilies", ref showAllMasterColorFamilies);
+
+        var rows = Enum.GetValues<ColorFamily>()
+            .Select(family =>
+            {
+                var currentStats = current.ColorFamilies.TryGetValue(family, out var currentValue) ? currentValue : ColorFamilyStats.Empty(family);
+                var masterStats = master.ColorFamilies.TryGetValue(family, out var masterValue) ? masterValue : ColorFamilyStats.Empty(family);
+                var adjustment = profile.GetColorFamilyAdjustment(family);
+                return new ColorFamilyComparisonRow(family, currentStats, masterStats, adjustment);
+            })
+            .OrderByDescending(row => row.Adjustment.Score)
+            .ThenByDescending(row => MathF.Max(row.Current.Confidence, row.Master.Confidence))
+            .ThenBy(row => row.Family)
+            .Where(row => showAllMasterColorFamilies || row.Adjustment.Score > MeaningfulColorFamilyAdjustmentScore || MathF.Max(row.Current.Confidence, row.Master.Confidence) >= LowColorFamilyConfidence)
+            .ToArray();
+
+        if (rows.Length == 0)
+        {
+            ImGui.TextUnformatted("No confident color-family matches or generated adjustments.");
+            return;
+        }
+
         if (!ImGui.BeginTable("MasterColorFamilyComparisonTable", 4))
         {
             return;
@@ -615,23 +640,21 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TableSetupColumn("Generated H/S/L");
         ImGui.TableHeadersRow();
 
-        foreach (var family in Enum.GetValues<ColorFamily>())
+        foreach (var row in rows)
         {
-            var currentStats = current.ColorFamilies.TryGetValue(family, out var currentValue) ? currentValue : ColorFamilyStats.Empty(family);
-            var masterStats = master.ColorFamilies.TryGetValue(family, out var masterValue) ? masterValue : ColorFamilyStats.Empty(family);
-            var adjustment = profile.GetColorFamilyAdjustment(family);
-
             ImGui.TableNextRow();
             ImGui.TableNextColumn();
-            ImGui.TextUnformatted(family.ToString());
+            ImGui.TextUnformatted(row.Family.ToString());
             ImGui.TableNextColumn();
-            ImGui.TextUnformatted($"{currentStats.Hue:0.###} / {currentStats.Saturation:0.###} / {currentStats.Luminance:0.###} / {currentStats.Confidence:0.##}");
+            ImGui.TextUnformatted($"{row.Current.Hue:0.###} / {row.Current.Saturation:0.###} / {row.Current.Luminance:0.###} / {row.Current.Confidence:0.##}");
             ImGui.TableNextColumn();
-            ImGui.TextUnformatted($"{masterStats.Hue:0.###} / {masterStats.Saturation:0.###} / {masterStats.Luminance:0.###} / {masterStats.Confidence:0.##}");
+            ImGui.TextUnformatted($"{row.Master.Hue:0.###} / {row.Master.Saturation:0.###} / {row.Master.Luminance:0.###} / {row.Master.Confidence:0.##}");
             ImGui.TableNextColumn();
-            ImGui.TextUnformatted($"{adjustment.Hue:+0.000;-0.000;0.000} / {adjustment.Saturation:+0.000;-0.000;0.000} / {adjustment.Luminance:+0.000;-0.000;0.000}");
+            ImGui.TextUnformatted($"{row.Adjustment.Hue:+0.000;-0.000;0.000} / {row.Adjustment.Saturation:+0.000;-0.000;0.000} / {row.Adjustment.Luminance:+0.000;-0.000;0.000}");
         }
 
         ImGui.EndTable();
     }
+
+    private sealed record ColorFamilyComparisonRow(ColorFamily Family, ColorFamilyStats Current, ColorFamilyStats Master, ColorFamilyAdjustment Adjustment);
 }

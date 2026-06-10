@@ -111,16 +111,27 @@ public sealed class CompatibilityReportExporter
 
         builder.AppendLine("| Family | Current H/S/L/C | Master H/S/L/C | Generated H/S/L |");
         builder.AppendLine("| --- | --- | --- | --- |");
-        foreach (var family in Enum.GetValues<ColorFamily>())
+        var rows = Enum.GetValues<ColorFamily>()
+            .Select(family =>
+            {
+                var currentStats = currentImage.ColorFamilies.TryGetValue(family, out var currentValue) ? currentValue : ColorFamilyStats.Empty(family);
+                var masterStats = masterStyle.ColorFamilies.TryGetValue(family, out var masterValue) ? masterValue : ColorFamilyStats.Empty(family);
+                var adjustment = profile.GetColorFamilyAdjustment(family);
+                return new ColorFamilyComparisonRow(family, currentStats, masterStats, adjustment);
+            })
+            .OrderByDescending(row => row.Adjustment.Score)
+            .ThenByDescending(row => MathF.Max(row.Current.Confidence, row.Master.Confidence))
+            .ThenBy(row => row.Family);
+
+        foreach (var row in rows)
         {
-            var currentStats = currentImage.ColorFamilies.TryGetValue(family, out var currentValue) ? currentValue : ColorFamilyStats.Empty(family);
-            var masterStats = masterStyle.ColorFamilies.TryGetValue(family, out var masterValue) ? masterValue : ColorFamilyStats.Empty(family);
-            var adjustment = profile.GetColorFamilyAdjustment(family);
-            builder.AppendLine($"| {family} | {currentStats.Hue:0.###} / {currentStats.Saturation:0.###} / {currentStats.Luminance:0.###} / {currentStats.Confidence:0.##} | {masterStats.Hue:0.###} / {masterStats.Saturation:0.###} / {masterStats.Luminance:0.###} / {masterStats.Confidence:0.##} | {adjustment.Hue:+0.000;-0.000;0.000} / {adjustment.Saturation:+0.000;-0.000;0.000} / {adjustment.Luminance:+0.000;-0.000;0.000} |");
+            builder.AppendLine($"| {row.Family} | {row.Current.Hue:0.###} / {row.Current.Saturation:0.###} / {row.Current.Luminance:0.###} / {row.Current.Confidence:0.##} | {row.Master.Hue:0.###} / {row.Master.Saturation:0.###} / {row.Master.Luminance:0.###} / {row.Master.Confidence:0.##} | {row.Adjustment.Hue:+0.000;-0.000;0.000} / {row.Adjustment.Saturation:+0.000;-0.000;0.000} / {row.Adjustment.Luminance:+0.000;-0.000;0.000} |");
         }
 
         builder.AppendLine();
     }
+
+    private sealed record ColorFamilyComparisonRow(ColorFamily Family, ColorFamilyStats Current, ColorFamilyStats Master, ColorFamilyAdjustment Adjustment);
 
     private static void AppendColorFamilyAdjustments(StringBuilder builder, VisualProfile profile)
     {
