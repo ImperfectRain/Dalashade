@@ -129,11 +129,11 @@ The report classifies effects by role: color grade, tonemap, bloom, AO/GI, sharp
 
 Detected-only effects are important: Dalashade recognizes what they probably do, but does not control their variables yet. They can still dominate the image, so the UI separates them from fully controlled, partially controlled, and unknown effects.
 
-The compatibility mode selector is a policy foundation for future passes. Right now it is stored, shown, and exported, but it does not change generated preset output. `Preserve base`, `Adaptive balanced`, `Gameplay sanitize`, `Cinematic preserve`, and `GPose preserve` will matter more once sanitize actions are added.
+The compatibility mode selector now controls the first small slice of ReGrade+ color safety. It scales ReGrade+ scalar tonal hue/saturation values toward neutral: `E_SHADOWS_HUE`, `E_SHADOWS_SAT`, `E_MIDTONES_HUE`, `E_MIDTONES_SAT`, `E_HIGHLIGHTS_HUE`, and `E_HIGHLIGHTS_SAT`. `Preserve base` and `GPose preserve` keep those values intact, `Cinematic preserve` keeps most of them, `Adaptive balanced` softens them, and `Gameplay sanitize` pulls them down hard.
 
 `Export Compatibility Report` writes a Markdown report into the plugin config folder with active techniques, authorities, warnings, shader support, changed variables, inactive edits, and clamp hits. This should make preset debugging much less hand-wavy.
 
-This is still reporting only for now. It does not disable techniques, neutralize color grades, sanitize ReGrade+, or change generated preset output. The point of this pass is to make compatibility visible first, so Rain/iMMERSE-style presets stay protected while heavier third-party presets can be understood before future sanitize modes touch them.
+This still does not disable techniques or touch ReGrade+ Colorista vector values. The current sanitize behavior is limited to those six single-float ReGrade+ tonal color controls, so Rain/iMMERSE-style presets stay protected while heavier third-party presets can start becoming safer in balanced/gameplay modes.
 
 ## Scene Lock
 

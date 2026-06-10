@@ -27,6 +27,7 @@ public sealed record VisualProfile(
     float DebandStrength,
     float AntiAliasingStrength,
     float LutStrength,
+    float ColorGradePreservation,
     float ShadowLift,
     float Temperature,
     float Tint)
@@ -34,7 +35,7 @@ public sealed record VisualProfile(
     public static VisualProfile Neutral { get; } = new(
         1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f,
         1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f,
-        1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, 0f, 0f);
+        1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, 0f, 0f);
 }
 
 public sealed class ProfileEngine
@@ -77,6 +78,7 @@ public sealed class ProfileEngine
         var debandStrength = 1f;
         var antiAliasingStrength = 1f;
         var lutStrength = 1f;
+        var colorGradePreservation = GetColorGradePreservation(configuration.CompatibilityMode);
         var shadowLift = 0f;
         var temperature = 0f;
         var tint = 0f;
@@ -167,6 +169,7 @@ public sealed class ProfileEngine
 
         ApplyStyle(configuration.Style, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness);
         rules?.Add(new AppliedRule("Style target", $"{configuration.Style} style preference applied.", "style weighting"));
+        rules?.Add(new AppliedRule("Compatibility mode", $"{configuration.CompatibilityMode} mode sets ReGrade+ scalar color preservation to {colorGradePreservation:0.##}.", "ReGrade+ scalar hue/saturation preservation"));
         ApplyPerformanceBudget(configuration.PerformanceBudget, context, ref ao, ref rtgi, ref relight, ref depthEffects, ref bloom, ref bloomRadius, ref sharpness, ref sharpenThreshold, ref clarity, ref antiAliasingStrength, ref lutStrength);
         rules?.Add(new AppliedRule("Performance target", $"{configuration.PerformanceBudget} budget applied where needed.", "AO, RTGI, ReLight, bloom, clarity, sharpening"));
 
@@ -194,6 +197,7 @@ public sealed class ProfileEngine
             Clamp(debandStrength, 0.75f, 1.40f),
             Clamp(antiAliasingStrength, 0.85f, 1.25f),
             Clamp(lutStrength, 0.70f, 1.20f),
+            Clamp(colorGradePreservation, 0f, 1f),
             Clamp(shadowLift, 0f, 0.35f),
             Clamp(temperature, -0.30f, 0.30f),
             Clamp(tint, -0.20f, 0.20f));
@@ -555,6 +559,19 @@ public sealed class ProfileEngine
             PerformanceBudget.High => 0.98f,
             PerformanceBudget.Ultra => 1.00f,
             _ => 0.92f
+        };
+    }
+
+    private static float GetColorGradePreservation(PresetCompatibilityMode mode)
+    {
+        return mode switch
+        {
+            PresetCompatibilityMode.PreserveBase => 1.00f,
+            PresetCompatibilityMode.AdaptiveBalanced => 0.60f,
+            PresetCompatibilityMode.GameplaySanitize => 0.15f,
+            PresetCompatibilityMode.CinematicPreserve => 0.85f,
+            PresetCompatibilityMode.GposePreserve => 1.00f,
+            _ => 0.60f
         };
     }
 

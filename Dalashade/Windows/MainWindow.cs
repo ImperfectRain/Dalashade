@@ -112,6 +112,7 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Deband Strength: {profile.DebandStrength:0.###}x");
         ImGui.TextUnformatted($"AA Strength: {profile.AntiAliasingStrength:0.###}x");
         ImGui.TextUnformatted($"LUT Strength: {profile.LutStrength:0.###}x");
+        ImGui.TextUnformatted($"Color Grade Preservation: {profile.ColorGradePreservation:0.###}x");
         ImGui.TextUnformatted($"Shadow Lift: {profile.ShadowLift:0.###}");
         ImGui.TextUnformatted($"Temperature: {profile.Temperature:0.###}");
         ImGui.TextUnformatted($"Tint: {profile.Tint:0.###}");

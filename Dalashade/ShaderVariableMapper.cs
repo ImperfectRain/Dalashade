@@ -178,6 +178,12 @@ public sealed class ShaderVariableMapper
         AddAdd(definitions, section, "E_VIBRANCE", reason, -5f, 5f, profile => (profile.Saturation - 1f) * 0.5f, true);
         AddAdd(definitions, section, "E_TEMP", reason, 4500f, 8500f, profile => profile.Temperature * 1800f, true);
         AddAdd(definitions, section, "E_TINT", reason, -1f, 1f, profile => profile.Tint * 0.50f, true);
+        AddScale(definitions, section, "E_SHADOWS_HUE", "ReGrade+ tonal color preservation", -1f, 1f, profile => profile.ColorGradePreservation, true);
+        AddScale(definitions, section, "E_SHADOWS_SAT", "ReGrade+ tonal color preservation", -1f, 1f, profile => profile.ColorGradePreservation, true);
+        AddScale(definitions, section, "E_MIDTONES_HUE", "ReGrade+ tonal color preservation", -1f, 1f, profile => profile.ColorGradePreservation, true);
+        AddScale(definitions, section, "E_MIDTONES_SAT", "ReGrade+ tonal color preservation", -1f, 1f, profile => profile.ColorGradePreservation, true);
+        AddScale(definitions, section, "E_HIGHLIGHTS_HUE", "ReGrade+ tonal color preservation", -1f, 1f, profile => profile.ColorGradePreservation, true);
+        AddScale(definitions, section, "E_HIGHLIGHTS_SAT", "ReGrade+ tonal color preservation", -1f, 1f, profile => profile.ColorGradePreservation, true);
     }
 
     private static void AddScale(List<ShaderVariableDefinition> definitions, string? section, string key, string reason, float min, float max, Func<VisualProfile, float> amount, bool allowFallback = false)
