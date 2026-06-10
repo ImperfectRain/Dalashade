@@ -278,7 +278,7 @@ public sealed class ConfigWindow : Window, IDisposable
         if (ImGui.Combo("Master tuning preset", ref tuningPreset, "Subtle\0Balanced\0Strong\0Cinematic\0Aggressive GPose\0Custom\0"))
         {
             configuration.MasterStyleTuningPreset = (MasterStyleTuningPreset)tuningPreset;
-            ApplyMasterStyleTuningPreset(configuration.MasterStyleTuningPreset);
+            MasterStyleTuningPresets.Apply(configuration, configuration.MasterStyleTuningPreset);
             configuration.Save();
         }
 
@@ -454,31 +454,6 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.MasterStyleTuningPreset = MasterStyleTuningPreset.Custom;
             configuration.Save();
         }
-    }
-
-    private void ApplyMasterStyleTuningPreset(MasterStyleTuningPreset preset)
-    {
-        var values = preset switch
-        {
-            MasterStyleTuningPreset.Subtle => (0.60f, 0.35f, 0.25f, 0.04f, 0.08f, 0.06f),
-            MasterStyleTuningPreset.Strong => (1.30f, 1.00f, 0.90f, 0.12f, 0.22f, 0.18f),
-            MasterStyleTuningPreset.Cinematic => (1.40f, 1.15f, 1.00f, 0.14f, 0.26f, 0.20f),
-            MasterStyleTuningPreset.AggressiveGpose => (1.70f, 1.50f, 1.35f, 0.18f, 0.32f, 0.28f),
-            MasterStyleTuningPreset.Balanced => (1.00f, 0.75f, 0.65f, 0.08f, 0.15f, 0.12f),
-            _ => (configuration.MasterTonalMatchStrength, configuration.MasterTonalColorStrength, configuration.MasterColorFamilyStrength, configuration.MasterMaxHueShift, configuration.MasterMaxSaturationShift, configuration.MasterMaxLuminanceShift)
-        };
-
-        if (preset == MasterStyleTuningPreset.Custom)
-        {
-            return;
-        }
-
-        configuration.MasterTonalMatchStrength = values.Item1;
-        configuration.MasterTonalColorStrength = values.Item2;
-        configuration.MasterColorFamilyStrength = values.Item3;
-        configuration.MasterMaxHueShift = values.Item4;
-        configuration.MasterMaxSaturationShift = values.Item5;
-        configuration.MasterMaxLuminanceShift = values.Item6;
     }
 
     private void DrawReloadHotkeyPicker()
