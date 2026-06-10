@@ -35,6 +35,8 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 
 The generated preset should live somewhere writable, usually Dalamud's plugin config folder. Keeping it away from the game folder avoids a lot of Windows permission nonsense.
 
+Dalashade can also reload ReShade after it writes the preset. By default it syncs ReShade's reload hotkey to `F5` in `ReShade.ini`, then sends that key after a successful generation. If you already use another reload key, change `Reload hotkey virtual key` in settings.
+
 ## Screenshot Analysis
 
 Screenshot analysis is optional.

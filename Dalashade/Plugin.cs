@@ -31,6 +31,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly MasterStyleService masterStyleService = new();
     private readonly ProfileEngine profileEngine = new();
     private readonly PresetWriter presetWriter = new();
+    private readonly ReShadeController reShadeController = new();
 
     private DateTimeOffset lastWrite = DateTimeOffset.MinValue;
     private string lastProfileKey = string.Empty;
@@ -46,6 +47,7 @@ public sealed class Plugin : IDalamudPlugin
     public VisualProfile CurrentProfile { get; private set; } = VisualProfile.Neutral;
     public IReadOnlyList<AppliedRule> CurrentRules { get; private set; } = Array.Empty<AppliedRule>();
     public PresetWriteResult LastWriteResult { get; private set; } = PresetWriteResult.Skipped("No preset has been generated yet.");
+    public ReloadResult LastReloadResult { get; private set; } = ReloadResult.Skipped("Shaders have not been reloaded yet.");
     public string DefaultGeneratedPresetPath => Path.Combine(PluginInterface.ConfigDirectory.FullName, "Dalashade_Generated.ini");
     public string DefaultScreenshotFolderPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
@@ -106,6 +108,7 @@ public sealed class Plugin : IDalamudPlugin
         CurrentProfile = result.Profile;
         CurrentRules = result.Rules;
         LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile);
+        ReloadShadersIfNeeded();
         lastProfileKey = CreateProfileKey();
         lastWrite = DateTimeOffset.UtcNow;
         return LastWriteResult;
@@ -140,6 +143,7 @@ public sealed class Plugin : IDalamudPlugin
         LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile);
         if (LastWriteResult.Success)
         {
+            ReloadShadersIfNeeded();
             lastProfileKey = profileKey;
             lastWrite = DateTimeOffset.UtcNow;
         }
@@ -154,6 +158,17 @@ public sealed class Plugin : IDalamudPlugin
     {
         var master = Configuration.MatchMasterPresetStyle ? CurrentMasterStyle.ProfileBucket : "ignored";
         return $"{CurrentContext.ProfileKey(Configuration, CurrentImageAnalysis, CurrentTags)}:{master}:{Configuration.MasterPresetStyleStrength}";
+    }
+
+    private void ReloadShadersIfNeeded()
+    {
+        if (!LastWriteResult.Success)
+        {
+            LastReloadResult = ReloadResult.Skipped("Preset was not written, so shaders were not reloaded.");
+            return;
+        }
+
+        LastReloadResult = reShadeController.ReloadAfterPresetWrite(Configuration);
     }
 
     private void OnZoneInit(ZoneInitEventArgs args)

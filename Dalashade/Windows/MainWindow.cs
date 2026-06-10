@@ -107,6 +107,7 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.Separator();
 
         ImGui.TextWrapped(plugin.LastWriteResult.Message);
+        ImGui.TextWrapped(plugin.LastReloadResult.Message);
         ImGui.TextWrapped("Dalashade only edits variables that already exist in the preset. Keep iMMERSE and any Pro/Ultimate shaders installed through ReShade; this plugin does not ship those files.");
     }
 }

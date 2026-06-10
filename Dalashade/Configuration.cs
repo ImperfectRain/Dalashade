@@ -25,7 +25,9 @@ public class Configuration : IPluginConfiguration
 
     public string BasePresetPath { get; set; } = string.Empty;
     public string GeneratedPresetPath { get; set; } = string.Empty;
-    public string ReloadHotkeyName { get; set; } = "Use your configured ReShade reload hotkey";
+    public bool ReloadShadersAfterGeneration { get; set; } = true;
+    public bool SyncReloadHotkeyToReShadeIni { get; set; } = true;
+    public int ReloadHotkeyVirtualKey { get; set; } = 116;
 
     public TargetStyle Style { get; set; } = TargetStyle.Balanced;
     public PerformanceBudget PerformanceBudget { get; set; } = PerformanceBudget.Medium;

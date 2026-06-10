@@ -44,7 +44,17 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.SameLine();
         ImGui.TextUnformatted("Recommended writable output");
 
-        DrawTextInput("Reload hotkey note", configuration.ReloadHotkeyName, value => configuration.ReloadHotkeyName = value);
+        DrawCheckbox("Reload shaders after generation", configuration.ReloadShadersAfterGeneration, value => configuration.ReloadShadersAfterGeneration = value);
+        DrawCheckbox("Sync reload key to ReShade.ini", configuration.SyncReloadHotkeyToReShadeIni, value => configuration.SyncReloadHotkeyToReShadeIni = value);
+
+        var reloadKey = configuration.ReloadHotkeyVirtualKey;
+        if (ImGui.InputInt("Reload hotkey virtual key", ref reloadKey))
+        {
+            configuration.ReloadHotkeyVirtualKey = Math.Max(0, reloadKey);
+            configuration.Save();
+        }
+
+        ImGui.TextUnformatted("Default is 116, which is F5.");
 
         ImGui.Separator();
 
