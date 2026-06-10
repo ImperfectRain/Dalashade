@@ -20,6 +20,20 @@ public sealed record ImageAnalysisResult(
 {
     public static ImageAnalysisResult Empty { get; } = new(false, string.Empty, DateTimeOffset.MinValue, 0f, 0f, 0f, 0f, 0f, 0f, 0f);
 
+    public string MetricsKey
+    {
+        get
+        {
+            if (!Available)
+            {
+                return "none";
+            }
+
+            return FormattableString.Invariant(
+                $"l{AverageLuminance:0.00}:c{Contrast:0.00}:s{AverageSaturation:0.00}:sh{ShadowClipping:0.00}:hi{HighlightClipping:0.00}:w{Warmth:0.00}:g{GreenBias:0.00}");
+        }
+    }
+
     public string ProfileBucket
     {
         get
@@ -94,10 +108,10 @@ public sealed class ImageAnalysisService
                 return;
             }
 
-            Current = Analyze(latest.FullName, latest.LastWriteTimeUtc);
+            Current = Analyze(latest.FullName, latest.LastWriteTimeUtc, configuration.ImageSamplingMode);
             lastSourcePath = latest.FullName;
             lastSourceWriteTime = latest.LastWriteTimeUtc;
-            LastMessage = $"Analyzed {latest.Name}: {Current.ProfileBucket}.";
+            LastMessage = $"Analyzed {latest.Name}: {Current.ProfileBucket}, {Current.MetricsKey}.";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or OutOfMemoryException)
         {
@@ -121,7 +135,7 @@ public sealed class ImageAnalysisService
             .FirstOrDefault();
     }
 
-    public static ImageAnalysisResult Analyze(string imagePath, DateTime sourceWriteTimeUtc)
+    public static ImageAnalysisResult Analyze(string imagePath, DateTime sourceWriteTimeUtc, ImageSamplingMode samplingMode = ImageSamplingMode.CenterWeighted)
     {
         using var stream = File.Open(imagePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var memory = new MemoryStream();
@@ -132,19 +146,25 @@ public sealed class ImageAnalysisService
 
         var stepX = Math.Max(1, image.Width / 160);
         var stepY = Math.Max(1, image.Height / 90);
-        var count = 0;
+        double weightSum = 0;
         double luminanceSum = 0;
         double luminanceSquaredSum = 0;
         double saturationSum = 0;
         double warmthSum = 0;
         double greenBiasSum = 0;
-        var shadowCount = 0;
-        var highlightCount = 0;
+        double shadowWeight = 0;
+        double highlightWeight = 0;
 
         for (var y = 0; y < image.Height; y += stepY)
         {
             for (var x = 0; x < image.Width; x += stepX)
             {
+                var weight = GetSampleWeight(x, y, image.Width, image.Height, samplingMode);
+                if (weight <= 0f)
+                {
+                    continue;
+                }
+
                 var pixel = image[x, y];
                 var r = pixel.R / 255f;
                 var g = pixel.G / 255f;
@@ -154,28 +174,33 @@ public sealed class ImageAnalysisService
                 var min = Math.Min(r, Math.Min(g, b));
                 var saturation = max <= 0.0001f ? 0f : (max - min) / max;
 
-                luminanceSum += luminance;
-                luminanceSquaredSum += luminance * luminance;
-                saturationSum += saturation;
-                warmthSum += r - b;
-                greenBiasSum += g - ((r + b) * 0.5f);
-                count++;
+                luminanceSum += luminance * weight;
+                luminanceSquaredSum += luminance * luminance * weight;
+                saturationSum += saturation * weight;
+                warmthSum += (r - b) * weight;
+                greenBiasSum += (g - ((r + b) * 0.5f)) * weight;
+                weightSum += weight;
 
                 if (luminance < 0.035f)
                 {
-                    shadowCount++;
+                    shadowWeight += weight;
                 }
                 else if (luminance > 0.965f)
                 {
-                    highlightCount++;
+                    highlightWeight += weight;
                 }
             }
         }
 
-        var averageLuminance = (float)(luminanceSum / count);
-        var variance = Math.Max(0, (luminanceSquaredSum / count) - (averageLuminance * averageLuminance));
+        if (weightSum <= 0)
+        {
+            return ImageAnalysisResult.Empty;
+        }
+
+        var averageLuminance = (float)(luminanceSum / weightSum);
+        var variance = Math.Max(0, (luminanceSquaredSum / weightSum) - (averageLuminance * averageLuminance));
         var contrast = (float)Math.Sqrt(variance);
-        var averageSaturation = (float)(saturationSum / count);
+        var averageSaturation = (float)(saturationSum / weightSum);
 
         return new ImageAnalysisResult(
             true,
@@ -184,9 +209,39 @@ public sealed class ImageAnalysisService
             averageLuminance,
             contrast,
             averageSaturation,
-            shadowCount / (float)count,
-            highlightCount / (float)count,
-            (float)(warmthSum / count),
-            (float)(greenBiasSum / count));
+            (float)(shadowWeight / weightSum),
+            (float)(highlightWeight / weightSum),
+            (float)(warmthSum / weightSum),
+            (float)(greenBiasSum / weightSum));
+    }
+
+    private static float GetSampleWeight(int x, int y, int width, int height, ImageSamplingMode samplingMode)
+    {
+        var nx = width <= 1 ? 0.5f : x / (float)(width - 1);
+        var ny = height <= 1 ? 0.5f : y / (float)(height - 1);
+
+        if (samplingMode == ImageSamplingMode.IgnoreBottomUi && ny > 0.80f)
+        {
+            return 0f;
+        }
+
+        if (samplingMode == ImageSamplingMode.LetterboxSafe && (ny < 0.08f || ny > 0.92f))
+        {
+            return 0f;
+        }
+
+        if (samplingMode == ImageSamplingMode.GposeClean && (ny < 0.06f || ny > 0.94f || nx < 0.03f || nx > 0.97f))
+        {
+            return 0f;
+        }
+
+        if (samplingMode == ImageSamplingMode.FullImage)
+        {
+            return 1f;
+        }
+
+        var dx = nx - 0.5f;
+        var dy = ny - 0.45f;
+        return MathF.Max(0.15f, 1f - ((dx * dx + dy * dy) * 3.0f));
     }
 }

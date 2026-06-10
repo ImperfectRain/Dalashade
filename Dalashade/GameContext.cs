@@ -61,9 +61,9 @@ public sealed record GameContext(
         var time = configuration.AutoAdjustAtNight ? TimeBucket.ToString() : "ignored";
         var weather = configuration.AutoAdjustForWeather ? tags.WeatherKey : "ignored";
         var territory = configuration.AutoAdjustForTerritory ? tags.AreaKey : "ignored";
-        var image = configuration.AutoAdjustFromScreenshots ? imageAnalysis.ProfileBucket : "ignored";
+        var image = configuration.AutoAdjustFromScreenshots ? imageAnalysis.MetricsKey : "ignored";
 
-        return $"{TerritoryId}:{territory}:{weather}:{time}:{combat}:{cutscene}:{InGpose}:{image}:{configuration.Style}:{configuration.PerformanceBudget}";
+        return $"{TerritoryId}:{territory}:{tags.BiomeKey}:{weather}:{time}:{combat}:{cutscene}:{InGpose}:{image}:{configuration.Style}:{configuration.PerformanceBudget}";
     }
 }
 
@@ -81,9 +81,10 @@ public sealed record SceneTags(
     bool IsFieldLike,
     bool IsInteriorLike,
     bool NeedsGameplayClarity,
-    bool CinematicAllowed)
+    bool CinematicAllowed,
+    string BiomeKey)
 {
-    public static SceneTags Empty { get; } = new(false, false, false, false, false, false, true, false, false, false, false, false, false, true);
+    public static SceneTags Empty { get; } = new(false, false, false, false, false, false, true, false, false, false, false, false, false, true, "unknown");
 
     public string WeatherKey
     {
@@ -117,6 +118,7 @@ public static class SceneClassifier
     {
         var weather = context.WeatherName.ToLowerInvariant();
         var content = $"{context.ContentName} {context.ContentType}".ToLowerInvariant();
+        var territory = context.TerritoryName.ToLowerInvariant();
 
         var isRain = ContainsAny(weather, "rain", "showers");
         var isFog = ContainsAny(weather, "fog", "gloom", "cloud", "overcast", "mist");
@@ -129,6 +131,7 @@ public static class SceneClassifier
         var isInterior = context.WorldCategory == WorldCategory.Interior || isDungeon || isRaid;
         var isField = !context.InDuty && !isCity && !isInterior;
         var needsGameplayClarity = context.InCombat || context.InDuty;
+        var biome = InferBiome(territory, weather, content, isSnow, isFog);
 
         return new SceneTags(
             context.TimeBucket == TimeBucket.Night,
@@ -144,7 +147,22 @@ public static class SceneClassifier
             isField,
             isInterior,
             needsGameplayClarity,
-            !context.InCombat && (!context.InCutscene || context.InGpose));
+            !context.InCombat && (!context.InCutscene || context.InGpose),
+            biome);
+    }
+
+    private static string InferBiome(string territory, string weather, string content, bool isSnow, bool isFog)
+    {
+        var text = $"{territory} {weather} {content}";
+        if (isSnow || ContainsAny(text, "snow", "ice", "frost", "glacier", "coerthas", "garlemald")) return "snow";
+        if (ContainsAny(text, "forest", "shroud", "woods", "jungle", "rak'tika", "yak t'el")) return "forest";
+        if (ContainsAny(text, "desert", "thanalan", "sagolii", "amh araeng")) return "desert";
+        if (ContainsAny(text, "cave", "cavern", "mine", "tunnel", "subterrane")) return "cave";
+        if (ContainsAny(text, "void", "darkness", "abyss", "ascian")) return "void";
+        if (ContainsAny(text, "aether", "crystal", "ultima thule", "elpis")) return "aetherial";
+        if (ContainsAny(text, "ocean", "beach", "sea", "limsa", "mist")) return "coastal";
+        if (ContainsAny(text, "fire", "lava", "volcano", "embers")) return "fire";
+        return isFog ? "overcast" : "neutral";
     }
 
     private static bool ContainsAny(string value, params string[] candidates)

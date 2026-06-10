@@ -13,6 +13,8 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 - Classifies the current place as a city, field zone, dungeon/trial/raid-like duty, or interior-ish space.
 - Optionally analyzes the newest screenshot in a folder for brightness, contrast, saturation, crushed shadows, and clipped highlights.
 - Optionally analyzes a master image folder, so you can point it at a look you like and let Dalashade bias the generated preset toward it.
+- Shows the actual preset variables it changed, with old and new values.
+- Scans your base preset for shader variables Dalashade can really control.
 - Generates a separate ReShade preset from your chosen base preset.
 - Supports free iMMERSE variables by default.
 - Can also adjust installed iMMERSE Pro/Ultimate variables when you turn that option on.
@@ -51,6 +53,8 @@ Turn on `Auto-adjust from screenshots`, set the screenshot folder, then take scr
 
 It is not live video analysis yet. Think of it as the first rung on the ladder before a ReShade add-on bridge.
 
+The screenshot sampler can use the full image, but the default is center-weighted because game UI, chat, hotbars, ReShade windows, and letterboxing can lie to the analysis. If your screenshots are clean GPose captures, the GPose clean sampler is there too.
+
 ## Passive Scene Classification
 
 Dalashade tries hard not to become a giant zone table.
@@ -80,7 +84,7 @@ Right now it looks at broad visual traits:
 - warm/cool color bias
 - green/magenta-ish bias
 
-If `Include master preset subfolders` is on, you can make a folder of looks and toss subfolders inside it. Dalashade will average the newest images up to `Master style max images`. That is optional; one image is enough to start.
+If `Include master preset subfolders` is on, you can make a folder of looks and toss subfolders inside it. Dalashade can use the newest image, average the folder, take median values, or pick the reference closest to the current scene. Closest-to-current is the default because a dark blue night reference usually makes more sense for a dark blue scene than averaging it together with a sunny beach shot.
 
 This will not perfectly recreate another game's renderer. It is more like, "this reference is warmer, punchier, and less shadow-crushed than my current scene, so move the ReShade values that direction." It is allowed to be visible now, especially at higher strength, but it is still working through shader variables instead of cloning a whole renderer.
 
@@ -89,6 +93,18 @@ This will not perfectly recreate another game's renderer. It is more like, "this
 Free iMMERSE support is on by default for installed preset variables such as MXAO and Sharpen.
 
 The Pro/Ultimate toggle only changes values that already exist in your preset. If RTGI, ReGrade+, ReLight, or other paid effects are not in the preset, Dalashade leaves them alone. This keeps the free path free and avoids pretending paid shaders are required.
+
+The writer is section-aware, so it prefers variables inside the matching shader section, like `[MartysMods_MXAO.fx]`, before falling back to unique variable names. That matters because generic names like `Exposure` and `Contrast` can exist in more than one shader and should not be edited blindly.
+
+Use `Scan Shader Support` to see what Dalashade found in your base preset. Use the `Changed variables` panel after generation to see the exact values it wrote.
+
+## Scene Lock
+
+`Lock current generated preset` pauses automatic regeneration. Manual `Generate Now` still works. This is for the moments where the preset looks good and you want Dalashade to stop reacting to time, weather, screenshots, or combat for a while.
+
+## Biome Hints
+
+Dalashade still avoids a giant zone table, but it now infers mild biome tags from territory names, content names, and weather. Snow, forest, desert, cave, void, aetherial, coastal, and fire/lava scenes get small protective nudges. They are intentionally generic; the goal is sane behavior in new zones, not hand-authored perfection.
 
 ## Building
 

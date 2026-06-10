@@ -18,6 +18,23 @@ public enum PerformanceBudget
     Ultra
 }
 
+public enum ImageSamplingMode
+{
+    FullImage,
+    CenterWeighted,
+    IgnoreBottomUi,
+    LetterboxSafe,
+    GposeClean
+}
+
+public enum MasterStyleMode
+{
+    NewestImageOnly,
+    AverageFolder,
+    MedianFolder,
+    ClosestToCurrentScene
+}
+
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
@@ -42,13 +59,16 @@ public class Configuration : IPluginConfiguration
     public bool AutoAdjustForTerritory { get; set; } = true;
     public bool AutoAdjustFromScreenshots { get; set; } = false;
     public bool MatchMasterPresetStyle { get; set; } = false;
+    public bool SceneLockEnabled { get; set; } = false;
     public bool AutoAdjustInCutscenes { get; set; } = true;
     public bool UsePremiumImmerseEffects { get; set; } = false;
     public bool WriteBackups { get; set; } = true;
     public int MinimumSecondsBetweenWrites { get; set; } = 10;
     public int MinimumSecondsBetweenImageSamples { get; set; } = 10;
+    public ImageSamplingMode ImageSamplingMode { get; set; } = ImageSamplingMode.CenterWeighted;
     public int MasterPresetStyleStrength { get; set; } = 75;
     public int MasterPresetMaxImages { get; set; } = 24;
+    public MasterStyleMode MasterStyleMode { get; set; } = MasterStyleMode.ClosestToCurrentScene;
     public string ScreenshotFolderPath { get; set; } = string.Empty;
     public string MasterPresetFolderPath { get; set; } = string.Empty;
     public bool MasterPresetIncludeSubfolders { get; set; } = false;

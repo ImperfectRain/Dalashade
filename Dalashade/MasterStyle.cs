@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -10,12 +11,14 @@ public sealed class MasterStyleService
     private string lastFolderPath = string.Empty;
     private bool lastIncludeSubfolders;
     private int lastMaxImages;
+    private MasterStyleMode lastMode;
+    private string lastCurrentMetricsKey = string.Empty;
     private DateTime lastNewestWriteTime = DateTime.MinValue;
 
     public ImageAnalysisResult Current { get; private set; } = ImageAnalysisResult.Empty;
     public string LastMessage { get; private set; } = "Master style has not been analyzed yet.";
 
-    public void Refresh(Configuration configuration, bool force = false)
+    public void Refresh(Configuration configuration, ImageAnalysisResult currentScene, bool force = false)
     {
         if (!configuration.MatchMasterPresetStyle)
         {
@@ -63,13 +66,15 @@ public sealed class MasterStyleService
                 && lastFolderPath == directory.FullName
                 && lastIncludeSubfolders == configuration.MasterPresetIncludeSubfolders
                 && lastMaxImages == configuration.MasterPresetMaxImages
+                && lastMode == configuration.MasterStyleMode
+                && lastCurrentMetricsKey == currentScene.MetricsKey
                 && lastNewestWriteTime == newestWriteTime)
             {
                 return;
             }
 
             var analyzed = images
-                .Select(file => TryAnalyze(file))
+                .Select(file => TryAnalyze(file, configuration.ImageSamplingMode))
                 .Where(result => result.Available)
                 .ToArray();
 
@@ -80,12 +85,14 @@ public sealed class MasterStyleService
                 return;
             }
 
-            Current = Average(analyzed, directory.FullName, newestWriteTime);
-            LastMessage = $"Master style: {analyzed.Length} image(s), {Current.ProfileBucket}.";
+            Current = SelectMasterStyle(analyzed, configuration, currentScene, directory.FullName, newestWriteTime);
+            LastMessage = $"Master style: {analyzed.Length} image(s), {configuration.MasterStyleMode}, {Current.ProfileBucket}, {Current.MetricsKey}.";
 
             lastFolderPath = directory.FullName;
             lastIncludeSubfolders = configuration.MasterPresetIncludeSubfolders;
             lastMaxImages = configuration.MasterPresetMaxImages;
+            lastMode = configuration.MasterStyleMode;
+            lastCurrentMetricsKey = currentScene.MetricsKey;
             lastNewestWriteTime = newestWriteTime;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or ExternalException)
@@ -95,16 +102,27 @@ public sealed class MasterStyleService
         }
     }
 
-    private static ImageAnalysisResult TryAnalyze(FileInfo file)
+    private static ImageAnalysisResult TryAnalyze(FileInfo file, ImageSamplingMode samplingMode)
     {
         try
         {
-            return ImageAnalysisService.Analyze(file.FullName, file.LastWriteTimeUtc);
+            return ImageAnalysisService.Analyze(file.FullName, file.LastWriteTimeUtc, samplingMode);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or ExternalException or OutOfMemoryException)
         {
             return ImageAnalysisResult.Empty;
         }
+    }
+
+    private static ImageAnalysisResult SelectMasterStyle(ImageAnalysisResult[] images, Configuration configuration, ImageAnalysisResult currentScene, string folderPath, DateTime newestWriteTime)
+    {
+        return configuration.MasterStyleMode switch
+        {
+            MasterStyleMode.NewestImageOnly => images.OrderByDescending(image => image.SourceTimestamp).First(),
+            MasterStyleMode.MedianFolder => Median(images, folderPath, newestWriteTime),
+            MasterStyleMode.ClosestToCurrentScene when currentScene.Available => images.OrderBy(image => Distance(image, currentScene)).First(),
+            _ => Average(images, folderPath, newestWriteTime)
+        };
     }
 
     private static ImageAnalysisResult Average(ImageAnalysisResult[] images, string folderPath, DateTime newestWriteTime)
@@ -121,4 +139,46 @@ public sealed class MasterStyleService
             images.Average(image => image.Warmth),
             images.Average(image => image.GreenBias));
     }
+
+    private static ImageAnalysisResult Median(ImageAnalysisResult[] images, string folderPath, DateTime newestWriteTime)
+    {
+        return new ImageAnalysisResult(
+            true,
+            folderPath,
+            new DateTimeOffset(newestWriteTime, TimeSpan.Zero),
+            MedianValue(images.Select(image => image.AverageLuminance)),
+            MedianValue(images.Select(image => image.Contrast)),
+            MedianValue(images.Select(image => image.AverageSaturation)),
+            MedianValue(images.Select(image => image.ShadowClipping)),
+            MedianValue(images.Select(image => image.HighlightClipping)),
+            MedianValue(images.Select(image => image.Warmth)),
+            MedianValue(images.Select(image => image.GreenBias)));
+    }
+
+    private static float MedianValue(IEnumerable<float> values)
+    {
+        var sorted = values.OrderBy(value => value).ToArray();
+        if (sorted.Length == 0)
+        {
+            return 0f;
+        }
+
+        var middle = sorted.Length / 2;
+        return sorted.Length % 2 == 1
+            ? sorted[middle]
+            : (sorted[middle - 1] + sorted[middle]) * 0.5f;
+    }
+
+    private static float Distance(ImageAnalysisResult left, ImageAnalysisResult right)
+    {
+        return Squared(left.AverageLuminance - right.AverageLuminance) * 2.0f
+               + Squared(left.Contrast - right.Contrast) * 1.4f
+               + Squared(left.AverageSaturation - right.AverageSaturation) * 1.2f
+               + Squared(left.ShadowClipping - right.ShadowClipping)
+               + Squared(left.HighlightClipping - right.HighlightClipping)
+               + Squared(left.Warmth - right.Warmth) * 0.8f
+               + Squared(left.GreenBias - right.GreenBias) * 0.8f;
+    }
+
+    private static float Squared(float value) => value * value;
 }

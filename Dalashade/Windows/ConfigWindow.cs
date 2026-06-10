@@ -72,8 +72,16 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawCheckbox("Auto-adjust for weather", configuration.AutoAdjustForWeather, value => configuration.AutoAdjustForWeather = value);
         DrawCheckbox("Auto-adjust for territory type", configuration.AutoAdjustForTerritory, value => configuration.AutoAdjustForTerritory = value);
         DrawCheckbox("Auto-adjust in cutscenes", configuration.AutoAdjustInCutscenes, value => configuration.AutoAdjustInCutscenes = value);
+        DrawCheckbox("Lock current generated preset", configuration.SceneLockEnabled, value => configuration.SceneLockEnabled = value);
         DrawCheckbox("Auto-adjust from screenshots", configuration.AutoAdjustFromScreenshots, value => configuration.AutoAdjustFromScreenshots = value);
         DrawTextInput("Screenshot folder", configuration.ScreenshotFolderPath, value => configuration.ScreenshotFolderPath = value);
+
+        var samplingMode = (int)configuration.ImageSamplingMode;
+        if (ImGui.Combo("Screenshot sampling", ref samplingMode, "Full image\0Center-weighted\0Ignore bottom UI\0Letterbox safe\0GPose clean\0"))
+        {
+            configuration.ImageSamplingMode = (ImageSamplingMode)samplingMode;
+            configuration.Save();
+        }
 
         if (ImGui.Button("Use FFXIV screenshot folder"))
         {
@@ -87,6 +95,13 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawCheckbox("Match master preset style", configuration.MatchMasterPresetStyle, value => configuration.MatchMasterPresetStyle = value);
         DrawTextInput("Master preset image folder", configuration.MasterPresetFolderPath, value => configuration.MasterPresetFolderPath = value);
         DrawCheckbox("Include master preset subfolders", configuration.MasterPresetIncludeSubfolders, value => configuration.MasterPresetIncludeSubfolders = value);
+
+        var masterMode = (int)configuration.MasterStyleMode;
+        if (ImGui.Combo("Master style mode", ref masterMode, "Newest image only\0Average folder\0Median folder\0Closest to current scene\0"))
+        {
+            configuration.MasterStyleMode = (MasterStyleMode)masterMode;
+            configuration.Save();
+        }
 
         var masterStrength = configuration.MasterPresetStyleStrength;
         if (ImGui.SliderInt("Master style strength", ref masterStrength, 0, 100))
@@ -104,6 +119,14 @@ public sealed class ConfigWindow : Window, IDisposable
 
         DrawCheckbox("Use installed iMMERSE Pro/Ultimate variables", configuration.UsePremiumImmerseEffects, value => configuration.UsePremiumImmerseEffects = value);
         DrawCheckbox("Write generated preset backups", configuration.WriteBackups, value => configuration.WriteBackups = value);
+
+        if (ImGui.Button("Scan Shader Support"))
+        {
+            plugin.ScanShaderSupport();
+        }
+
+        ImGui.SameLine();
+        ImGui.TextWrapped(plugin.LastShaderSupportScan.Message);
 
         var minimumSeconds = configuration.MinimumSecondsBetweenWrites;
         if (ImGui.SliderInt("Minimum seconds between writes", ref minimumSeconds, 1, 120))

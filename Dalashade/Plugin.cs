@@ -48,6 +48,7 @@ public sealed class Plugin : IDalamudPlugin
     public IReadOnlyList<AppliedRule> CurrentRules { get; private set; } = Array.Empty<AppliedRule>();
     public PresetWriteResult LastWriteResult { get; private set; } = PresetWriteResult.Skipped("No preset has been generated yet.");
     public ReloadResult LastReloadResult { get; private set; } = ReloadResult.Skipped("Shaders have not been reloaded yet.");
+    public ShaderSupportScan LastShaderSupportScan { get; private set; } = ShaderSupportScan.Skipped("Shader support has not been scanned yet.");
     public string DefaultGeneratedPresetPath => Path.Combine(PluginInterface.ConfigDirectory.FullName, "Dalashade_Generated.ini");
     public string DefaultScreenshotFolderPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
@@ -103,15 +104,22 @@ public sealed class Plugin : IDalamudPlugin
     {
         contextService.Refresh();
         imageAnalysisService.Refresh(Configuration, true);
-        masterStyleService.Refresh(Configuration, true);
+        masterStyleService.Refresh(Configuration, CurrentImageAnalysis, true);
         var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration);
         CurrentProfile = result.Profile;
         CurrentRules = result.Rules;
+        LastShaderSupportScan = presetWriter.ScanSupportedVariables(Configuration);
         LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile);
         ReloadShadersIfNeeded();
         lastProfileKey = CreateProfileKey();
         lastWrite = DateTimeOffset.UtcNow;
         return LastWriteResult;
+    }
+
+    public ShaderSupportScan ScanShaderSupport()
+    {
+        LastShaderSupportScan = presetWriter.ScanSupportedVariables(Configuration);
+        return LastShaderSupportScan;
     }
 
     public ReloadResult ReloadShadersNow()
@@ -129,10 +137,15 @@ public sealed class Plugin : IDalamudPlugin
 
         contextService.Refresh();
         imageAnalysisService.Refresh(Configuration);
-        masterStyleService.Refresh(Configuration);
+        masterStyleService.Refresh(Configuration, CurrentImageAnalysis);
         var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration);
         CurrentProfile = result.Profile;
         CurrentRules = result.Rules;
+
+        if (Configuration.SceneLockEnabled)
+        {
+            return;
+        }
 
         var profileKey = CreateProfileKey();
         if (profileKey == lastProfileKey)
@@ -149,6 +162,7 @@ public sealed class Plugin : IDalamudPlugin
         LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile);
         if (LastWriteResult.Success)
         {
+            LastShaderSupportScan = presetWriter.ScanSupportedVariables(Configuration);
             ReloadShadersIfNeeded();
             lastProfileKey = profileKey;
             lastWrite = DateTimeOffset.UtcNow;
@@ -162,7 +176,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private string CreateProfileKey()
     {
-        var master = Configuration.MatchMasterPresetStyle ? CurrentMasterStyle.ProfileBucket : "ignored";
+        var master = Configuration.MatchMasterPresetStyle ? CurrentMasterStyle.MetricsKey : "ignored";
         return $"{CurrentContext.ProfileKey(Configuration, CurrentImageAnalysis, CurrentTags)}:{master}:{Configuration.MasterPresetStyleStrength}";
     }
 
