@@ -187,6 +187,7 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.GeneratedPresetPath,
             Configuration.UsePremiumImmerseEffects,
             Configuration.ShaderMatchingMode,
+            Configuration.InactiveShaderWriteMode,
             Configuration.ImageSamplingMode,
             Configuration.MasterStyleMode,
             Configuration.MasterPresetMaxImages,

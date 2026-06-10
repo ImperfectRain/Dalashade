@@ -42,6 +42,13 @@ public enum ShaderMatchingMode
     LooseKeys
 }
 
+public enum InactiveShaderWriteMode
+{
+    Never,
+    SupportedInactiveSections,
+    AlwaysMatchingKeys
+}
+
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
@@ -70,6 +77,7 @@ public class Configuration : IPluginConfiguration
     public bool AutoAdjustInCutscenes { get; set; } = true;
     public bool UsePremiumImmerseEffects { get; set; } = false;
     public ShaderMatchingMode ShaderMatchingMode { get; set; } = ShaderMatchingMode.StrictSections;
+    public InactiveShaderWriteMode InactiveShaderWriteMode { get; set; } = InactiveShaderWriteMode.SupportedInactiveSections;
     public bool WriteBackups { get; set; } = true;
     public int MaxGeneratedPresetBackups { get; set; } = 10;
     public int MinimumSecondsBetweenWrites { get; set; } = 10;

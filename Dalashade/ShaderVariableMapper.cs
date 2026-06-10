@@ -10,12 +10,14 @@ public enum ShaderValueMode
     Scale,
     Add,
     InvertAdd,
-    ClampOnly
+    RelativeAdd
 }
 
 public readonly record struct ShaderVariableKey(string? Section, string Key);
 
-public sealed record ShaderAdjustment(Func<string, string?> Apply, string ReasonCategory);
+public sealed record ShaderAdjustment(Func<string, ShaderAdjustmentResult?> Apply, string ReasonCategory);
+
+public sealed record ShaderAdjustmentResult(string NewValue, bool HitMin, bool HitMax);
 
 public sealed record ShaderVariableDefinition(
     string? Section,
@@ -87,14 +89,14 @@ public sealed class ShaderVariableMapper
         AddScale(definitions, "MartysMods_SHARPEN.fx", "SHARP_AMT", "Sharpening", 0f, 4f, profile => profile.Sharpness, true);
 
         AddScale(definitions, "MagicBloom.fx", "fBloom_Intensity", "Bloom", 0f, 10f, profile => profile.Bloom, true);
-        AddScale(definitions, "MagicBloom.fx", "fBloom_Threshold", "Bloom threshold", 0f, 10f, profile => profile.BloomThreshold, true);
-        AddScale(definitions, "MagicBloom.fx", "fDirt_Intensity", "Bloom dirt", 0f, 10f, profile => profile.BloomRadius < 0.95f ? 0.80f : 1f, true);
+        AddRelative(definitions, "MagicBloom.fx", "fBloom_Threshold", "Bloom threshold", 0f, 10f, profile => (profile.BloomThreshold - 1f) * 0.35f, true);
+        AddScale(definitions, "MagicBloom.fx", "fDirt_Intensity", "Bloom dirt", 0f, 10f, profile => profile.BloomDirt, true);
         AddAdd(definitions, "MagicBloom.fx", "fExposure", "Exposure", -5f, 5f, profile => profile.Exposure - 1f, true);
         AddAdd(definitions, "MagicBloom.fx", "fSaturation", "Saturation", -5f, 5f, profile => profile.Saturation - 1f, true);
 
         AddScale(definitions, "Deband.fx", "range", "Deband", 1f, 96f, profile => profile.DebandStrength, true);
-        AddScale(definitions, "Deband.fx", "t1", "Deband", 0.0001f, 0.10f, profile => profile.DebandStrength, true);
-        AddScale(definitions, "Deband.fx", "t2", "Deband", 0.0001f, 0.20f, profile => profile.DebandStrength, true);
+        AddRelative(definitions, "Deband.fx", "t1", "Deband", 0.0001f, 0.10f, profile => (profile.DebandStrength - 1f) * 0.003f, true);
+        AddRelative(definitions, "Deband.fx", "t2", "Deband", 0.0001f, 0.20f, profile => (profile.DebandStrength - 1f) * 0.015f, true);
 
         AddScale(definitions, "MartysMods_CLARITY.fx", "TEXTURE_INTENSITY", "Clarity", 0f, 2f, profile => profile.Clarity, true);
         AddScale(definitions, "MartysMods_CLARITY.fx", "HDR_INTENSITY", "Clarity", 0f, 2f, profile => profile.Clarity, true);
@@ -114,7 +116,7 @@ public sealed class ShaderVariableMapper
         AddAdd(definitions, "qUINT_lightroom.fx", "Contrast", "Free color", -5f, 5f, profile => (profile.Contrast - 1f) * 0.5f);
         AddAdd(definitions, "qUINT_lightroom.fx", "Saturation", "Free color", -5f, 5f, profile => (profile.Saturation - 1f) * 0.5f);
         AddScale(definitions, "qUINT_lightroom.fx", "BloomIntensity", "Bloom", 0f, 10f, profile => profile.Bloom);
-        AddScale(definitions, "qUINT_lightroom.fx", "BloomThreshold", "Bloom threshold", 0f, 10f, profile => profile.BloomThreshold);
+        AddRelative(definitions, "qUINT_lightroom.fx", "BloomThreshold", "Bloom threshold", 0f, 10f, profile => (profile.BloomThreshold - 1f) * 0.35f);
         AddScale(definitions, "qUINT_lightroom.fx", "Sharpness", "Sharpening", 0f, 10f, profile => profile.Sharpness);
         AddScale(definitions, "qUINT_lightroom.fx", "Clarity", "Clarity", 0f, 10f, profile => profile.Clarity);
 
@@ -122,11 +124,11 @@ public sealed class ShaderVariableMapper
         AddAdd(definitions, "prod80_04_ColorTemperature.fx", "Temperature", "Free color", -1f, 1f, profile => profile.Temperature * 0.5f);
         AddAdd(definitions, "prod80_04_ColorTemperature.fx", "Tint", "Free color", -1f, 1f, profile => profile.Tint * 0.5f);
 
-        AddScale(definitions, "MartysMods_SMAA.fx", "SMAA_THRESHOLD", "Anti-aliasing", 0.01f, 0.50f, profile => 1f / profile.AntiAliasingStrength, true);
-        AddScale(definitions, "SMAA.fx", "SMAA_THRESHOLD", "Anti-aliasing", 0.01f, 0.50f, profile => 1f / profile.AntiAliasingStrength);
+        AddInvert(definitions, "MartysMods_SMAA.fx", "SMAA_THRESHOLD", "Anti-aliasing", 0.01f, 0.50f, profile => (profile.AntiAliasingStrength - 1f) * 0.03f, true);
+        AddInvert(definitions, "SMAA.fx", "SMAA_THRESHOLD", "Anti-aliasing", 0.01f, 0.50f, profile => (profile.AntiAliasingStrength - 1f) * 0.03f);
 
         AddScale(definitions, "qUINT_deband.fx", "DEBAND_RADIUS", "Deband", 1f, 128f, profile => profile.DebandStrength);
-        AddScale(definitions, "qUINT_deband.fx", "DEBAND_THRESHOLD", "Deband", 0.0001f, 0.20f, profile => profile.DebandStrength);
+        AddRelative(definitions, "qUINT_deband.fx", "DEBAND_THRESHOLD", "Deband", 0.0001f, 0.20f, profile => (profile.DebandStrength - 1f) * 0.015f);
 
         AddScale(definitions, "LUT.fx", "fLUT_AmountChroma", "LUT", 0f, 1f, profile => profile.LutStrength);
         AddScale(definitions, "LUT.fx", "fLUT_AmountLuma", "LUT", 0f, 1f, profile => profile.LutStrength);
@@ -161,10 +163,10 @@ public sealed class ShaderVariableMapper
         AddAdd(definitions, section, "TONECURVE_DARKS", reason, -1f, 1f, profile => profile.ShadowLift * 0.15f, true);
         AddAdd(definitions, section, "TONECURVE_HIGHLIGHTS", reason, -1f, 1f, profile => -(profile.HighlightRecovery - 1f) * 0.25f, true);
         AddAdd(definitions, section, "TONECURVE_LIGHTS", reason, -1f, 1f, profile => -(profile.HighlightRecovery - 1f) * 0.15f, true);
-        AddScale(definitions, section, "INPUT_BLACK_LVL", reason, 0f, 255f, profile => profile.BlackPoint, true);
-        AddScale(definitions, section, "INPUT_WHITE_LVL", reason, 0f, 255f, profile => profile.WhitePoint, true);
-        AddScale(definitions, section, "OUTPUT_BLACK_LVL", reason, 0f, 255f, profile => profile.BlackPoint, true);
-        AddScale(definitions, section, "OUTPUT_WHITE_LVL", reason, 0f, 255f, profile => profile.WhitePoint, true);
+        AddRelative(definitions, section, "INPUT_BLACK_LVL", reason, 0f, 255f, profile => (profile.BlackPoint - 1f) * 12f, true);
+        AddRelative(definitions, section, "INPUT_WHITE_LVL", reason, 0f, 255f, profile => (profile.WhitePoint - 1f) * 24f, true);
+        AddRelative(definitions, section, "OUTPUT_BLACK_LVL", reason, 0f, 255f, profile => (profile.BlackPoint - 1f) * 12f, true);
+        AddRelative(definitions, section, "OUTPUT_WHITE_LVL", reason, 0f, 255f, profile => (profile.WhitePoint - 1f) * 24f, true);
     }
 
     private static void AddReGradePlus(List<ShaderVariableDefinition> definitions, string section, string reason)
@@ -188,30 +190,47 @@ public sealed class ShaderVariableMapper
         definitions.Add(new ShaderVariableDefinition(section, key, ShaderValueMode.Add, reason, min, max, amount, allowFallback));
     }
 
+    private static void AddInvert(List<ShaderVariableDefinition> definitions, string? section, string key, string reason, float min, float max, Func<VisualProfile, float> amount, bool allowFallback = false)
+    {
+        definitions.Add(new ShaderVariableDefinition(section, key, ShaderValueMode.InvertAdd, reason, min, max, amount, allowFallback));
+    }
+
+    private static void AddRelative(List<ShaderVariableDefinition> definitions, string? section, string key, string reason, float min, float max, Func<VisualProfile, float> amount, bool allowFallback = false)
+    {
+        definitions.Add(new ShaderVariableDefinition(section, key, ShaderValueMode.RelativeAdd, reason, min, max, amount, allowFallback));
+    }
+
     private static void Add(Dictionary<ShaderVariableKey, ShaderAdjustment> adjustments, ShaderVariableDefinition definition, VisualProfile profile, string? section)
     {
         adjustments[new ShaderVariableKey(section, definition.Key)] = new ShaderAdjustment(value => Apply(value, definition, profile), definition.ReasonCategory);
     }
 
-    private static string? Apply(string rawValue, ShaderVariableDefinition definition, VisualProfile profile)
+    private static ShaderAdjustmentResult? Apply(string rawValue, ShaderVariableDefinition definition, VisualProfile profile)
     {
-        return TryParseSingle(rawValue, out var current)
-            ? Format(ApplyMode(current, definition.Amount(profile), definition.Mode, definition.Min, definition.Max))
-            : null;
+        if (!TryParseSingle(rawValue, out var current))
+        {
+            return null;
+        }
+
+        var result = ApplyMode(current, definition.Amount(profile), definition.Mode, definition.Min, definition.Max);
+        return new ShaderAdjustmentResult(Format(result.Value), result.HitMin, result.HitMax);
     }
 
-    private static float ApplyMode(float current, float amount, ShaderValueMode mode, float min, float max)
+    private static (float Value, bool HitMin, bool HitMax) ApplyMode(float current, float amount, ShaderValueMode mode, float min, float max)
     {
         var value = mode switch
         {
             ShaderValueMode.Scale => current * amount,
             ShaderValueMode.Add => current + amount,
             ShaderValueMode.InvertAdd => current - amount,
-            ShaderValueMode.ClampOnly => current,
+            ShaderValueMode.RelativeAdd => current + amount,
             _ => current
         };
 
-        return Clamp(value, min, max);
+        var clamped = Clamp(value, min, max);
+        var hitMin = value < min;
+        var hitMax = value > max;
+        return (clamped, hitMin, hitMax);
     }
 
     private static bool TryParseSingle(string rawValue, out float value)

@@ -5,14 +5,22 @@ using System.Linq;
 
 namespace Dalashade;
 
-public sealed record ChangedShaderVariable(string Section, string Key, string OldValue, string NewValue, string ReasonCategory);
+public sealed record ChangedShaderVariable(
+    string Section,
+    string Key,
+    string OldValue,
+    string NewValue,
+    string ReasonCategory,
+    bool TechniqueActive,
+    bool HitMin,
+    bool HitMax);
 
 public sealed record PresetWriteResult(bool Success, string Message, int ChangedVariables, IReadOnlyList<ChangedShaderVariable> Changes)
 {
     public static PresetWriteResult Skipped(string message) => new(false, message, 0, Array.Empty<ChangedShaderVariable>());
 }
 
-public sealed record ShaderSupportItem(string Section, string Key, bool Controllable, string ReasonCategory);
+public sealed record ShaderSupportItem(string Section, string Key, bool Controllable, string ReasonCategory, bool TechniqueActive);
 
 public sealed record ShaderSupportScan(bool Success, string Message, IReadOnlyList<ShaderSupportItem> Items)
 {
@@ -60,6 +68,7 @@ public sealed class PresetWriter
 
             var adjustments = mapper.CreateAdjustments(profile, configuration);
             var lines = File.ReadAllLines(basePresetPath);
+            var activeTechniques = ParseActiveTechniques(lines);
             var changes = new List<ChangedShaderVariable>();
             var currentSection = string.Empty;
 
@@ -84,17 +93,39 @@ public sealed class PresetWriter
                     continue;
                 }
 
-                var currentValue = line[(separatorIndex + 1)..];
-                var adjustedValue = adjust.Apply(currentValue);
-                if (adjustedValue == null)
+                var techniqueActive = IsTechniqueActive(activeTechniques, currentSection);
+                if (!techniqueActive && configuration.InactiveShaderWriteMode == InactiveShaderWriteMode.Never)
                 {
                     continue;
                 }
 
+                if (!techniqueActive
+                    && configuration.InactiveShaderWriteMode == InactiveShaderWriteMode.SupportedInactiveSections
+                    && !HasExactAdjustment(adjustments, currentSection, key))
+                {
+                    continue;
+                }
+
+                var currentValue = line[(separatorIndex + 1)..];
+                var adjusted = adjust.Apply(currentValue);
+                if (adjusted == null)
+                {
+                    continue;
+                }
+
+                var adjustedValue = adjusted.NewValue;
                 lines[i] = $"{line[..(separatorIndex + 1)]}{adjustedValue}";
                 if (!string.Equals(currentValue, adjustedValue, StringComparison.Ordinal))
                 {
-                    changes.Add(new ChangedShaderVariable(currentSection, key, currentValue, adjustedValue, adjust.ReasonCategory));
+                    changes.Add(new ChangedShaderVariable(
+                        currentSection,
+                        key,
+                        currentValue,
+                        adjustedValue,
+                        adjust.ReasonCategory,
+                        techniqueActive,
+                        adjusted.HitMin,
+                        adjusted.HitMax));
                 }
             }
 
@@ -109,7 +140,15 @@ public sealed class PresetWriter
             File.WriteAllLines(tempPath, lines);
             ReplaceFile(tempPath, generatedPresetPath);
 
-            return new PresetWriteResult(true, $"Generated preset written with {changes.Count} supported variable change(s).", changes.Count, changes);
+            var inactiveChanges = changes.Count(change => !change.TechniqueActive);
+            var clampedChanges = changes.Count(change => change.HitMin || change.HitMax);
+            var message = $"Generated preset written with {changes.Count} supported variable change(s).";
+            if (inactiveChanges > 0 || clampedChanges > 0)
+            {
+                message += $" {inactiveChanges} inactive, {clampedChanges} clamped.";
+            }
+
+            return new PresetWriteResult(true, message, changes.Count, changes);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -138,6 +177,7 @@ public sealed class PresetWriter
 
             var adjustments = mapper.CreateAdjustments(VisualProfile.Neutral, configuration);
             var lines = File.ReadAllLines(basePresetPath);
+            var activeTechniques = ParseActiveTechniques(lines);
             var items = new List<ShaderSupportItem>();
             var seen = new HashSet<ShaderVariableKey>(ShaderVariableKeyComparer.Instance);
             var currentSection = string.Empty;
@@ -168,12 +208,19 @@ public sealed class PresetWriter
                     continue;
                 }
 
-                items.Add(new ShaderSupportItem(currentSection, key, true, adjust.ReasonCategory));
+                items.Add(new ShaderSupportItem(
+                    currentSection,
+                    key,
+                    true,
+                    adjust.ReasonCategory,
+                    IsTechniqueActive(activeTechniques, currentSection)));
             }
 
+            var activeCount = items.Count(item => item.TechniqueActive);
+            var inactiveCount = items.Count - activeCount;
             var message = items.Count == 0
                 ? "No controllable shader variables detected in the base preset."
-                : $"Detected {items.Count} controllable shader variable(s).";
+                : $"Detected {items.Count} controllable shader variable(s): {activeCount} active, {inactiveCount} inactive.";
             return new ShaderSupportScan(true, message, items.OrderBy(item => item.Section).ThenBy(item => item.Key).ToArray());
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
@@ -208,6 +255,11 @@ public sealed class PresetWriter
         return false;
     }
 
+    private static bool HasExactAdjustment(IReadOnlyDictionary<ShaderVariableKey, ShaderAdjustment> adjustments, string section, string key)
+    {
+        return adjustments.ContainsKey(new ShaderVariableKey(section, key));
+    }
+
     private static bool TryReadSection(string line, out string section)
     {
         var trimmed = line.Trim();
@@ -219,6 +271,46 @@ public sealed class PresetWriter
 
         section = string.Empty;
         return false;
+    }
+
+    private static HashSet<string> ParseActiveTechniques(IEnumerable<string> lines)
+    {
+        var activeTechniques = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var line in lines)
+        {
+            var separatorIndex = line.IndexOf('=');
+            if (separatorIndex <= 0)
+            {
+                continue;
+            }
+
+            var key = line[..separatorIndex].Trim();
+            if (!string.Equals(key, "Techniques", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var value = line[(separatorIndex + 1)..];
+            foreach (var entry in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                activeTechniques.Add(entry);
+                var shaderSeparator = entry.LastIndexOf('@');
+                if (shaderSeparator >= 0 && shaderSeparator < entry.Length - 1)
+                {
+                    activeTechniques.Add(entry[(shaderSeparator + 1)..]);
+                }
+            }
+
+            break;
+        }
+
+        return activeTechniques;
+    }
+
+    private static bool IsTechniqueActive(IReadOnlySet<string> activeTechniques, string section)
+    {
+        return activeTechniques.Count == 0 || string.IsNullOrWhiteSpace(section) || activeTechniques.Contains(section);
     }
 
     private static void ReplaceFile(string tempPath, string generatedPresetPath)

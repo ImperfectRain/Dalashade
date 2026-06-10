@@ -99,6 +99,7 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Clarity Multiplier: {profile.Clarity:0.###}x");
         ImGui.TextUnformatted($"Bloom Radius: {profile.BloomRadius:0.###}x");
         ImGui.TextUnformatted($"Bloom Threshold: {profile.BloomThreshold:0.###}x");
+        ImGui.TextUnformatted($"Bloom Dirt: {profile.BloomDirt:0.###}x");
         ImGui.TextUnformatted($"Highlight Recovery: {profile.HighlightRecovery:0.###}x");
         ImGui.TextUnformatted($"White Point: {profile.WhitePoint:0.###}x");
         ImGui.TextUnformatted($"Black Point: {profile.BlackPoint:0.###}x");
@@ -153,7 +154,8 @@ public sealed class MainWindow : Window, IDisposable
             ImGui.TextWrapped(plugin.LastShaderSupportScan.Message);
             foreach (var item in plugin.LastShaderSupportScan.Items)
             {
-                ImGui.BulletText($"{item.Section} / {item.Key} ({item.ReasonCategory})");
+                var active = item.TechniqueActive ? "active" : "inactive";
+                ImGui.BulletText($"{item.Section} / {item.Key} ({item.ReasonCategory}, {active})");
             }
         }
 
@@ -166,7 +168,9 @@ public sealed class MainWindow : Window, IDisposable
 
             foreach (var change in plugin.LastWriteResult.Changes)
             {
-                ImGui.BulletText($"{change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue}");
+                var active = change.TechniqueActive ? "active" : "inactive";
+                var clamp = change.HitMin ? ", min clamp" : change.HitMax ? ", max clamp" : string.Empty;
+                ImGui.BulletText($"{change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} ({active}{clamp})");
                 ImGui.SameLine();
                 ImGui.TextDisabled(change.ReasonCategory);
             }

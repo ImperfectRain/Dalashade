@@ -126,6 +126,18 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.Save();
         }
 
+        if (configuration.ShaderMatchingMode == ShaderMatchingMode.LooseKeys)
+        {
+            ImGui.TextWrapped("Loose key matching may edit variables outside known shader sections. It is useful for testing unsupported presets, but strict matching is safer for normal use.");
+        }
+
+        var inactiveWriteMode = (int)configuration.InactiveShaderWriteMode;
+        if (ImGui.Combo("Inactive shader writes", ref inactiveWriteMode, "Never\0Supported inactive sections\0Always matching keys\0"))
+        {
+            configuration.InactiveShaderWriteMode = (InactiveShaderWriteMode)inactiveWriteMode;
+            configuration.Save();
+        }
+
         DrawCheckbox("Write generated preset backups", configuration.WriteBackups, value => configuration.WriteBackups = value);
 
         var maxBackups = configuration.MaxGeneratedPresetBackups;

@@ -13,7 +13,7 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 - Classifies the current place as a city, field zone, dungeon/trial/raid-like duty, or interior-ish space.
 - Optionally analyzes the newest screenshot in a folder for brightness, contrast, saturation, crushed shadows, and clipped highlights.
 - Optionally analyzes a master image folder, so you can point it at a look you like and let Dalashade bias the generated preset toward it.
-- Shows the actual preset variables it changed, with old and new values.
+- Shows the actual preset variables it changed, with old and new values, plus whether that shader is active in ReShade.
 - Scans your base preset for shader variables Dalashade can really control.
 - Generates a separate ReShade preset from your chosen base preset.
 - Supports free iMMERSE variables by default.
@@ -96,11 +96,19 @@ Free iMMERSE support is on by default for installed preset variables such as MXA
 
 The Pro/Ultimate toggle only changes values that already exist in your preset. If RTGI, ReGrade+, ReLight, or other paid effects are not in the preset, Dalashade leaves them alone. This keeps the free path free and avoids pretending paid shaders are required.
 
-The writer is section-aware and defaults to strict section matching, so it edits variables inside the matching shader section, like `[MartysMods_MXAO.fx]`. You can loosen this to known fallbacks or loose key matching for compatibility, but strict is safer for normal use because generic names like `Exposure` and `Contrast` can exist in more than one shader.
+The writer is section-aware and defaults to strict section matching, so it edits variables inside the matching shader section, like `[MartysMods_MXAO.fx]`. You can loosen this to known fallbacks or loose key matching for compatibility, but strict is safer for normal use because generic names like `Exposure` and `Contrast` can exist in more than one shader. Loose key matching is there for experimenting with unsupported presets, not because it is the clever default.
 
-The mapper also treats shader values differently depending on what the INI value represents. Strength/amount/radius values are multiplied. Zero-centered grading offsets like exposure, contrast, saturation, gamma, tone curve, tint, and temperature are added to. That keeps values like `GRADE_EXPOSURE=0.000000` from staying unchanged just because multiplying zero by a stronger profile is still zero.
+The mapper also treats shader values differently depending on what the INI value represents. Strength/amount/radius values are multiplied. Zero-centered grading offsets like exposure, contrast, saturation, gamma, tone curve, tint, and temperature are added to. Thresholds and black/white point controls get small relative offsets instead of raw scaling, because scaling a value like `INPUT_BLACK_LVL=0` or a delicate threshold can either do nothing or jump too hard.
 
-Use `Scan Shader Support` to see what Dalashade found in your base preset. Use the `Changed variables` panel after generation to see the exact values it wrote.
+Use `Scan Shader Support` to see what Dalashade found in your base preset. Dalashade reads the top-level `Techniques=` list and marks supported variables as active or inactive. That matters because a preset can contain a `[MartysMods_MXAO.fx]` section while MXAO itself is not currently enabled, so the value is real but will not be visible yet.
+
+The `Inactive shader writes` option controls how much of that preset scaffolding Dalashade edits:
+
+- `Never` only writes variables for currently active techniques.
+- `Supported inactive sections` also updates known shader sections that exist in the preset but are not active yet.
+- `Always matching keys` is the loosest mode and is mainly for testing odd presets.
+
+Use the `Changed variables` panel after generation to see the exact values it wrote. If a generated value hits a shader's min or max, Dalashade marks it as clamped so you can tell when a rule wanted to go further than the shader variable safely allows.
 
 Backups are capped by `Max generated preset backups` so automatic generation does not fill the config folder forever. The default keeps the latest 10 generated backups.
 
