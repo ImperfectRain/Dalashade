@@ -12,8 +12,6 @@ public sealed class MainWindow : Window, IDisposable
 {
     private static readonly Vector4 WarningColor = new(1.0f, 0.72f, 0.28f, 1.0f);
     private static readonly Vector4 DangerColor = new(1.0f, 0.38f, 0.34f, 1.0f);
-    private const float MeaningfulColorFamilyAdjustmentScore = 0.0005f;
-    private const float LowColorFamilyConfidence = 0.10f;
 
     private readonly Plugin plugin;
     private bool showAllMasterColorFamilies;
@@ -609,21 +607,9 @@ public sealed class MainWindow : Window, IDisposable
     {
         ImGui.Checkbox("Show all color families###MainShowAllMasterColorFamilies", ref showAllMasterColorFamilies);
 
-        var rows = Enum.GetValues<ColorFamily>()
-            .Select(family =>
-            {
-                var currentStats = current.ColorFamilies.TryGetValue(family, out var currentValue) ? currentValue : ColorFamilyStats.Empty(family);
-                var masterStats = master.ColorFamilies.TryGetValue(family, out var masterValue) ? masterValue : ColorFamilyStats.Empty(family);
-                var adjustment = profile.GetColorFamilyAdjustment(family);
-                return new ColorFamilyComparisonRow(family, currentStats, masterStats, adjustment);
-            })
-            .OrderByDescending(row => row.Adjustment.Score)
-            .ThenByDescending(row => MathF.Max(row.Current.Confidence, row.Master.Confidence))
-            .ThenBy(row => row.Family)
-            .Where(row => showAllMasterColorFamilies || row.Adjustment.Score > MeaningfulColorFamilyAdjustmentScore || MathF.Max(row.Current.Confidence, row.Master.Confidence) >= LowColorFamilyConfidence)
-            .ToArray();
+        var rows = ColorFamilyComparisonRows.Build(current, master, profile, showAllMasterColorFamilies);
 
-        if (rows.Length == 0)
+        if (rows.Count == 0)
         {
             ImGui.TextUnformatted("No confident color-family matches or generated adjustments.");
             return;
@@ -655,6 +641,4 @@ public sealed class MainWindow : Window, IDisposable
 
         ImGui.EndTable();
     }
-
-    private sealed record ColorFamilyComparisonRow(ColorFamily Family, ColorFamilyStats Current, ColorFamilyStats Master, ColorFamilyAdjustment Adjustment);
 }

@@ -282,6 +282,13 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.Save();
         }
 
+        if (ImGui.Button("Reset tuning to Balanced###ResetMasterTuningBalanced"))
+        {
+            configuration.MasterStyleTuningPreset = MasterStyleTuningPreset.Balanced;
+            MasterStyleTuningPresets.Apply(configuration, configuration.MasterStyleTuningPreset);
+            configuration.Save();
+        }
+
         DrawMasterFloatSlider("Tonal match strength", configuration.MasterTonalMatchStrength, 0f, 2f, value => configuration.MasterTonalMatchStrength = value);
         DrawMasterFloatSlider("Tonal color strength", configuration.MasterTonalColorStrength, 0f, 2f, value => configuration.MasterTonalColorStrength = value);
         DrawMasterFloatSlider("Color-family strength", configuration.MasterColorFamilyStrength, 0f, 2f, value => configuration.MasterColorFamilyStrength = value);
