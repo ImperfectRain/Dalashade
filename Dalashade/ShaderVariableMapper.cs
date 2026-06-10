@@ -225,6 +225,29 @@ public sealed class ShaderVariableMapper
         AddScale(definitions, section, "E_MIDTONES_SAT", "ReGrade+ tonal color preservation", -1f, 1f, profile => profile.ColorGradePreservation, true);
         AddScale(definitions, section, "E_HIGHLIGHTS_HUE", "ReGrade+ tonal color preservation", -1f, 1f, profile => profile.ColorGradePreservation, true);
         AddScale(definitions, section, "E_HIGHLIGHTS_SAT", "ReGrade+ tonal color preservation", -1f, 1f, profile => profile.ColorGradePreservation, true);
+
+        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_RED_V2");
+        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_ORANGE_V2");
+        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_YELLOW_V2");
+        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_GREEN_V2");
+        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_CYAN_V2");
+        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_BLUE_V2");
+        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_PURPLE_V2");
+        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_MAGENTA_V2");
+    }
+
+    private static void AddColoristaPreservation(List<ShaderVariableDefinition> definitions, string section, string key)
+    {
+        AddVectorMoveTowardNeutral(
+            definitions,
+            section,
+            key,
+            ShaderValueShape.Vector3,
+            "ReGrade+ Colorista preservation",
+            -1f,
+            1f,
+            profile => 1f - profile.ColorGradePreservation,
+            true);
     }
 
     private static void AddScale(List<ShaderVariableDefinition> definitions, string? section, string key, string reason, float min, float max, Func<VisualProfile, float> amount, bool allowFallback = false)

@@ -599,7 +599,13 @@ public sealed class PresetAnalyzer
             return false;
         }
 
-        var values = rawValue
+        var trimmed = rawValue.Trim();
+        if (trimmed.Length >= 2 && trimmed[0] == '(' && trimmed[^1] == ')')
+        {
+            trimmed = trimmed[1..^1];
+        }
+
+        var values = trimmed
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(value => float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0f)
             .ToArray();
@@ -608,7 +614,7 @@ public sealed class PresetAnalyzer
             return false;
         }
 
-        warning = $"ReGrade+ {key} has non-neutral Colorista HSL values; vector sanitization is detection-only in this milestone.";
+        warning = $"ReGrade+ {key} has non-neutral Colorista HSL values; compatibility mode can reduce this value during generation.";
         return true;
     }
 

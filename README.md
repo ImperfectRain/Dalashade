@@ -101,7 +101,7 @@ The writer is section-aware and defaults to strict section matching, so it edits
 
 The mapper also treats shader values differently depending on what the INI value represents. Strength/amount/radius values are multiplied. Zero-centered grading offsets like exposure, contrast, saturation, gamma, tone curve, tint, and temperature are added to. Thresholds and black/white point controls get small relative offsets instead of raw scaling, because scaling a value like `INPUT_BLACK_LVL=0` or a delicate threshold can either do nothing or jump too hard.
 
-The mapper has scalar and vector value plumbing now. Existing mappings are still scalar, so Rain/iMMERSE behavior should stay the same, but future compatibility work can safely handle two-, three-, and four-component shader values instead of pretending everything is a single float. Vector Colorista-style cleanup is not turned on yet.
+The mapper has scalar and vector value plumbing now. Most mappings are still scalar, so Rain/iMMERSE behavior should stay familiar, but Dalashade can also handle ReGrade+ Colorista HSL vectors without pretending they are single floats.
 
 Use `Scan Shader Support` to see what Dalashade found in your base preset. Dalashade reads the top-level `Techniques=` list and marks supported variables as active or inactive. That matters because a preset can contain a `[MartysMods_MXAO.fx]` section while MXAO itself is not currently enabled, so the value is real but will not be visible yet.
 
@@ -131,11 +131,11 @@ The report classifies effects by role: color grade, tonemap, bloom, AO/GI, sharp
 
 Detected-only effects are important: Dalashade recognizes what they probably do, but does not control their variables yet. They can still dominate the image, so the UI separates them from fully controlled, partially controlled, and unknown effects.
 
-The compatibility mode selector now controls the first small slice of ReGrade+ color safety. It scales ReGrade+ scalar tonal hue/saturation values toward neutral: `E_SHADOWS_HUE`, `E_SHADOWS_SAT`, `E_MIDTONES_HUE`, `E_MIDTONES_SAT`, `E_HIGHLIGHTS_HUE`, and `E_HIGHLIGHTS_SAT`. `Preserve base` and `GPose preserve` keep those values intact, `Cinematic preserve` keeps most of them, `Adaptive balanced` softens them, and `Gameplay sanitize` pulls them down hard.
+The compatibility mode selector now controls the first small slice of ReGrade+ color safety. It scales ReGrade+ scalar tonal hue/saturation values toward neutral: `E_SHADOWS_HUE`, `E_SHADOWS_SAT`, `E_MIDTONES_HUE`, `E_MIDTONES_SAT`, `E_HIGHLIGHTS_HUE`, and `E_HIGHLIGHTS_SAT`. It also moves ReGrade+ Colorista HSL vectors like `E_COLORISTA_HSL_GREEN_V2` toward neutral proportionally. `Preserve base` and `GPose preserve` keep those values intact, `Cinematic preserve` keeps most of them, `Adaptive balanced` softens them, and `Gameplay sanitize` pulls them down hard.
 
 `Export Compatibility Report` writes a Markdown report into the plugin config folder with active techniques, authorities, warnings, shader support, changed variables, inactive edits, and clamp hits. This should make preset debugging much less hand-wavy.
 
-This still does not disable techniques or touch ReGrade+ Colorista vector values. The current sanitize behavior is limited to those six single-float ReGrade+ tonal color controls, so Rain/iMMERSE-style presets stay protected while heavier third-party presets can start becoming safer in balanced/gameplay modes.
+This still does not disable techniques or broadly sanitize every color shader. The current sanitize behavior is limited to ReGrade+ scalar tonal color controls and ReGrade+ Colorista HSL vectors, so Rain/iMMERSE-style presets stay protected while heavier third-party presets can start becoming safer in balanced/gameplay modes.
 
 ## Scene Lock
 
