@@ -79,7 +79,7 @@ public sealed class PresetWriter
                 }
 
                 var key = line[..separatorIndex].Trim();
-                if (!TryGetAdjustment(adjustments, currentSection, key, out var adjust))
+                if (!TryGetAdjustment(adjustments, configuration.ShaderMatchingMode, currentSection, key, out var adjust))
                 {
                     continue;
                 }
@@ -102,6 +102,7 @@ public sealed class PresetWriter
             {
                 var backupPath = CreateBackupPath(generatedPresetPath);
                 File.Copy(generatedPresetPath, backupPath, false);
+                PruneBackups(generatedPresetPath, configuration.MaxGeneratedPresetBackups);
             }
 
             var tempPath = $"{generatedPresetPath}.tmp";
@@ -156,7 +157,7 @@ public sealed class PresetWriter
                 }
 
                 var key = line[..separatorIndex].Trim();
-                if (!TryGetAdjustment(adjustments, currentSection, key, out var adjust))
+                if (!TryGetAdjustment(adjustments, configuration.ShaderMatchingMode, currentSection, key, out var adjust))
                 {
                     continue;
                 }
@@ -181,14 +182,30 @@ public sealed class PresetWriter
         }
     }
 
-    private static bool TryGetAdjustment(IReadOnlyDictionary<ShaderVariableKey, ShaderAdjustment> adjustments, string section, string key, out ShaderAdjustment adjustment)
+    private static bool TryGetAdjustment(IReadOnlyDictionary<ShaderVariableKey, ShaderAdjustment> adjustments, ShaderMatchingMode matchingMode, string section, string key, out ShaderAdjustment adjustment)
     {
         if (adjustments.TryGetValue(new ShaderVariableKey(section, key), out adjustment!))
         {
             return true;
         }
 
-        return adjustments.TryGetValue(new ShaderVariableKey(null, key), out adjustment!);
+        if (matchingMode == ShaderMatchingMode.KnownFallbacks && adjustments.TryGetValue(new ShaderVariableKey(null, key), out adjustment!))
+        {
+            return true;
+        }
+
+        if (matchingMode == ShaderMatchingMode.LooseKeys)
+        {
+            var looseMatch = adjustments.FirstOrDefault(pair => string.Equals(pair.Key.Key, key, StringComparison.OrdinalIgnoreCase));
+            if (looseMatch.Value != null)
+            {
+                adjustment = looseMatch.Value;
+                return true;
+            }
+        }
+
+        adjustment = null!;
+        return false;
     }
 
     private static bool TryReadSection(string line, out string section)
@@ -239,5 +256,45 @@ public sealed class PresetWriter
         }
 
         return backupPath;
+    }
+
+    private static void PruneBackups(string generatedPresetPath, int maxBackups)
+    {
+        if (maxBackups <= 0)
+        {
+            return;
+        }
+
+        var directoryPath = Path.GetDirectoryName(generatedPresetPath);
+        var fileName = Path.GetFileName(generatedPresetPath);
+        if (string.IsNullOrWhiteSpace(directoryPath) || string.IsNullOrWhiteSpace(fileName))
+        {
+            return;
+        }
+
+        var directory = new DirectoryInfo(directoryPath);
+        if (!directory.Exists)
+        {
+            return;
+        }
+
+        var backups = directory.EnumerateFiles($"{fileName}.*.bak", SearchOption.TopDirectoryOnly)
+            .OrderByDescending(file => file.LastWriteTimeUtc)
+            .Skip(maxBackups)
+            .ToArray();
+
+        foreach (var backup in backups)
+        {
+            try
+            {
+                backup.Delete();
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
     }
 }

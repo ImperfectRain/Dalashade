@@ -118,7 +118,22 @@ public sealed class ConfigWindow : Window, IDisposable
         }
 
         DrawCheckbox("Use installed iMMERSE Pro/Ultimate variables", configuration.UsePremiumImmerseEffects, value => configuration.UsePremiumImmerseEffects = value);
+
+        var matchingMode = (int)configuration.ShaderMatchingMode;
+        if (ImGui.Combo("Shader matching", ref matchingMode, "Strict sections\0Known fallbacks\0Loose keys\0"))
+        {
+            configuration.ShaderMatchingMode = (ShaderMatchingMode)matchingMode;
+            configuration.Save();
+        }
+
         DrawCheckbox("Write generated preset backups", configuration.WriteBackups, value => configuration.WriteBackups = value);
+
+        var maxBackups = configuration.MaxGeneratedPresetBackups;
+        if (ImGui.SliderInt("Max generated preset backups", ref maxBackups, 1, 50))
+        {
+            configuration.MaxGeneratedPresetBackups = maxBackups;
+            configuration.Save();
+        }
 
         if (ImGui.Button("Scan Shader Support"))
         {

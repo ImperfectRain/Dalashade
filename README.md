@@ -37,7 +37,9 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 
 The generated preset should live somewhere writable, usually Dalamud's plugin config folder. Keeping it away from the game folder avoids a lot of Windows permission nonsense.
 
-Dalashade can also reload ReShade after it writes the preset. By default it syncs ReShade's reload hotkey to `F5` in `ReShade.ini`, then sends that key after a successful generation. If you already use another reload key, click `Set reload hotkey` in settings and press the key or button you want. Hold Ctrl, Shift, or Alt while pressing it if you use a combo. The settings window also has `Test Reload` so you can check the reload path without regenerating a preset.
+Dalashade can also try to reload ReShade after it writes the preset. By default it syncs ReShade's reload hotkey to `F5` in `ReShade.ini`, then sends that key after a successful generation. If you already use another reload key, click `Set reload hotkey` in settings and press the key or button you want. Hold Ctrl, Shift, or Alt while pressing it if you use a combo. The settings window also has `Test Reload` so you can check the reload path without regenerating a preset.
+
+Reload is best-effort because ReShade input can depend on focus, overlays, Windows permissions, and whether the game/plugin are running at the same privilege level. If it does not work, manually bind ReShade reload to the same key Dalashade shows and keep both processes at the same privilege level.
 
 ## Screenshot Analysis
 
@@ -94,9 +96,13 @@ Free iMMERSE support is on by default for installed preset variables such as MXA
 
 The Pro/Ultimate toggle only changes values that already exist in your preset. If RTGI, ReGrade+, ReLight, or other paid effects are not in the preset, Dalashade leaves them alone. This keeps the free path free and avoids pretending paid shaders are required.
 
-The writer is section-aware, so it prefers variables inside the matching shader section, like `[MartysMods_MXAO.fx]`, before falling back to unique variable names. That matters because generic names like `Exposure` and `Contrast` can exist in more than one shader and should not be edited blindly.
+The writer is section-aware and defaults to strict section matching, so it edits variables inside the matching shader section, like `[MartysMods_MXAO.fx]`. You can loosen this to known fallbacks or loose key matching for compatibility, but strict is safer for normal use because generic names like `Exposure` and `Contrast` can exist in more than one shader.
+
+The mapper also treats shader values differently depending on what the INI value represents. Strength/amount/radius values are multiplied. Zero-centered grading offsets like exposure, contrast, saturation, gamma, tone curve, tint, and temperature are added to. That keeps values like `GRADE_EXPOSURE=0.000000` from staying unchanged just because multiplying zero by a stronger profile is still zero.
 
 Use `Scan Shader Support` to see what Dalashade found in your base preset. Use the `Changed variables` panel after generation to see the exact values it wrote.
+
+Backups are capped by `Max generated preset backups` so automatic generation does not fill the config folder forever. The default keeps the latest 10 generated backups.
 
 ## Scene Lock
 

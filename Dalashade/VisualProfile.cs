@@ -13,12 +13,27 @@ public sealed record VisualProfile(
     float ReLight,
     float DepthEffects,
     float Sharpness,
+    float SharpenThreshold,
     float Clarity,
+    float HighlightRecovery,
+    float WhitePoint,
+    float BlackPoint,
+    float MidtoneContrast,
+    float BloomRadius,
+    float BloomThreshold,
+    float AoRadius,
+    float AoFadeDistance,
+    float DebandStrength,
+    float AntiAliasingStrength,
+    float LutStrength,
     float ShadowLift,
     float Temperature,
     float Tint)
 {
-    public static VisualProfile Neutral { get; } = new(1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, 0f, 0f);
+    public static VisualProfile Neutral { get; } = new(
+        1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f,
+        1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f,
+        1f, 1f, 1f, 1f, 1f, 1f, 0f, 0f, 0f);
 }
 
 public sealed class ProfileEngine
@@ -47,7 +62,19 @@ public sealed class ProfileEngine
         var relight = 1f;
         var depthEffects = 1f;
         var sharpness = 1f;
+        var sharpenThreshold = 1f;
         var clarity = 1f;
+        var highlightRecovery = 1f;
+        var whitePoint = 1f;
+        var blackPoint = 1f;
+        var midtoneContrast = 1f;
+        var bloomRadius = 1f;
+        var bloomThreshold = 1f;
+        var aoRadius = 1f;
+        var aoFadeDistance = 1f;
+        var debandStrength = 1f;
+        var antiAliasingStrength = 1f;
+        var lutStrength = 1f;
         var shadowLift = 0f;
         var temperature = 0f;
         var tint = 0f;
@@ -60,25 +87,28 @@ public sealed class ProfileEngine
             exposure *= 1.06f;
             shadowLift += 0.10f;
             ao *= 0.90f;
+            blackPoint *= 0.96f;
+            debandStrength *= 1.10f;
             rules?.Add(new AppliedRule("Night", "Lift the darks and ease off AO so night stays readable.", "exposure x1.06, shadow lift +0.10, AO x0.90"));
         }
 
         if (configuration.AutoAdjustAtNight && tags.IsDawnOrDusk)
         {
             bloom *= 1.04f;
+            bloomRadius *= 1.04f;
             temperature += 0.025f;
             rules?.Add(new AppliedRule("Dawn/dusk", "Low sun can take a little warmth and glow without going full postcard.", "bloom x1.04, warmth +0.025"));
         }
 
         if (configuration.AutoAdjustForWeather)
         {
-            ApplyWeather(context, tags, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, rules);
+            ApplyWeather(context, tags, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref bloomRadius, ref bloomThreshold, ref highlightRecovery, ref debandStrength, rules);
         }
 
         if (configuration.AutoAdjustForTerritory)
         {
             ApplyTerritory(tags, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift, rules);
-            ApplyBiome(tags, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift, ref temperature, rules);
+            ApplyBiome(tags, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift, ref temperature, ref bloomRadius, ref bloomThreshold, ref aoRadius, ref debandStrength, rules);
         }
 
         if (configuration.AutoAdjustInCombat && tags.NeedsGameplayClarity)
@@ -88,8 +118,13 @@ public sealed class ProfileEngine
             relight *= 0.85f;
             depthEffects *= 0.80f;
             bloom *= 0.75f;
+            bloomRadius *= 0.80f;
+            bloomThreshold *= 1.06f;
             sharpness *= 0.92f;
+            sharpenThreshold *= 1.08f;
             clarity *= 0.90f;
+            antiAliasingStrength *= 1.04f;
+            lutStrength *= 0.90f;
             shadowLift += 0.08f;
             rules?.Add(new AppliedRule("Gameplay clarity", "Combat or duty context gets readability first; cinematic effects back off.", "bloom x0.75, AO x0.88, RTGI x0.78, depth x0.80"));
         }
@@ -98,20 +133,23 @@ public sealed class ProfileEngine
         {
             ao *= 1.12f;
             bloom *= 1.10f;
+            bloomRadius *= 1.08f;
             contrast *= 1.04f;
+            lutStrength *= 1.05f;
             rules?.Add(new AppliedRule("GPose", "GPose can take the prettier settings because gameplay readability is not fighting for space.", "AO x1.12, bloom x1.10, contrast x1.04"));
         }
         else if (configuration.AutoAdjustInCutscenes && context.InCutscene)
         {
             ao *= 1.08f;
             bloom *= 1.06f;
+            bloomRadius *= 1.04f;
             contrast *= 1.03f;
             rules?.Add(new AppliedRule("Cutscene", "Cutscene detected, so Dalashade allows a little more drama without pushing too hard.", "AO x1.08, bloom x1.06, contrast x1.03"));
         }
 
         if (configuration.AutoAdjustFromScreenshots && imageAnalysis.Available)
         {
-            ApplyImageAnalysis(imageAnalysis, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift);
+            ApplyImageAnalysis(imageAnalysis, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift, ref highlightRecovery, ref whitePoint, ref blackPoint, ref bloomThreshold, ref debandStrength);
             rules?.Add(new AppliedRule("Screenshot feedback", $"Current image reads as {imageAnalysis.ProfileBucket}.", "brightness, clipping, saturation, and contrast correction"));
         }
 
@@ -123,7 +161,7 @@ public sealed class ProfileEngine
 
         ApplyStyle(configuration.Style, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness);
         rules?.Add(new AppliedRule("Style target", $"{configuration.Style} style preference applied.", "style weighting"));
-        ApplyPerformanceBudget(configuration.PerformanceBudget, context, ref ao, ref rtgi, ref relight, ref depthEffects, ref bloom, ref sharpness, ref clarity);
+        ApplyPerformanceBudget(configuration.PerformanceBudget, context, ref ao, ref rtgi, ref relight, ref depthEffects, ref bloom, ref bloomRadius, ref sharpness, ref sharpenThreshold, ref clarity, ref antiAliasingStrength, ref lutStrength);
         rules?.Add(new AppliedRule("Performance target", $"{configuration.PerformanceBudget} budget applied where needed.", "AO, RTGI, ReLight, bloom, clarity, sharpening"));
 
         return new VisualProfile(
@@ -136,19 +174,33 @@ public sealed class ProfileEngine
             Clamp(relight, 0.10f, 1.25f),
             Clamp(depthEffects, 0.10f, 1.25f),
             Clamp(sharpness, 0.45f, 1.20f),
+            Clamp(sharpenThreshold, 0.75f, 1.35f),
             Clamp(clarity, 0.45f, 1.22f),
+            Clamp(highlightRecovery, 0.75f, 1.35f),
+            Clamp(whitePoint, 0.94f, 1.06f),
+            Clamp(blackPoint, 0.90f, 1.10f),
+            Clamp(midtoneContrast, 0.80f, 1.25f),
+            Clamp(bloomRadius, 0.55f, 1.35f),
+            Clamp(bloomThreshold, 0.75f, 1.30f),
+            Clamp(aoRadius, 0.55f, 1.35f),
+            Clamp(aoFadeDistance, 0.70f, 1.30f),
+            Clamp(debandStrength, 0.75f, 1.40f),
+            Clamp(antiAliasingStrength, 0.85f, 1.25f),
+            Clamp(lutStrength, 0.70f, 1.20f),
             Clamp(shadowLift, 0f, 0.35f),
             Clamp(temperature, -0.30f, 0.30f),
             Clamp(tint, -0.20f, 0.20f));
     }
 
-    private static void ApplyWeather(GameContext context, SceneTags tags, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, List<AppliedRule>? rules)
+    private static void ApplyWeather(GameContext context, SceneTags tags, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float bloomRadius, ref float bloomThreshold, ref float highlightRecovery, ref float debandStrength, List<AppliedRule>? rules)
     {
         if (tags.IsFog)
         {
             contrast *= 1.04f;
             bloom *= 0.90f;
+            bloomRadius *= 0.94f;
             sharpness *= 0.92f;
+            debandStrength *= 1.08f;
             rules?.Add(new AppliedRule("Fog/clouds", $"Weather is {context.WeatherName}; reduce haze-amplifying effects and add a little contrast.", "contrast x1.04, bloom x0.90, sharpen x0.92"));
         }
 
@@ -157,6 +209,7 @@ public sealed class ProfileEngine
             contrast *= 1.03f;
             saturation *= 0.96f;
             bloom *= 0.90f;
+            bloomRadius *= 0.95f;
             rules?.Add(new AppliedRule(tags.IsStorm ? "Storm" : "Rain", $"Weather is {context.WeatherName}; keep wet scenes readable and less bloomy.", "contrast x1.03, saturation x0.96, bloom x0.90"));
         }
 
@@ -165,6 +218,9 @@ public sealed class ProfileEngine
             exposure *= 0.97f;
             saturation *= 0.94f;
             bloom *= 0.82f;
+            bloomRadius *= 0.86f;
+            bloomThreshold *= 1.08f;
+            highlightRecovery *= 1.10f;
             rules?.Add(new AppliedRule("Snow", $"Weather is {context.WeatherName}; protect highlights and keep whites from glowing too much.", "exposure x0.97, saturation x0.94, bloom x0.82"));
         }
     }
@@ -220,18 +276,21 @@ public sealed class ProfileEngine
         }
     }
 
-    private static void ApplyBiome(SceneTags tags, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float clarity, ref float shadowLift, ref float temperature, List<AppliedRule>? rules)
+    private static void ApplyBiome(SceneTags tags, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float clarity, ref float shadowLift, ref float temperature, ref float bloomRadius, ref float bloomThreshold, ref float aoRadius, ref float debandStrength, List<AppliedRule>? rules)
     {
         switch (tags.BiomeKey)
         {
             case "snow":
                 exposure *= 0.97f;
                 bloom *= 0.88f;
+                bloomRadius *= 0.88f;
+                bloomThreshold *= 1.06f;
                 saturation *= 0.96f;
                 rules?.Add(new AppliedRule("Snow/ice biome", "Protect bright whites and keep snowy zones from blooming into mush.", "exposure x0.97, bloom x0.88, saturation x0.96"));
                 break;
             case "forest":
                 ao *= 0.94f;
+                aoRadius *= 0.90f;
                 sharpness *= 0.96f;
                 shadowLift += 0.025f;
                 rules?.Add(new AppliedRule("Forest biome", "Foliage-heavy scenes get softer depth and a touch more shadow readability.", "AO x0.94, sharpen x0.96, shadow lift +0.025"));
@@ -239,6 +298,7 @@ public sealed class ProfileEngine
             case "desert":
                 exposure *= 0.96f;
                 bloom *= 0.90f;
+                bloomRadius *= 0.92f;
                 contrast *= 1.03f;
                 temperature += 0.025f;
                 rules?.Add(new AppliedRule("Desert biome", "Hot bright zones keep shape by easing exposure/bloom and adding a little contrast.", "exposure x0.96, bloom x0.90, warmth +0.025"));
@@ -246,7 +306,9 @@ public sealed class ProfileEngine
             case "cave":
                 shadowLift += 0.05f;
                 ao *= 0.88f;
+                aoRadius *= 0.86f;
                 bloom *= 0.92f;
+                debandStrength *= 1.08f;
                 rules?.Add(new AppliedRule("Cave biome", "Dark enclosed spaces get readable shadows without piling on depth effects.", "shadow lift +0.05, AO x0.88, bloom x0.92"));
                 break;
             case "void":
@@ -257,24 +319,27 @@ public sealed class ProfileEngine
                 break;
             case "aetherial":
                 bloom *= 0.94f;
+                bloomRadius *= 0.92f;
                 clarity *= 1.03f;
                 rules?.Add(new AppliedRule("Aetherial biome", "Glowy blue/crystal scenes get slightly cleaner edges without extra bloom.", "bloom x0.94, clarity x1.03"));
                 break;
             case "coastal":
                 bloom *= 0.96f;
+                bloomRadius *= 0.95f;
                 saturation *= 1.02f;
                 rules?.Add(new AppliedRule("Coastal biome", "Water and beach scenes keep color while protecting specular bloom.", "bloom x0.96, saturation x1.02"));
                 break;
             case "fire":
                 exposure *= 0.96f;
                 bloom *= 0.88f;
+                bloomRadius *= 0.88f;
                 contrast *= 1.02f;
                 rules?.Add(new AppliedRule("Fire/lava biome", "Very hot highlights get restrained so orange scenes keep detail.", "exposure x0.96, bloom x0.88, contrast x1.02"));
                 break;
         }
     }
 
-    private static void ApplyImageAnalysis(ImageAnalysisResult image, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float clarity, ref float shadowLift)
+    private static void ApplyImageAnalysis(ImageAnalysisResult image, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float clarity, ref float shadowLift, ref float highlightRecovery, ref float whitePoint, ref float blackPoint, ref float bloomThreshold, ref float debandStrength)
     {
         if (image.AverageLuminance < 0.30f)
         {
@@ -282,6 +347,8 @@ public sealed class ProfileEngine
             shadowLift += Scale01(image.ShadowClipping, 0.30f) * 0.16f;
             contrast -= Scale01(image.ShadowClipping, 0.25f) * 0.10f;
             ao -= Scale01(image.ShadowClipping, 0.25f) * 0.16f;
+            blackPoint *= 1f - (Scale01(image.ShadowClipping, 0.30f) * 0.05f);
+            debandStrength *= 1f + (Scale01(image.ShadowClipping, 0.30f) * 0.10f);
         }
 
         if (image.AverageLuminance > 0.72f || image.HighlightClipping > 0.04f)
@@ -289,6 +356,9 @@ public sealed class ProfileEngine
             exposure -= Scale01(image.AverageLuminance - 0.72f, 0.28f) * 0.11f;
             bloom -= Scale01(image.HighlightClipping, 0.12f) * 0.25f;
             contrast -= Scale01(image.HighlightClipping, 0.12f) * 0.07f;
+            highlightRecovery *= 1f + (Scale01(image.HighlightClipping, 0.12f) * 0.20f);
+            whitePoint *= 1f - (Scale01(image.HighlightClipping, 0.12f) * 0.035f);
+            bloomThreshold *= 1f + (Scale01(image.HighlightClipping, 0.12f) * 0.12f);
         }
 
         if (image.AverageSaturation < 0.24f)
@@ -372,7 +442,7 @@ public sealed class ProfileEngine
         }
     }
 
-    private static void ApplyPerformanceBudget(PerformanceBudget budget, GameContext context, ref float ao, ref float rtgi, ref float relight, ref float depthEffects, ref float bloom, ref float sharpness, ref float clarity)
+    private static void ApplyPerformanceBudget(PerformanceBudget budget, GameContext context, ref float ao, ref float rtgi, ref float relight, ref float depthEffects, ref float bloom, ref float bloomRadius, ref float sharpness, ref float sharpenThreshold, ref float clarity, ref float antiAliasingStrength, ref float lutStrength)
     {
         if (!context.InCombat)
         {
@@ -421,6 +491,14 @@ public sealed class ProfileEngine
             PerformanceBudget.Ultra => 1.00f,
             _ => 0.80f
         };
+        bloomRadius *= budget switch
+        {
+            PerformanceBudget.Low => 0.70f,
+            PerformanceBudget.Medium => 0.85f,
+            PerformanceBudget.High => 0.95f,
+            PerformanceBudget.Ultra => 1.00f,
+            _ => 0.85f
+        };
         clarity *= budget switch
         {
             PerformanceBudget.Low => 0.75f,
@@ -434,6 +512,30 @@ public sealed class ProfileEngine
             PerformanceBudget.Low => 0.85f,
             PerformanceBudget.Medium => 0.92f,
             PerformanceBudget.High => 0.97f,
+            PerformanceBudget.Ultra => 1.00f,
+            _ => 0.92f
+        };
+        sharpenThreshold *= budget switch
+        {
+            PerformanceBudget.Low => 1.10f,
+            PerformanceBudget.Medium => 1.06f,
+            PerformanceBudget.High => 1.02f,
+            PerformanceBudget.Ultra => 1.00f,
+            _ => 1.06f
+        };
+        antiAliasingStrength *= budget switch
+        {
+            PerformanceBudget.Low => 0.96f,
+            PerformanceBudget.Medium => 1.00f,
+            PerformanceBudget.High => 1.04f,
+            PerformanceBudget.Ultra => 1.08f,
+            _ => 1.00f
+        };
+        lutStrength *= budget switch
+        {
+            PerformanceBudget.Low => 0.82f,
+            PerformanceBudget.Medium => 0.92f,
+            PerformanceBudget.High => 0.98f,
             PerformanceBudget.Ultra => 1.00f,
             _ => 0.92f
         };

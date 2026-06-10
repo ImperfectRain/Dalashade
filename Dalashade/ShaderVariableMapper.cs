@@ -1,12 +1,31 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 
 namespace Dalashade;
+
+public enum ShaderValueMode
+{
+    Scale,
+    Add,
+    InvertAdd,
+    ClampOnly
+}
 
 public readonly record struct ShaderVariableKey(string? Section, string Key);
 
 public sealed record ShaderAdjustment(Func<string, string?> Apply, string ReasonCategory);
+
+public sealed record ShaderVariableDefinition(
+    string? Section,
+    string Key,
+    ShaderValueMode Mode,
+    string ReasonCategory,
+    float Min,
+    float Max,
+    Func<VisualProfile, float> Amount,
+    bool AllowFallback = false);
 
 public sealed class ShaderVariableKeyComparer : IEqualityComparer<ShaderVariableKey>
 {
@@ -30,144 +49,169 @@ public sealed class ShaderVariableMapper
 {
     public IReadOnlyDictionary<ShaderVariableKey, ShaderAdjustment> CreateAdjustments(VisualProfile profile, Configuration configuration)
     {
-        var exposureDelta = profile.Exposure - 1f;
-        var contrastDelta = profile.Contrast - 1f;
-        var saturationDelta = profile.Saturation - 1f;
-        var shadowLiftDelta = profile.ShadowLift;
-        var temperatureDelta = profile.Temperature;
-        var tintDelta = profile.Tint;
-
         var adjustments = new Dictionary<ShaderVariableKey, ShaderAdjustment>(ShaderVariableKeyComparer.Instance);
 
-        Add(adjustments, "MartysMods_MXAO.fx", "MXAO_SSAO_AMOUNT", value => Scale(value, profile.AmbientOcclusion, 0f, 4f), "Ambient occlusion");
-        Add(adjustments, null, "MXAO_SSAO_AMOUNT", value => Scale(value, profile.AmbientOcclusion, 0f, 4f), "Ambient occlusion");
-
-        Add(adjustments, "MartysMods_SHARPEN.fx", "SHARP_AMT", value => Scale(value, profile.Sharpness, 0f, 4f), "Sharpening");
-        Add(adjustments, null, "SHARP_AMT", value => Scale(value, profile.Sharpness, 0f, 4f), "Sharpening");
-
-        Add(adjustments, "MartysMods_SMAA.fx", "SMAA_THRESHOLD", value => Add(value, profile.Sharpness < 0.95f ? 0.02f : 0f, 0.02f, 0.50f), "Anti-aliasing");
-        Add(adjustments, null, "SMAA_THRESHOLD", value => Add(value, profile.Sharpness < 0.95f ? 0.02f : 0f, 0.02f, 0.50f), "Anti-aliasing");
-
-        Add(adjustments, "MagicBloom.fx", "fBloom_Intensity", value => Scale(value, profile.Bloom, 0f, 10f), "Bloom");
-        Add(adjustments, "MagicBloom.fx", "fBloom_Threshold", value => Add(value, profile.Bloom < 1f ? (1f - profile.Bloom) * 0.5f : 0f, 0f, 10f), "Bloom");
-        Add(adjustments, "MagicBloom.fx", "fExposure", value => Add(value, exposureDelta, -5f, 5f), "Exposure");
-        Add(adjustments, "MagicBloom.fx", "fSaturation", value => Add(value, saturationDelta, -5f, 5f), "Saturation");
-        Add(adjustments, null, "fBloom_Intensity", value => Scale(value, profile.Bloom, 0f, 10f), "Bloom");
-        Add(adjustments, null, "fBloom_Threshold", value => Add(value, profile.Bloom < 1f ? (1f - profile.Bloom) * 0.5f : 0f, 0f, 10f), "Bloom");
-
-        AddColorSuite(adjustments, "qUINT_lightroom.fx", profile, shadowLiftDelta, "Free color");
-        AddColorSuite(adjustments, "prod80_04_ColorTemperature.fx", profile, shadowLiftDelta, "Free color");
-
-        if (configuration.UsePremiumImmerseEffects)
+        foreach (var definition in CreateDefinitions(configuration))
         {
-            AddClarity(adjustments, profile);
-            AddReGrade(adjustments, "MartysMods_REGRADE.fx", exposureDelta, contrastDelta, saturationDelta, shadowLiftDelta, temperatureDelta, tintDelta);
-            AddReGradePlus(adjustments, "MartysMods_REGRADE+.fx", exposureDelta, contrastDelta, saturationDelta, shadowLiftDelta, temperatureDelta, tintDelta);
-            AddRtgi(adjustments, profile);
-            AddReLight(adjustments, profile);
+            Add(adjustments, definition, profile, definition.Section);
+            if (configuration.ShaderMatchingMode == ShaderMatchingMode.KnownFallbacks && definition.AllowFallback)
+            {
+                Add(adjustments, definition, profile, null);
+            }
         }
 
         return adjustments;
     }
 
-    public IReadOnlySet<ShaderVariableKey> CreateSupportedKeys(Configuration configuration)
+    public IReadOnlyList<ShaderVariableDefinition> CreateDefinitions(Configuration configuration)
     {
-        return new HashSet<ShaderVariableKey>(CreateAdjustments(VisualProfile.Neutral, configuration).Keys, ShaderVariableKeyComparer.Instance);
-    }
+        var definitions = new List<ShaderVariableDefinition>();
 
-    private static void AddColorSuite(Dictionary<ShaderVariableKey, ShaderAdjustment> adjustments, string section, VisualProfile profile, float shadowLiftDelta, string reason)
-    {
-        Add(adjustments, section, "Exposure", value => Scale(value, profile.Exposure, -5f, 5f), reason);
-        Add(adjustments, section, "Gamma", value => Add(value, shadowLiftDelta * 0.35f, 0.25f, 4f), reason);
-        Add(adjustments, section, "Contrast", value => Scale(value, profile.Contrast, -5f, 5f), reason);
-        Add(adjustments, section, "Saturation", value => Scale(value, profile.Saturation, -5f, 5f), reason);
-        Add(adjustments, section, "BloomIntensity", value => Scale(value, profile.Bloom, 0f, 10f), reason);
-        Add(adjustments, section, "BloomThreshold", value => Add(value, profile.Bloom < 1f ? (1f - profile.Bloom) * 0.5f : 0f, 0f, 10f), reason);
-        Add(adjustments, section, "Sharpness", value => Scale(value, profile.Sharpness, 0f, 10f), reason);
-        Add(adjustments, section, "Clarity", value => Scale(value, profile.Clarity, 0f, 10f), reason);
-    }
+        AddCoreDefinitions(definitions);
+        AddCommonOptionalDefinitions(definitions);
 
-    private static void AddClarity(Dictionary<ShaderVariableKey, ShaderAdjustment> adjustments, VisualProfile profile)
-    {
-        var keys = new[]
+        if (configuration.UsePremiumImmerseEffects)
         {
-            "TEXTURE_INTENSITY",
-            "HDR_INTENSITY",
-            "TEXTURE_INTENSITY_FG",
-            "HDR_INTENSITY_FG",
-            "TEXTURE_INTENSITY_BG",
-            "HDR_INTENSITY_BG"
+            AddPremiumDefinitions(definitions);
+        }
+
+        return definitions;
+    }
+
+    private static void AddCoreDefinitions(List<ShaderVariableDefinition> definitions)
+    {
+        AddScale(definitions, "MartysMods_MXAO.fx", "MXAO_SSAO_AMOUNT", "Ambient occlusion", 0f, 4f, profile => profile.AmbientOcclusion, true);
+        AddScale(definitions, "MartysMods_MXAO.fx", "MXAO_SAMPLE_RADIUS", "AO radius", 0.10f, 10f, profile => profile.AoRadius, true);
+        AddScale(definitions, "MartysMods_MXAO.fx", "MXAO_FADE_DEPTH", "AO fade", 0.02f, 1f, profile => profile.AoFadeDistance, true);
+
+        AddScale(definitions, "MartysMods_SHARPEN.fx", "SHARP_AMT", "Sharpening", 0f, 4f, profile => profile.Sharpness, true);
+
+        AddScale(definitions, "MagicBloom.fx", "fBloom_Intensity", "Bloom", 0f, 10f, profile => profile.Bloom, true);
+        AddScale(definitions, "MagicBloom.fx", "fBloom_Threshold", "Bloom threshold", 0f, 10f, profile => profile.BloomThreshold, true);
+        AddScale(definitions, "MagicBloom.fx", "fDirt_Intensity", "Bloom dirt", 0f, 10f, profile => profile.BloomRadius < 0.95f ? 0.80f : 1f, true);
+        AddAdd(definitions, "MagicBloom.fx", "fExposure", "Exposure", -5f, 5f, profile => profile.Exposure - 1f, true);
+        AddAdd(definitions, "MagicBloom.fx", "fSaturation", "Saturation", -5f, 5f, profile => profile.Saturation - 1f, true);
+
+        AddScale(definitions, "Deband.fx", "range", "Deband", 1f, 96f, profile => profile.DebandStrength, true);
+        AddScale(definitions, "Deband.fx", "t1", "Deband", 0.0001f, 0.10f, profile => profile.DebandStrength, true);
+        AddScale(definitions, "Deband.fx", "t2", "Deband", 0.0001f, 0.20f, profile => profile.DebandStrength, true);
+
+        AddScale(definitions, "MartysMods_CLARITY.fx", "TEXTURE_INTENSITY", "Clarity", 0f, 2f, profile => profile.Clarity, true);
+        AddScale(definitions, "MartysMods_CLARITY.fx", "HDR_INTENSITY", "Clarity", 0f, 2f, profile => profile.Clarity, true);
+        AddScale(definitions, "MartysMods_CLARITY.fx", "TEXTURE_INTENSITY_FG", "Clarity", 0f, 2f, profile => profile.Clarity, true);
+        AddScale(definitions, "MartysMods_CLARITY.fx", "HDR_INTENSITY_FG", "Clarity", 0f, 2f, profile => profile.Clarity, true);
+        AddScale(definitions, "MartysMods_CLARITY.fx", "TEXTURE_INTENSITY_BG", "Clarity", 0f, 2f, profile => profile.Clarity, true);
+        AddScale(definitions, "MartysMods_CLARITY.fx", "HDR_INTENSITY_BG", "Clarity", 0f, 2f, profile => profile.Clarity, true);
+        AddScale(definitions, "MartysMods_CLARITY.fx", "EFFECT_RADIUS", "Clarity radius", 0.05f, 2f, profile => profile.DepthEffects, true);
+
+        AddReGrade(definitions, "MartysMods_REGRADE.fx", "ReGrade");
+    }
+
+    private static void AddCommonOptionalDefinitions(List<ShaderVariableDefinition> definitions)
+    {
+        AddAdd(definitions, "qUINT_lightroom.fx", "Exposure", "Free color", -5f, 5f, profile => profile.Exposure - 1f);
+        AddAdd(definitions, "qUINT_lightroom.fx", "Gamma", "Free color", 0.25f, 4f, profile => profile.ShadowLift * 0.35f);
+        AddAdd(definitions, "qUINT_lightroom.fx", "Contrast", "Free color", -5f, 5f, profile => (profile.Contrast - 1f) * 0.5f);
+        AddAdd(definitions, "qUINT_lightroom.fx", "Saturation", "Free color", -5f, 5f, profile => (profile.Saturation - 1f) * 0.5f);
+        AddScale(definitions, "qUINT_lightroom.fx", "BloomIntensity", "Bloom", 0f, 10f, profile => profile.Bloom);
+        AddScale(definitions, "qUINT_lightroom.fx", "BloomThreshold", "Bloom threshold", 0f, 10f, profile => profile.BloomThreshold);
+        AddScale(definitions, "qUINT_lightroom.fx", "Sharpness", "Sharpening", 0f, 10f, profile => profile.Sharpness);
+        AddScale(definitions, "qUINT_lightroom.fx", "Clarity", "Clarity", 0f, 10f, profile => profile.Clarity);
+
+        AddAdd(definitions, "prod80_04_ColorTemperature.fx", "Kelvin", "Free color", 1000f, 40000f, profile => profile.Temperature * 1800f);
+        AddAdd(definitions, "prod80_04_ColorTemperature.fx", "Temperature", "Free color", -1f, 1f, profile => profile.Temperature * 0.5f);
+        AddAdd(definitions, "prod80_04_ColorTemperature.fx", "Tint", "Free color", -1f, 1f, profile => profile.Tint * 0.5f);
+
+        AddScale(definitions, "MartysMods_SMAA.fx", "SMAA_THRESHOLD", "Anti-aliasing", 0.01f, 0.50f, profile => 1f / profile.AntiAliasingStrength, true);
+        AddScale(definitions, "SMAA.fx", "SMAA_THRESHOLD", "Anti-aliasing", 0.01f, 0.50f, profile => 1f / profile.AntiAliasingStrength);
+
+        AddScale(definitions, "qUINT_deband.fx", "DEBAND_RADIUS", "Deband", 1f, 128f, profile => profile.DebandStrength);
+        AddScale(definitions, "qUINT_deband.fx", "DEBAND_THRESHOLD", "Deband", 0.0001f, 0.20f, profile => profile.DebandStrength);
+
+        AddScale(definitions, "LUT.fx", "fLUT_AmountChroma", "LUT", 0f, 1f, profile => profile.LutStrength);
+        AddScale(definitions, "LUT.fx", "fLUT_AmountLuma", "LUT", 0f, 1f, profile => profile.LutStrength);
+        AddScale(definitions, "MartysMods_LUTMANAGER.fx", "LUT_INTENSITY", "LUT", 0f, 1f, profile => profile.LutStrength);
+    }
+
+    private static void AddPremiumDefinitions(List<ShaderVariableDefinition> definitions)
+    {
+        AddReGradePlus(definitions, "MartysMods_REGRADE+.fx", "ReGrade+");
+
+        AddScale(definitions, "MartysMods_RTGI_DIFFUSE.fx", "RT_AO_AMOUNT", "RTGI AO", 0f, 10f, profile => profile.Rtgi, true);
+        AddScale(definitions, "MartysMods_RTGI_DIFFUSE.fx", "RT_IL_AMOUNT", "RTGI indirect light", 0f, 10f, profile => profile.Rtgi, true);
+        AddScale(definitions, "MartysMods_RTGI_DIFFUSE.fx", "RT_AMBIENT_LEVEL", "RTGI ambient", 0f, 10f, profile => profile.DepthEffects, true);
+        AddScale(definitions, "MartysMods_RTGI_SPECULAR.fx", "RT_ROUGHNESS", "RTGI specular", 0f, 1f, profile => profile.Rtgi, true);
+
+        AddScale(definitions, "MartysMods_RELIGHT.fx", "RELIGHT_INTENSITY", "ReLight", 0f, 10f, profile => profile.ReLight, true);
+        AddScale(definitions, "MartysMods_RELIGHT.fx", "RELIGHT_RANGE", "ReLight", 0f, 10f, profile => profile.DepthEffects, true);
+    }
+
+    private static void AddReGrade(List<ShaderVariableDefinition> definitions, string section, string reason)
+    {
+        AddAdd(definitions, section, "GRADE_EXPOSURE", reason, -5f, 5f, profile => profile.Exposure - 1f, true);
+        AddAdd(definitions, section, "GRADE_CONTRAST", reason, -5f, 5f, profile => (profile.Contrast - 1f) * 0.5f, true);
+        AddAdd(definitions, section, "GRADE_GAMMA", reason, -5f, 5f, profile => profile.ShadowLift * 0.5f, true);
+        AddAdd(definitions, section, "GRADE_FILMIC_GAMMA", reason, -5f, 5f, profile => (profile.MidtoneContrast - 1f) * 0.25f, true);
+        AddAdd(definitions, section, "GRADE_SATURATION", reason, -5f, 5f, profile => (profile.Saturation - 1f) * 0.5f, true);
+        AddAdd(definitions, section, "GRADE_VIBRANCE", reason, -5f, 5f, profile => (profile.Saturation - 1f) * 0.5f, true);
+        AddAdd(definitions, section, "INPUT_COLOR_TEMPERATURE", reason, 3000f, 12000f, profile => profile.Temperature * 1800f, true);
+        AddAdd(definitions, section, "INPUT_COLOR_LAB_A", reason, -1f, 1f, profile => profile.Tint * 0.40f, true);
+        AddAdd(definitions, section, "INPUT_COLOR_LAB_B", reason, -1f, 1f, profile => profile.Temperature * 0.40f, true);
+        AddAdd(definitions, section, "TONECURVE_SHADOWS", reason, -1f, 1f, profile => profile.ShadowLift * 0.25f, true);
+        AddAdd(definitions, section, "TONECURVE_DARKS", reason, -1f, 1f, profile => profile.ShadowLift * 0.15f, true);
+        AddAdd(definitions, section, "TONECURVE_HIGHLIGHTS", reason, -1f, 1f, profile => -(profile.HighlightRecovery - 1f) * 0.25f, true);
+        AddAdd(definitions, section, "TONECURVE_LIGHTS", reason, -1f, 1f, profile => -(profile.HighlightRecovery - 1f) * 0.15f, true);
+        AddScale(definitions, section, "INPUT_BLACK_LVL", reason, 0f, 255f, profile => profile.BlackPoint, true);
+        AddScale(definitions, section, "INPUT_WHITE_LVL", reason, 0f, 255f, profile => profile.WhitePoint, true);
+        AddScale(definitions, section, "OUTPUT_BLACK_LVL", reason, 0f, 255f, profile => profile.BlackPoint, true);
+        AddScale(definitions, section, "OUTPUT_WHITE_LVL", reason, 0f, 255f, profile => profile.WhitePoint, true);
+    }
+
+    private static void AddReGradePlus(List<ShaderVariableDefinition> definitions, string section, string reason)
+    {
+        AddAdd(definitions, section, "E_EXPOSURE", reason, -5f, 5f, profile => profile.Exposure - 1f, true);
+        AddAdd(definitions, section, "E_CONTRAST", reason, -5f, 5f, profile => (profile.Contrast - 1f) * 0.5f, true);
+        AddAdd(definitions, section, "E_GAMMA", reason, -5f, 5f, profile => profile.ShadowLift * 0.5f, true);
+        AddAdd(definitions, section, "E_SATURATION", reason, -5f, 5f, profile => (profile.Saturation - 1f) * 0.5f, true);
+        AddAdd(definitions, section, "E_VIBRANCE", reason, -5f, 5f, profile => (profile.Saturation - 1f) * 0.5f, true);
+        AddAdd(definitions, section, "E_TEMP", reason, -1f, 1f, profile => profile.Temperature * 0.50f, true);
+        AddAdd(definitions, section, "E_TINT", reason, -1f, 1f, profile => profile.Tint * 0.50f, true);
+    }
+
+    private static void AddScale(List<ShaderVariableDefinition> definitions, string? section, string key, string reason, float min, float max, Func<VisualProfile, float> amount, bool allowFallback = false)
+    {
+        definitions.Add(new ShaderVariableDefinition(section, key, ShaderValueMode.Scale, reason, min, max, amount, allowFallback));
+    }
+
+    private static void AddAdd(List<ShaderVariableDefinition> definitions, string? section, string key, string reason, float min, float max, Func<VisualProfile, float> amount, bool allowFallback = false)
+    {
+        definitions.Add(new ShaderVariableDefinition(section, key, ShaderValueMode.Add, reason, min, max, amount, allowFallback));
+    }
+
+    private static void Add(Dictionary<ShaderVariableKey, ShaderAdjustment> adjustments, ShaderVariableDefinition definition, VisualProfile profile, string? section)
+    {
+        adjustments[new ShaderVariableKey(section, definition.Key)] = new ShaderAdjustment(value => Apply(value, definition, profile), definition.ReasonCategory);
+    }
+
+    private static string? Apply(string rawValue, ShaderVariableDefinition definition, VisualProfile profile)
+    {
+        return TryParseSingle(rawValue, out var current)
+            ? Format(ApplyMode(current, definition.Amount(profile), definition.Mode, definition.Min, definition.Max))
+            : null;
+    }
+
+    private static float ApplyMode(float current, float amount, ShaderValueMode mode, float min, float max)
+    {
+        var value = mode switch
+        {
+            ShaderValueMode.Scale => current * amount,
+            ShaderValueMode.Add => current + amount,
+            ShaderValueMode.InvertAdd => current - amount,
+            ShaderValueMode.ClampOnly => current,
+            _ => current
         };
 
-        foreach (var key in keys)
-        {
-            Add(adjustments, "MartysMods_CLARITY.fx", key, value => Scale(value, profile.Clarity, 0f, 2f), "Clarity");
-            Add(adjustments, null, key, value => Scale(value, profile.Clarity, 0f, 2f), "Clarity");
-        }
-    }
-
-    private static void AddReGrade(Dictionary<ShaderVariableKey, ShaderAdjustment> adjustments, string section, float exposureDelta, float contrastDelta, float saturationDelta, float shadowLiftDelta, float temperatureDelta, float tintDelta)
-    {
-        Add(adjustments, section, "GRADE_EXPOSURE", value => Add(value, exposureDelta, -5f, 5f), "ReGrade");
-        Add(adjustments, section, "GRADE_CONTRAST", value => Add(value, contrastDelta * 0.5f, -5f, 5f), "ReGrade");
-        Add(adjustments, section, "GRADE_GAMMA", value => Add(value, shadowLiftDelta * 0.5f, -5f, 5f), "ReGrade");
-        Add(adjustments, section, "GRADE_SATURATION", value => Add(value, saturationDelta * 0.5f, -5f, 5f), "ReGrade");
-        Add(adjustments, section, "GRADE_VIBRANCE", value => Add(value, saturationDelta * 0.5f, -5f, 5f), "ReGrade");
-        Add(adjustments, section, "INPUT_COLOR_TEMPERATURE", value => Add(value, temperatureDelta * 1800f, 3000f, 12000f), "ReGrade");
-        Add(adjustments, section, "INPUT_COLOR_LAB_A", value => Add(value, tintDelta * 0.40f, -1f, 1f), "ReGrade");
-        Add(adjustments, section, "INPUT_COLOR_LAB_B", value => Add(value, temperatureDelta * 0.40f, -1f, 1f), "ReGrade");
-        Add(adjustments, section, "TONECURVE_SHADOWS", value => Add(value, shadowLiftDelta * 0.25f, -1f, 1f), "ReGrade");
-        Add(adjustments, section, "TONECURVE_DARKS", value => Add(value, shadowLiftDelta * 0.15f, -1f, 1f), "ReGrade");
-    }
-
-    private static void AddReGradePlus(Dictionary<ShaderVariableKey, ShaderAdjustment> adjustments, string section, float exposureDelta, float contrastDelta, float saturationDelta, float shadowLiftDelta, float temperatureDelta, float tintDelta)
-    {
-        Add(adjustments, section, "E_EXPOSURE", value => Add(value, exposureDelta, -5f, 5f), "ReGrade+");
-        Add(adjustments, section, "E_CONTRAST", value => Add(value, contrastDelta * 0.5f, -5f, 5f), "ReGrade+");
-        Add(adjustments, section, "E_GAMMA", value => Add(value, shadowLiftDelta * 0.5f, -5f, 5f), "ReGrade+");
-        Add(adjustments, section, "E_SATURATION", value => Add(value, saturationDelta * 0.5f, -5f, 5f), "ReGrade+");
-        Add(adjustments, section, "E_VIBRANCE", value => Add(value, saturationDelta * 0.5f, -5f, 5f), "ReGrade+");
-        Add(adjustments, section, "E_TEMP", value => Add(value, temperatureDelta * 0.50f, -1f, 1f), "ReGrade+");
-        Add(adjustments, section, "E_TINT", value => Add(value, tintDelta * 0.50f, -1f, 1f), "ReGrade+");
-    }
-
-    private static void AddRtgi(Dictionary<ShaderVariableKey, ShaderAdjustment> adjustments, VisualProfile profile)
-    {
-        Add(adjustments, "MartysMods_RTGI_DIFFUSE.fx", "RT_AO_AMOUNT", value => Scale(value, profile.Rtgi, 0f, 10f), "RTGI");
-        Add(adjustments, "MartysMods_RTGI_DIFFUSE.fx", "RT_IL_AMOUNT", value => Scale(value, profile.Rtgi, 0f, 10f), "RTGI");
-        Add(adjustments, "MartysMods_RTGI_DIFFUSE.fx", "RT_AMBIENT_LEVEL", value => Scale(value, profile.Rtgi, 0f, 10f), "RTGI");
-        Add(adjustments, "MartysMods_RTGI_SPECULAR.fx", "RT_ROUGHNESS", value => Scale(value, profile.Rtgi, 0f, 1f), "RTGI");
-        Add(adjustments, null, "RT_AO_AMOUNT", value => Scale(value, profile.Rtgi, 0f, 10f), "RTGI");
-        Add(adjustments, null, "RT_IL_AMOUNT", value => Scale(value, profile.Rtgi, 0f, 10f), "RTGI");
-        Add(adjustments, null, "RT_AMBIENT_LEVEL", value => Scale(value, profile.Rtgi, 0f, 10f), "RTGI");
-        Add(adjustments, null, "RT_ROUGHNESS", value => Scale(value, profile.Rtgi, 0f, 1f), "RTGI");
-    }
-
-    private static void AddReLight(Dictionary<ShaderVariableKey, ShaderAdjustment> adjustments, VisualProfile profile)
-    {
-        Add(adjustments, "MartysMods_RELIGHT.fx", "RELIGHT_INTENSITY", value => Scale(value, profile.ReLight, 0f, 10f), "ReLight");
-        Add(adjustments, "MartysMods_RELIGHT.fx", "RELIGHT_RANGE", value => Scale(value, profile.DepthEffects, 0f, 10f), "ReLight");
-        Add(adjustments, null, "RELIGHT_INTENSITY", value => Scale(value, profile.ReLight, 0f, 10f), "ReLight");
-        Add(adjustments, null, "RELIGHT_RANGE", value => Scale(value, profile.DepthEffects, 0f, 10f), "ReLight");
-    }
-
-    private static void Add(Dictionary<ShaderVariableKey, ShaderAdjustment> adjustments, string? section, string key, Func<string, string?> apply, string reasonCategory)
-    {
-        adjustments[new ShaderVariableKey(section, key)] = new ShaderAdjustment(apply, reasonCategory);
-    }
-
-    private static string? Scale(string rawValue, float multiplier, float min, float max)
-    {
-        return TryParseSingle(rawValue, out var current)
-            ? Format(Clamp(current * multiplier, min, max))
-            : null;
-    }
-
-    private static string? Add(string rawValue, float delta, float min, float max)
-    {
-        return TryParseSingle(rawValue, out var current)
-            ? Format(Clamp(current + delta, min, max))
-            : null;
+        return Clamp(value, min, max);
     }
 
     private static bool TryParseSingle(string rawValue, out float value)

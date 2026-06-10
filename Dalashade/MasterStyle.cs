@@ -8,6 +8,7 @@ namespace Dalashade;
 
 public sealed class MasterStyleService
 {
+    private readonly Dictionary<string, CachedMasterImage> cache = new(StringComparer.OrdinalIgnoreCase);
     private string lastFolderPath = string.Empty;
     private bool lastIncludeSubfolders;
     private int lastMaxImages;
@@ -73,8 +74,10 @@ public sealed class MasterStyleService
                 return;
             }
 
+            PruneCache(images, configuration.ImageSamplingMode);
+
             var analyzed = images
-                .Select(file => TryAnalyze(file, configuration.ImageSamplingMode))
+                .Select(file => TryAnalyze(file, configuration.ImageSamplingMode, cache))
                 .Where(result => result.Available)
                 .ToArray();
 
@@ -102,15 +105,37 @@ public sealed class MasterStyleService
         }
     }
 
-    private static ImageAnalysisResult TryAnalyze(FileInfo file, ImageSamplingMode samplingMode)
+    private static ImageAnalysisResult TryAnalyze(FileInfo file, ImageSamplingMode samplingMode, Dictionary<string, CachedMasterImage> cache)
     {
         try
         {
-            return ImageAnalysisService.Analyze(file.FullName, file.LastWriteTimeUtc, samplingMode);
+            var cacheKey = $"{samplingMode}:{file.FullName}";
+            if (cache.TryGetValue(cacheKey, out var cached)
+                && cached.LastWriteTimeUtc == file.LastWriteTimeUtc
+                && cached.Length == file.Length)
+            {
+                return cached.Result;
+            }
+
+            var result = ImageAnalysisService.Analyze(file.FullName, file.LastWriteTimeUtc, samplingMode);
+            cache[cacheKey] = new CachedMasterImage(file.LastWriteTimeUtc, file.Length, result);
+            return result;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or ExternalException or OutOfMemoryException)
         {
             return ImageAnalysisResult.Empty;
+        }
+    }
+
+    private void PruneCache(FileInfo[] currentImages, ImageSamplingMode samplingMode)
+    {
+        var liveKeys = currentImages
+            .Select(file => $"{samplingMode}:{file.FullName}")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var key in cache.Keys.Where(key => key.StartsWith($"{samplingMode}:", StringComparison.OrdinalIgnoreCase) && !liveKeys.Contains(key)).ToArray())
+        {
+            cache.Remove(key);
         }
     }
 
@@ -182,3 +207,5 @@ public sealed class MasterStyleService
 
     private static float Squared(float value) => value * value;
 }
+
+internal sealed record CachedMasterImage(DateTime LastWriteTimeUtc, long Length, ImageAnalysisResult Result);

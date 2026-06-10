@@ -177,7 +177,29 @@ public sealed class Plugin : IDalamudPlugin
     private string CreateProfileKey()
     {
         var master = Configuration.MatchMasterPresetStyle ? CurrentMasterStyle.MetricsKey : "ignored";
-        return $"{CurrentContext.ProfileKey(Configuration, CurrentImageAnalysis, CurrentTags)}:{master}:{Configuration.MasterPresetStyleStrength}";
+        return $"{CurrentContext.ProfileKey(Configuration, CurrentImageAnalysis, CurrentTags)}:{master}:{Configuration.MasterPresetStyleStrength}:{CreateConfigKey()}";
+    }
+
+    private string CreateConfigKey()
+    {
+        return string.Join(":",
+            Configuration.BasePresetPath,
+            Configuration.GeneratedPresetPath,
+            Configuration.UsePremiumImmerseEffects,
+            Configuration.ShaderMatchingMode,
+            Configuration.ImageSamplingMode,
+            Configuration.MasterStyleMode,
+            Configuration.MasterPresetMaxImages,
+            Configuration.MasterPresetIncludeSubfolders,
+            Configuration.AutoAdjustInCombat,
+            Configuration.AutoAdjustAtNight,
+            Configuration.AutoAdjustForWeather,
+            Configuration.AutoAdjustForTerritory,
+            Configuration.AutoAdjustFromScreenshots,
+            Configuration.MatchMasterPresetStyle,
+            Configuration.AutoAdjustInCutscenes,
+            Configuration.Style,
+            Configuration.PerformanceBudget);
     }
 
     private void ReloadShadersIfNeeded()

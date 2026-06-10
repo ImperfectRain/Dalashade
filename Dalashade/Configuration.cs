@@ -35,6 +35,13 @@ public enum MasterStyleMode
     ClosestToCurrentScene
 }
 
+public enum ShaderMatchingMode
+{
+    StrictSections,
+    KnownFallbacks,
+    LooseKeys
+}
+
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
@@ -62,7 +69,9 @@ public class Configuration : IPluginConfiguration
     public bool SceneLockEnabled { get; set; } = false;
     public bool AutoAdjustInCutscenes { get; set; } = true;
     public bool UsePremiumImmerseEffects { get; set; } = false;
+    public ShaderMatchingMode ShaderMatchingMode { get; set; } = ShaderMatchingMode.StrictSections;
     public bool WriteBackups { get; set; } = true;
+    public int MaxGeneratedPresetBackups { get; set; } = 10;
     public int MinimumSecondsBetweenWrites { get; set; } = 10;
     public int MinimumSecondsBetweenImageSamples { get; set; } = 10;
     public ImageSamplingMode ImageSamplingMode { get; set; } = ImageSamplingMode.CenterWeighted;
