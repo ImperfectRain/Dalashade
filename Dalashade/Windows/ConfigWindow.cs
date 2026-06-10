@@ -169,6 +169,16 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TextWrapped(plugin.LastPresetAnalysis.Message);
         ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
 
+        DrawTextInput("Test preset folder", configuration.TestPresetFolderPath, value => configuration.TestPresetFolderPath = value);
+
+        if (ImGui.Button("Run Preset Regression Reports"))
+        {
+            plugin.RunPresetRegressionReports();
+        }
+
+        ImGui.SameLine();
+        ImGui.TextWrapped(plugin.LastPresetRegressionReport.Message);
+
         var minimumSeconds = configuration.MinimumSecondsBetweenWrites;
         if (ImGui.SliderInt("Minimum seconds between writes", ref minimumSeconds, 1, 120))
         {

@@ -99,6 +99,7 @@ public class Configuration : IPluginConfiguration
     public string ScreenshotFolderPath { get; set; } = string.Empty;
     public string MasterPresetFolderPath { get; set; } = string.Empty;
     public bool MasterPresetIncludeSubfolders { get; set; } = false;
+    public string TestPresetFolderPath { get; set; } = string.Empty;
 
     public void Save()
     {
