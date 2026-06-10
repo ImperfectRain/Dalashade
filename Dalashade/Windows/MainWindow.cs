@@ -395,6 +395,7 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Selected master mode: {diagnostics.MasterMode}");
         ImGui.TextUnformatted($"Raw strength: {diagnostics.RawStrength}%");
         ImGui.TextUnformatted($"Effective strength: {diagnostics.EffectiveStrength:0.###}");
+        ImGui.TextUnformatted($"Formula: {diagnostics.RawStrength / 100f:0.###} x {diagnostics.SceneSimilarityMultiplier:0.###} x {diagnostics.CompatibilityModeMultiplier:0.###} = {diagnostics.EffectiveStrength:0.###}");
         ImGui.TextUnformatted($"Scene similarity multiplier: {diagnostics.SceneSimilarityMultiplier:0.###}");
         ImGui.TextUnformatted($"Compatibility-mode multiplier: {diagnostics.CompatibilityModeMultiplier:0.###}");
         ImGui.TextWrapped(diagnostics.Status);
@@ -444,6 +445,12 @@ public sealed class MainWindow : Window, IDisposable
         foreach (var adjustment in diagnostics.StrongestColorFamilyAdjustments)
         {
             ImGui.BulletText($"{adjustment.Family}: confidence {adjustment.Confidence:0.##}, hue {adjustment.Hue:+0.000;-0.000;0.000}, sat {adjustment.Saturation:+0.000;-0.000;0.000}, lum {adjustment.Luminance:+0.000;-0.000;0.000}");
+        }
+
+        if (current.Available && master.Available && ImGui.TreeNode("Color-family comparison###MainMasterColorFamilyComparison"))
+        {
+            DrawColorFamilyComparison(current, master, plugin.CurrentProfile);
+            ImGui.TreePop();
         }
 
         ImGui.Separator();
@@ -593,5 +600,38 @@ public sealed class MainWindow : Window, IDisposable
 
             ImGui.BulletText($"{family}: H {stats.Hue:0.###}, S {stats.Saturation:0.###}, L {stats.Luminance:0.###}, coverage {stats.Coverage:P1}, confidence {stats.Confidence:0.##}");
         }
+    }
+
+    private static void DrawColorFamilyComparison(ImageAnalysisResult current, ImageAnalysisResult master, VisualProfile profile)
+    {
+        if (!ImGui.BeginTable("MasterColorFamilyComparisonTable", 4))
+        {
+            return;
+        }
+
+        ImGui.TableSetupColumn("Family");
+        ImGui.TableSetupColumn("Current H/S/L/C");
+        ImGui.TableSetupColumn("Master H/S/L/C");
+        ImGui.TableSetupColumn("Generated H/S/L");
+        ImGui.TableHeadersRow();
+
+        foreach (var family in Enum.GetValues<ColorFamily>())
+        {
+            var currentStats = current.ColorFamilies.TryGetValue(family, out var currentValue) ? currentValue : ColorFamilyStats.Empty(family);
+            var masterStats = master.ColorFamilies.TryGetValue(family, out var masterValue) ? masterValue : ColorFamilyStats.Empty(family);
+            var adjustment = profile.GetColorFamilyAdjustment(family);
+
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
+            ImGui.TextUnformatted(family.ToString());
+            ImGui.TableNextColumn();
+            ImGui.TextUnformatted($"{currentStats.Hue:0.###} / {currentStats.Saturation:0.###} / {currentStats.Luminance:0.###} / {currentStats.Confidence:0.##}");
+            ImGui.TableNextColumn();
+            ImGui.TextUnformatted($"{masterStats.Hue:0.###} / {masterStats.Saturation:0.###} / {masterStats.Luminance:0.###} / {masterStats.Confidence:0.##}");
+            ImGui.TableNextColumn();
+            ImGui.TextUnformatted($"{adjustment.Hue:+0.000;-0.000;0.000} / {adjustment.Saturation:+0.000;-0.000;0.000} / {adjustment.Luminance:+0.000;-0.000;0.000}");
+        }
+
+        ImGui.EndTable();
     }
 }

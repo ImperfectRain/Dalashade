@@ -19,6 +19,8 @@ public sealed class CompatibilityReportExporter
         ShaderSupportScan shaderSupport,
         VisualProfile profile,
         MasterStyleDiagnostics masterDiagnostics,
+        ImageAnalysisResult currentImage,
+        ImageAnalysisResult masterStyle,
         PresetWriteResult writeResult,
         string outputDirectory)
     {
@@ -37,7 +39,7 @@ public sealed class CompatibilityReportExporter
             var timestamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss");
             var path = Path.Combine(outputDirectory, $"{safePresetName}-compatibility-{timestamp}.md");
 
-            File.WriteAllText(path, BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, writeResult), Encoding.UTF8);
+            File.WriteAllText(path, BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, currentImage, masterStyle, writeResult), Encoding.UTF8);
             return new CompatibilityReportExportResult(true, $"Compatibility report exported: {path}", path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
@@ -52,6 +54,8 @@ public sealed class CompatibilityReportExporter
         ShaderSupportScan shaderSupport,
         VisualProfile profile,
         MasterStyleDiagnostics masterDiagnostics,
+        ImageAnalysisResult currentImage,
+        ImageAnalysisResult masterStyle,
         PresetWriteResult writeResult)
     {
         var report = analysis.Report;
@@ -80,6 +84,7 @@ public sealed class CompatibilityReportExporter
         AppendLines(builder, "Multiple Authority Warnings", report.MultipleAuthorityWarnings);
         AppendMasterStyleDiagnostics(builder, configuration, masterDiagnostics);
         AppendColorFamilyAdjustments(builder, profile);
+        AppendColorFamilyComparison(builder, currentImage, masterStyle, profile);
         AppendShaderSupport(builder, shaderSupport);
         AppendChangedVariables(builder, writeResult);
         AppendSanitizeActions(builder, writeResult);
@@ -91,6 +96,30 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("- Unknown effects are active shaders Dalashade does not understand well enough yet.");
 
         return builder.ToString();
+    }
+
+    private static void AppendColorFamilyComparison(StringBuilder builder, ImageAnalysisResult currentImage, ImageAnalysisResult masterStyle, VisualProfile profile)
+    {
+        builder.AppendLine("## Master Style Color-Family Comparison");
+        builder.AppendLine();
+        if (!currentImage.Available || !masterStyle.Available)
+        {
+            builder.AppendLine("- Current or master image analysis is unavailable.");
+            builder.AppendLine();
+            return;
+        }
+
+        builder.AppendLine("| Family | Current H/S/L/C | Master H/S/L/C | Generated H/S/L |");
+        builder.AppendLine("| --- | --- | --- | --- |");
+        foreach (var family in Enum.GetValues<ColorFamily>())
+        {
+            var currentStats = currentImage.ColorFamilies.TryGetValue(family, out var currentValue) ? currentValue : ColorFamilyStats.Empty(family);
+            var masterStats = masterStyle.ColorFamilies.TryGetValue(family, out var masterValue) ? masterValue : ColorFamilyStats.Empty(family);
+            var adjustment = profile.GetColorFamilyAdjustment(family);
+            builder.AppendLine($"| {family} | {currentStats.Hue:0.###} / {currentStats.Saturation:0.###} / {currentStats.Luminance:0.###} / {currentStats.Confidence:0.##} | {masterStats.Hue:0.###} / {masterStats.Saturation:0.###} / {masterStats.Luminance:0.###} / {masterStats.Confidence:0.##} | {adjustment.Hue:+0.000;-0.000;0.000} / {adjustment.Saturation:+0.000;-0.000;0.000} / {adjustment.Luminance:+0.000;-0.000;0.000} |");
+        }
+
+        builder.AppendLine();
     }
 
     private static void AppendColorFamilyAdjustments(StringBuilder builder, VisualProfile profile)

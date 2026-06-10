@@ -19,17 +19,32 @@ internal static class UiSection
 
         if (!string.IsNullOrWhiteSpace(summary))
         {
-            ImGui.SameLine();
+            var inline = summary.Length <= 56 && ImGui.GetContentRegionAvail().X > 260f;
+            if (inline)
+            {
+                ImGui.SameLine();
+            }
+            else
+            {
+                ImGui.Indent();
+            }
+
             if (summaryColor.HasValue)
             {
                 ImGui.PushStyleColor(ImGuiCol.Text, summaryColor.Value);
             }
+            else
+            {
+                ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled]);
+            }
 
             ImGui.TextWrapped(summary);
 
-            if (summaryColor.HasValue)
+            ImGui.PopStyleColor();
+
+            if (!inline)
             {
-                ImGui.PopStyleColor();
+                ImGui.Unindent();
             }
         }
 

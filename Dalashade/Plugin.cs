@@ -155,6 +155,8 @@ public sealed class Plugin : IDalamudPlugin
             LastShaderSupportScan,
             CurrentProfile,
             CurrentMasterStyleDiagnostics,
+            CurrentImageAnalysis,
+            CurrentMasterStyle,
             LastWriteResult,
             CompatibilityReportDirectory);
         return LastCompatibilityReportExport;
@@ -338,6 +340,7 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.MasterStyleMode,
             Configuration.MasterPresetMaxImages,
             Configuration.MasterPresetIncludeSubfolders,
+            Configuration.MasterStyleTuningPreset,
             Configuration.MasterTonalMatchStrength,
             Configuration.MasterTonalColorStrength,
             Configuration.MasterColorFamilyStrength,

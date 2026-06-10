@@ -58,6 +58,16 @@ public enum PresetCompatibilityMode
     GposePreserve
 }
 
+public enum MasterStyleTuningPreset
+{
+    Subtle,
+    Balanced,
+    Strong,
+    Cinematic,
+    AggressiveGpose,
+    Custom
+}
+
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
@@ -98,6 +108,7 @@ public class Configuration : IPluginConfiguration
     public int MinimumSecondsBetweenImageSamples { get; set; } = 10;
     public ImageSamplingMode ImageSamplingMode { get; set; } = ImageSamplingMode.CenterWeighted;
     public int MasterPresetStyleStrength { get; set; } = 75;
+    public MasterStyleTuningPreset MasterStyleTuningPreset { get; set; } = MasterStyleTuningPreset.Balanced;
     public float MasterTonalMatchStrength { get; set; } = 1.0f;
     public float MasterTonalColorStrength { get; set; } = 0.75f;
     public float MasterColorFamilyStrength { get; set; } = 0.65f;
