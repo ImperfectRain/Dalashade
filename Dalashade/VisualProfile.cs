@@ -163,8 +163,25 @@ public sealed class ProfileEngine
 
         if (configuration.MatchMasterPresetStyle && masterStyle.Available)
         {
-            ApplyMasterStyle(imageAnalysis, masterStyle, configuration, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift, ref temperature, ref tint);
-            rules?.Add(new AppliedRule("Master style", $"Reference look reads as {masterStyle.ProfileBucket}; matching at {configuration.MasterPresetStyleStrength}% strength.", "exposure, contrast, saturation, warmth, tint"));
+            var masterTone = ApplyMasterStyle(
+                imageAnalysis,
+                masterStyle,
+                configuration,
+                ref exposure,
+                ref contrast,
+                ref saturation,
+                ref bloom,
+                ref ao,
+                ref sharpness,
+                ref clarity,
+                ref highlightRecovery,
+                ref whitePoint,
+                ref blackPoint,
+                ref midtoneContrast,
+                ref shadowLift,
+                ref temperature,
+                ref tint);
+            rules?.Add(new AppliedRule("Master style", $"Reference look reads as {masterStyle.ProfileBucket}; {masterTone.Description}", masterTone.Changes));
         }
 
         ApplyStyle(configuration.Style, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness);
@@ -404,19 +421,48 @@ public sealed class ProfileEngine
         }
     }
 
-    private static void ApplyMasterStyle(ImageAnalysisResult current, ImageAnalysisResult target, Configuration configuration, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float clarity, ref float shadowLift, ref float temperature, ref float tint)
+    private static MasterStyleToneSummary ApplyMasterStyle(
+        ImageAnalysisResult current,
+        ImageAnalysisResult target,
+        Configuration configuration,
+        ref float exposure,
+        ref float contrast,
+        ref float saturation,
+        ref float bloom,
+        ref float ao,
+        ref float sharpness,
+        ref float clarity,
+        ref float highlightRecovery,
+        ref float whitePoint,
+        ref float blackPoint,
+        ref float midtoneContrast,
+        ref float shadowLift,
+        ref float temperature,
+        ref float tint)
     {
         var strength = Clamp(configuration.MasterPresetStyleStrength / 100f, 0f, 1f);
         var scene = current.Available ? current : ImageAnalysisResult.Empty;
 
         var luminanceDelta = target.AverageLuminance - (current.Available ? scene.AverageLuminance : 0.50f);
-        var contrastDelta = target.Contrast - (current.Available ? scene.Contrast : 0.22f);
         var saturationDelta = target.AverageSaturation - (current.Available ? scene.AverageSaturation : 0.38f);
         var warmthDelta = target.Warmth - (current.Available ? scene.Warmth : 0f);
         var greenDelta = target.GreenBias - (current.Available ? scene.GreenBias : 0f);
+        var sceneShadowFloor = current.Available ? scene.ShadowFloor : 0.05f;
+        var sceneMidtone = current.Available ? scene.MidtoneLevel : 0.50f;
+        var sceneHighlightCeiling = current.Available ? scene.HighlightCeiling : 0.95f;
+        var sceneSpread = current.Available ? scene.ContrastSpread : 0.50f;
+        var shadowDelta = target.ShadowFloor - sceneShadowFloor;
+        var midtoneDelta = target.MidtoneLevel - sceneMidtone;
+        var highlightDelta = target.HighlightCeiling - sceneHighlightCeiling;
+        var spreadDelta = target.ContrastSpread - sceneSpread;
 
-        exposure += Clamp(luminanceDelta * 0.55f, -0.16f, 0.16f) * strength;
-        contrast += Clamp(contrastDelta * 1.05f, -0.18f, 0.18f) * strength;
+        exposure += Clamp((luminanceDelta * 0.22f) + (midtoneDelta * 0.30f), -0.10f, 0.10f) * strength;
+        shadowLift += Clamp(shadowDelta * 0.50f, -0.045f, 0.085f) * strength;
+        blackPoint *= 1f + Clamp(-shadowDelta * 0.22f, -0.040f, 0.045f) * strength;
+        whitePoint *= 1f + Clamp(highlightDelta * 0.12f, -0.025f, 0.025f) * strength;
+        highlightRecovery *= 1f + Clamp(-highlightDelta * 0.55f, -0.12f, 0.16f) * strength;
+        contrast += Clamp(spreadDelta * 0.55f, -0.12f, 0.12f) * strength;
+        midtoneContrast += Clamp((spreadDelta * 0.35f) + (midtoneDelta * 0.20f), -0.10f, 0.10f) * strength;
         saturation += Clamp(saturationDelta * 0.80f, -0.18f, 0.18f) * strength;
         temperature += Clamp(warmthDelta * 0.95f, -0.24f, 0.24f) * strength;
         tint += Clamp(greenDelta * 0.75f, -0.16f, 0.16f) * strength;
@@ -441,6 +487,29 @@ public sealed class ProfileEngine
             clarity += 0.08f * strength;
             sharpness += 0.04f * strength;
         }
+
+        var shadowText = shadowDelta switch
+        {
+            > 0.025f => "shadows lifted",
+            < -0.025f => "shadows deepened",
+            _ => "shadows held"
+        };
+        var highlightText = highlightDelta switch
+        {
+            > 0.025f => "highlights brightened",
+            < -0.025f => "highlights recovered",
+            _ => "highlights held"
+        };
+        var contrastText = spreadDelta switch
+        {
+            > 0.035f => "contrast increased",
+            < -0.035f => "contrast softened",
+            _ => "contrast held"
+        };
+
+        return new MasterStyleToneSummary(
+            $"tonal percentile matching at {configuration.MasterPresetStyleStrength}% strength: {shadowText}, {highlightText}, {contrastText}.",
+            $"shadow floor {sceneShadowFloor:0.00}->{target.ShadowFloor:0.00}, midtone {sceneMidtone:0.00}->{target.MidtoneLevel:0.00}, highlight {sceneHighlightCeiling:0.00}->{target.HighlightCeiling:0.00}, spread {sceneSpread:0.00}->{target.ContrastSpread:0.00}");
     }
 
     private static void ApplyStyle(TargetStyle style, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness)
@@ -585,3 +654,5 @@ public sealed class ProfileEngine
 public sealed record ProfileResult(VisualProfile Profile, IReadOnlyList<AppliedRule> Rules);
 
 public sealed record AppliedRule(string Name, string Reason, string Changes);
+
+internal sealed record MasterStyleToneSummary(string Description, string Changes);

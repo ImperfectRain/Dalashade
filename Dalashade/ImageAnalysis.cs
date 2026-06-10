@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using SixLabors.ImageSharp;
@@ -16,9 +17,19 @@ public sealed record ImageAnalysisResult(
     float ShadowClipping,
     float HighlightClipping,
     float Warmth,
-    float GreenBias)
+    float GreenBias,
+    float LuminanceP05,
+    float LuminanceP25,
+    float LuminanceP50,
+    float LuminanceP75,
+    float LuminanceP95)
 {
-    public static ImageAnalysisResult Empty { get; } = new(false, string.Empty, DateTimeOffset.MinValue, 0f, 0f, 0f, 0f, 0f, 0f, 0f);
+    public static ImageAnalysisResult Empty { get; } = new(false, string.Empty, DateTimeOffset.MinValue, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f);
+
+    public float ShadowFloor => LuminanceP05;
+    public float MidtoneLevel => LuminanceP50;
+    public float HighlightCeiling => LuminanceP95;
+    public float ContrastSpread => MathF.Max(0f, LuminanceP75 - LuminanceP25);
 
     public string MetricsKey
     {
@@ -30,7 +41,7 @@ public sealed record ImageAnalysisResult(
             }
 
             return FormattableString.Invariant(
-                $"l{AverageLuminance:0.00}:c{Contrast:0.00}:s{AverageSaturation:0.00}:sh{ShadowClipping:0.00}:hi{HighlightClipping:0.00}:w{Warmth:0.00}:g{GreenBias:0.00}");
+                $"l{AverageLuminance:0.00}:c{Contrast:0.00}:s{AverageSaturation:0.00}:sh{ShadowClipping:0.00}:hi{HighlightClipping:0.00}:p05{LuminanceP05:0.00}:p50{LuminanceP50:0.00}:p95{LuminanceP95:0.00}:w{Warmth:0.00}:g{GreenBias:0.00}");
         }
     }
 
@@ -154,6 +165,7 @@ public sealed class ImageAnalysisService
         double greenBiasSum = 0;
         double shadowWeight = 0;
         double highlightWeight = 0;
+        var luminanceSamples = new List<WeightedLuminanceSample>();
 
         for (var y = 0; y < image.Height; y += stepY)
         {
@@ -180,6 +192,7 @@ public sealed class ImageAnalysisService
                 warmthSum += (r - b) * weight;
                 greenBiasSum += (g - ((r + b) * 0.5f)) * weight;
                 weightSum += weight;
+                luminanceSamples.Add(new WeightedLuminanceSample(luminance, weight));
 
                 if (luminance < 0.035f)
                 {
@@ -201,6 +214,7 @@ public sealed class ImageAnalysisService
         var variance = Math.Max(0, (luminanceSquaredSum / weightSum) - (averageLuminance * averageLuminance));
         var contrast = (float)Math.Sqrt(variance);
         var averageSaturation = (float)(saturationSum / weightSum);
+        var percentiles = LuminancePercentiles.From(luminanceSamples, (float)weightSum);
 
         return new ImageAnalysisResult(
             true,
@@ -212,7 +226,12 @@ public sealed class ImageAnalysisService
             (float)(shadowWeight / weightSum),
             (float)(highlightWeight / weightSum),
             (float)(warmthSum / weightSum),
-            (float)(greenBiasSum / weightSum));
+            (float)(greenBiasSum / weightSum),
+            percentiles.P05,
+            percentiles.P25,
+            percentiles.P50,
+            percentiles.P75,
+            percentiles.P95);
     }
 
     private static float GetSampleWeight(int x, int y, int width, int height, ImageSamplingMode samplingMode)
@@ -243,5 +262,42 @@ public sealed class ImageAnalysisService
         var dx = nx - 0.5f;
         var dy = ny - 0.45f;
         return MathF.Max(0.15f, 1f - ((dx * dx + dy * dy) * 3.0f));
+    }
+}
+
+internal readonly record struct WeightedLuminanceSample(float Luminance, float Weight);
+
+internal readonly record struct LuminancePercentiles(float P05, float P25, float P50, float P75, float P95)
+{
+    public static LuminancePercentiles From(IReadOnlyList<WeightedLuminanceSample> samples, float weightSum)
+    {
+        if (samples.Count == 0 || weightSum <= 0f)
+        {
+            return default;
+        }
+
+        var sorted = samples.OrderBy(sample => sample.Luminance).ToArray();
+        return new LuminancePercentiles(
+            Percentile(sorted, weightSum, 0.05f),
+            Percentile(sorted, weightSum, 0.25f),
+            Percentile(sorted, weightSum, 0.50f),
+            Percentile(sorted, weightSum, 0.75f),
+            Percentile(sorted, weightSum, 0.95f));
+    }
+
+    private static float Percentile(IReadOnlyList<WeightedLuminanceSample> sorted, float weightSum, float percentile)
+    {
+        var target = weightSum * percentile;
+        var cumulative = 0f;
+        foreach (var sample in sorted)
+        {
+            cumulative += sample.Weight;
+            if (cumulative >= target)
+            {
+                return sample.Luminance;
+            }
+        }
+
+        return sorted[^1].Luminance;
     }
 }

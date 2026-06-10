@@ -129,6 +129,8 @@ public sealed class MainWindow : Window, IDisposable
             ImGui.TextUnformatted($"Image Warmth: {image.Warmth:0.###}");
             ImGui.TextUnformatted($"Shadow Clip: {image.ShadowClipping:P1}");
             ImGui.TextUnformatted($"Highlight Clip: {image.HighlightClipping:P1}");
+            ImGui.TextUnformatted($"Image Tonal P05/P50/P95: {image.LuminanceP05:0.###} / {image.LuminanceP50:0.###} / {image.LuminanceP95:0.###}");
+            ImGui.TextUnformatted($"Image Tonal Spread: {image.ContrastSpread:0.###}");
             ImGui.TextUnformatted($"Image Metrics: {image.MetricsKey}");
         }
 
@@ -142,6 +144,8 @@ public sealed class MainWindow : Window, IDisposable
             ImGui.TextUnformatted($"Master Contrast: {master.Contrast:0.###}");
             ImGui.TextUnformatted($"Master Saturation: {master.AverageSaturation:0.###}");
             ImGui.TextUnformatted($"Master Warmth: {master.Warmth:0.###}");
+            ImGui.TextUnformatted($"Master Tonal P05/P50/P95: {master.LuminanceP05:0.###} / {master.LuminanceP50:0.###} / {master.LuminanceP95:0.###}");
+            ImGui.TextUnformatted($"Master Tonal Spread: {master.ContrastSpread:0.###}");
             ImGui.TextUnformatted($"Master Metrics: {master.MetricsKey}");
         }
 

@@ -162,7 +162,12 @@ public sealed class MasterStyleService
             images.Average(image => image.ShadowClipping),
             images.Average(image => image.HighlightClipping),
             images.Average(image => image.Warmth),
-            images.Average(image => image.GreenBias));
+            images.Average(image => image.GreenBias),
+            images.Average(image => image.LuminanceP05),
+            images.Average(image => image.LuminanceP25),
+            images.Average(image => image.LuminanceP50),
+            images.Average(image => image.LuminanceP75),
+            images.Average(image => image.LuminanceP95));
     }
 
     private static ImageAnalysisResult Median(ImageAnalysisResult[] images, string folderPath, DateTime newestWriteTime)
@@ -177,7 +182,12 @@ public sealed class MasterStyleService
             MedianValue(images.Select(image => image.ShadowClipping)),
             MedianValue(images.Select(image => image.HighlightClipping)),
             MedianValue(images.Select(image => image.Warmth)),
-            MedianValue(images.Select(image => image.GreenBias)));
+            MedianValue(images.Select(image => image.GreenBias)),
+            MedianValue(images.Select(image => image.LuminanceP05)),
+            MedianValue(images.Select(image => image.LuminanceP25)),
+            MedianValue(images.Select(image => image.LuminanceP50)),
+            MedianValue(images.Select(image => image.LuminanceP75)),
+            MedianValue(images.Select(image => image.LuminanceP95)));
     }
 
     private static float MedianValue(IEnumerable<float> values)
@@ -201,6 +211,10 @@ public sealed class MasterStyleService
                + Squared(left.AverageSaturation - right.AverageSaturation) * 1.2f
                + Squared(left.ShadowClipping - right.ShadowClipping)
                + Squared(left.HighlightClipping - right.HighlightClipping)
+               + Squared(left.ShadowFloor - right.ShadowFloor)
+               + Squared(left.MidtoneLevel - right.MidtoneLevel)
+               + Squared(left.HighlightCeiling - right.HighlightCeiling)
+               + Squared(left.ContrastSpread - right.ContrastSpread) * 1.2f
                + Squared(left.Warmth - right.Warmth) * 0.8f
                + Squared(left.GreenBias - right.GreenBias) * 0.8f;
     }
