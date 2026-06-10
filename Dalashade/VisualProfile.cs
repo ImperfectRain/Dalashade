@@ -20,20 +20,20 @@ public sealed record VisualProfile(
 
 public sealed class ProfileEngine
 {
-    public ProfileResult CreateWithRules(GameContext context, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration)
+    public ProfileResult CreateWithRules(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration)
     {
         var rules = new List<AppliedRule>();
-        var profile = Create(context, imageAnalysis, masterStyle, configuration, rules);
+        var profile = Create(context, tags, imageAnalysis, masterStyle, configuration, rules);
 
         return new ProfileResult(profile, rules);
     }
 
-    public VisualProfile Create(GameContext context, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration)
+    public VisualProfile Create(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration)
     {
-        return Create(context, imageAnalysis, masterStyle, configuration, null);
+        return Create(context, tags, imageAnalysis, masterStyle, configuration, null);
     }
 
-    private VisualProfile Create(GameContext context, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration, List<AppliedRule>? rules)
+    private VisualProfile Create(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration, List<AppliedRule>? rules)
     {
         var exposure = 1f;
         var contrast = 1f;
@@ -49,44 +49,54 @@ public sealed class ProfileEngine
         ApplyBasePolish(context, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift);
         rules?.Add(new AppliedRule("Base polish", "Small default lift so the generated preset feels like an upgrade, not just a safety mode.", "contrast, saturation, clarity, shadow lift"));
 
-        if (configuration.AutoAdjustAtNight && context.IsNight)
+        if (configuration.AutoAdjustAtNight && tags.IsNight)
         {
-            exposure += 0.08f;
+            exposure *= 1.06f;
             shadowLift += 0.10f;
-            ao -= 0.15f;
-            rules?.Add(new AppliedRule("Night", "Lift the darks and ease off AO so night stays readable.", "exposure +8%, shadow lift +10%, AO -15%"));
+            ao *= 0.90f;
+            rules?.Add(new AppliedRule("Night", "Lift the darks and ease off AO so night stays readable.", "exposure x1.06, shadow lift +0.10, AO x0.90"));
         }
 
-        if (configuration.AutoAdjustForWeather && IsSoftWeather(context.WeatherName))
+        if (configuration.AutoAdjustAtNight && tags.IsDawnOrDusk)
         {
-            contrast += 0.05f;
-            bloom -= 0.10f;
-            sharpness -= 0.10f;
-            saturation -= 0.05f;
-            rules?.Add(new AppliedRule("Soft weather", $"Weather is {context.WeatherName}, so bloom and sharpening get pulled back.", "contrast +5%, bloom -10%, sharpen -10%, saturation -5%"));
+            bloom *= 1.04f;
+            temperature += 0.025f;
+            rules?.Add(new AppliedRule("Dawn/dusk", "Low sun can take a little warmth and glow without going full postcard.", "bloom x1.04, warmth +0.025"));
+        }
+
+        if (configuration.AutoAdjustForWeather)
+        {
+            ApplyWeather(context, tags, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, rules);
         }
 
         if (configuration.AutoAdjustForTerritory)
         {
-            ApplyTerritory(context.WorldCategory, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift);
-            rules?.Add(new AppliedRule("Area type", $"Current area classified as {context.WorldCategory}.", "generic territory adjustment"));
+            ApplyTerritory(tags, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift, rules);
         }
 
-        if (configuration.AutoAdjustInCombat && context.InCombat)
+        if (configuration.AutoAdjustInCombat && tags.NeedsGameplayClarity)
         {
-            ao -= 0.30f;
-            bloom -= 0.20f;
-            sharpness -= 0.10f;
-            clarity -= 0.15f;
-            rules?.Add(new AppliedRule("Combat clarity", "Combat gets readability first; cinematic effects back off.", "AO -30%, bloom -20%, sharpen -10%, clarity -15%"));
+            ao *= 0.88f;
+            bloom *= 0.75f;
+            sharpness *= 0.92f;
+            clarity *= 0.90f;
+            shadowLift += 0.08f;
+            rules?.Add(new AppliedRule("Gameplay clarity", "Combat or duty context gets readability first; cinematic effects back off.", "bloom x0.75, AO x0.88, sharpen x0.92, clarity x0.90"));
         }
 
-        if (configuration.AutoAdjustInCutscenes && context.InCutscene)
+        if (context.InGpose)
         {
-            ao += 0.15f;
-            bloom += 0.10f;
-            contrast += 0.05f;
-            rules?.Add(new AppliedRule("Cutscene", "Cutscene detected, so Dalashade allows a little more drama.", "AO +15%, bloom +10%, contrast +5%"));
+            ao *= 1.12f;
+            bloom *= 1.10f;
+            contrast *= 1.04f;
+            rules?.Add(new AppliedRule("GPose", "GPose can take the prettier settings because gameplay readability is not fighting for space.", "AO x1.12, bloom x1.10, contrast x1.04"));
+        }
+        else if (configuration.AutoAdjustInCutscenes && context.InCutscene)
+        {
+            ao *= 1.08f;
+            bloom *= 1.06f;
+            contrast *= 1.03f;
+            rules?.Add(new AppliedRule("Cutscene", "Cutscene detected, so Dalashade allows a little more drama without pushing too hard.", "AO x1.08, bloom x1.06, contrast x1.03"));
         }
 
         if (configuration.AutoAdjustFromScreenshots && imageAnalysis.Available)
@@ -119,12 +129,31 @@ public sealed class ProfileEngine
             Clamp(tint, -0.12f, 0.12f));
     }
 
-    private static bool IsSoftWeather(string weatherName)
+    private static void ApplyWeather(GameContext context, SceneTags tags, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, List<AppliedRule>? rules)
     {
-        return weatherName.Contains("Fog", StringComparison.OrdinalIgnoreCase)
-               || weatherName.Contains("Rain", StringComparison.OrdinalIgnoreCase)
-               || weatherName.Contains("Showers", StringComparison.OrdinalIgnoreCase)
-               || weatherName.Contains("Cloud", StringComparison.OrdinalIgnoreCase);
+        if (tags.IsFog)
+        {
+            contrast *= 1.04f;
+            bloom *= 0.90f;
+            sharpness *= 0.92f;
+            rules?.Add(new AppliedRule("Fog/clouds", $"Weather is {context.WeatherName}; reduce haze-amplifying effects and add a little contrast.", "contrast x1.04, bloom x0.90, sharpen x0.92"));
+        }
+
+        if (tags.IsRain || tags.IsStorm)
+        {
+            contrast *= 1.03f;
+            saturation *= 0.96f;
+            bloom *= 0.90f;
+            rules?.Add(new AppliedRule(tags.IsStorm ? "Storm" : "Rain", $"Weather is {context.WeatherName}; keep wet scenes readable and less bloomy.", "contrast x1.03, saturation x0.96, bloom x0.90"));
+        }
+
+        if (tags.IsSnow)
+        {
+            exposure *= 0.97f;
+            saturation *= 0.94f;
+            bloom *= 0.82f;
+            rules?.Add(new AppliedRule("Snow", $"Weather is {context.WeatherName}; protect highlights and keep whites from glowing too much.", "exposure x0.97, saturation x0.94, bloom x0.82"));
+        }
     }
 
     private static void ApplyBasePolish(GameContext context, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float clarity, ref float shadowLift)
@@ -142,33 +171,39 @@ public sealed class ProfileEngine
         }
     }
 
-    private static void ApplyTerritory(WorldCategory category, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float clarity, ref float shadowLift)
+    private static void ApplyTerritory(SceneTags tags, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float clarity, ref float shadowLift, List<AppliedRule>? rules)
     {
-        switch (category)
+        if (tags.IsCityLike)
         {
-            case WorldCategory.City:
-                bloom -= 0.05f;
-                sharpness -= 0.03f;
-                ao -= 0.05f;
-                shadowLift += 0.01f;
-                break;
-            case WorldCategory.Duty:
-                bloom -= 0.12f;
-                ao -= 0.12f;
-                clarity -= 0.08f;
-                sharpness -= 0.05f;
-                break;
-            case WorldCategory.Interior:
-                exposure += 0.04f;
-                contrast -= 0.03f;
-                saturation += 0.02f;
-                shadowLift += 0.03f;
-                break;
-            case WorldCategory.Field:
-                contrast += 0.04f;
-                saturation += 0.025f;
-                bloom += 0.015f;
-                break;
+            bloom *= 0.95f;
+            sharpness *= 0.97f;
+            ao *= 0.95f;
+            shadowLift += 0.01f;
+            rules?.Add(new AppliedRule("City/social area", "Cities get a cleaner image with less harsh AO and sharpening.", "bloom x0.95, AO x0.95, sharpen x0.97"));
+        }
+        else if (tags.IsDungeonLike || tags.IsRaidLike)
+        {
+            bloom *= 0.88f;
+            ao *= 0.88f;
+            clarity *= 0.92f;
+            sharpness *= 0.95f;
+            shadowLift += 0.04f;
+            rules?.Add(new AppliedRule(tags.IsRaidLike ? "Raid/trial" : "Dungeon", "Duty-style areas bias toward readable shadows and restrained post effects.", "bloom x0.88, AO x0.88, clarity x0.92, shadow lift +0.04"));
+        }
+        else if (tags.IsInteriorLike)
+        {
+            exposure *= 1.04f;
+            contrast *= 0.97f;
+            saturation *= 1.02f;
+            shadowLift += 0.03f;
+            rules?.Add(new AppliedRule("Interior", "Interior lighting gets a little lift so corners do not collapse.", "exposure x1.04, contrast x0.97, shadow lift +0.03"));
+        }
+        else if (tags.IsFieldLike)
+        {
+            contrast *= 1.04f;
+            saturation *= 1.025f;
+            bloom *= 1.015f;
+            rules?.Add(new AppliedRule("Field/exploration", "Open-world areas can take a mild scenic polish.", "contrast x1.04, saturation x1.025, bloom x1.015"));
         }
     }
 

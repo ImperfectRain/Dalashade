@@ -28,6 +28,7 @@ public sealed class MainWindow : Window, IDisposable
     public override void Draw()
     {
         var context = plugin.CurrentContext;
+        var tags = plugin.CurrentTags;
         var profile = plugin.CurrentProfile;
 
         if (ImGui.Button("Settings"))
@@ -46,10 +47,14 @@ public sealed class MainWindow : Window, IDisposable
 
         ImGui.TextUnformatted($"Territory: {context.TerritoryName} ({context.TerritoryId})");
         ImGui.TextUnformatted($"World: {context.WorldCategory}");
-        ImGui.TextUnformatted($"Weather: {context.WeatherName}");
-        ImGui.TextUnformatted($"Night: {context.IsNight}");
+        ImGui.TextUnformatted($"Content: {context.ContentName} ({context.ContentType})");
+        ImGui.TextUnformatted($"Weather: {context.WeatherName} ({tags.WeatherKey})");
+        ImGui.TextUnformatted($"Time: {context.EorzeaHour:0.0}h ({context.TimeBucket})");
         ImGui.TextUnformatted($"Combat: {context.InCombat}");
+        ImGui.TextUnformatted($"Duty: {context.InDuty}");
+        ImGui.TextUnformatted($"GPose: {context.InGpose}");
         ImGui.TextUnformatted($"Cutscene: {context.InCutscene}");
+        ImGui.TextUnformatted($"Scene Tags: {tags.AreaKey}, clarity={tags.NeedsGameplayClarity}, cinematic={tags.CinematicAllowed}");
 
         ImGui.Separator();
 

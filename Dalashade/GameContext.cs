@@ -13,28 +13,150 @@ public enum WorldCategory
     Interior
 }
 
+public enum TimeBucket
+{
+    Dawn,
+    Day,
+    Dusk,
+    Night
+}
+
 public sealed record GameContext(
     uint TerritoryId,
     string TerritoryName,
     WorldCategory WorldCategory,
+    uint? WeatherId,
+    string WeatherName,
+    float EorzeaHour,
+    TimeBucket TimeBucket,
     bool InCombat,
     bool InCutscene,
-    bool IsNight,
-    uint? WeatherId,
-    string WeatherName)
+    bool InGpose,
+    bool InDuty,
+    bool InSanctuary,
+    string ContentName,
+    string ContentType)
 {
-    public static GameContext Empty { get; } = new(0, "Unknown", WorldCategory.Unknown, false, false, false, null, "Unknown");
+    public static GameContext Empty { get; } = new(
+        0,
+        "Unknown",
+        WorldCategory.Unknown,
+        null,
+        "Unknown",
+        0f,
+        TimeBucket.Day,
+        false,
+        false,
+        false,
+        false,
+        false,
+        "Unknown",
+        "Unknown");
 
-    public string ProfileKey(Configuration configuration, ImageAnalysisResult imageAnalysis)
+    public string ProfileKey(Configuration configuration, ImageAnalysisResult imageAnalysis, SceneTags tags)
     {
         var combat = configuration.AutoAdjustInCombat && InCombat ? "combat" : "safe";
         var cutscene = configuration.AutoAdjustInCutscenes && InCutscene ? "cutscene" : "gameplay";
-        var time = configuration.AutoAdjustAtNight && IsNight ? "night" : "day";
-        var weather = configuration.AutoAdjustForWeather ? WeatherName : "ignored";
-        var territory = configuration.AutoAdjustForTerritory ? WorldCategory.ToString() : "ignored";
+        var time = configuration.AutoAdjustAtNight ? TimeBucket.ToString() : "ignored";
+        var weather = configuration.AutoAdjustForWeather ? tags.WeatherKey : "ignored";
+        var territory = configuration.AutoAdjustForTerritory ? tags.AreaKey : "ignored";
         var image = configuration.AutoAdjustFromScreenshots ? imageAnalysis.ProfileBucket : "ignored";
 
-        return $"{TerritoryId}:{territory}:{weather}:{time}:{combat}:{cutscene}:{image}:{configuration.Style}:{configuration.PerformanceBudget}";
+        return $"{TerritoryId}:{territory}:{weather}:{time}:{combat}:{cutscene}:{InGpose}:{image}:{configuration.Style}:{configuration.PerformanceBudget}";
+    }
+}
+
+public sealed record SceneTags(
+    bool IsNight,
+    bool IsDawnOrDusk,
+    bool IsRain,
+    bool IsFog,
+    bool IsSnow,
+    bool IsStorm,
+    bool IsClear,
+    bool IsCityLike,
+    bool IsDungeonLike,
+    bool IsRaidLike,
+    bool IsFieldLike,
+    bool IsInteriorLike,
+    bool NeedsGameplayClarity,
+    bool CinematicAllowed)
+{
+    public static SceneTags Empty { get; } = new(false, false, false, false, false, false, true, false, false, false, false, false, false, true);
+
+    public string WeatherKey
+    {
+        get
+        {
+            if (IsStorm) return "storm";
+            if (IsSnow) return "snow";
+            if (IsRain) return "rain";
+            if (IsFog) return "fog";
+            return "clear";
+        }
+    }
+
+    public string AreaKey
+    {
+        get
+        {
+            if (IsRaidLike) return "raid";
+            if (IsDungeonLike) return "dungeon";
+            if (IsCityLike) return "city";
+            if (IsInteriorLike) return "interior";
+            if (IsFieldLike) return "field";
+            return "unknown";
+        }
+    }
+}
+
+public static class SceneClassifier
+{
+    public static SceneTags Classify(GameContext context)
+    {
+        var weather = context.WeatherName.ToLowerInvariant();
+        var content = $"{context.ContentName} {context.ContentType}".ToLowerInvariant();
+
+        var isRain = ContainsAny(weather, "rain", "showers");
+        var isFog = ContainsAny(weather, "fog", "gloom", "cloud", "overcast", "mist");
+        var isSnow = ContainsAny(weather, "snow", "blizzard");
+        var isStorm = ContainsAny(weather, "storm", "thunder", "gales");
+
+        var isDungeon = context.InDuty && ContainsAny(content, "dungeon", "deep dungeon", "variant", "criterion");
+        var isRaid = context.InDuty && ContainsAny(content, "raid", "trial", "ultimate", "savage", "unreal");
+        var isCity = context.InSanctuary && !context.InDuty;
+        var isInterior = context.WorldCategory == WorldCategory.Interior || isDungeon || isRaid;
+        var isField = !context.InDuty && !isCity && !isInterior;
+        var needsGameplayClarity = context.InCombat || context.InDuty;
+
+        return new SceneTags(
+            context.TimeBucket == TimeBucket.Night,
+            context.TimeBucket is TimeBucket.Dawn or TimeBucket.Dusk,
+            isRain,
+            isFog,
+            isSnow,
+            isStorm,
+            !isRain && !isFog && !isSnow && !isStorm,
+            isCity,
+            isDungeon,
+            isRaid,
+            isField,
+            isInterior,
+            needsGameplayClarity,
+            !context.InCombat && (!context.InCutscene || context.InGpose));
+    }
+
+    private static bool ContainsAny(string value, params string[] candidates)
+    {
+        foreach (var candidate in candidates)
+        {
+            if (value.Contains(candidate, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 
@@ -42,13 +164,18 @@ public sealed class GameContextService
 {
     private uint? zoneInitWeatherId;
     private string zoneInitWeatherName = "Unknown";
+    private string zoneInitContentName = "Unknown";
+    private string zoneInitContentType = "Unknown";
 
     public GameContext Current { get; private set; } = GameContext.Empty;
+    public SceneTags CurrentTags { get; private set; } = SceneTags.Empty;
 
-    public void UpdateWeather(uint? weatherId, string weatherName)
+    public void UpdateZoneInfo(uint? weatherId, string weatherName, string contentName, string contentType)
     {
         zoneInitWeatherId = weatherId;
         zoneInitWeatherName = string.IsNullOrWhiteSpace(weatherName) ? "Unknown" : weatherName;
+        zoneInitContentName = string.IsNullOrWhiteSpace(contentName) ? "Unknown" : contentName;
+        zoneInitContentType = string.IsNullOrWhiteSpace(contentType) ? "Unknown" : contentType;
     }
 
     public void Refresh()
@@ -62,33 +189,78 @@ public sealed class GameContextService
         }
 
         var inCombat = Plugin.Condition[ConditionFlag.InCombat];
-        var inCutscene = Plugin.Condition[ConditionFlag.OccupiedInCutSceneEvent] || Plugin.Condition[ConditionFlag.WatchingCutscene];
+        var inCutscene = Plugin.Condition[ConditionFlag.OccupiedInCutSceneEvent]
+                         || Plugin.Condition[ConditionFlag.WatchingCutscene]
+                         || Plugin.Condition[ConditionFlag.WatchingCutscene78];
+        var inDuty = Plugin.Condition[ConditionFlag.BoundByDuty]
+                     || Plugin.Condition[ConditionFlag.BoundByDuty56]
+                     || Plugin.Condition[ConditionFlag.BoundByDuty95]
+                     || Plugin.DutyState.IsDutyStarted;
+        var inGpose = Plugin.ClientState.IsGPosing;
+        var inSanctuary = InferSanctuary(territoryName, inDuty);
+        var eorzeaHour = GetEorzeaHour();
 
         Current = new GameContext(
             territoryId,
             territoryName,
-            ClassifyTerritory(territoryName, inCombat),
+            ClassifyTerritory(territoryName, inDuty, inSanctuary),
+            zoneInitWeatherId,
+            zoneInitWeatherName,
+            eorzeaHour,
+            GetTimeBucket(eorzeaHour),
             inCombat,
             inCutscene,
-            IsApproximateEorzeaNight(),
-            zoneInitWeatherId,
-            zoneInitWeatherName);
+            inGpose,
+            inDuty,
+            inSanctuary,
+            GetDutyContentName(zoneInitContentName),
+            zoneInitContentType);
+        CurrentTags = SceneClassifier.Classify(Current);
     }
 
-    private static bool IsApproximateEorzeaNight()
+    private static string GetDutyContentName(string fallback)
     {
-        var eorzeaHour = (int)((DateTimeOffset.UtcNow.ToUnixTimeSeconds() * 20.571428571 / 3600) % 24);
-        return eorzeaHour is >= 18 or < 6;
+        try
+        {
+            var condition = Plugin.DutyState.ContentFinderCondition;
+            return condition.IsValid ? condition.Value.Name.ToString() : fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
     }
 
-    private static WorldCategory ClassifyTerritory(string territoryName, bool inCombat)
+    private static float GetEorzeaHour()
     {
-        if (inCombat)
+        var eorzeaSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds() * 20.571428571;
+        return (float)((eorzeaSeconds / 3600) % 24);
+    }
+
+    private static TimeBucket GetTimeBucket(float eorzeaHour)
+    {
+        return eorzeaHour switch
+        {
+            >= 5f and < 8f => TimeBucket.Dawn,
+            >= 8f and < 16.5f => TimeBucket.Day,
+            >= 16.5f and < 19f => TimeBucket.Dusk,
+            _ => TimeBucket.Night
+        };
+    }
+
+    private static bool InferSanctuary(string territoryName, bool inDuty)
+    {
+        return !inDuty && ContainsAny(territoryName, "Limsa Lominsa", "Gridania", "Ul'dah", "Ishgard", "Kugane", "Crystarium", "Old Sharlayan", "Tuliyollal", "Solution Nine");
+    }
+
+    private static WorldCategory ClassifyTerritory(string territoryName, bool inDuty, bool inSanctuary)
+    {
+        if (inDuty)
         {
             return WorldCategory.Duty;
         }
 
-        if (ContainsAny(territoryName, "Limsa Lominsa", "Gridania", "Ul'dah", "Ishgard", "Kugane", "Crystarium", "Old Sharlayan", "Tuliyollal"))
+        if (inSanctuary)
         {
             return WorldCategory.City;
         }

@@ -18,6 +18,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IClientState ClientState { get; private set; } = null!;
     [PluginService] internal static ICondition Condition { get; private set; } = null!;
     [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
+    [PluginService] internal static IDutyState DutyState { get; private set; } = null!;
     [PluginService] internal static IFramework Framework { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
 
@@ -37,6 +38,7 @@ public sealed class Plugin : IDalamudPlugin
     public Configuration Configuration { get; }
     public WindowSystem WindowSystem { get; } = new("Dalashade");
     public GameContext CurrentContext => contextService.Current;
+    public SceneTags CurrentTags => contextService.CurrentTags;
     public ImageAnalysisResult CurrentImageAnalysis => imageAnalysisService.Current;
     public ImageAnalysisResult CurrentMasterStyle => masterStyleService.Current;
     public string ImageAnalysisMessage => imageAnalysisService.LastMessage;
@@ -100,7 +102,7 @@ public sealed class Plugin : IDalamudPlugin
         contextService.Refresh();
         imageAnalysisService.Refresh(Configuration, true);
         masterStyleService.Refresh(Configuration, true);
-        var result = profileEngine.CreateWithRules(CurrentContext, CurrentImageAnalysis, CurrentMasterStyle, Configuration);
+        var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration);
         CurrentProfile = result.Profile;
         CurrentRules = result.Rules;
         LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile);
@@ -119,7 +121,7 @@ public sealed class Plugin : IDalamudPlugin
         contextService.Refresh();
         imageAnalysisService.Refresh(Configuration);
         masterStyleService.Refresh(Configuration);
-        var result = profileEngine.CreateWithRules(CurrentContext, CurrentImageAnalysis, CurrentMasterStyle, Configuration);
+        var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration);
         CurrentProfile = result.Profile;
         CurrentRules = result.Rules;
 
@@ -151,19 +153,26 @@ public sealed class Plugin : IDalamudPlugin
     private string CreateProfileKey()
     {
         var master = Configuration.MatchMasterPresetStyle ? CurrentMasterStyle.ProfileBucket : "ignored";
-        return $"{CurrentContext.ProfileKey(Configuration, CurrentImageAnalysis)}:{master}:{Configuration.MasterPresetStyleStrength}";
+        return $"{CurrentContext.ProfileKey(Configuration, CurrentImageAnalysis, CurrentTags)}:{master}:{Configuration.MasterPresetStyleStrength}";
     }
 
     private void OnZoneInit(ZoneInitEventArgs args)
     {
         try
         {
-            contextService.UpdateWeather(args.Weather.RowId, args.Weather.Value.Name.ToString());
+            var contentName = args.ContentFinderCondition.IsValid
+                ? args.ContentFinderCondition.Value.Name.ToString()
+                : "Unknown";
+            var contentType = args.ContentFinderCondition.IsValid
+                ? args.ContentFinderCondition.Value.ContentType.Value.Name.ToString()
+                : "Unknown";
+
+            contextService.UpdateZoneInfo(args.Weather.RowId, args.Weather.Value.Name.ToString(), contentName, contentType);
         }
         catch (Exception ex)
         {
             Log.Debug(ex, "Could not read ZoneInit weather.");
-            contextService.UpdateWeather(null, "Unknown");
+            contextService.UpdateZoneInfo(null, "Unknown", "Unknown", "Unknown");
         }
     }
 

@@ -9,7 +9,8 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 ## What It Does
 
 - Watches territory, combat, cutscene, night/day, and zone-entry weather.
-- Classifies the current place as a city, field zone, duty, or interior-ish space.
+- Uses Dalamud state like GPose, duty state, content finder info, Eorzea time, and zone-entry weather to infer what kind of scene you are in.
+- Classifies the current place as a city, field zone, dungeon/trial/raid-like duty, or interior-ish space.
 - Optionally analyzes the newest screenshot in a folder for brightness, contrast, saturation, crushed shadows, and clipped highlights.
 - Optionally analyzes a master image folder, so you can point it at a look you like and let Dalashade bias the generated preset toward it.
 - Generates a separate ReShade preset from your chosen base preset.
@@ -47,6 +48,19 @@ Turn on `Auto-adjust from screenshots`, set the screenshot folder, then take scr
 - very flat scenes get a little contrast and clarity
 
 It is not live video analysis yet. Think of it as the first rung on the ladder before a ReShade add-on bridge.
+
+## Passive Scene Classification
+
+Dalashade tries hard not to become a giant zone table.
+
+Instead of hand-tuning `Central Shroud = these values` forever, it reads what Dalamud already knows and turns that into reusable tags:
+
+- night, dawn, day, dusk
+- rain, fog, snow, storm, clear
+- city/social, field/exploration, dungeon, raid/trial, interior
+- combat, duty, cutscene, GPose
+
+Those tags feed generic rules. Rain pulls back bloom and saturation a little. Duties favor readability. GPose can go prettier. Night lifts shadows and relaxes AO. It is all category-based, so a new zone should still get sane behavior without anyone manually adding it.
 
 ## Master Preset Images
 
