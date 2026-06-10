@@ -18,6 +18,7 @@ public sealed class MasterStyleService
 
     public ImageAnalysisResult Current { get; private set; } = ImageAnalysisResult.Empty;
     public string LastMessage { get; private set; } = "Master style has not been analyzed yet.";
+    public int LastImageCount { get; private set; }
 
     public void Refresh(Configuration configuration, ImageAnalysisResult currentScene, bool force = false)
     {
@@ -25,6 +26,7 @@ public sealed class MasterStyleService
         {
             Current = ImageAnalysisResult.Empty;
             LastMessage = "Master style matching is disabled.";
+            LastImageCount = 0;
             return;
         }
 
@@ -32,6 +34,7 @@ public sealed class MasterStyleService
         {
             Current = ImageAnalysisResult.Empty;
             LastMessage = "Master preset folder is empty.";
+            LastImageCount = 0;
             return;
         }
 
@@ -42,6 +45,7 @@ public sealed class MasterStyleService
             {
                 Current = ImageAnalysisResult.Empty;
                 LastMessage = "Master preset folder was not found.";
+                LastImageCount = 0;
                 return;
             }
 
@@ -59,6 +63,7 @@ public sealed class MasterStyleService
             {
                 Current = ImageAnalysisResult.Empty;
                 LastMessage = "No master style images found.";
+                LastImageCount = 0;
                 return;
             }
 
@@ -85,10 +90,12 @@ public sealed class MasterStyleService
             {
                 Current = ImageAnalysisResult.Empty;
                 LastMessage = "Master style images could not be analyzed.";
+                LastImageCount = 0;
                 return;
             }
 
             Current = SelectMasterStyle(analyzed, configuration, currentScene, directory.FullName, newestWriteTime);
+            LastImageCount = analyzed.Length;
             LastMessage = $"Master style: {analyzed.Length} image(s), {configuration.MasterStyleMode}, {Current.ProfileBucket}, {Current.MetricsKey}.";
 
             lastFolderPath = directory.FullName;
@@ -102,6 +109,7 @@ public sealed class MasterStyleService
         {
             Current = ImageAnalysisResult.Empty;
             LastMessage = $"Master style skipped: {ex.Message}";
+            LastImageCount = 0;
         }
     }
 

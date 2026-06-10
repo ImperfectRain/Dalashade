@@ -50,8 +50,10 @@ public sealed class Plugin : IDalamudPlugin
     public ImageAnalysisResult CurrentMasterStyle => masterStyleService.Current;
     public string ImageAnalysisMessage => imageAnalysisService.LastMessage;
     public string MasterStyleMessage => masterStyleService.LastMessage;
+    public int MasterStyleImageCount => masterStyleService.LastImageCount;
     public VisualProfile CurrentProfile { get; private set; } = VisualProfile.Neutral;
     public IReadOnlyList<AppliedRule> CurrentRules { get; private set; } = Array.Empty<AppliedRule>();
+    public MasterStyleDiagnostics CurrentMasterStyleDiagnostics { get; private set; } = MasterStyleDiagnostics.FromUnavailable(new Configuration(), ImageAnalysisResult.Empty, ImageAnalysisResult.Empty, 0, "Master style has not run yet.");
     public PresetWriteResult LastWriteResult { get; private set; } = PresetWriteResult.Skipped("No preset has been generated yet.");
     public ReloadResult LastReloadResult { get; private set; } = ReloadResult.Skipped("Shaders have not been reloaded yet.");
     public ShaderSupportScan LastShaderSupportScan { get; private set; } = ShaderSupportScan.Skipped("Shader support has not been scanned yet.");
@@ -115,9 +117,10 @@ public sealed class Plugin : IDalamudPlugin
         contextService.Refresh();
         imageAnalysisService.Refresh(Configuration, true);
         masterStyleService.Refresh(Configuration, CurrentImageAnalysis, true);
-        var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration);
+        var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration, MasterStyleImageCount);
         CurrentProfile = result.Profile;
         CurrentRules = result.Rules;
+        CurrentMasterStyleDiagnostics = result.MasterStyleDiagnostics;
         ScanPresetCompatibility();
         LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile);
         ReloadShadersIfNeeded();
@@ -151,6 +154,7 @@ public sealed class Plugin : IDalamudPlugin
             LastPresetAnalysis,
             LastShaderSupportScan,
             CurrentProfile,
+            CurrentMasterStyleDiagnostics,
             LastWriteResult,
             CompatibilityReportDirectory);
         return LastCompatibilityReportExport;
@@ -267,9 +271,10 @@ public sealed class Plugin : IDalamudPlugin
         contextService.Refresh();
         imageAnalysisService.Refresh(Configuration);
         masterStyleService.Refresh(Configuration, CurrentImageAnalysis);
-        var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration);
+        var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration, MasterStyleImageCount);
         CurrentProfile = result.Profile;
         CurrentRules = result.Rules;
+        CurrentMasterStyleDiagnostics = result.MasterStyleDiagnostics;
 
         if (Configuration.SceneLockEnabled)
         {
@@ -333,6 +338,13 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.MasterStyleMode,
             Configuration.MasterPresetMaxImages,
             Configuration.MasterPresetIncludeSubfolders,
+            Configuration.MasterTonalMatchStrength,
+            Configuration.MasterTonalColorStrength,
+            Configuration.MasterColorFamilyStrength,
+            Configuration.MasterMaxHueShift,
+            Configuration.MasterMaxSaturationShift,
+            Configuration.MasterMaxLuminanceShift,
+            Configuration.MasterSceneSimilarityDampening,
             Configuration.AutoAdjustInCombat,
             Configuration.AutoAdjustAtNight,
             Configuration.AutoAdjustForWeather,

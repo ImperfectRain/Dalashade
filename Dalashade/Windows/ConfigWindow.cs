@@ -250,7 +250,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private string MasterStyleSummary()
     {
         return configuration.MatchMasterPresetStyle
-            ? $"Active, {configuration.MasterPresetStyleStrength}% strength"
+            ? $"Active, {configuration.MasterPresetStyleStrength}% raw, effective {plugin.CurrentMasterStyleDiagnostics.EffectiveStrength:P0}"
             : "Disabled";
     }
 
@@ -274,12 +274,24 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.Save();
         }
 
+        DrawFloatSlider("Tonal match strength", configuration.MasterTonalMatchStrength, 0f, 2f, value => configuration.MasterTonalMatchStrength = value);
+        DrawFloatSlider("Tonal color strength", configuration.MasterTonalColorStrength, 0f, 2f, value => configuration.MasterTonalColorStrength = value);
+        DrawFloatSlider("Color-family strength", configuration.MasterColorFamilyStrength, 0f, 2f, value => configuration.MasterColorFamilyStrength = value);
+        DrawFloatSlider("Max hue shift", configuration.MasterMaxHueShift, 0f, 0.20f, value => configuration.MasterMaxHueShift = value);
+        DrawFloatSlider("Max saturation shift", configuration.MasterMaxSaturationShift, 0f, 0.35f, value => configuration.MasterMaxSaturationShift = value);
+        DrawFloatSlider("Max luminance shift", configuration.MasterMaxLuminanceShift, 0f, 0.35f, value => configuration.MasterMaxLuminanceShift = value);
+        DrawCheckbox("Scene similarity dampening", configuration.MasterSceneSimilarityDampening, value => configuration.MasterSceneSimilarityDampening = value);
+
         var masterMaxImages = configuration.MasterPresetMaxImages;
         if (ImGui.SliderInt("Master style max images", ref masterMaxImages, 1, 100))
         {
             configuration.MasterPresetMaxImages = masterMaxImages;
             configuration.Save();
         }
+
+        var diagnostics = plugin.CurrentMasterStyleDiagnostics;
+        ImGui.TextWrapped($"Effective strength: {diagnostics.EffectiveStrength:0.###}; scene similarity: {diagnostics.SceneSimilarityMultiplier:0.###}; compatibility: {diagnostics.CompatibilityModeMultiplier:0.###}");
+        ImGui.TextWrapped(diagnostics.Status);
     }
 
     private string RegressionTestingSummary()
@@ -409,6 +421,16 @@ public sealed class ConfigWindow : Window, IDisposable
     {
         var value = currentValue;
         if (ImGui.Checkbox(label, ref value))
+        {
+            update(value);
+            configuration.Save();
+        }
+    }
+
+    private void DrawFloatSlider(string label, float currentValue, float min, float max, Action<float> update)
+    {
+        var value = currentValue;
+        if (ImGui.SliderFloat(label, ref value, min, max, "%.3f"))
         {
             update(value);
             configuration.Save();

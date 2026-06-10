@@ -378,19 +378,75 @@ public sealed class MainWindow : Window, IDisposable
         }
 
         return plugin.CurrentMasterStyle.Available
-            ? $"Active, {configuration.MasterPresetStyleStrength}% strength"
+            ? $"Active, raw {configuration.MasterPresetStyleStrength}%, effective {plugin.CurrentMasterStyleDiagnostics.EffectiveStrength:P0}"
             : plugin.MasterStyleMessage;
     }
 
     private void DrawMasterStyle()
     {
+        var configuration = plugin.Configuration;
+        var diagnostics = plugin.CurrentMasterStyleDiagnostics;
+        var current = plugin.CurrentImageAnalysis;
         var master = plugin.CurrentMasterStyle;
+        ImGui.TextUnformatted($"Master style enabled: {(configuration.MatchMasterPresetStyle ? "yes" : "no")}");
+        ImGui.TextUnformatted($"Master analysis available: {(master.Available ? "yes" : "no")}");
+        ImGui.TextUnformatted($"Current image available: {(current.Available ? "yes" : "no")}");
+        ImGui.TextUnformatted($"Master image count: {diagnostics.MasterImageCount}");
+        ImGui.TextUnformatted($"Selected master mode: {diagnostics.MasterMode}");
+        ImGui.TextUnformatted($"Raw strength: {diagnostics.RawStrength}%");
+        ImGui.TextUnformatted($"Effective strength: {diagnostics.EffectiveStrength:0.###}");
+        ImGui.TextUnformatted($"Scene similarity multiplier: {diagnostics.SceneSimilarityMultiplier:0.###}");
+        ImGui.TextUnformatted($"Compatibility-mode multiplier: {diagnostics.CompatibilityModeMultiplier:0.###}");
+        ImGui.TextWrapped(diagnostics.Status);
         ImGui.TextWrapped(plugin.MasterStyleMessage);
         if (!master.Available)
         {
             return;
         }
 
+        if (current.Available)
+        {
+            ImGui.Separator();
+            ImGui.TextUnformatted("Current vs master tonal percentiles");
+            ImGui.TextUnformatted($"P05: {current.LuminanceP05:0.###} -> {master.LuminanceP05:0.###}");
+            ImGui.TextUnformatted($"P25: {current.LuminanceP25:0.###} -> {master.LuminanceP25:0.###}");
+            ImGui.TextUnformatted($"P50: {current.LuminanceP50:0.###} -> {master.LuminanceP50:0.###}");
+            ImGui.TextUnformatted($"P75: {current.LuminanceP75:0.###} -> {master.LuminanceP75:0.###}");
+            ImGui.TextUnformatted($"P95: {current.LuminanceP95:0.###} -> {master.LuminanceP95:0.###}");
+            ImGui.TextUnformatted($"Contrast spread: {current.ContrastSpread:0.###} -> {master.ContrastSpread:0.###}");
+            ImGui.TextUnformatted($"Shadow floor: {current.ShadowFloor:0.###} -> {master.ShadowFloor:0.###}");
+            ImGui.TextUnformatted($"Highlight ceiling: {current.HighlightCeiling:0.###} -> {master.HighlightCeiling:0.###}");
+        }
+
+        ImGui.Separator();
+        ImGui.TextUnformatted("Generated tonal deltas");
+        ImGui.TextUnformatted($"Exposure delta: {diagnostics.TonalDeltas.Exposure:+0.000;-0.000;0.000}");
+        ImGui.TextUnformatted($"ShadowLift delta: {diagnostics.TonalDeltas.ShadowLift:+0.000;-0.000;0.000}");
+        ImGui.TextUnformatted($"BlackPoint delta: {diagnostics.TonalDeltas.BlackPoint:+0.000;-0.000;0.000}");
+        ImGui.TextUnformatted($"WhitePoint delta: {diagnostics.TonalDeltas.WhitePoint:+0.000;-0.000;0.000}");
+        ImGui.TextUnformatted($"HighlightRecovery delta: {diagnostics.TonalDeltas.HighlightRecovery:+0.000;-0.000;0.000}");
+        ImGui.TextUnformatted($"Contrast delta: {diagnostics.TonalDeltas.Contrast:+0.000;-0.000;0.000}");
+        ImGui.TextUnformatted($"MidtoneContrast delta: {diagnostics.TonalDeltas.MidtoneContrast:+0.000;-0.000;0.000}");
+
+        ImGui.Separator();
+        ImGui.TextUnformatted("Generated tonal color bias");
+        ImGui.TextUnformatted($"Shadow hue/sat: {diagnostics.ShadowHueBias:+0.000;-0.000;0.000} / {diagnostics.ShadowSaturationBias:+0.000;-0.000;0.000}");
+        ImGui.TextUnformatted($"Midtone hue/sat: {diagnostics.MidtoneHueBias:+0.000;-0.000;0.000} / {diagnostics.MidtoneSaturationBias:+0.000;-0.000;0.000}");
+        ImGui.TextUnformatted($"Highlight hue/sat: {diagnostics.HighlightHueBias:+0.000;-0.000;0.000} / {diagnostics.HighlightSaturationBias:+0.000;-0.000;0.000}");
+
+        ImGui.Separator();
+        ImGui.TextUnformatted("Strongest color-family adjustments");
+        if (diagnostics.StrongestColorFamilyAdjustments.Count == 0)
+        {
+            ImGui.TextUnformatted("No active color-family adjustments.");
+        }
+
+        foreach (var adjustment in diagnostics.StrongestColorFamilyAdjustments)
+        {
+            ImGui.BulletText($"{adjustment.Family}: confidence {adjustment.Confidence:0.##}, hue {adjustment.Hue:+0.000;-0.000;0.000}, sat {adjustment.Saturation:+0.000;-0.000;0.000}, lum {adjustment.Luminance:+0.000;-0.000;0.000}");
+        }
+
+        ImGui.Separator();
         ImGui.TextUnformatted($"Master Luma: {master.AverageLuminance:0.###}");
         ImGui.TextUnformatted($"Master Contrast: {master.Contrast:0.###}");
         ImGui.TextUnformatted($"Master Saturation: {master.AverageSaturation:0.###}");

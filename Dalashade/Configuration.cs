@@ -98,6 +98,13 @@ public class Configuration : IPluginConfiguration
     public int MinimumSecondsBetweenImageSamples { get; set; } = 10;
     public ImageSamplingMode ImageSamplingMode { get; set; } = ImageSamplingMode.CenterWeighted;
     public int MasterPresetStyleStrength { get; set; } = 75;
+    public float MasterTonalMatchStrength { get; set; } = 1.0f;
+    public float MasterTonalColorStrength { get; set; } = 0.75f;
+    public float MasterColorFamilyStrength { get; set; } = 0.65f;
+    public float MasterMaxHueShift { get; set; } = 0.08f;
+    public float MasterMaxSaturationShift { get; set; } = 0.15f;
+    public float MasterMaxLuminanceShift { get; set; } = 0.12f;
+    public bool MasterSceneSimilarityDampening { get; set; } = true;
     public int MasterPresetMaxImages { get; set; } = 24;
     public MasterStyleMode MasterStyleMode { get; set; } = MasterStyleMode.ClosestToCurrentScene;
     public string ScreenshotFolderPath { get; set; } = string.Empty;

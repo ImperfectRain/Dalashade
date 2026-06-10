@@ -76,20 +76,20 @@ public sealed record VisualProfile(
 
 public sealed class ProfileEngine
 {
-    public ProfileResult CreateWithRules(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration)
+    public ProfileResult CreateWithRules(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration, int masterImageCount = 0)
     {
         var rules = new List<AppliedRule>();
-        var profile = Create(context, tags, imageAnalysis, masterStyle, configuration, rules);
+        var profile = Create(context, tags, imageAnalysis, masterStyle, configuration, masterImageCount, rules, out var diagnostics);
 
-        return new ProfileResult(profile, rules);
+        return new ProfileResult(profile, rules, diagnostics);
     }
 
-    public VisualProfile Create(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration)
+    public VisualProfile Create(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration, int masterImageCount = 0)
     {
-        return Create(context, tags, imageAnalysis, masterStyle, configuration, null);
+        return Create(context, tags, imageAnalysis, masterStyle, configuration, masterImageCount, null, out _);
     }
 
-    private VisualProfile Create(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration, List<AppliedRule>? rules)
+    private VisualProfile Create(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration, int masterImageCount, List<AppliedRule>? rules, out MasterStyleDiagnostics masterDiagnostics)
     {
         var exposure = 1f;
         var contrast = 1f;
@@ -125,6 +125,12 @@ public sealed class ProfileEngine
         var highlightHueBias = 0f;
         var highlightSaturationBias = 0f;
         var colorFamilyAdjustments = ColorFamilyAdjustment.EmptyMap;
+        masterDiagnostics = MasterStyleDiagnostics.FromUnavailable(
+            configuration,
+            imageAnalysis,
+            masterStyle,
+            masterImageCount,
+            configuration.MatchMasterPresetStyle ? "Master analysis unavailable." : "Master style disabled.");
 
         ApplyBasePolish(context, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift);
         rules?.Add(new AppliedRule("Base polish", "Small default lift so the generated preset feels like an upgrade, not just a safety mode.", "contrast, saturation, clarity, shadow lift"));
@@ -230,8 +236,14 @@ public sealed class ProfileEngine
                 ref midtoneSaturationBias,
                 ref highlightHueBias,
                 ref highlightSaturationBias,
+                masterImageCount,
                 out colorFamilyAdjustments);
+            masterDiagnostics = masterTone.Diagnostics;
             rules?.Add(new AppliedRule("Master style", $"Reference look reads as {masterStyle.ProfileBucket}; {masterTone.Description}", masterTone.Changes));
+            foreach (var rule in masterTone.AppliedRules)
+            {
+                rules?.Add(rule);
+            }
         }
 
         ApplyStyle(configuration.Style, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness);
@@ -502,12 +514,20 @@ public sealed class ProfileEngine
         ref float midtoneSaturationBias,
         ref float highlightHueBias,
         ref float highlightSaturationBias,
+        int masterImageCount,
         out IReadOnlyDictionary<ColorFamily, ColorFamilyAdjustment> colorFamilyAdjustments)
     {
-        var strength = Clamp(configuration.MasterPresetStyleStrength / 100f, 0f, 1f);
-        var colorStrength = strength * MasterStyleColorCompatibilityScale(configuration.CompatibilityMode);
+        var rawStrength = Clamp(configuration.MasterPresetStyleStrength / 100f, 0f, 1f);
+        var sceneSimilarity = configuration.MasterSceneSimilarityDampening
+            ? MasterStyleDiagnostics.EstimateSceneSimilarity(current, target)
+            : 1f;
+        var compatibilityStrength = MasterStyleDiagnostics.GetCompatibilityModeMultiplier(configuration.CompatibilityMode);
+        var strength = rawStrength * sceneSimilarity * compatibilityStrength;
+        var tonalStrength = strength * Clamp(configuration.MasterTonalMatchStrength, 0f, 2f);
+        var colorStrength = strength * Clamp(configuration.MasterTonalColorStrength, 0f, 2f);
+        var familyStrength = strength * Clamp(configuration.MasterColorFamilyStrength, 0f, 2f);
         var scene = current.Available ? current : ImageAnalysisResult.Empty;
-        colorFamilyAdjustments = CreateColorFamilyAdjustments(scene, target, colorStrength, current.Available);
+        colorFamilyAdjustments = CreateColorFamilyAdjustments(scene, target, familyStrength, current.Available, configuration);
 
         var luminanceDelta = target.AverageLuminance - (current.Available ? scene.AverageLuminance : 0.50f);
         var saturationDelta = target.AverageSaturation - (current.Available ? scene.AverageSaturation : 0.38f);
@@ -522,16 +542,24 @@ public sealed class ProfileEngine
         var highlightDelta = target.HighlightCeiling - sceneHighlightCeiling;
         var spreadDelta = target.ContrastSpread - sceneSpread;
 
-        exposure += Clamp((luminanceDelta * 0.22f) + (midtoneDelta * 0.30f), -0.10f, 0.10f) * strength;
-        shadowLift += Clamp(shadowDelta * 0.50f, -0.045f, 0.085f) * strength;
-        blackPoint *= 1f + Clamp(-shadowDelta * 0.22f, -0.040f, 0.045f) * strength;
-        whitePoint *= 1f + Clamp(highlightDelta * 0.12f, -0.025f, 0.025f) * strength;
-        highlightRecovery *= 1f + Clamp(-highlightDelta * 0.55f, -0.12f, 0.16f) * strength;
-        contrast += Clamp(spreadDelta * 0.55f, -0.12f, 0.12f) * strength;
-        midtoneContrast += Clamp((spreadDelta * 0.35f) + (midtoneDelta * 0.20f), -0.10f, 0.10f) * strength;
-        saturation += Clamp(saturationDelta * 0.80f, -0.18f, 0.18f) * strength;
-        temperature += Clamp(warmthDelta * 0.95f, -0.24f, 0.24f) * strength;
-        tint += Clamp(greenDelta * 0.75f, -0.16f, 0.16f) * strength;
+        var exposureDelta = Clamp((luminanceDelta * 0.22f) + (midtoneDelta * 0.30f), -0.10f, 0.10f) * tonalStrength;
+        var shadowLiftDelta = Clamp(shadowDelta * 0.50f, -0.045f, 0.085f) * tonalStrength;
+        var blackPointDelta = Clamp(-shadowDelta * 0.22f, -0.040f, 0.045f) * tonalStrength;
+        var whitePointDelta = Clamp(highlightDelta * 0.12f, -0.025f, 0.025f) * tonalStrength;
+        var highlightRecoveryDelta = Clamp(-highlightDelta * 0.55f, -0.12f, 0.16f) * tonalStrength;
+        var contrastDelta = Clamp(spreadDelta * 0.55f, -0.12f, 0.12f) * tonalStrength;
+        var midtoneContrastDelta = Clamp((spreadDelta * 0.35f) + (midtoneDelta * 0.20f), -0.10f, 0.10f) * tonalStrength;
+
+        exposure += exposureDelta;
+        shadowLift += shadowLiftDelta;
+        blackPoint *= 1f + blackPointDelta;
+        whitePoint *= 1f + whitePointDelta;
+        highlightRecovery *= 1f + highlightRecoveryDelta;
+        contrast += contrastDelta;
+        midtoneContrast += midtoneContrastDelta;
+        saturation += Clamp(saturationDelta * 0.80f, -0.18f, 0.18f) * tonalStrength;
+        temperature += Clamp(warmthDelta * 0.95f, -0.24f, 0.24f) * tonalStrength;
+        tint += Clamp(greenDelta * 0.75f, -0.16f, 0.16f) * tonalStrength;
 
         var shadowColor = ApplyTonalColorBias(scene.ShadowColor, target.ShadowColor, colorStrength, 0.085f, 0.22f, ref shadowHueBias, ref shadowSaturationBias);
         var midtoneColor = ApplyTonalColorBias(scene.MidtoneColor, target.MidtoneColor, colorStrength, 0.100f, 0.26f, ref midtoneHueBias, ref midtoneSaturationBias);
@@ -539,23 +567,24 @@ public sealed class ProfileEngine
 
         if (target.HighlightClipping > 0.07f && target.AverageLuminance > 0.58f)
         {
-            bloom += 0.10f * strength;
+            bloom += 0.10f * tonalStrength;
         }
         else if (current.Available && current.HighlightClipping > target.HighlightClipping + 0.04f)
         {
-            bloom -= 0.14f * strength;
+            bloom -= 0.14f * tonalStrength;
         }
 
         if (target.ShadowClipping < 0.08f && current.Available && current.ShadowClipping > target.ShadowClipping + 0.08f)
         {
-            shadowLift += 0.12f * strength;
-            ao -= 0.10f * strength;
+            shadowLift += 0.12f * tonalStrength;
+            ao -= 0.10f * tonalStrength;
+            shadowLiftDelta += 0.12f * tonalStrength;
         }
 
         if (target.Contrast > 0.26f && target.AverageSaturation > 0.42f)
         {
-            clarity += 0.08f * strength;
-            sharpness += 0.04f * strength;
+            clarity += 0.08f * tonalStrength;
+            sharpness += 0.04f * tonalStrength;
         }
 
         var shadowText = shadowDelta switch
@@ -577,12 +606,34 @@ public sealed class ProfileEngine
             _ => "contrast held"
         };
 
+        var diagnostics = new MasterStyleDiagnostics(
+            true,
+            target.Available,
+            current.Available,
+            masterImageCount,
+            configuration.MasterStyleMode,
+            configuration.MasterPresetStyleStrength,
+            strength,
+            sceneSimilarity,
+            compatibilityStrength,
+            new MasterStyleTonalDeltas(exposureDelta, shadowLiftDelta, blackPointDelta, whitePointDelta, highlightRecoveryDelta, contrastDelta, midtoneContrastDelta),
+            shadowHueBias,
+            shadowSaturationBias,
+            midtoneHueBias,
+            midtoneSaturationBias,
+            highlightHueBias,
+            highlightSaturationBias,
+            StrongestColorFamilyAdjustments(colorFamilyAdjustments, 8),
+            "Master style active.");
+
         return new MasterStyleToneSummary(
-            $"tonal percentile matching at {configuration.MasterPresetStyleStrength}% strength: {shadowText}, {highlightText}, {contrastText}; tonal color bias scale {colorStrength:0.##}.",
-            $"shadow floor {sceneShadowFloor:0.00}->{target.ShadowFloor:0.00}, midtone {sceneMidtone:0.00}->{target.MidtoneLevel:0.00}, highlight {sceneHighlightCeiling:0.00}->{target.HighlightCeiling:0.00}, spread {sceneSpread:0.00}->{target.ContrastSpread:0.00}; shadow {shadowColor}, midtone {midtoneColor}, highlight {highlightColor}; color families {FormatStrongestFamilyAdjustments(colorFamilyAdjustments)}");
+            $"effective strength {strength:P0}: {shadowText}, {highlightText}, {contrastText}; tonal color bias scale {colorStrength:0.##}.",
+            $"shadow floor {sceneShadowFloor:0.00}->{target.ShadowFloor:0.00}, midtone {sceneMidtone:0.00}->{target.MidtoneLevel:0.00}, highlight {sceneHighlightCeiling:0.00}->{target.HighlightCeiling:0.00}, spread {sceneSpread:0.00}->{target.ContrastSpread:0.00}; shadow {shadowColor}, midtone {midtoneColor}, highlight {highlightColor}; color families {FormatStrongestFamilyAdjustments(colorFamilyAdjustments)}",
+            diagnostics,
+            BuildMasterStyleRules(diagnostics, colorFamilyAdjustments));
     }
 
-    private static IReadOnlyDictionary<ColorFamily, ColorFamilyAdjustment> CreateColorFamilyAdjustments(ImageAnalysisResult current, ImageAnalysisResult target, float strength, bool hasCurrentScene)
+    private static IReadOnlyDictionary<ColorFamily, ColorFamilyAdjustment> CreateColorFamilyAdjustments(ImageAnalysisResult current, ImageAnalysisResult target, float strength, bool hasCurrentScene, Configuration configuration)
     {
         if (!hasCurrentScene || strength <= 0f)
         {
@@ -609,11 +660,88 @@ public sealed class ProfileEngine
 
                 return new ColorFamilyAdjustment(
                     family,
-                    Clamp(hue, -0.020f, 0.020f),
-                    Clamp(saturation, -0.040f, 0.040f),
-                    Clamp(luminance, -0.030f, 0.030f),
+                    Clamp(hue, -configuration.MasterMaxHueShift, configuration.MasterMaxHueShift),
+                    Clamp(saturation, -configuration.MasterMaxSaturationShift, configuration.MasterMaxSaturationShift),
+                    Clamp(luminance, -configuration.MasterMaxLuminanceShift, configuration.MasterMaxLuminanceShift),
                     confidence);
             });
+    }
+
+    private static IReadOnlyList<ColorFamilyAdjustment> StrongestColorFamilyAdjustments(IReadOnlyDictionary<ColorFamily, ColorFamilyAdjustment> adjustments, int count)
+    {
+        return adjustments.Values
+            .Where(adjustment => adjustment.Score > 0.0005f)
+            .OrderByDescending(adjustment => adjustment.Score)
+            .ThenBy(adjustment => adjustment.Family)
+            .Take(count)
+            .ToArray();
+    }
+
+    private static IReadOnlyList<AppliedRule> BuildMasterStyleRules(MasterStyleDiagnostics diagnostics, IReadOnlyDictionary<ColorFamily, ColorFamilyAdjustment> adjustments)
+    {
+        var rules = new List<AppliedRule>();
+
+        if (diagnostics.TonalDeltas.ShadowLift > 0.005f)
+        {
+            rules.Add(new AppliedRule("Master style lifted shadows", "Reference shadows are more open than the current scene.", $"shadow lift +{diagnostics.TonalDeltas.ShadowLift:0.###}"));
+        }
+        else if (diagnostics.TonalDeltas.ShadowLift < -0.005f)
+        {
+            rules.Add(new AppliedRule("Master style deepened shadows", "Reference shadows sit lower than the current scene.", $"shadow lift {diagnostics.TonalDeltas.ShadowLift:0.###}"));
+        }
+
+        if (diagnostics.TonalDeltas.HighlightRecovery > 0.005f || diagnostics.TonalDeltas.WhitePoint < -0.003f)
+        {
+            rules.Add(new AppliedRule("Master style softened highlights", "Reference highlights need more rolloff than the current scene.", $"highlight recovery +{diagnostics.TonalDeltas.HighlightRecovery:0.###}, white point {diagnostics.TonalDeltas.WhitePoint:+0.###;-0.###;0}"));
+        }
+
+        if (diagnostics.TonalDeltas.MidtoneContrast > 0.005f)
+        {
+            rules.Add(new AppliedRule("Master style increased midtone contrast", "Reference midtones have more separation.", $"midtone contrast +{diagnostics.TonalDeltas.MidtoneContrast:0.###}"));
+        }
+        else if (diagnostics.TonalDeltas.MidtoneContrast < -0.005f)
+        {
+            rules.Add(new AppliedRule("Master style softened midtone contrast", "Reference midtones are flatter than the current scene.", $"midtone contrast {diagnostics.TonalDeltas.MidtoneContrast:0.###}"));
+        }
+
+        AddTonalColorRule(rules, "shadows", diagnostics.ShadowHueBias, diagnostics.ShadowSaturationBias);
+        AddTonalColorRule(rules, "midtones", diagnostics.MidtoneHueBias, diagnostics.MidtoneSaturationBias);
+        AddTonalColorRule(rules, "highlights", diagnostics.HighlightHueBias, diagnostics.HighlightSaturationBias);
+
+        foreach (var adjustment in StrongestColorFamilyAdjustments(adjustments, 3))
+        {
+            if (adjustment.Saturation < -0.006f)
+            {
+                rules.Add(new AppliedRule($"Master style muted {adjustment.Family.ToString().ToLowerInvariant()}s", "Reference color family is less saturated than the current scene.", $"sat {adjustment.Saturation:0.###}"));
+            }
+            else if (adjustment.Saturation > 0.006f)
+            {
+                rules.Add(new AppliedRule($"Master style enriched {adjustment.Family.ToString().ToLowerInvariant()}s", "Reference color family is more saturated than the current scene.", $"sat +{adjustment.Saturation:0.###}"));
+            }
+
+            if (MathF.Abs(adjustment.Hue) > 0.006f)
+            {
+                var direction = adjustment.Hue > 0f ? "forward" : "back";
+                rules.Add(new AppliedRule($"Master style shifted {adjustment.Family.ToString().ToLowerInvariant()} hue", $"Reference nudges this color family {direction} around the hue wheel.", $"hue {adjustment.Hue:+0.###;-0.###;0}"));
+            }
+        }
+
+        return rules;
+    }
+
+    private static void AddTonalColorRule(List<AppliedRule> rules, string band, float hueBias, float saturationBias)
+    {
+        if (MathF.Abs(hueBias) > 0.006f)
+        {
+            var direction = hueBias > 0f ? "warmed" : "cooled";
+            rules.Add(new AppliedRule($"Master style {direction} {band}", $"Reference {band} have a different hue bias.", $"hue {hueBias:+0.###;-0.###;0}"));
+        }
+
+        if (MathF.Abs(saturationBias) > 0.008f)
+        {
+            var verb = saturationBias > 0f ? "enriched" : "muted";
+            rules.Add(new AppliedRule($"Master style {verb} {band}", $"Reference {band} have a different saturation bias.", $"sat {saturationBias:+0.###;-0.###;0}"));
+        }
     }
 
     private static string FormatStrongestFamilyAdjustments(IReadOnlyDictionary<ColorFamily, ColorFamilyAdjustment> adjustments)
@@ -670,19 +798,6 @@ public sealed class ProfileEngine
         }
 
         return delta;
-    }
-
-    private static float MasterStyleColorCompatibilityScale(PresetCompatibilityMode mode)
-    {
-        return mode switch
-        {
-            PresetCompatibilityMode.PreserveBase => 0f,
-            PresetCompatibilityMode.AdaptiveBalanced => 0.55f,
-            PresetCompatibilityMode.GameplaySanitize => 0.30f,
-            PresetCompatibilityMode.CinematicPreserve => 0.75f,
-            PresetCompatibilityMode.GposePreserve => 0.35f,
-            _ => 0.55f
-        };
     }
 
     private static void ApplyStyle(TargetStyle style, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness)
@@ -824,8 +939,8 @@ public sealed class ProfileEngine
     private static float Scale01(float value, float range) => Clamp(value / range, 0f, 1f);
 }
 
-public sealed record ProfileResult(VisualProfile Profile, IReadOnlyList<AppliedRule> Rules);
+public sealed record ProfileResult(VisualProfile Profile, IReadOnlyList<AppliedRule> Rules, MasterStyleDiagnostics MasterStyleDiagnostics);
 
 public sealed record AppliedRule(string Name, string Reason, string Changes);
 
-internal sealed record MasterStyleToneSummary(string Description, string Changes);
+internal sealed record MasterStyleToneSummary(string Description, string Changes, MasterStyleDiagnostics Diagnostics, IReadOnlyList<AppliedRule> AppliedRules);

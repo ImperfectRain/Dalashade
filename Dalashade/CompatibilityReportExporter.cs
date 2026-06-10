@@ -18,6 +18,7 @@ public sealed class CompatibilityReportExporter
         PresetAnalysisResult analysis,
         ShaderSupportScan shaderSupport,
         VisualProfile profile,
+        MasterStyleDiagnostics masterDiagnostics,
         PresetWriteResult writeResult,
         string outputDirectory)
     {
@@ -36,7 +37,7 @@ public sealed class CompatibilityReportExporter
             var timestamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss");
             var path = Path.Combine(outputDirectory, $"{safePresetName}-compatibility-{timestamp}.md");
 
-            File.WriteAllText(path, BuildReport(configuration, analysis, shaderSupport, profile, writeResult), Encoding.UTF8);
+            File.WriteAllText(path, BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, writeResult), Encoding.UTF8);
             return new CompatibilityReportExportResult(true, $"Compatibility report exported: {path}", path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
@@ -50,6 +51,7 @@ public sealed class CompatibilityReportExporter
         PresetAnalysisResult analysis,
         ShaderSupportScan shaderSupport,
         VisualProfile profile,
+        MasterStyleDiagnostics masterDiagnostics,
         PresetWriteResult writeResult)
     {
         var report = analysis.Report;
@@ -76,6 +78,7 @@ public sealed class CompatibilityReportExporter
         AppendAuthorities(builder, report.Authorities, authorityPolicy);
         AppendLines(builder, "Warnings", report.Warnings);
         AppendLines(builder, "Multiple Authority Warnings", report.MultipleAuthorityWarnings);
+        AppendMasterStyleDiagnostics(builder, configuration, masterDiagnostics);
         AppendColorFamilyAdjustments(builder, profile);
         AppendShaderSupport(builder, shaderSupport);
         AppendChangedVariables(builder, writeResult);
@@ -107,6 +110,37 @@ public sealed class CompatibilityReportExporter
             builder.AppendLine($"- {adjustment.Family}: hue={adjustment.Hue:+0.000;-0.000;0.000} | saturation={adjustment.Saturation:+0.000;-0.000;0.000} | luminance={adjustment.Luminance:+0.000;-0.000;0.000} | confidence={adjustment.Confidence:0.00}");
         }
 
+        builder.AppendLine();
+    }
+
+    private static void AppendMasterStyleDiagnostics(StringBuilder builder, Configuration configuration, MasterStyleDiagnostics diagnostics)
+    {
+        builder.AppendLine("## Master Style Diagnostics");
+        builder.AppendLine();
+        builder.AppendLine($"- Enabled: {diagnostics.Enabled}");
+        builder.AppendLine($"- Master available: {diagnostics.MasterAvailable}");
+        builder.AppendLine($"- Current image available: {diagnostics.CurrentImageAvailable}");
+        builder.AppendLine($"- Master image count: {diagnostics.MasterImageCount}");
+        builder.AppendLine($"- Mode: {diagnostics.MasterMode}");
+        builder.AppendLine($"- Raw strength: {diagnostics.RawStrength}%");
+        builder.AppendLine($"- Effective strength: {diagnostics.EffectiveStrength:0.###}");
+        builder.AppendLine($"- Scene similarity multiplier: {diagnostics.SceneSimilarityMultiplier:0.###}");
+        builder.AppendLine($"- Compatibility multiplier: {diagnostics.CompatibilityModeMultiplier:0.###}");
+        builder.AppendLine($"- Tonal match strength: {configuration.MasterTonalMatchStrength:0.###}");
+        builder.AppendLine($"- Tonal color strength: {configuration.MasterTonalColorStrength:0.###}");
+        builder.AppendLine($"- Color-family strength: {configuration.MasterColorFamilyStrength:0.###}");
+        builder.AppendLine($"- Max hue/saturation/luminance shifts: {configuration.MasterMaxHueShift:0.###} / {configuration.MasterMaxSaturationShift:0.###} / {configuration.MasterMaxLuminanceShift:0.###}");
+        builder.AppendLine($"- Status: {diagnostics.Status}");
+        builder.AppendLine();
+        builder.AppendLine("### Tonal Deltas");
+        builder.AppendLine();
+        builder.AppendLine($"- Exposure: {diagnostics.TonalDeltas.Exposure:+0.000;-0.000;0.000}");
+        builder.AppendLine($"- ShadowLift: {diagnostics.TonalDeltas.ShadowLift:+0.000;-0.000;0.000}");
+        builder.AppendLine($"- BlackPoint: {diagnostics.TonalDeltas.BlackPoint:+0.000;-0.000;0.000}");
+        builder.AppendLine($"- WhitePoint: {diagnostics.TonalDeltas.WhitePoint:+0.000;-0.000;0.000}");
+        builder.AppendLine($"- HighlightRecovery: {diagnostics.TonalDeltas.HighlightRecovery:+0.000;-0.000;0.000}");
+        builder.AppendLine($"- Contrast: {diagnostics.TonalDeltas.Contrast:+0.000;-0.000;0.000}");
+        builder.AppendLine($"- MidtoneContrast: {diagnostics.TonalDeltas.MidtoneContrast:+0.000;-0.000;0.000}");
         builder.AppendLine();
     }
 
