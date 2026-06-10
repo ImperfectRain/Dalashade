@@ -180,6 +180,93 @@ public sealed class ShaderVariableMapper
         AddScale(definitions, "LUT.fx", "fLUT_AmountChroma", "LUT", 0f, 1f, profile => profile.LutStrength);
         AddScale(definitions, "LUT.fx", "fLUT_AmountLuma", "LUT", 0f, 1f, profile => profile.LutStrength);
         AddScale(definitions, "MartysMods_LUTMANAGER.fx", "LUT_INTENSITY", "LUT", 0f, 1f, profile => profile.LutStrength);
+
+        AddNonImmerseBloomDefinitions(definitions);
+        AddNonImmerseSharpenDefinitions(definitions);
+        AddNonImmerseColorDefinitions(definitions);
+    }
+
+    private static void AddNonImmerseBloomDefinitions(List<ShaderVariableDefinition> definitions)
+    {
+        AddScale(definitions, "GaussianBloom.fx", "GaussianBloomStrength", "Bloom", 0f, 10f, profile => profile.Bloom);
+        AddScale(definitions, "GaussianBloom.fx", "GaussianBloomRadius", "Bloom radius", 0.01f, 10f, profile => profile.BloomRadius);
+        AddScale(definitions, "GaussianBloom.fx", "GaussianBloomSaturation", "Bloom saturation", 0f, 10f, profile => profile.Saturation);
+        AddRelative(definitions, "GaussianBloom.fx", "Threshold", "Bloom threshold", 0f, 10f, profile => (profile.BloomThreshold - 1f) * 0.35f);
+        AddAdd(definitions, "GaussianBloom.fx", "Exposure", "Bloom exposure", -5f, 5f, profile => profile.Exposure - 1f);
+
+        AddScale(definitions, "qUINT_bloom.fx", "BLOOM_INTENSITY", "Bloom", 0f, 10f, profile => profile.Bloom);
+        AddScale(definitions, "qUINT_bloom.fx", "BLOOM_ADAPT_STRENGTH", "Bloom", 0f, 10f, profile => profile.Bloom);
+        AddScale(definitions, "qUINT_bloom.fx", "BLOOM_SAT", "Bloom saturation", 0f, 10f, profile => profile.Saturation);
+        AddAdd(definitions, "qUINT_bloom.fx", "BLOOM_ADAPT_EXPOSURE", "Bloom exposure", -5f, 5f, profile => profile.Exposure - 1f);
+        for (var i = 1; i <= 7; i++)
+        {
+            AddScale(definitions, "qUINT_bloom.fx", $"BLOOM_LAYER_MULT_{i}", "Bloom layer", 0f, 10f, profile => profile.Bloom);
+        }
+
+        AddVectorScaleAll(definitions, "BloomingHDR.fx", "Bloom_Intensity", ShaderValueShape.Vector2, "Bloom", 0f, 10f, profile => profile.Bloom);
+        AddScale(definitions, "BloomingHDR.fx", "HDR_Adjust", "Bloom HDR", 0f, 10f, profile => profile.Bloom);
+        AddScale(definitions, "BloomingHDR.fx", "BloomSensitivity", "Bloom", 0f, 10f, profile => profile.Bloom);
+        AddScale(definitions, "BloomingHDR.fx", "Bloom_Spread", "Bloom radius", 0.01f, 100f, profile => profile.BloomRadius);
+        AddScale(definitions, "BloomingHDR.fx", "Spread", "Bloom radius", 0.01f, 100f, profile => profile.BloomRadius);
+        AddAdd(definitions, "BloomingHDR.fx", "Exposure", "Bloom exposure", -5f, 5f, profile => profile.Exposure - 1f);
+        AddAdd(definitions, "BloomingHDR.fx", "Exp", "Bloom exposure", -5f, 5f, profile => profile.Exposure - 1f);
+        AddRelative(definitions, "BloomingHDR.fx", "WP", "Bloom white point", 0.01f, 10f, profile => (profile.WhitePoint - 1f) * 0.35f);
+
+        AddScale(definitions, "Pirate_Bloom.fx", "BLOOM_STRENGTH", "Bloom", 0f, 10f, profile => profile.Bloom);
+        AddScale(definitions, "Pirate_Bloom.fx", "BLOOM_RADIUS", "Bloom radius", 0.01f, 50f, profile => profile.BloomRadius);
+        AddScale(definitions, "Pirate_Bloom.fx", "BLOOM_SATURATION", "Bloom saturation", 0f, 10f, profile => profile.Saturation);
+        AddRelative(definitions, "Pirate_Bloom.fx", "BLOOM_THRESHOLD", "Bloom threshold", 0f, 10f, profile => (profile.BloomThreshold - 1f) * 0.35f);
+    }
+
+    private static void AddNonImmerseSharpenDefinitions(List<ShaderVariableDefinition> definitions)
+    {
+        AddScale(definitions, "FilmicSharpen.fx", "Strength", "Sharpening", 0f, 10f, profile => profile.Sharpness);
+        AddScale(definitions, "FineSharp.fx", "sstr", "Sharpening", 0f, 10f, profile => profile.Sharpness);
+        AddScale(definitions, "FineSharp.fx", "cstr", "Sharpening", 0f, 10f, profile => profile.Sharpness);
+        AddScale(definitions, "FineSharp.fx", "lstr", "Sharpening", 0f, 10f, profile => profile.Sharpness);
+        AddScale(definitions, "FineSharp.fx", "pstr", "Sharpening", 0f, 10f, profile => profile.Sharpness);
+        AddScale(definitions, "LumaSharpen.fx", "sharp_strength", "Sharpening", 0f, 10f, profile => profile.Sharpness);
+        AddScale(definitions, "LumaSharpen.fx", "sharp_clamp", "Sharpen clamp", 0f, 10f, profile => profile.Sharpness);
+        AddScale(definitions, "CAS.fx", "Sharpening", "Sharpening", 0f, 10f, profile => profile.Sharpness);
+        AddAdd(definitions, "CAS.fx", "Contrast", "Sharpen contrast", -5f, 5f, profile => (profile.Contrast - 1f) * 0.25f);
+        AddScale(definitions, "HighPassSharpen.fx", "HighPassSharpStrength", "Sharpening", 0f, 10f, profile => profile.Sharpness);
+        AddScale(definitions, "HighPassSharpen.fx", "HighPassSharpRadius", "Sharpen radius", 0.01f, 10f, profile => profile.Sharpness);
+        AddScale(definitions, "HighPassSharpen.fx", "HighPassLightIntensity", "Sharpening", 0f, 10f, profile => profile.Sharpness);
+        AddScale(definitions, "HighPassSharpen.fx", "HighPassDarkIntensity", "Sharpening", 0f, 10f, profile => profile.Sharpness);
+        AddScale(definitions, "AdaptiveSharpen.fx", "curve_height", "Sharpening", 0f, 10f, profile => profile.Sharpness);
+        AddScale(definitions, "AdaptiveSharpen.fx", "scale_lim", "Sharpening", 0f, 10f, profile => profile.Sharpness);
+        AddScale(definitions, "AdaptiveSharpen.fx", "scale_cs", "Sharpening", 0f, 10f, profile => profile.Sharpness);
+    }
+
+    private static void AddNonImmerseColorDefinitions(List<ShaderVariableDefinition> definitions)
+    {
+        AddScale(definitions, "MultiLUT.fx", "fLUT_AmountChroma", "LUT", 0f, 1f, profile => profile.LutStrength);
+        AddScale(definitions, "MultiLUT.fx", "fLUT_AmountChroma2", "LUT", 0f, 1f, profile => profile.LutStrength);
+        AddScale(definitions, "MultiLUT.fx", "fLUT_AmountChroma3", "LUT", 0f, 1f, profile => profile.LutStrength);
+        AddScale(definitions, "MultiLUT.fx", "fLUT_AmountLuma", "LUT", 0f, 1f, profile => profile.LutStrength);
+        AddScale(definitions, "MultiLUT.fx", "fLUT_AmountLuma2", "LUT", 0f, 1f, profile => profile.LutStrength);
+        AddScale(definitions, "MultiLUT.fx", "fLUT_AmountLuma3", "LUT", 0f, 1f, profile => profile.LutStrength);
+        AddScale(definitions, "MultiLUT.fx", "fLUT_Intensity", "LUT", 0f, 1f, profile => profile.LutStrength);
+        AddScale(definitions, "MultiLUT.fx", "fLUT_Intensity2", "LUT", 0f, 1f, profile => profile.LutStrength);
+        AddScale(definitions, "MultiLUT.fx", "fLUT_Intensity3", "LUT", 0f, 1f, profile => profile.LutStrength);
+
+        AddColorPreservation(definitions, "DPX.fx", "Strength", 0f, 1f);
+        AddColorPreservation(definitions, "DPX.fx", "Colorfulness", 0f, 10f);
+        AddColorPreservation(definitions, "DPX.fx", "Saturation", 0f, 10f);
+        AddAdd(definitions, "DPX.fx", "Contrast", "Color grade contrast", -5f, 5f, profile => (profile.Contrast - 1f) * 0.25f);
+
+        AddColorPreservation(definitions, "Vibrance.fx", "Vibrance", -1f, 1f);
+        AddColorPreservation(definitions, "Colourfulness.fx", "colourfulness", 0f, 10f);
+
+        AddColorPreservation(definitions, "Technicolor2.fx", "Strength", 0f, 1f);
+        AddAdd(definitions, "Technicolor2.fx", "Brightness", "Color grade brightness", -5f, 5f, profile => (profile.Exposure - 1f) * 0.25f);
+        AddAdd(definitions, "Technicolor2.fx", "Saturation", "Color grade saturation", -5f, 5f, profile => (profile.Saturation - 1f) * 0.25f);
+        AddVectorMoveTowardNeutral(definitions, "Technicolor2.fx", "ColorStrength", ShaderValueShape.Vector3, "Color grade preservation", -1f, 1f, profile => 1f - profile.ColorGradePreservation);
+    }
+
+    private static void AddColorPreservation(List<ShaderVariableDefinition> definitions, string section, string key, float min, float max)
+    {
+        AddScale(definitions, section, key, "Color grade preservation", min, max, profile => profile.ColorGradePreservation);
     }
 
     private static void AddPremiumDefinitions(List<ShaderVariableDefinition> definitions)
@@ -410,6 +497,7 @@ public sealed class ShaderVariableMapper
         }
 
         if (reason.Contains("color", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("colour", StringComparison.OrdinalIgnoreCase)
             || reason.Contains("grade", StringComparison.OrdinalIgnoreCase)
             || reason.Contains("exposure", StringComparison.OrdinalIgnoreCase)
             || reason.Contains("saturation", StringComparison.OrdinalIgnoreCase)
