@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Threading;
 
 namespace Dalashade;
@@ -127,6 +128,15 @@ public sealed class ReShadeController
             configuration.GeneratedPresetPath
         };
 
+        foreach (var gameDirectory in EnumerateGameDirectories())
+        {
+            var reshadeIniPath = Path.Combine(gameDirectory, "ReShade.ini");
+            if (File.Exists(reshadeIniPath))
+            {
+                return reshadeIniPath;
+            }
+        }
+
         foreach (var candidate in candidates)
         {
             if (string.IsNullOrWhiteSpace(candidate))
@@ -153,6 +163,93 @@ public sealed class ReShadeController
         }
 
         return null;
+    }
+
+    private static IEnumerable<string> EnumerateGameDirectories()
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var directory in EnumerateXivLauncherGameDirectories())
+        {
+            if (seen.Add(directory))
+            {
+                yield return directory;
+            }
+        }
+
+        var processDirectory = TryGetCurrentProcessDirectory();
+        if (!string.IsNullOrWhiteSpace(processDirectory) && seen.Add(processDirectory))
+        {
+            yield return processDirectory;
+        }
+    }
+
+    private static IEnumerable<string> EnumerateXivLauncherGameDirectories()
+    {
+        var configPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "XIVLauncher",
+            "launcherConfigV3.json");
+        if (!File.Exists(configPath))
+        {
+            yield break;
+        }
+
+        string? gamePath = null;
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(configPath));
+            if (document.RootElement.TryGetProperty("GamePath", out var gamePathElement))
+            {
+                gamePath = gamePathElement.GetString();
+            }
+        }
+        catch (JsonException)
+        {
+            yield break;
+        }
+        catch (IOException)
+        {
+            yield break;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            yield break;
+        }
+
+        if (string.IsNullOrWhiteSpace(gamePath))
+        {
+            yield break;
+        }
+
+        var rootPath = Path.GetFullPath(gamePath);
+        var gameDirectory = Path.Combine(rootPath, "game");
+        if (Directory.Exists(gameDirectory))
+        {
+            yield return gameDirectory;
+        }
+
+        if (Directory.Exists(rootPath))
+        {
+            yield return rootPath;
+        }
+    }
+
+    private static string? TryGetCurrentProcessDirectory()
+    {
+        try
+        {
+            var fileName = Process.GetCurrentProcess().MainModule?.FileName;
+            return string.IsNullOrWhiteSpace(fileName) ? null : Path.GetDirectoryName(fileName);
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
     }
 
     private static string? TryReadReloadHotkeyValue(string reshadeIniPath)
