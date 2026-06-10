@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
@@ -27,14 +28,27 @@ public sealed class ConfigWindow : Window, IDisposable
 
     public override void Draw()
     {
-        var enabled = configuration.Enabled;
-        if (ImGui.Checkbox("Enable dynamic preset generation", ref enabled))
-        {
-            configuration.Enabled = enabled;
-            configuration.Save();
-        }
+        UiSection.Draw("ConfigPaths", "Paths", true, PathsSummary(), DrawPaths);
+        UiSection.Draw("ConfigBasePresetLibrary", "Base Preset Library", true, BaseLibrarySummary(), DrawBasePresetLibrary);
+        UiSection.Draw("ConfigGenerationBehavior", "Generation Behavior", true, GenerationBehaviorSummary(), DrawGenerationBehavior);
+        UiSection.Draw("ConfigCompatibilityMode", "Compatibility Mode", false, CompatibilitySummary(), DrawCompatibilityMode);
+        UiSection.Draw("ConfigShaderMatching", "Shader Matching", false, ShaderMatchingSummary(), DrawShaderMatching, ShaderMatchingWarningColor());
+        UiSection.Draw("ConfigReShadeReload", "ReShade Reload", false, ReShadeReloadSummary(), DrawReShadeReloadSection, ReShadeReloadWarningColor());
+        UiSection.Draw("ConfigScreenshotAnalysis", "Screenshot Analysis", false, ScreenshotAnalysisSummary(), DrawScreenshotAnalysis);
+        UiSection.Draw("ConfigMasterStyleMatching", "Master Style Matching", false, MasterStyleSummary(), DrawMasterStyleMatching);
+        UiSection.Draw("ConfigRegressionTesting", "Regression Testing", false, RegressionTestingSummary(), DrawRegressionTesting);
+        UiSection.Draw("ConfigAdvancedDebug", "Advanced / Debug", false, AdvancedDebugSummary(), DrawAdvancedDebug);
+    }
 
-        DrawBasePresetLibrary();
+    private string PathsSummary()
+    {
+        return string.IsNullOrWhiteSpace(configuration.GeneratedPresetPath)
+            ? "Generated preset path missing"
+            : $"Generated: {Path.GetFileName(configuration.GeneratedPresetPath)}";
+    }
+
+    private void DrawPaths()
+    {
         DrawTextInput("Base preset path", configuration.BasePresetPath, value => configuration.BasePresetPath = value);
         DrawTextInput("Generated preset path", configuration.GeneratedPresetPath, value => configuration.GeneratedPresetPath = value);
 
@@ -46,14 +60,28 @@ public sealed class ConfigWindow : Window, IDisposable
 
         ImGui.SameLine();
         ImGui.TextUnformatted("Recommended writable output");
+    }
 
-        DrawCheckbox("Reload shaders after generation", configuration.ReloadShadersAfterGeneration, value => configuration.ReloadShadersAfterGeneration = value);
-        DrawCheckbox("Sync reload key to ReShade.ini", configuration.SyncReloadHotkeyToReShadeIni, value => configuration.SyncReloadHotkeyToReShadeIni = value);
-        DrawReShadeReloadSettings();
+    private string BaseLibrarySummary()
+    {
+        return $"{plugin.LastBasePresetLibraryScan.Items.Count} presets found";
+    }
 
-        DrawReloadHotkeyPicker();
+    private string GenerationBehaviorSummary()
+    {
+        return configuration.Enabled
+            ? $"{configuration.Style}, {configuration.PerformanceBudget}, writes every {configuration.MinimumSecondsBetweenWrites}s"
+            : "Dynamic generation disabled";
+    }
 
-        ImGui.Separator();
+    private void DrawGenerationBehavior()
+    {
+        var enabled = configuration.Enabled;
+        if (ImGui.Checkbox("Enable dynamic preset generation", ref enabled))
+        {
+            configuration.Enabled = enabled;
+            configuration.Save();
+        }
 
         var style = (int)configuration.Style;
         if (ImGui.Combo("Target style", ref style, "Gameplay\0Balanced\0Cinematic\0"))
@@ -75,6 +103,123 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawCheckbox("Auto-adjust for territory type", configuration.AutoAdjustForTerritory, value => configuration.AutoAdjustForTerritory = value);
         DrawCheckbox("Auto-adjust in cutscenes", configuration.AutoAdjustInCutscenes, value => configuration.AutoAdjustInCutscenes = value);
         DrawCheckbox("Lock current generated preset", configuration.SceneLockEnabled, value => configuration.SceneLockEnabled = value);
+        DrawCheckbox("Write generated preset backups", configuration.WriteBackups, value => configuration.WriteBackups = value);
+
+        var maxBackups = configuration.MaxGeneratedPresetBackups;
+        if (ImGui.SliderInt("Max generated preset backups", ref maxBackups, 1, 50))
+        {
+            configuration.MaxGeneratedPresetBackups = maxBackups;
+            configuration.Save();
+        }
+
+        var minimumSeconds = configuration.MinimumSecondsBetweenWrites;
+        if (ImGui.SliderInt("Minimum seconds between writes", ref minimumSeconds, 1, 120))
+        {
+            configuration.MinimumSecondsBetweenWrites = minimumSeconds;
+            configuration.Save();
+        }
+
+        if (ImGui.Button("Generate Now###ConfigGenerateNow"))
+        {
+            plugin.GenerateNow();
+        }
+
+        ImGui.SameLine();
+        ImGui.TextWrapped(plugin.LastWriteResult.Message);
+    }
+
+    private string CompatibilitySummary()
+    {
+        return $"{PresetAnalyzer.FormatCompatibilityMode(configuration.CompatibilityMode)}, risk {plugin.LastPresetAnalysis.Report.Level}";
+    }
+
+    private void DrawCompatibilityMode()
+    {
+        DrawCheckbox("Use installed iMMERSE Pro/Ultimate variables", configuration.UsePremiumImmerseEffects, value => configuration.UsePremiumImmerseEffects = value);
+
+        var compatibilityMode = (int)configuration.CompatibilityMode;
+        if (ImGui.Combo("Compatibility mode", ref compatibilityMode, "Preserve base\0Adaptive balanced\0Gameplay sanitize\0Cinematic preserve\0GPose preserve\0"))
+        {
+            configuration.CompatibilityMode = (PresetCompatibilityMode)compatibilityMode;
+            configuration.Save();
+        }
+
+        if (ImGui.Button("Scan Preset Compatibility###ConfigScanPresetCompatibility"))
+        {
+            plugin.ScanPresetCompatibility();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Export Compatibility Report###ConfigExportCompatibilityReport"))
+        {
+            plugin.ExportCompatibilityReport();
+        }
+
+        ImGui.TextWrapped(plugin.LastPresetAnalysis.Message);
+        ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
+    }
+
+    private string ShaderMatchingSummary()
+    {
+        return $"{configuration.ShaderMatchingMode}, inactive writes {configuration.InactiveShaderWriteMode}";
+    }
+
+    private Vector4? ShaderMatchingWarningColor()
+    {
+        return configuration.ShaderMatchingMode == ShaderMatchingMode.LooseKeys ? new Vector4(1.0f, 0.72f, 0.28f, 1.0f) : null;
+    }
+
+    private void DrawShaderMatching()
+    {
+        var matchingMode = (int)configuration.ShaderMatchingMode;
+        if (ImGui.Combo("Shader matching", ref matchingMode, "Strict sections\0Known fallbacks\0Loose keys\0"))
+        {
+            configuration.ShaderMatchingMode = (ShaderMatchingMode)matchingMode;
+            configuration.Save();
+        }
+
+        if (configuration.ShaderMatchingMode == ShaderMatchingMode.LooseKeys)
+        {
+            ImGui.TextWrapped("Loose key matching may edit variables outside known shader sections. It is useful for testing unsupported presets, but strict matching is safer for normal use.");
+        }
+
+        var inactiveWriteMode = (int)configuration.InactiveShaderWriteMode;
+        if (ImGui.Combo("Inactive shader writes", ref inactiveWriteMode, "Never\0Supported inactive sections\0Always matching keys\0"))
+        {
+            configuration.InactiveShaderWriteMode = (InactiveShaderWriteMode)inactiveWriteMode;
+            configuration.Save();
+        }
+    }
+
+    private string ReShadeReloadSummary()
+    {
+        var diagnostics = plugin.LastReloadResult.Diagnostics;
+        return $"Hotkey {diagnostics.ConfiguredReloadKey}, ReShade.ini {(diagnostics.ReShadeIniFound ? "found" : "not found")}";
+    }
+
+    private Vector4? ReShadeReloadWarningColor()
+    {
+        return plugin.LastReloadResult.Diagnostics.ReShadeIniFound ? null : new Vector4(1.0f, 0.72f, 0.28f, 1.0f);
+    }
+
+    private void DrawReShadeReloadSection()
+    {
+        DrawCheckbox("Reload shaders after generation", configuration.ReloadShadersAfterGeneration, value => configuration.ReloadShadersAfterGeneration = value);
+        DrawCheckbox("Sync reload key to ReShade.ini", configuration.SyncReloadHotkeyToReShadeIni, value => configuration.SyncReloadHotkeyToReShadeIni = value);
+        DrawReShadeReloadSettings();
+        DrawReloadHotkeyPicker();
+        ImGui.TextWrapped(plugin.LastReloadResult.Message);
+    }
+
+    private string ScreenshotAnalysisSummary()
+    {
+        return configuration.AutoAdjustFromScreenshots
+            ? $"{configuration.ImageSamplingMode}, every {configuration.MinimumSecondsBetweenImageSamples}s"
+            : "Disabled";
+    }
+
+    private void DrawScreenshotAnalysis()
+    {
         DrawCheckbox("Auto-adjust from screenshots", configuration.AutoAdjustFromScreenshots, value => configuration.AutoAdjustFromScreenshots = value);
         DrawTextInput("Screenshot folder", configuration.ScreenshotFolderPath, value => configuration.ScreenshotFolderPath = value);
 
@@ -94,6 +239,23 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.SameLine();
         ImGui.TextUnformatted("For screenshot analysis");
 
+        var minimumImageSeconds = configuration.MinimumSecondsBetweenImageSamples;
+        if (ImGui.SliderInt("Minimum seconds between image samples", ref minimumImageSeconds, 1, 300))
+        {
+            configuration.MinimumSecondsBetweenImageSamples = minimumImageSeconds;
+            configuration.Save();
+        }
+    }
+
+    private string MasterStyleSummary()
+    {
+        return configuration.MatchMasterPresetStyle
+            ? $"Active, {configuration.MasterPresetStyleStrength}% strength"
+            : "Disabled";
+    }
+
+    private void DrawMasterStyleMatching()
+    {
         DrawCheckbox("Match master preset style", configuration.MatchMasterPresetStyle, value => configuration.MatchMasterPresetStyle = value);
         DrawTextInput("Master preset image folder", configuration.MasterPresetFolderPath, value => configuration.MasterPresetFolderPath = value);
         DrawCheckbox("Include master preset subfolders", configuration.MasterPresetIncludeSubfolders, value => configuration.MasterPresetIncludeSubfolders = value);
@@ -118,59 +280,17 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.MasterPresetMaxImages = masterMaxImages;
             configuration.Save();
         }
+    }
 
-        DrawCheckbox("Use installed iMMERSE Pro/Ultimate variables", configuration.UsePremiumImmerseEffects, value => configuration.UsePremiumImmerseEffects = value);
+    private string RegressionTestingSummary()
+    {
+        return plugin.LastPresetRegressionReport.Success
+            ? $"Last run: {plugin.LastPresetRegressionReport.PresetCount} presets"
+            : plugin.LastPresetRegressionReport.Message;
+    }
 
-        var compatibilityMode = (int)configuration.CompatibilityMode;
-        if (ImGui.Combo("Compatibility mode", ref compatibilityMode, "Preserve base\0Adaptive balanced\0Gameplay sanitize\0Cinematic preserve\0GPose preserve\0"))
-        {
-            configuration.CompatibilityMode = (PresetCompatibilityMode)compatibilityMode;
-            configuration.Save();
-        }
-
-        var matchingMode = (int)configuration.ShaderMatchingMode;
-        if (ImGui.Combo("Shader matching", ref matchingMode, "Strict sections\0Known fallbacks\0Loose keys\0"))
-        {
-            configuration.ShaderMatchingMode = (ShaderMatchingMode)matchingMode;
-            configuration.Save();
-        }
-
-        if (configuration.ShaderMatchingMode == ShaderMatchingMode.LooseKeys)
-        {
-            ImGui.TextWrapped("Loose key matching may edit variables outside known shader sections. It is useful for testing unsupported presets, but strict matching is safer for normal use.");
-        }
-
-        var inactiveWriteMode = (int)configuration.InactiveShaderWriteMode;
-        if (ImGui.Combo("Inactive shader writes", ref inactiveWriteMode, "Never\0Supported inactive sections\0Always matching keys\0"))
-        {
-            configuration.InactiveShaderWriteMode = (InactiveShaderWriteMode)inactiveWriteMode;
-            configuration.Save();
-        }
-
-        DrawCheckbox("Write generated preset backups", configuration.WriteBackups, value => configuration.WriteBackups = value);
-
-        var maxBackups = configuration.MaxGeneratedPresetBackups;
-        if (ImGui.SliderInt("Max generated preset backups", ref maxBackups, 1, 50))
-        {
-            configuration.MaxGeneratedPresetBackups = maxBackups;
-            configuration.Save();
-        }
-
-        if (ImGui.Button("Scan Preset Compatibility"))
-        {
-            plugin.ScanPresetCompatibility();
-        }
-
-        ImGui.SameLine();
-        if (ImGui.Button("Export Compatibility Report"))
-        {
-            plugin.ExportCompatibilityReport();
-        }
-
-        ImGui.SameLine();
-        ImGui.TextWrapped(plugin.LastPresetAnalysis.Message);
-        ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
-
+    private void DrawRegressionTesting()
+    {
         DrawTextInput("Test preset folder", configuration.TestPresetFolderPath, value => configuration.TestPresetFolderPath = value);
 
         if (ImGui.Button("Run Preset Regression Reports"))
@@ -180,37 +300,19 @@ public sealed class ConfigWindow : Window, IDisposable
 
         ImGui.SameLine();
         ImGui.TextWrapped(plugin.LastPresetRegressionReport.Message);
+    }
 
-        var minimumSeconds = configuration.MinimumSecondsBetweenWrites;
-        if (ImGui.SliderInt("Minimum seconds between writes", ref minimumSeconds, 1, 120))
-        {
-            configuration.MinimumSecondsBetweenWrites = minimumSeconds;
-            configuration.Save();
-        }
+    private string AdvancedDebugSummary()
+    {
+        return $"{plugin.LastShaderSupportScan.Items.Count} supported variables detected";
+    }
 
-        var minimumImageSeconds = configuration.MinimumSecondsBetweenImageSamples;
-        if (ImGui.SliderInt("Minimum seconds between image samples", ref minimumImageSeconds, 1, 300))
-        {
-            configuration.MinimumSecondsBetweenImageSamples = minimumImageSeconds;
-            configuration.Save();
-        }
-
-        ImGui.Separator();
-
-        if (ImGui.Button("Generate Now"))
-        {
-            plugin.GenerateNow();
-        }
-
-        ImGui.SameLine();
-        if (ImGui.Button("Test Reload"))
-        {
-            plugin.ReloadShadersNow();
-        }
-
-        ImGui.SameLine();
-        ImGui.TextUnformatted(plugin.LastWriteResult.Message);
+    private void DrawAdvancedDebug()
+    {
+        ImGui.TextWrapped(plugin.LastWriteResult.Message);
         ImGui.TextWrapped(plugin.LastReloadResult.Message);
+        ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
+        ImGui.TextWrapped(plugin.LastShaderSupportScan.Message);
     }
 
     private void DrawBasePresetLibrary()

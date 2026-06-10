@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
@@ -9,6 +10,9 @@ namespace Dalashade.Windows;
 
 public sealed class MainWindow : Window, IDisposable
 {
+    private static readonly Vector4 WarningColor = new(1.0f, 0.72f, 0.28f, 1.0f);
+    private static readonly Vector4 DangerColor = new(1.0f, 0.38f, 0.34f, 1.0f);
+
     private readonly Plugin plugin;
 
     public MainWindow(Plugin plugin)
@@ -29,53 +33,39 @@ public sealed class MainWindow : Window, IDisposable
 
     public override void Draw()
     {
-        var context = plugin.CurrentContext;
-        var tags = plugin.CurrentTags;
-        var profile = plugin.CurrentProfile;
-
         if (ImGui.Button("Settings"))
         {
             plugin.ToggleConfigUi();
         }
 
-        ImGui.SameLine();
+        ImGui.Spacing();
 
-        if (ImGui.Button("Generate Now"))
-        {
-            plugin.GenerateNow();
-        }
+        UiSection.Draw("MainCurrentStatus", "Current Status", true, CurrentStatusSummary(), DrawCurrentStatus);
+        UiSection.Draw("MainBasePreset", "Base Preset", true, BasePresetSummary(), DrawBasePreset, BasePresetWarningColor());
+        UiSection.Draw("MainGeneration", "Generation", true, GenerationSummary(), DrawGeneration, GenerationWarningColor());
+        UiSection.Draw("MainReShadeReload", "ReShade Reload", true, ReShadeReloadSummary(), DrawReShadeReload, ReShadeReloadWarningColor());
 
-        ImGui.Separator();
+        var compatibilityDefaultOpen = plugin.LastPresetAnalysis.Report.Level is PresetRiskLevel.High or PresetRiskLevel.VeryHigh;
+        UiSection.Draw("MainPresetCompatibility", "Preset Compatibility", compatibilityDefaultOpen, PresetCompatibilitySummary(), DrawPresetCompatibility, PresetCompatibilityWarningColor());
+        UiSection.Draw("MainChangedVariables", "Changed Variables", false, ChangedVariablesSummary(), DrawChangedVariables, ChangedVariablesWarningColor());
+        UiSection.Draw("MainSanitizeActions", "Sanitize Actions", false, SanitizeActionsSummary(), DrawSanitizeActions);
+        UiSection.Draw("MainAppliedRules", "Applied Rules", false, $"{plugin.CurrentRules.Count} rules applied", DrawAppliedRules);
+        UiSection.Draw("MainScreenshotAnalysis", "Screenshot Analysis", false, ScreenshotSummary(), DrawScreenshotAnalysis);
+        UiSection.Draw("MainMasterStyle", "Master Style", false, MasterStyleSummary(), DrawMasterStyle);
+        UiSection.Draw("MainRegressionReports", "Regression Reports", false, RegressionSummary(), DrawRegressionReports);
+        UiSection.Draw("MainDebugDiagnostics", "Debug / Diagnostics", false, DebugSummary(), DrawDebugDiagnostics);
+    }
 
-        if (ImGui.CollapsingHeader("Setup check"))
-        {
-            var configuration = plugin.Configuration;
-            DrawSetupItem("Base preset selected", !string.IsNullOrWhiteSpace(configuration.BasePresetPath) && File.Exists(configuration.BasePresetPath));
-            DrawSetupItem("Generated preset path selected", !string.IsNullOrWhiteSpace(configuration.GeneratedPresetPath));
-            DrawSetupItem("Generated preset is separate", !string.Equals(configuration.BasePresetPath, configuration.GeneratedPresetPath, StringComparison.OrdinalIgnoreCase));
-            DrawSetupItem("Shader variables detected", plugin.LastShaderSupportScan.Items.Count > 0);
-            DrawSetupItem("Generated at least once", plugin.LastWriteResult.Success);
-            DrawSetupItem("Reload attempted", plugin.LastReloadResult.Success);
+    private string CurrentStatusSummary()
+    {
+        var context = plugin.CurrentContext;
+        return $"{context.TerritoryName}, {context.WeatherName}, {context.TimeBucket}";
+    }
 
-            if (ImGui.Button("Scan Preset###MainScanPreset"))
-            {
-                plugin.ScanPresetCompatibility();
-            }
-
-            ImGui.SameLine();
-            if (ImGui.Button("Export Report###MainExportCompatibilityReport"))
-            {
-                plugin.ExportCompatibilityReport();
-            }
-
-            ImGui.SameLine();
-            if (ImGui.Button("Test Reload###MainTestReload"))
-            {
-                plugin.ReloadShadersNow();
-            }
-        }
-
-        ImGui.Separator();
+    private void DrawCurrentStatus()
+    {
+        var context = plugin.CurrentContext;
+        var tags = plugin.CurrentTags;
 
         ImGui.TextUnformatted($"Territory: {context.TerritoryName} ({context.TerritoryId})");
         ImGui.TextUnformatted($"World: {context.WorldCategory}");
@@ -88,9 +78,73 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Cutscene: {context.InCutscene}");
         ImGui.TextUnformatted($"Scene Lock: {plugin.Configuration.SceneLockEnabled}");
         ImGui.TextUnformatted($"Scene Tags: {tags.AreaKey}, {tags.BiomeKey}, clarity={tags.NeedsGameplayClarity}, cinematic={tags.CinematicAllowed}");
+    }
 
+    private string BasePresetSummary()
+    {
+        var configuration = plugin.Configuration;
+        if (string.IsNullOrWhiteSpace(configuration.BasePresetPath) || !File.Exists(configuration.BasePresetPath))
+        {
+            return "Base preset missing";
+        }
+
+        var name = Path.GetFileName(configuration.BasePresetPath);
+        return string.IsNullOrWhiteSpace(name) ? "Base preset selected" : name;
+    }
+
+    private Vector4? BasePresetWarningColor()
+    {
+        var configuration = plugin.Configuration;
+        return string.IsNullOrWhiteSpace(configuration.BasePresetPath) || !File.Exists(configuration.BasePresetPath)
+            ? WarningColor
+            : null;
+    }
+
+    private void DrawBasePreset()
+    {
+        var configuration = plugin.Configuration;
+
+        DrawSetupItem("Base preset selected", !string.IsNullOrWhiteSpace(configuration.BasePresetPath) && File.Exists(configuration.BasePresetPath));
+        DrawSetupItem("Generated preset path selected", !string.IsNullOrWhiteSpace(configuration.GeneratedPresetPath));
+        DrawSetupItem("Generated preset is separate", !string.Equals(configuration.BasePresetPath, configuration.GeneratedPresetPath, StringComparison.OrdinalIgnoreCase));
+        ImGui.TextWrapped($"Base preset: {configuration.BasePresetPath}");
+        ImGui.TextWrapped($"Generated preset: {configuration.GeneratedPresetPath}");
+        ImGui.TextWrapped(plugin.LastBasePresetLibraryScan.Message);
+    }
+
+    private string GenerationSummary()
+    {
+        var result = plugin.LastWriteResult;
+        if (!result.Success)
+        {
+            return result.Message;
+        }
+
+        return $"{result.ChangedVariables} changes, {result.Changes.Count(change => change.HitMin || change.HitMax)} clamped";
+    }
+
+    private Vector4? GenerationWarningColor()
+    {
+        var result = plugin.LastWriteResult;
+        if (!result.Success || result.ChangedVariables > 50 || result.Changes.Any(change => !string.IsNullOrWhiteSpace(change.Warning)))
+        {
+            return WarningColor;
+        }
+
+        return null;
+    }
+
+    private void DrawGeneration()
+    {
+        var profile = plugin.CurrentProfile;
+
+        if (ImGui.Button("Generate Now###MainGenerateNow"))
+        {
+            plugin.GenerateNow();
+        }
+
+        ImGui.TextWrapped(plugin.LastWriteResult.Message);
         ImGui.Separator();
-
         ImGui.TextUnformatted($"Exposure Multiplier: {profile.Exposure:0.###}x");
         ImGui.TextUnformatted($"Contrast Multiplier: {profile.Contrast:0.###}x");
         ImGui.TextUnformatted($"Saturation Multiplier: {profile.Saturation:0.###}x");
@@ -120,7 +174,8 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Shadow Hue/Sat Bias: {profile.ShadowHueBias:0.###} / {profile.ShadowSaturationBias:0.###}");
         ImGui.TextUnformatted($"Midtone Hue/Sat Bias: {profile.MidtoneHueBias:0.###} / {profile.MidtoneSaturationBias:0.###}");
         ImGui.TextUnformatted($"Highlight Hue/Sat Bias: {profile.HighlightHueBias:0.###} / {profile.HighlightSaturationBias:0.###}");
-        if (ImGui.TreeNode("Color family adjustments"))
+
+        if (ImGui.TreeNode("Color family adjustments###MainColorFamilyAdjustments"))
         {
             var strongest = profile.StrongestColorFamilyAdjustments(8);
             if (strongest.Count == 0)
@@ -135,220 +190,334 @@ public sealed class MainWindow : Window, IDisposable
 
             ImGui.TreePop();
         }
+    }
 
-        ImGui.Separator();
+    private string ReShadeReloadSummary()
+    {
+        var diagnostics = plugin.LastReloadResult.Diagnostics;
+        return $"Hotkey {diagnostics.ConfiguredReloadKey}, ReShade.ini {(diagnostics.ReShadeIniFound ? "found" : "not found")}";
+    }
 
-        var image = plugin.CurrentImageAnalysis;
-        ImGui.TextWrapped(plugin.ImageAnalysisMessage);
-        if (image.Available)
+    private Vector4? ReShadeReloadWarningColor()
+    {
+        return plugin.LastReloadResult.Diagnostics.ReShadeIniFound ? null : WarningColor;
+    }
+
+    private void DrawReShadeReload()
+    {
+        if (ImGui.Button("Test Reload###MainTestReload"))
         {
-            ImGui.TextUnformatted($"Image Luma: {image.AverageLuminance:0.###}");
-            ImGui.TextUnformatted($"Image Contrast: {image.Contrast:0.###}");
-            ImGui.TextUnformatted($"Image Saturation: {image.AverageSaturation:0.###}");
-            ImGui.TextUnformatted($"Image Warmth: {image.Warmth:0.###}");
-            ImGui.TextUnformatted($"Shadow Clip: {image.ShadowClipping:P1}");
-            ImGui.TextUnformatted($"Highlight Clip: {image.HighlightClipping:P1}");
-            ImGui.TextUnformatted($"Image Tonal P05/P50/P95: {image.LuminanceP05:0.###} / {image.LuminanceP50:0.###} / {image.LuminanceP95:0.###}");
-            ImGui.TextUnformatted($"Image Tonal Spread: {image.ContrastSpread:0.###}");
-            ImGui.TextUnformatted($"Image Shadow H/S/W/T: {image.ShadowColor.Hue:0.###} / {image.ShadowColor.Saturation:0.###} / {image.ShadowColor.Warmth:0.###} / {image.ShadowColor.Tint:0.###}");
-            ImGui.TextUnformatted($"Image Midtone H/S/W/T: {image.MidtoneColor.Hue:0.###} / {image.MidtoneColor.Saturation:0.###} / {image.MidtoneColor.Warmth:0.###} / {image.MidtoneColor.Tint:0.###}");
-            ImGui.TextUnformatted($"Image Highlight H/S/W/T: {image.HighlightColor.Hue:0.###} / {image.HighlightColor.Saturation:0.###} / {image.HighlightColor.Warmth:0.###} / {image.HighlightColor.Tint:0.###}");
-            if (ImGui.TreeNode("Image color families"))
-            {
-                DrawColorFamilyStats(image.ColorFamilies);
-                ImGui.TreePop();
-            }
-
-            ImGui.TextUnformatted($"Image Metrics: {image.MetricsKey}");
+            plugin.ReloadShadersNow();
         }
 
-        ImGui.Separator();
+        var diagnostics = plugin.LastReloadResult.Diagnostics;
+        ImGui.TextWrapped(plugin.LastReloadResult.Message);
+        ImGui.TextWrapped($"ReShade.ini: {(diagnostics.ReShadeIniFound ? diagnostics.ReShadeIniPath : "not found")}");
+        ImGui.TextWrapped($"KeyReload: {diagnostics.KeyReloadValue}; configured: {diagnostics.ConfiguredReloadKey}; sync: {(diagnostics.HotkeySyncEnabled ? "on" : "off")}");
+        ImGui.TextWrapped($"PostMessage: {(diagnostics.PostMessageSucceeded ? "ok" : "failed")}; SendInput: {(diagnostics.SendInputSucceeded ? "ok" : "failed")}");
+    }
 
-        var master = plugin.CurrentMasterStyle;
-        ImGui.TextWrapped(plugin.MasterStyleMessage);
-        if (master.Available)
+    private string PresetCompatibilitySummary()
+    {
+        var report = plugin.LastPresetAnalysis.Report;
+        return $"Risk: {report.Level}, {report.Warnings.Count} warnings";
+    }
+
+    private Vector4? PresetCompatibilityWarningColor()
+    {
+        return plugin.LastPresetAnalysis.Report.Level switch
         {
-            ImGui.TextUnformatted($"Master Luma: {master.AverageLuminance:0.###}");
-            ImGui.TextUnformatted($"Master Contrast: {master.Contrast:0.###}");
-            ImGui.TextUnformatted($"Master Saturation: {master.AverageSaturation:0.###}");
-            ImGui.TextUnformatted($"Master Warmth: {master.Warmth:0.###}");
-            ImGui.TextUnformatted($"Master Tonal P05/P50/P95: {master.LuminanceP05:0.###} / {master.LuminanceP50:0.###} / {master.LuminanceP95:0.###}");
-            ImGui.TextUnformatted($"Master Tonal Spread: {master.ContrastSpread:0.###}");
-            ImGui.TextUnformatted($"Master Shadow H/S/W/T: {master.ShadowColor.Hue:0.###} / {master.ShadowColor.Saturation:0.###} / {master.ShadowColor.Warmth:0.###} / {master.ShadowColor.Tint:0.###}");
-            ImGui.TextUnformatted($"Master Midtone H/S/W/T: {master.MidtoneColor.Hue:0.###} / {master.MidtoneColor.Saturation:0.###} / {master.MidtoneColor.Warmth:0.###} / {master.MidtoneColor.Tint:0.###}");
-            ImGui.TextUnformatted($"Master Highlight H/S/W/T: {master.HighlightColor.Hue:0.###} / {master.HighlightColor.Saturation:0.###} / {master.HighlightColor.Warmth:0.###} / {master.HighlightColor.Tint:0.###}");
-            if (ImGui.TreeNode("Master color families"))
-            {
-                DrawColorFamilyStats(master.ColorFamilies);
-                ImGui.TreePop();
-            }
+            PresetRiskLevel.VeryHigh => DangerColor,
+            PresetRiskLevel.High => WarningColor,
+            _ => plugin.LastPresetAnalysis.Report.Warnings.Count > 0 ? WarningColor : null
+        };
+    }
 
-            ImGui.TextUnformatted($"Master Metrics: {master.MetricsKey}");
+    private void DrawPresetCompatibility()
+    {
+        var analysis = plugin.LastPresetAnalysis;
+        var report = analysis.Report;
+
+        if (ImGui.Button("Scan Preset Compatibility###MainScanPreset"))
+        {
+            plugin.ScanPresetCompatibility();
         }
 
-        ImGui.Separator();
+        ImGui.SameLine();
+        if (ImGui.Button("Export Report###MainExportCompatibilityReport"))
+        {
+            plugin.ExportCompatibilityReport();
+        }
 
-        ImGui.TextUnformatted("Applied rules");
+        ImGui.TextWrapped(analysis.Message);
+        ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
+        ImGui.TextUnformatted($"Risk: {report.Level}");
+        ImGui.TextUnformatted($"Selected mode: {PresetAnalyzer.FormatCompatibilityMode(plugin.Configuration.CompatibilityMode)}");
+        ImGui.TextUnformatted($"Recommended mode: {PresetAnalyzer.FormatCompatibilityMode(report.RecommendedCompatibilityMode)}");
+        ImGui.TextUnformatted($"Active controlled: {report.ActiveSupportedEffects.Count}");
+        ImGui.TextUnformatted($"Active partial: {report.ActivePartiallySupportedEffects.Count}");
+        ImGui.TextUnformatted($"Active detected-only: {report.ActiveDetectedOnlyEffects.Count}");
+        ImGui.TextUnformatted($"Active unsupported: {report.ActiveUnsupportedEffects.Count}");
+        ImGui.TextUnformatted($"High-risk active: {report.HighRiskActiveEffects.Count}");
+
+        DrawTechniqueTree("Active controlled effects", report.ActiveSupportedEffects, report.ActivePartiallySupportedEffects);
+        DrawTechniqueTree("Active detected-only effects", report.ActiveDetectedOnlyEffects);
+        DrawAuthoritiesTree(report.Authorities);
+        DrawTechniqueTree("Active unknown/unsupported effects", report.ActiveUnsupportedEffects);
+        DrawTechniqueTree("High-risk effects", report.HighRiskActiveEffects);
+        DrawWarningsTree(report.Warnings);
+    }
+
+    private string ChangedVariablesSummary()
+    {
+        var changes = plugin.LastWriteResult.Changes;
+        var clamped = changes.Count(change => change.HitMin || change.HitMax);
+        var warnings = changes.Count(change => !string.IsNullOrWhiteSpace(change.Warning));
+        return $"{changes.Count} changes, {clamped} clamped, {warnings} warnings";
+    }
+
+    private Vector4? ChangedVariablesWarningColor()
+    {
+        var changes = plugin.LastWriteResult.Changes;
+        return changes.Count > 50 || changes.Any(change => change.HitMin || change.HitMax || !string.IsNullOrWhiteSpace(change.Warning))
+            ? WarningColor
+            : null;
+    }
+
+    private void DrawChangedVariables()
+    {
+        if (plugin.LastWriteResult.Changes.Count == 0)
+        {
+            ImGui.TextUnformatted("No changed variables recorded yet.");
+        }
+
+        foreach (var change in plugin.LastWriteResult.Changes)
+        {
+            var activation = PresetAnalyzer.FormatActivationState(change.ActivationState);
+            var clamp = change.HitMin ? ", min clamp" : change.HitMax ? ", max clamp" : string.Empty;
+            ImGui.BulletText($"{change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} ({activation}{clamp})");
+            ImGui.SameLine();
+            ImGui.TextDisabled(change.ReasonCategory);
+            if (!string.IsNullOrWhiteSpace(change.Warning))
+            {
+                ImGui.TextWrapped(change.Warning);
+            }
+        }
+    }
+
+    private string SanitizeActionsSummary()
+    {
+        return $"{plugin.LastWriteResult.SanitizeActions.Count} actions";
+    }
+
+    private void DrawSanitizeActions()
+    {
+        if (plugin.LastWriteResult.SanitizeActions.Count == 0)
+        {
+            ImGui.TextUnformatted("No sanitize actions recorded yet.");
+        }
+
+        foreach (var action in plugin.LastWriteResult.SanitizeActions)
+        {
+            var activation = PresetAnalyzer.FormatActivationState(action.ActivationState);
+            ImGui.BulletText($"{action.Section} / {action.Key}: {action.OldValue} -> {action.NewValue} ({action.ActionType}, {PresetAnalyzer.FormatRole(action.Role)}, {activation})");
+            ImGui.TextDisabled(action.Reason);
+        }
+    }
+
+    private void DrawAppliedRules()
+    {
         foreach (var rule in plugin.CurrentRules)
         {
             ImGui.BulletText($"{rule.Name}: {rule.Changes}");
             ImGui.TextWrapped(rule.Reason);
         }
+    }
 
-        ImGui.Separator();
+    private string ScreenshotSummary()
+    {
+        var image = plugin.CurrentImageAnalysis;
+        return image.Available ? $"Available: {image.ProfileBucket}" : plugin.ImageAnalysisMessage;
+    }
 
-        if (ImGui.CollapsingHeader("Preset compatibility"))
+    private void DrawScreenshotAnalysis()
+    {
+        var image = plugin.CurrentImageAnalysis;
+        ImGui.TextWrapped(plugin.ImageAnalysisMessage);
+        if (!image.Available)
         {
-            var analysis = plugin.LastPresetAnalysis;
-            var report = analysis.Report;
-            ImGui.TextWrapped(analysis.Message);
-            ImGui.TextUnformatted($"Risk: {report.Level}");
-            ImGui.TextUnformatted($"Selected mode: {PresetAnalyzer.FormatCompatibilityMode(plugin.Configuration.CompatibilityMode)}");
-            ImGui.TextUnformatted($"Recommended mode: {PresetAnalyzer.FormatCompatibilityMode(report.RecommendedCompatibilityMode)}");
-            ImGui.TextUnformatted($"Active controlled: {report.ActiveSupportedEffects.Count}");
-            ImGui.TextUnformatted($"Active partial: {report.ActivePartiallySupportedEffects.Count}");
-            ImGui.TextUnformatted($"Active detected-only: {report.ActiveDetectedOnlyEffects.Count}");
-            ImGui.TextUnformatted($"Active unsupported: {report.ActiveUnsupportedEffects.Count}");
-            ImGui.TextUnformatted($"High-risk active: {report.HighRiskActiveEffects.Count}");
-
-            if (ImGui.TreeNode("Active controlled effects"))
-            {
-                foreach (var technique in report.ActiveSupportedEffects)
-                {
-                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatActivationState(technique.ActivationState)}, {PresetAnalyzer.FormatRole(technique.Role)}, fully controlled)");
-                }
-
-                foreach (var technique in report.ActivePartiallySupportedEffects)
-                {
-                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatActivationState(technique.ActivationState)}, {PresetAnalyzer.FormatRole(technique.Role)}, partially controlled)");
-                }
-
-                if (report.ActiveSupportedEffects.Count == 0 && report.ActivePartiallySupportedEffects.Count == 0)
-                {
-                    ImGui.TextUnformatted("No active controlled effects detected yet.");
-                }
-
-                ImGui.TreePop();
-            }
-
-            if (ImGui.TreeNode("Active detected-only effects"))
-            {
-                foreach (var technique in report.ActiveDetectedOnlyEffects)
-                {
-                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatActivationState(technique.ActivationState)}, {PresetAnalyzer.FormatRole(technique.Role)}, {PresetAnalyzer.FormatRisk(technique.Risk)})");
-                }
-
-                if (report.ActiveDetectedOnlyEffects.Count == 0)
-                {
-                    ImGui.TextUnformatted("No active detected-only effects.");
-                }
-
-                ImGui.TreePop();
-            }
-
-            if (ImGui.TreeNode("Effect authorities"))
-            {
-                foreach (var authority in report.Authorities)
-                {
-                    ImGui.BulletText($"{PresetAnalyzer.FormatRole(authority.Role)}: {authority.PrimaryShader}");
-                    foreach (var secondary in authority.SecondaryShaders)
-                    {
-                        ImGui.TextWrapped($"  secondary: {secondary}");
-                    }
-                }
-
-                ImGui.TreePop();
-            }
-
-            if (ImGui.TreeNode("Active unknown/unsupported effects"))
-            {
-                foreach (var technique in report.ActiveUnsupportedEffects)
-                {
-                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatActivationState(technique.ActivationState)}, {PresetAnalyzer.FormatRole(technique.Role)}, {PresetAnalyzer.FormatRisk(technique.Risk)})");
-                }
-
-                ImGui.TreePop();
-            }
-
-            if (ImGui.TreeNode("High-risk effects"))
-            {
-                foreach (var technique in report.HighRiskActiveEffects)
-                {
-                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatActivationState(technique.ActivationState)}, {PresetAnalyzer.FormatRole(technique.Role)}, {PresetAnalyzer.FormatRisk(technique.Risk)})");
-                }
-
-                ImGui.TreePop();
-            }
-
-            if (ImGui.TreeNode("Warnings"))
-            {
-                if (report.Warnings.Count == 0)
-                {
-                    ImGui.TextUnformatted("No preset compatibility warnings yet.");
-                }
-
-                foreach (var warning in report.Warnings)
-                {
-                    ImGui.BulletText(warning);
-                }
-
-                ImGui.TreePop();
-            }
+            return;
         }
 
-        ImGui.Separator();
+        ImGui.TextUnformatted($"Image Luma: {image.AverageLuminance:0.###}");
+        ImGui.TextUnformatted($"Image Contrast: {image.Contrast:0.###}");
+        ImGui.TextUnformatted($"Image Saturation: {image.AverageSaturation:0.###}");
+        ImGui.TextUnformatted($"Image Warmth: {image.Warmth:0.###}");
+        ImGui.TextUnformatted($"Shadow Clip: {image.ShadowClipping:P1}");
+        ImGui.TextUnformatted($"Highlight Clip: {image.HighlightClipping:P1}");
+        ImGui.TextUnformatted($"Image Tonal P05/P50/P95: {image.LuminanceP05:0.###} / {image.LuminanceP50:0.###} / {image.LuminanceP95:0.###}");
+        ImGui.TextUnformatted($"Image Tonal Spread: {image.ContrastSpread:0.###}");
+        ImGui.TextUnformatted($"Image Shadow H/S/W/T: {image.ShadowColor.Hue:0.###} / {image.ShadowColor.Saturation:0.###} / {image.ShadowColor.Warmth:0.###} / {image.ShadowColor.Tint:0.###}");
+        ImGui.TextUnformatted($"Image Midtone H/S/W/T: {image.MidtoneColor.Hue:0.###} / {image.MidtoneColor.Saturation:0.###} / {image.MidtoneColor.Warmth:0.###} / {image.MidtoneColor.Tint:0.###}");
+        ImGui.TextUnformatted($"Image Highlight H/S/W/T: {image.HighlightColor.Hue:0.###} / {image.HighlightColor.Saturation:0.###} / {image.HighlightColor.Warmth:0.###} / {image.HighlightColor.Tint:0.###}");
+        if (ImGui.TreeNode("Image color families###MainImageColorFamilies"))
+        {
+            DrawColorFamilyStats(image.ColorFamilies);
+            ImGui.TreePop();
+        }
 
-        if (ImGui.CollapsingHeader("Detected shader support"))
+        ImGui.TextUnformatted($"Image Metrics: {image.MetricsKey}");
+    }
+
+    private string MasterStyleSummary()
+    {
+        var configuration = plugin.Configuration;
+        if (!configuration.MatchMasterPresetStyle)
+        {
+            return "Disabled";
+        }
+
+        return plugin.CurrentMasterStyle.Available
+            ? $"Active, {configuration.MasterPresetStyleStrength}% strength"
+            : plugin.MasterStyleMessage;
+    }
+
+    private void DrawMasterStyle()
+    {
+        var master = plugin.CurrentMasterStyle;
+        ImGui.TextWrapped(plugin.MasterStyleMessage);
+        if (!master.Available)
+        {
+            return;
+        }
+
+        ImGui.TextUnformatted($"Master Luma: {master.AverageLuminance:0.###}");
+        ImGui.TextUnformatted($"Master Contrast: {master.Contrast:0.###}");
+        ImGui.TextUnformatted($"Master Saturation: {master.AverageSaturation:0.###}");
+        ImGui.TextUnformatted($"Master Warmth: {master.Warmth:0.###}");
+        ImGui.TextUnformatted($"Master Tonal P05/P50/P95: {master.LuminanceP05:0.###} / {master.LuminanceP50:0.###} / {master.LuminanceP95:0.###}");
+        ImGui.TextUnformatted($"Master Tonal Spread: {master.ContrastSpread:0.###}");
+        ImGui.TextUnformatted($"Master Shadow H/S/W/T: {master.ShadowColor.Hue:0.###} / {master.ShadowColor.Saturation:0.###} / {master.ShadowColor.Warmth:0.###} / {master.ShadowColor.Tint:0.###}");
+        ImGui.TextUnformatted($"Master Midtone H/S/W/T: {master.MidtoneColor.Hue:0.###} / {master.MidtoneColor.Saturation:0.###} / {master.MidtoneColor.Warmth:0.###} / {master.MidtoneColor.Tint:0.###}");
+        ImGui.TextUnformatted($"Master Highlight H/S/W/T: {master.HighlightColor.Hue:0.###} / {master.HighlightColor.Saturation:0.###} / {master.HighlightColor.Warmth:0.###} / {master.HighlightColor.Tint:0.###}");
+        if (ImGui.TreeNode("Master color families###MainMasterColorFamilies"))
+        {
+            DrawColorFamilyStats(master.ColorFamilies);
+            ImGui.TreePop();
+        }
+
+        ImGui.TextUnformatted($"Master Metrics: {master.MetricsKey}");
+    }
+
+    private string RegressionSummary()
+    {
+        return plugin.LastPresetRegressionReport.Success
+            ? $"Last run: {plugin.LastPresetRegressionReport.PresetCount} presets"
+            : plugin.LastPresetRegressionReport.Message;
+    }
+
+    private void DrawRegressionReports()
+    {
+        if (ImGui.Button("Run Preset Regression Reports###MainRunRegressionReports"))
+        {
+            plugin.RunPresetRegressionReports();
+        }
+
+        ImGui.TextWrapped(plugin.LastPresetRegressionReport.Message);
+    }
+
+    private string DebugSummary()
+    {
+        return $"{plugin.LastShaderSupportScan.Items.Count} supported variables detected";
+    }
+
+    private void DrawDebugDiagnostics()
+    {
+        DrawSetupItem("Shader variables detected", plugin.LastShaderSupportScan.Items.Count > 0);
+        DrawSetupItem("Generated at least once", plugin.LastWriteResult.Success);
+        DrawSetupItem("Reload attempted", plugin.LastReloadResult.Success);
+        ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
+        ImGui.TextWrapped("Dalashade only edits variables that already exist in the preset. Keep iMMERSE and any Pro/Ultimate shaders installed through ReShade; this plugin does not ship those files.");
+
+        if (ImGui.TreeNode("Detected shader support###MainDetectedShaderSupport"))
         {
             ImGui.TextWrapped(plugin.LastShaderSupportScan.Message);
             foreach (var item in plugin.LastShaderSupportScan.Items)
             {
                 ImGui.BulletText($"{item.Section} / {item.Key} ({item.ReasonCategory}, {PresetAnalyzer.FormatActivationState(item.ActivationState)})");
             }
-        }
 
-        if (ImGui.CollapsingHeader("Changed variables"))
+            ImGui.TreePop();
+        }
+    }
+
+    private static void DrawTechniqueTree(string title, params IReadOnlyList<PresetTechnique>[] groups)
+    {
+        if (!ImGui.TreeNode($"{title}###Main{title.Replace(" ", string.Empty, StringComparison.Ordinal)}"))
         {
-            if (plugin.LastWriteResult.Changes.Count == 0)
-            {
-                ImGui.TextUnformatted("No changed variables recorded yet.");
-            }
-
-            foreach (var change in plugin.LastWriteResult.Changes)
-            {
-                var activation = PresetAnalyzer.FormatActivationState(change.ActivationState);
-                var clamp = change.HitMin ? ", min clamp" : change.HitMax ? ", max clamp" : string.Empty;
-                ImGui.BulletText($"{change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} ({activation}{clamp})");
-                ImGui.SameLine();
-                ImGui.TextDisabled(change.ReasonCategory);
-                if (!string.IsNullOrWhiteSpace(change.Warning))
-                {
-                    ImGui.TextWrapped(change.Warning);
-                }
-            }
+            return;
         }
 
-        if (ImGui.CollapsingHeader("Sanitize actions"))
+        var any = false;
+        foreach (var group in groups)
         {
-            if (plugin.LastWriteResult.SanitizeActions.Count == 0)
+            foreach (var technique in group)
             {
-                ImGui.TextUnformatted("No sanitize actions recorded yet.");
-            }
-
-            foreach (var action in plugin.LastWriteResult.SanitizeActions)
-            {
-                var activation = PresetAnalyzer.FormatActivationState(action.ActivationState);
-                ImGui.BulletText($"{action.Section} / {action.Key}: {action.OldValue} -> {action.NewValue} ({action.ActionType}, {PresetAnalyzer.FormatRole(action.Role)}, {activation})");
-                ImGui.TextDisabled(action.Reason);
+                any = true;
+                ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatActivationState(technique.ActivationState)}, {PresetAnalyzer.FormatRole(technique.Role)}, {PresetAnalyzer.FormatRisk(technique.Risk)}, {technique.SupportLevel})");
             }
         }
 
-        ImGui.Separator();
+        if (!any)
+        {
+            ImGui.TextUnformatted("None.");
+        }
 
-        ImGui.TextWrapped(plugin.LastWriteResult.Message);
-        ImGui.TextWrapped(plugin.LastReloadResult.Message);
-        ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
-        ImGui.TextWrapped("Dalashade only edits variables that already exist in the preset. Keep iMMERSE and any Pro/Ultimate shaders installed through ReShade; this plugin does not ship those files.");
+        ImGui.TreePop();
+    }
+
+    private static void DrawAuthoritiesTree(IReadOnlyList<EffectAuthority> authorities)
+    {
+        if (!ImGui.TreeNode("Effect authorities###MainEffectAuthorities"))
+        {
+            return;
+        }
+
+        foreach (var authority in authorities)
+        {
+            ImGui.BulletText($"{PresetAnalyzer.FormatRole(authority.Role)}: {authority.PrimaryShader}");
+            foreach (var secondary in authority.SecondaryShaders)
+            {
+                ImGui.TextWrapped($"  secondary: {secondary}");
+            }
+        }
+
+        if (authorities.Count == 0)
+        {
+            ImGui.TextUnformatted("None.");
+        }
+
+        ImGui.TreePop();
+    }
+
+    private static void DrawWarningsTree(IReadOnlyList<string> warnings)
+    {
+        if (!ImGui.TreeNode("Warnings###MainCompatibilityWarnings"))
+        {
+            return;
+        }
+
+        if (warnings.Count == 0)
+        {
+            ImGui.TextUnformatted("No preset compatibility warnings yet.");
+        }
+
+        foreach (var warning in warnings)
+        {
+            ImGui.BulletText(warning);
+        }
+
+        ImGui.TreePop();
     }
 
     private static void DrawSetupItem(string label, bool complete)
