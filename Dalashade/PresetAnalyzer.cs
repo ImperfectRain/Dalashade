@@ -115,6 +115,10 @@ public sealed class PresetAnalyzer
         EffectRole.Bloom,
         EffectRole.Sharpen,
         EffectRole.AoGi,
+        EffectRole.Diffusion,
+        EffectRole.Dof,
+        EffectRole.FilmGrain,
+        EffectRole.Vignette,
         EffectRole.Lut,
         EffectRole.Deband,
         EffectRole.AntiAliasing
@@ -159,7 +163,7 @@ public sealed class PresetAnalyzer
                 .ThenBy(technique => technique.Role)
                 .ThenBy(technique => technique.ShaderFile, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
-            var report = BuildReport(techniques, lines);
+            var report = BuildReport(techniques, lines, configuration.CompatibilityMode);
 
             return new PresetAnalysisResult(
                 true,
@@ -335,7 +339,7 @@ public sealed class PresetAnalyzer
         return ContainsAny(text, "ffxiv", "marty", "quint", "prod80", "pd80", "pirate", "ppfx", "dh_");
     }
 
-    private static PresetRiskReport BuildReport(IReadOnlyList<PresetTechnique> techniques, IReadOnlyList<string> lines)
+    private static PresetRiskReport BuildReport(IReadOnlyList<PresetTechnique> techniques, IReadOnlyList<string> lines, PresetCompatibilityMode mode)
     {
         var active = techniques.Where(technique => technique.Active).ToArray();
         var activeSupported = active.Where(technique => technique.SupportLevel == SupportLevel.FullyControlled).ToArray();
@@ -349,8 +353,8 @@ public sealed class PresetAnalyzer
             .Select(group => group.First())
             .ToArray();
         var authorities = BuildAuthorities(active);
-        var multipleAuthorityWarnings = BuildMultipleAuthorityWarnings(active);
-        var warnings = BuildWarnings(active, activeUnsupported, highRiskActive, multipleAuthorityWarnings, lines);
+        var multipleAuthorityWarnings = BuildMultipleAuthorityWarnings(active, mode);
+        var warnings = BuildWarnings(active, activeUnsupported, highRiskActive, multipleAuthorityWarnings, lines, mode);
         var level = ScoreRiskLevel(active, activeUnsupported, highRiskActive, multipleAuthorityWarnings, warnings);
         var recommended = RecommendMode(level, active);
 
@@ -424,7 +428,7 @@ public sealed class PresetAnalyzer
         return supportOffset + shaderOffset;
     }
 
-    private static IReadOnlyList<string> BuildMultipleAuthorityWarnings(IReadOnlyList<PresetTechnique> active)
+    private static IReadOnlyList<string> BuildMultipleAuthorityWarnings(IReadOnlyList<PresetTechnique> active, PresetCompatibilityMode mode)
     {
         var warnings = new List<string>();
         foreach (var role in AuthorityRoles)
@@ -432,7 +436,23 @@ public sealed class PresetAnalyzer
             var count = active.Count(technique => technique.Role == role && technique.Risk != EffectRisk.UtilityIgnore);
             if (count > 1)
             {
-                warnings.Add($"Multiple active {FormatRole(role)} effects ({count}) may compete for the same visual role.");
+                var policy = CompatibilityRolePolicies.Get(role);
+                if (policy == null)
+                {
+                    warnings.Add($"Multiple active {FormatRole(role)} effects ({count}) may compete for the same visual role.");
+                }
+                else if (policy.MultipleActiveEffectsAllowed)
+                {
+                    warnings.Add($"Multiple active {FormatRole(role)} effects ({count}) are allowed by the selected compatibility policy; review the stack if the look feels too heavy.");
+                }
+                else if (mode == PresetCompatibilityMode.GameplaySanitize && policy.GameplaySanitizeMayReduce)
+                {
+                    warnings.Add($"Multiple active {FormatRole(role)} effects ({count}) may compete for the same visual role; Gameplay sanitize can dampen secondary adjustments.");
+                }
+                else
+                {
+                    warnings.Add($"Multiple active {FormatRole(role)} effects ({count}) may compete for the same visual role.");
+                }
             }
         }
 
@@ -456,18 +476,41 @@ public sealed class PresetAnalyzer
         IReadOnlyList<PresetTechnique> activeUnsupported,
         IReadOnlyList<PresetTechnique> highRiskActive,
         IReadOnlyList<string> multipleAuthorityWarnings,
-        IReadOnlyList<string> lines)
+        IReadOnlyList<string> lines,
+        PresetCompatibilityMode mode)
     {
         var warnings = new List<string>();
 
         if (activeUnsupported.Count > 0)
         {
             warnings.Add($"{activeUnsupported.Count} active effect(s) are not classified as controllable yet.");
+            foreach (var group in activeUnsupported.GroupBy(technique => technique.Role).OrderBy(group => group.Key))
+            {
+                if (CompatibilityRolePolicies.TryGet(group.Key, out var policy) && policy.UnsupportedActiveEffectsWarnOnly)
+                {
+                    warnings.Add($"{group.Count()} unsupported active {FormatRole(group.Key)} effect(s) are warn-only under the selected role policy.");
+                }
+                else if (mode == PresetCompatibilityMode.GameplaySanitize
+                         && CompatibilityRolePolicies.TryGet(group.Key, out var sanitizePolicy)
+                         && sanitizePolicy.GameplaySanitizeMayReduce)
+                {
+                    warnings.Add($"{group.Count()} unsupported active {FormatRole(group.Key)} effect(s) may still dominate the image; Gameplay sanitize can only reduce controlled secondary adjustments.");
+                }
+            }
         }
 
         foreach (var technique in highRiskActive.Take(8))
         {
-            warnings.Add($"{FormatTechnique(technique)} is {FormatRisk(technique.Risk)} for gameplay-style adaptation.");
+            if (mode == PresetCompatibilityMode.GposePreserve
+                && CompatibilityRolePolicies.TryGet(technique.Role, out var policy)
+                && policy.GposePreserveLeavesAlone)
+            {
+                warnings.Add($"{FormatTechnique(technique)} is {FormatRisk(technique.Risk)} for gameplay-style adaptation, but GPose preserve leaves this role alone.");
+            }
+            else
+            {
+                warnings.Add($"{FormatTechnique(technique)} is {FormatRisk(technique.Risk)} for gameplay-style adaptation.");
+            }
         }
 
         warnings.AddRange(multipleAuthorityWarnings);

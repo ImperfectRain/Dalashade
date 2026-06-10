@@ -374,6 +374,29 @@ public sealed class ShaderVariableMapper
             return EffectRole.Bloom;
         }
 
+        if (reason.Contains("diffusion", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("haze", StringComparison.OrdinalIgnoreCase))
+        {
+            return EffectRole.Diffusion;
+        }
+
+        if (reason.Contains("dof", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("depth of field", StringComparison.OrdinalIgnoreCase))
+        {
+            return EffectRole.Dof;
+        }
+
+        if (reason.Contains("film grain", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("grain", StringComparison.OrdinalIgnoreCase))
+        {
+            return EffectRole.FilmGrain;
+        }
+
+        if (reason.Contains("vignette", StringComparison.OrdinalIgnoreCase))
+        {
+            return EffectRole.Vignette;
+        }
+
         if (reason.Contains("sharpen", StringComparison.OrdinalIgnoreCase))
         {
             return EffectRole.Sharpen;

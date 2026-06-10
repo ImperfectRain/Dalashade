@@ -69,7 +69,9 @@ public sealed class CompatibilityReportExporter
         AppendTechniqueList(builder, "Active Unknown Effects", report.ActiveUnsupportedEffects);
         AppendTechniqueList(builder, "High-Risk Active Effects", report.HighRiskActiveEffects);
         AppendTechniqueList(builder, "Inactive Supported Effects", report.InactiveSupportedEffects);
-        AppendAuthorities(builder, report.Authorities, GenerationAuthorityPolicy.From(analysis, configuration.CompatibilityMode));
+        var authorityPolicy = GenerationAuthorityPolicy.From(analysis, configuration.CompatibilityMode);
+        AppendRolePolicies(builder, configuration.CompatibilityMode, authorityPolicy);
+        AppendAuthorities(builder, report.Authorities, authorityPolicy);
         AppendLines(builder, "Warnings", report.Warnings);
         AppendLines(builder, "Multiple Authority Warnings", report.MultipleAuthorityWarnings);
         AppendShaderSupport(builder, shaderSupport);
@@ -130,6 +132,24 @@ public sealed class CompatibilityReportExporter
             {
                 builder.AppendLine($"  - warned={warned}");
             }
+        }
+
+        builder.AppendLine();
+    }
+
+    private static void AppendRolePolicies(StringBuilder builder, PresetCompatibilityMode mode, GenerationAuthorityPolicy authorityPolicy)
+    {
+        builder.AppendLine("## Selected Role Policies");
+        builder.AppendLine();
+        foreach (var policy in CompatibilityRolePolicies.All)
+        {
+            var rolePolicy = authorityPolicy.Roles.FirstOrDefault(role => role.Role == policy.Role);
+            var activeStrength = rolePolicy?.SecondaryAdjustmentStrength ?? policy.GetSecondaryStrength(mode);
+            var multiple = policy.MultipleActiveEffectsAllowed ? "multiple allowed" : "single primary preferred";
+            var unsupported = policy.UnsupportedActiveEffectsWarnOnly ? "unsupported warn-only" : "unsupported escalates risk";
+            var sanitize = policy.GameplaySanitizeMayReduce ? $"gameplay sanitize may reduce secondaries ({activeStrength:0.##}x)" : "gameplay sanitize does not reduce";
+            var gpose = policy.GposePreserveLeavesAlone ? "GPose preserve leaves alone" : "GPose preserve may still adapt";
+            builder.AppendLine($"- {PresetAnalyzer.FormatRole(policy.Role)}: {multiple}; {unsupported}; {sanitize}; {gpose}");
         }
 
         builder.AppendLine();
