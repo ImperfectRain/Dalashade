@@ -7,6 +7,11 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace Dalashade;
 
+public sealed record TonalColorBias(float Hue, float Saturation, float Warmth, float Tint)
+{
+    public static TonalColorBias Empty { get; } = new(0f, 0f, 0f, 0f);
+}
+
 public sealed record ImageAnalysisResult(
     bool Available,
     string SourcePath,
@@ -22,9 +27,12 @@ public sealed record ImageAnalysisResult(
     float LuminanceP25,
     float LuminanceP50,
     float LuminanceP75,
-    float LuminanceP95)
+    float LuminanceP95,
+    TonalColorBias ShadowColor,
+    TonalColorBias MidtoneColor,
+    TonalColorBias HighlightColor)
 {
-    public static ImageAnalysisResult Empty { get; } = new(false, string.Empty, DateTimeOffset.MinValue, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f);
+    public static ImageAnalysisResult Empty { get; } = new(false, string.Empty, DateTimeOffset.MinValue, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, TonalColorBias.Empty, TonalColorBias.Empty, TonalColorBias.Empty);
 
     public float ShadowFloor => LuminanceP05;
     public float MidtoneLevel => LuminanceP50;
@@ -41,7 +49,7 @@ public sealed record ImageAnalysisResult(
             }
 
             return FormattableString.Invariant(
-                $"l{AverageLuminance:0.00}:c{Contrast:0.00}:s{AverageSaturation:0.00}:sh{ShadowClipping:0.00}:hi{HighlightClipping:0.00}:p05{LuminanceP05:0.00}:p50{LuminanceP50:0.00}:p95{LuminanceP95:0.00}:w{Warmth:0.00}:g{GreenBias:0.00}");
+                $"l{AverageLuminance:0.00}:c{Contrast:0.00}:s{AverageSaturation:0.00}:sh{ShadowClipping:0.00}:hi{HighlightClipping:0.00}:p05{LuminanceP05:0.00}:p50{LuminanceP50:0.00}:p95{LuminanceP95:0.00}:w{Warmth:0.00}:g{GreenBias:0.00}:sc{ShadowColor.Hue:0.00}/{ShadowColor.Saturation:0.00}:mc{MidtoneColor.Hue:0.00}/{MidtoneColor.Saturation:0.00}:hc{HighlightColor.Hue:0.00}/{HighlightColor.Saturation:0.00}");
         }
     }
 
@@ -166,6 +174,7 @@ public sealed class ImageAnalysisService
         double shadowWeight = 0;
         double highlightWeight = 0;
         var luminanceSamples = new List<WeightedLuminanceSample>();
+        var colorSamples = new List<WeightedColorSample>();
 
         for (var y = 0; y < image.Height; y += stepY)
         {
@@ -185,14 +194,17 @@ public sealed class ImageAnalysisService
                 var max = Math.Max(r, Math.Max(g, b));
                 var min = Math.Min(r, Math.Min(g, b));
                 var saturation = max <= 0.0001f ? 0f : (max - min) / max;
+                var warmth = r - b;
+                var tint = g - ((r + b) * 0.5f);
 
                 luminanceSum += luminance * weight;
                 luminanceSquaredSum += luminance * luminance * weight;
                 saturationSum += saturation * weight;
-                warmthSum += (r - b) * weight;
-                greenBiasSum += (g - ((r + b) * 0.5f)) * weight;
+                warmthSum += warmth * weight;
+                greenBiasSum += tint * weight;
                 weightSum += weight;
                 luminanceSamples.Add(new WeightedLuminanceSample(luminance, weight));
+                colorSamples.Add(new WeightedColorSample(luminance, weight, GetHue01(r, g, b, max, min), saturation, warmth, tint));
 
                 if (luminance < 0.035f)
                 {
@@ -215,6 +227,9 @@ public sealed class ImageAnalysisService
         var contrast = (float)Math.Sqrt(variance);
         var averageSaturation = (float)(saturationSum / weightSum);
         var percentiles = LuminancePercentiles.From(luminanceSamples, (float)weightSum);
+        var shadowColor = AverageTonalColor(colorSamples.Where(sample => sample.Luminance <= percentiles.P25));
+        var midtoneColor = AverageTonalColor(colorSamples.Where(sample => sample.Luminance > percentiles.P25 && sample.Luminance < percentiles.P75));
+        var highlightColor = AverageTonalColor(colorSamples.Where(sample => sample.Luminance >= percentiles.P75));
 
         return new ImageAnalysisResult(
             true,
@@ -231,7 +246,81 @@ public sealed class ImageAnalysisService
             percentiles.P25,
             percentiles.P50,
             percentiles.P75,
-            percentiles.P95);
+            percentiles.P95,
+            shadowColor,
+            midtoneColor,
+            highlightColor);
+    }
+
+    private static TonalColorBias AverageTonalColor(IEnumerable<WeightedColorSample> samples)
+    {
+        double weightSum = 0;
+        double chromaWeightSum = 0;
+        double hueX = 0;
+        double hueY = 0;
+        double saturationSum = 0;
+        double warmthSum = 0;
+        double tintSum = 0;
+
+        foreach (var sample in samples)
+        {
+            weightSum += sample.Weight;
+            saturationSum += sample.Saturation * sample.Weight;
+            warmthSum += sample.Warmth * sample.Weight;
+            tintSum += sample.Tint * sample.Weight;
+
+            var chromaWeight = sample.Weight * Math.Max(0.05f, sample.Saturation);
+            var angle = sample.Hue * MathF.Tau;
+            hueX += Math.Cos(angle) * chromaWeight;
+            hueY += Math.Sin(angle) * chromaWeight;
+            chromaWeightSum += chromaWeight;
+        }
+
+        if (weightSum <= 0)
+        {
+            return TonalColorBias.Empty;
+        }
+
+        var hue = 0f;
+        if (chromaWeightSum > 0)
+        {
+            var angle = Math.Atan2(hueY, hueX);
+            if (angle < 0)
+            {
+                angle += MathF.Tau;
+            }
+
+            hue = (float)(angle / MathF.Tau);
+        }
+
+        return new TonalColorBias(
+            hue,
+            (float)(saturationSum / weightSum),
+            (float)(warmthSum / weightSum),
+            (float)(tintSum / weightSum));
+    }
+
+    private static float GetHue01(float r, float g, float b, float max, float min)
+    {
+        var delta = max - min;
+        if (delta <= 0.0001f)
+        {
+            return 0f;
+        }
+
+        var hue = max == r
+            ? ((g - b) / delta) % 6f
+            : max == g
+                ? ((b - r) / delta) + 2f
+                : ((r - g) / delta) + 4f;
+
+        hue /= 6f;
+        if (hue < 0f)
+        {
+            hue += 1f;
+        }
+
+        return hue;
     }
 
     private static float GetSampleWeight(int x, int y, int width, int height, ImageSamplingMode samplingMode)
@@ -266,6 +355,8 @@ public sealed class ImageAnalysisService
 }
 
 internal readonly record struct WeightedLuminanceSample(float Luminance, float Weight);
+
+internal readonly record struct WeightedColorSample(float Luminance, float Weight, float Hue, float Saturation, float Warmth, float Tint);
 
 internal readonly record struct LuminancePercentiles(float P05, float P25, float P50, float P75, float P95)
 {

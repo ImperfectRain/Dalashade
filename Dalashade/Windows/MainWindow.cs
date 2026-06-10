@@ -116,6 +116,9 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Shadow Lift: {profile.ShadowLift:0.###}");
         ImGui.TextUnformatted($"Temperature: {profile.Temperature:0.###}");
         ImGui.TextUnformatted($"Tint: {profile.Tint:0.###}");
+        ImGui.TextUnformatted($"Shadow Hue/Sat Bias: {profile.ShadowHueBias:0.###} / {profile.ShadowSaturationBias:0.###}");
+        ImGui.TextUnformatted($"Midtone Hue/Sat Bias: {profile.MidtoneHueBias:0.###} / {profile.MidtoneSaturationBias:0.###}");
+        ImGui.TextUnformatted($"Highlight Hue/Sat Bias: {profile.HighlightHueBias:0.###} / {profile.HighlightSaturationBias:0.###}");
 
         ImGui.Separator();
 
@@ -131,6 +134,9 @@ public sealed class MainWindow : Window, IDisposable
             ImGui.TextUnformatted($"Highlight Clip: {image.HighlightClipping:P1}");
             ImGui.TextUnformatted($"Image Tonal P05/P50/P95: {image.LuminanceP05:0.###} / {image.LuminanceP50:0.###} / {image.LuminanceP95:0.###}");
             ImGui.TextUnformatted($"Image Tonal Spread: {image.ContrastSpread:0.###}");
+            ImGui.TextUnformatted($"Image Shadow H/S/W/T: {image.ShadowColor.Hue:0.###} / {image.ShadowColor.Saturation:0.###} / {image.ShadowColor.Warmth:0.###} / {image.ShadowColor.Tint:0.###}");
+            ImGui.TextUnformatted($"Image Midtone H/S/W/T: {image.MidtoneColor.Hue:0.###} / {image.MidtoneColor.Saturation:0.###} / {image.MidtoneColor.Warmth:0.###} / {image.MidtoneColor.Tint:0.###}");
+            ImGui.TextUnformatted($"Image Highlight H/S/W/T: {image.HighlightColor.Hue:0.###} / {image.HighlightColor.Saturation:0.###} / {image.HighlightColor.Warmth:0.###} / {image.HighlightColor.Tint:0.###}");
             ImGui.TextUnformatted($"Image Metrics: {image.MetricsKey}");
         }
 
@@ -146,6 +152,9 @@ public sealed class MainWindow : Window, IDisposable
             ImGui.TextUnformatted($"Master Warmth: {master.Warmth:0.###}");
             ImGui.TextUnformatted($"Master Tonal P05/P50/P95: {master.LuminanceP05:0.###} / {master.LuminanceP50:0.###} / {master.LuminanceP95:0.###}");
             ImGui.TextUnformatted($"Master Tonal Spread: {master.ContrastSpread:0.###}");
+            ImGui.TextUnformatted($"Master Shadow H/S/W/T: {master.ShadowColor.Hue:0.###} / {master.ShadowColor.Saturation:0.###} / {master.ShadowColor.Warmth:0.###} / {master.ShadowColor.Tint:0.###}");
+            ImGui.TextUnformatted($"Master Midtone H/S/W/T: {master.MidtoneColor.Hue:0.###} / {master.MidtoneColor.Saturation:0.###} / {master.MidtoneColor.Warmth:0.###} / {master.MidtoneColor.Tint:0.###}");
+            ImGui.TextUnformatted($"Master Highlight H/S/W/T: {master.HighlightColor.Hue:0.###} / {master.HighlightColor.Saturation:0.###} / {master.HighlightColor.Warmth:0.###} / {master.HighlightColor.Tint:0.###}");
             ImGui.TextUnformatted($"Master Metrics: {master.MetricsKey}");
         }
 

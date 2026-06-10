@@ -167,7 +167,10 @@ public sealed class MasterStyleService
             images.Average(image => image.LuminanceP25),
             images.Average(image => image.LuminanceP50),
             images.Average(image => image.LuminanceP75),
-            images.Average(image => image.LuminanceP95));
+            images.Average(image => image.LuminanceP95),
+            AverageColor(images.Select(image => image.ShadowColor)),
+            AverageColor(images.Select(image => image.MidtoneColor)),
+            AverageColor(images.Select(image => image.HighlightColor)));
     }
 
     private static ImageAnalysisResult Median(ImageAnalysisResult[] images, string folderPath, DateTime newestWriteTime)
@@ -187,7 +190,72 @@ public sealed class MasterStyleService
             MedianValue(images.Select(image => image.LuminanceP25)),
             MedianValue(images.Select(image => image.LuminanceP50)),
             MedianValue(images.Select(image => image.LuminanceP75)),
-            MedianValue(images.Select(image => image.LuminanceP95)));
+            MedianValue(images.Select(image => image.LuminanceP95)),
+            MedianColor(images.Select(image => image.ShadowColor)),
+            MedianColor(images.Select(image => image.MidtoneColor)),
+            MedianColor(images.Select(image => image.HighlightColor)));
+    }
+
+    private static TonalColorBias AverageColor(IEnumerable<TonalColorBias> colors)
+    {
+        double hueX = 0;
+        double hueY = 0;
+        double hueWeight = 0;
+        double saturationSum = 0;
+        double warmthSum = 0;
+        double tintSum = 0;
+        var count = 0;
+
+        foreach (var color in colors)
+        {
+            var chromaWeight = Math.Max(0.05f, color.Saturation);
+            var angle = color.Hue * MathF.Tau;
+            hueX += Math.Cos(angle) * chromaWeight;
+            hueY += Math.Sin(angle) * chromaWeight;
+            hueWeight += chromaWeight;
+            saturationSum += color.Saturation;
+            warmthSum += color.Warmth;
+            tintSum += color.Tint;
+            count++;
+        }
+
+        if (count == 0)
+        {
+            return TonalColorBias.Empty;
+        }
+
+        var hue = 0f;
+        if (hueWeight > 0)
+        {
+            var angle = Math.Atan2(hueY, hueX);
+            if (angle < 0)
+            {
+                angle += MathF.Tau;
+            }
+
+            hue = (float)(angle / MathF.Tau);
+        }
+
+        return new TonalColorBias(
+            hue,
+            (float)(saturationSum / count),
+            (float)(warmthSum / count),
+            (float)(tintSum / count));
+    }
+
+    private static TonalColorBias MedianColor(IEnumerable<TonalColorBias> colors)
+    {
+        var array = colors.ToArray();
+        if (array.Length == 0)
+        {
+            return TonalColorBias.Empty;
+        }
+
+        return new TonalColorBias(
+            MedianValue(array.Select(color => color.Hue)),
+            MedianValue(array.Select(color => color.Saturation)),
+            MedianValue(array.Select(color => color.Warmth)),
+            MedianValue(array.Select(color => color.Tint)));
     }
 
     private static float MedianValue(IEnumerable<float> values)
@@ -216,7 +284,19 @@ public sealed class MasterStyleService
                + Squared(left.HighlightCeiling - right.HighlightCeiling)
                + Squared(left.ContrastSpread - right.ContrastSpread) * 1.2f
                + Squared(left.Warmth - right.Warmth) * 0.8f
-               + Squared(left.GreenBias - right.GreenBias) * 0.8f;
+               + Squared(left.GreenBias - right.GreenBias) * 0.8f
+               + Squared(HueDistance(left.ShadowColor.Hue, right.ShadowColor.Hue)) * 0.25f
+               + Squared(HueDistance(left.MidtoneColor.Hue, right.MidtoneColor.Hue)) * 0.35f
+               + Squared(HueDistance(left.HighlightColor.Hue, right.HighlightColor.Hue)) * 0.25f
+               + Squared(left.ShadowColor.Saturation - right.ShadowColor.Saturation) * 0.35f
+               + Squared(left.MidtoneColor.Saturation - right.MidtoneColor.Saturation) * 0.45f
+               + Squared(left.HighlightColor.Saturation - right.HighlightColor.Saturation) * 0.35f;
+    }
+
+    private static float HueDistance(float left, float right)
+    {
+        var delta = Math.Abs(left - right);
+        return delta > 0.5f ? 1f - delta : delta;
     }
 
     private static float Squared(float value) => value * value;

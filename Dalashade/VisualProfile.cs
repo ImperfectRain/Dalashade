@@ -30,12 +30,19 @@ public sealed record VisualProfile(
     float ColorGradePreservation,
     float ShadowLift,
     float Temperature,
-    float Tint)
+    float Tint,
+    float ShadowHueBias,
+    float ShadowSaturationBias,
+    float MidtoneHueBias,
+    float MidtoneSaturationBias,
+    float HighlightHueBias,
+    float HighlightSaturationBias)
 {
     public static VisualProfile Neutral { get; } = new(
         1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f,
         1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f,
-        1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, 0f, 0f);
+        1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, 0f, 0f,
+        0f, 0f, 0f, 0f, 0f, 0f);
 }
 
 public sealed class ProfileEngine
@@ -82,6 +89,12 @@ public sealed class ProfileEngine
         var shadowLift = 0f;
         var temperature = 0f;
         var tint = 0f;
+        var shadowHueBias = 0f;
+        var shadowSaturationBias = 0f;
+        var midtoneHueBias = 0f;
+        var midtoneSaturationBias = 0f;
+        var highlightHueBias = 0f;
+        var highlightSaturationBias = 0f;
 
         ApplyBasePolish(context, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift);
         rules?.Add(new AppliedRule("Base polish", "Small default lift so the generated preset feels like an upgrade, not just a safety mode.", "contrast, saturation, clarity, shadow lift"));
@@ -180,7 +193,13 @@ public sealed class ProfileEngine
                 ref midtoneContrast,
                 ref shadowLift,
                 ref temperature,
-                ref tint);
+                ref tint,
+                ref shadowHueBias,
+                ref shadowSaturationBias,
+                ref midtoneHueBias,
+                ref midtoneSaturationBias,
+                ref highlightHueBias,
+                ref highlightSaturationBias);
             rules?.Add(new AppliedRule("Master style", $"Reference look reads as {masterStyle.ProfileBucket}; {masterTone.Description}", masterTone.Changes));
         }
 
@@ -217,7 +236,13 @@ public sealed class ProfileEngine
             Clamp(colorGradePreservation, 0f, 1f),
             Clamp(shadowLift, 0f, 0.35f),
             Clamp(temperature, -0.30f, 0.30f),
-            Clamp(tint, -0.20f, 0.20f));
+            Clamp(tint, -0.20f, 0.20f),
+            Clamp(shadowHueBias, -0.05f, 0.05f),
+            Clamp(shadowSaturationBias, -0.12f, 0.12f),
+            Clamp(midtoneHueBias, -0.05f, 0.05f),
+            Clamp(midtoneSaturationBias, -0.14f, 0.14f),
+            Clamp(highlightHueBias, -0.04f, 0.04f),
+            Clamp(highlightSaturationBias, -0.10f, 0.10f));
     }
 
     private static void ApplyWeather(GameContext context, SceneTags tags, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float bloomRadius, ref float bloomThreshold, ref float bloomDirt, ref float highlightRecovery, ref float debandStrength, List<AppliedRule>? rules)
@@ -438,9 +463,16 @@ public sealed class ProfileEngine
         ref float midtoneContrast,
         ref float shadowLift,
         ref float temperature,
-        ref float tint)
+        ref float tint,
+        ref float shadowHueBias,
+        ref float shadowSaturationBias,
+        ref float midtoneHueBias,
+        ref float midtoneSaturationBias,
+        ref float highlightHueBias,
+        ref float highlightSaturationBias)
     {
         var strength = Clamp(configuration.MasterPresetStyleStrength / 100f, 0f, 1f);
+        var colorStrength = strength * MasterStyleColorCompatibilityScale(configuration.CompatibilityMode);
         var scene = current.Available ? current : ImageAnalysisResult.Empty;
 
         var luminanceDelta = target.AverageLuminance - (current.Available ? scene.AverageLuminance : 0.50f);
@@ -466,6 +498,10 @@ public sealed class ProfileEngine
         saturation += Clamp(saturationDelta * 0.80f, -0.18f, 0.18f) * strength;
         temperature += Clamp(warmthDelta * 0.95f, -0.24f, 0.24f) * strength;
         tint += Clamp(greenDelta * 0.75f, -0.16f, 0.16f) * strength;
+
+        var shadowColor = ApplyTonalColorBias(scene.ShadowColor, target.ShadowColor, colorStrength, 0.085f, 0.22f, ref shadowHueBias, ref shadowSaturationBias);
+        var midtoneColor = ApplyTonalColorBias(scene.MidtoneColor, target.MidtoneColor, colorStrength, 0.100f, 0.26f, ref midtoneHueBias, ref midtoneSaturationBias);
+        var highlightColor = ApplyTonalColorBias(scene.HighlightColor, target.HighlightColor, colorStrength, 0.075f, 0.18f, ref highlightHueBias, ref highlightSaturationBias);
 
         if (target.HighlightClipping > 0.07f && target.AverageLuminance > 0.58f)
         {
@@ -508,8 +544,64 @@ public sealed class ProfileEngine
         };
 
         return new MasterStyleToneSummary(
-            $"tonal percentile matching at {configuration.MasterPresetStyleStrength}% strength: {shadowText}, {highlightText}, {contrastText}.",
-            $"shadow floor {sceneShadowFloor:0.00}->{target.ShadowFloor:0.00}, midtone {sceneMidtone:0.00}->{target.MidtoneLevel:0.00}, highlight {sceneHighlightCeiling:0.00}->{target.HighlightCeiling:0.00}, spread {sceneSpread:0.00}->{target.ContrastSpread:0.00}");
+            $"tonal percentile matching at {configuration.MasterPresetStyleStrength}% strength: {shadowText}, {highlightText}, {contrastText}; tonal color bias scale {colorStrength:0.##}.",
+            $"shadow floor {sceneShadowFloor:0.00}->{target.ShadowFloor:0.00}, midtone {sceneMidtone:0.00}->{target.MidtoneLevel:0.00}, highlight {sceneHighlightCeiling:0.00}->{target.HighlightCeiling:0.00}, spread {sceneSpread:0.00}->{target.ContrastSpread:0.00}; shadow {shadowColor}, midtone {midtoneColor}, highlight {highlightColor}");
+    }
+
+    private static string ApplyTonalColorBias(
+        TonalColorBias current,
+        TonalColorBias target,
+        float strength,
+        float hueScale,
+        float saturationScale,
+        ref float hueBias,
+        ref float saturationBias)
+    {
+        if (strength <= 0f)
+        {
+            return "held";
+        }
+
+        var chromaWeight = Clamp((current.Saturation + target.Saturation) * 0.5f, 0f, 1f);
+        var hueDelta = HueDelta(target.Hue, current.Hue) * chromaWeight;
+        var warmthDelta = target.Warmth - current.Warmth;
+        var tintDelta = target.Tint - current.Tint;
+        var saturationDelta = target.Saturation - current.Saturation;
+        var hueAdjustment = Clamp((hueDelta * hueScale) + (warmthDelta * 0.025f) + (tintDelta * 0.018f), -0.030f, 0.030f) * strength;
+        var saturationAdjustment = Clamp(saturationDelta * saturationScale, -0.070f, 0.070f) * strength;
+
+        hueBias += hueAdjustment;
+        saturationBias += saturationAdjustment;
+
+        return FormattableString.Invariant($"hue {hueAdjustment:+0.000;-0.000;0.000}, sat {saturationAdjustment:+0.000;-0.000;0.000}");
+    }
+
+    private static float HueDelta(float target, float current)
+    {
+        var delta = target - current;
+        if (delta > 0.5f)
+        {
+            delta -= 1f;
+        }
+        else if (delta < -0.5f)
+        {
+            delta += 1f;
+        }
+
+        return delta;
+    }
+
+    private static float MasterStyleColorCompatibilityScale(PresetCompatibilityMode mode)
+    {
+        return mode switch
+        {
+            PresetCompatibilityMode.PreserveBase => 0f,
+            PresetCompatibilityMode.AdaptiveBalanced => 0.55f,
+            PresetCompatibilityMode.GameplaySanitize => 0.30f,
+            PresetCompatibilityMode.CinematicPreserve => 0.75f,
+            PresetCompatibilityMode.GposePreserve => 0.35f,
+            _ => 0.55f
+        };
     }
 
     private static void ApplyStyle(TargetStyle style, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness)

@@ -438,12 +438,12 @@ public sealed class ShaderVariableMapper
         AddAdd(definitions, section, "E_VIBRANCE", reason, -5f, 5f, profile => (profile.Saturation - 1f) * 0.5f, true);
         AddAdd(definitions, section, "E_TEMP", reason, 4500f, 8500f, profile => profile.Temperature * 1800f, true);
         AddAdd(definitions, section, "E_TINT", reason, -1f, 1f, profile => profile.Tint * 0.50f, true);
-        AddScale(definitions, section, "E_SHADOWS_HUE", "ReGrade+ tonal color preservation", -1f, 1f, profile => profile.ColorGradePreservation, true);
-        AddScale(definitions, section, "E_SHADOWS_SAT", "ReGrade+ tonal color preservation", -1f, 1f, profile => profile.ColorGradePreservation, true);
-        AddScale(definitions, section, "E_MIDTONES_HUE", "ReGrade+ tonal color preservation", -1f, 1f, profile => profile.ColorGradePreservation, true);
-        AddScale(definitions, section, "E_MIDTONES_SAT", "ReGrade+ tonal color preservation", -1f, 1f, profile => profile.ColorGradePreservation, true);
-        AddScale(definitions, section, "E_HIGHLIGHTS_HUE", "ReGrade+ tonal color preservation", -1f, 1f, profile => profile.ColorGradePreservation, true);
-        AddScale(definitions, section, "E_HIGHLIGHTS_SAT", "ReGrade+ tonal color preservation", -1f, 1f, profile => profile.ColorGradePreservation, true);
+        AddAdd(definitions, section, "E_SHADOWS_HUE", "ReGrade+ shadow hue bias", -1f, 1f, profile => profile.ShadowHueBias, true);
+        AddAdd(definitions, section, "E_SHADOWS_SAT", "ReGrade+ shadow saturation bias", -1f, 1f, profile => profile.ShadowSaturationBias, true);
+        AddAdd(definitions, section, "E_MIDTONES_HUE", "ReGrade+ midtone hue bias", -1f, 1f, profile => profile.MidtoneHueBias, true);
+        AddAdd(definitions, section, "E_MIDTONES_SAT", "ReGrade+ midtone saturation bias", -1f, 1f, profile => profile.MidtoneSaturationBias, true);
+        AddAdd(definitions, section, "E_HIGHLIGHTS_HUE", "ReGrade+ highlight hue bias", -1f, 1f, profile => profile.HighlightHueBias, true);
+        AddAdd(definitions, section, "E_HIGHLIGHTS_SAT", "ReGrade+ highlight saturation bias", -1f, 1f, profile => profile.HighlightSaturationBias, true);
 
         AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_RED_V2");
         AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_ORANGE_V2");
