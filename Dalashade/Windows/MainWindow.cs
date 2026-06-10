@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
@@ -119,6 +120,21 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Shadow Hue/Sat Bias: {profile.ShadowHueBias:0.###} / {profile.ShadowSaturationBias:0.###}");
         ImGui.TextUnformatted($"Midtone Hue/Sat Bias: {profile.MidtoneHueBias:0.###} / {profile.MidtoneSaturationBias:0.###}");
         ImGui.TextUnformatted($"Highlight Hue/Sat Bias: {profile.HighlightHueBias:0.###} / {profile.HighlightSaturationBias:0.###}");
+        if (ImGui.TreeNode("Color family adjustments"))
+        {
+            var strongest = profile.StrongestColorFamilyAdjustments(8);
+            if (strongest.Count == 0)
+            {
+                ImGui.TextUnformatted("No active color family adjustments.");
+            }
+
+            foreach (var adjustment in strongest)
+            {
+                ImGui.BulletText($"{adjustment.Family}: H {adjustment.Hue:+0.000;-0.000;0.000}, S {adjustment.Saturation:+0.000;-0.000;0.000}, L {adjustment.Luminance:+0.000;-0.000;0.000}, confidence {adjustment.Confidence:0.00}");
+            }
+
+            ImGui.TreePop();
+        }
 
         ImGui.Separator();
 
@@ -137,6 +153,12 @@ public sealed class MainWindow : Window, IDisposable
             ImGui.TextUnformatted($"Image Shadow H/S/W/T: {image.ShadowColor.Hue:0.###} / {image.ShadowColor.Saturation:0.###} / {image.ShadowColor.Warmth:0.###} / {image.ShadowColor.Tint:0.###}");
             ImGui.TextUnformatted($"Image Midtone H/S/W/T: {image.MidtoneColor.Hue:0.###} / {image.MidtoneColor.Saturation:0.###} / {image.MidtoneColor.Warmth:0.###} / {image.MidtoneColor.Tint:0.###}");
             ImGui.TextUnformatted($"Image Highlight H/S/W/T: {image.HighlightColor.Hue:0.###} / {image.HighlightColor.Saturation:0.###} / {image.HighlightColor.Warmth:0.###} / {image.HighlightColor.Tint:0.###}");
+            if (ImGui.TreeNode("Image color families"))
+            {
+                DrawColorFamilyStats(image.ColorFamilies);
+                ImGui.TreePop();
+            }
+
             ImGui.TextUnformatted($"Image Metrics: {image.MetricsKey}");
         }
 
@@ -155,6 +177,12 @@ public sealed class MainWindow : Window, IDisposable
             ImGui.TextUnformatted($"Master Shadow H/S/W/T: {master.ShadowColor.Hue:0.###} / {master.ShadowColor.Saturation:0.###} / {master.ShadowColor.Warmth:0.###} / {master.ShadowColor.Tint:0.###}");
             ImGui.TextUnformatted($"Master Midtone H/S/W/T: {master.MidtoneColor.Hue:0.###} / {master.MidtoneColor.Saturation:0.###} / {master.MidtoneColor.Warmth:0.###} / {master.MidtoneColor.Tint:0.###}");
             ImGui.TextUnformatted($"Master Highlight H/S/W/T: {master.HighlightColor.Hue:0.###} / {master.HighlightColor.Saturation:0.###} / {master.HighlightColor.Warmth:0.###} / {master.HighlightColor.Tint:0.###}");
+            if (ImGui.TreeNode("Master color families"))
+            {
+                DrawColorFamilyStats(master.ColorFamilies);
+                ImGui.TreePop();
+            }
+
             ImGui.TextUnformatted($"Master Metrics: {master.MetricsKey}");
         }
 
@@ -326,5 +354,19 @@ public sealed class MainWindow : Window, IDisposable
     private static void DrawSetupItem(string label, bool complete)
     {
         ImGui.BulletText($"{(complete ? "OK" : "Missing")} - {label}");
+    }
+
+    private static void DrawColorFamilyStats(IReadOnlyDictionary<ColorFamily, ColorFamilyStats> families)
+    {
+        foreach (var family in Enum.GetValues<ColorFamily>())
+        {
+            var stats = families.TryGetValue(family, out var value) ? value : ColorFamilyStats.Empty(family);
+            if (stats.Confidence <= 0.02f)
+            {
+                continue;
+            }
+
+            ImGui.BulletText($"{family}: H {stats.Hue:0.###}, S {stats.Saturation:0.###}, L {stats.Luminance:0.###}, coverage {stats.Coverage:P1}, confidence {stats.Confidence:0.##}");
+        }
     }
 }

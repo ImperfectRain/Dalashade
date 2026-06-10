@@ -64,7 +64,7 @@ public sealed class PresetRegressionReportHarness
 
                 var reportName = MakeSafeFileName(Path.GetRelativePath(presetFolder, presetPath));
                 var reportPath = CreateUniqueReportPath(outputDirectory, Path.GetFileNameWithoutExtension(reportName));
-                File.WriteAllText(reportPath, BuildPresetReport(summary, analysis, support, writeResult), Encoding.UTF8);
+                File.WriteAllText(reportPath, BuildPresetReport(summary, analysis, support, profile, writeResult), Encoding.UTF8);
             }
 
             File.WriteAllText(Path.Combine(outputDirectory, "index.md"), BuildIndexReport(configuration, presetFolder, summaries), Encoding.UTF8);
@@ -103,6 +103,7 @@ public sealed class PresetRegressionReportHarness
         PresetRegressionSummary summary,
         PresetAnalysisResult analysis,
         ShaderSupportScan support,
+        VisualProfile profile,
         PresetWriteResult writeResult)
     {
         var builder = new StringBuilder();
@@ -123,6 +124,7 @@ public sealed class PresetRegressionReportHarness
         AppendTechniqueGroup(builder, "Active detected-only effects", analysis.Report.ActiveDetectedOnlyEffects);
         AppendTechniqueGroup(builder, "Active unsupported effects", analysis.Report.ActiveUnsupportedEffects);
         AppendAuthorities(builder, analysis.Report.Authorities);
+        AppendColorFamilyAdjustments(builder, profile);
 
         builder.AppendLine("## Scan Messages");
         builder.AppendLine();
@@ -132,6 +134,26 @@ public sealed class PresetRegressionReportHarness
         builder.AppendLine();
 
         return builder.ToString();
+    }
+
+    private static void AppendColorFamilyAdjustments(StringBuilder builder, VisualProfile profile)
+    {
+        builder.AppendLine("## Master style color family adjustments");
+        builder.AppendLine();
+        var strongest = profile.StrongestColorFamilyAdjustments(8);
+        if (strongest.Count == 0)
+        {
+            builder.AppendLine("- None");
+            builder.AppendLine();
+            return;
+        }
+
+        foreach (var adjustment in strongest)
+        {
+            builder.AppendLine($"- {adjustment.Family}: hue={adjustment.Hue:+0.000;-0.000;0.000} | saturation={adjustment.Saturation:+0.000;-0.000;0.000} | luminance={adjustment.Luminance:+0.000;-0.000;0.000} | confidence={adjustment.Confidence:0.00}");
+        }
+
+        builder.AppendLine();
     }
 
     private static string BuildIndexReport(Configuration configuration, string presetFolder, IReadOnlyList<PresetRegressionSummary> summaries)

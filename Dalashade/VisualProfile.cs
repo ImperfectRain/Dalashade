@@ -1,7 +1,18 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Dalashade;
+
+public sealed record ColorFamilyAdjustment(ColorFamily Family, float Hue, float Saturation, float Luminance, float Confidence)
+{
+    public static ColorFamilyAdjustment Empty(ColorFamily family) => new(family, 0f, 0f, 0f, 0f);
+
+    public static IReadOnlyDictionary<ColorFamily, ColorFamilyAdjustment> EmptyMap { get; } = Enum.GetValues<ColorFamily>()
+        .ToDictionary(family => family, Empty);
+
+    public float Score => MathF.Abs(Hue) + MathF.Abs(Saturation) + MathF.Abs(Luminance);
+}
 
 public sealed record VisualProfile(
     float Exposure,
@@ -36,13 +47,31 @@ public sealed record VisualProfile(
     float MidtoneHueBias,
     float MidtoneSaturationBias,
     float HighlightHueBias,
-    float HighlightSaturationBias)
+    float HighlightSaturationBias,
+    IReadOnlyDictionary<ColorFamily, ColorFamilyAdjustment> ColorFamilyAdjustments)
 {
     public static VisualProfile Neutral { get; } = new(
         1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f,
         1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f,
         1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f, 0f, 0f, 0f,
-        0f, 0f, 0f, 0f, 0f, 0f);
+        0f, 0f, 0f, 0f, 0f, 0f, ColorFamilyAdjustment.EmptyMap);
+
+    public ColorFamilyAdjustment GetColorFamilyAdjustment(ColorFamily family)
+    {
+        return ColorFamilyAdjustments.TryGetValue(family, out var adjustment)
+            ? adjustment
+            : ColorFamilyAdjustment.Empty(family);
+    }
+
+    public IReadOnlyList<ColorFamilyAdjustment> StrongestColorFamilyAdjustments(int count)
+    {
+        return ColorFamilyAdjustments.Values
+            .Where(adjustment => adjustment.Score > 0.0005f)
+            .OrderByDescending(adjustment => adjustment.Score)
+            .ThenBy(adjustment => adjustment.Family)
+            .Take(count)
+            .ToArray();
+    }
 }
 
 public sealed class ProfileEngine
@@ -95,6 +124,7 @@ public sealed class ProfileEngine
         var midtoneSaturationBias = 0f;
         var highlightHueBias = 0f;
         var highlightSaturationBias = 0f;
+        var colorFamilyAdjustments = ColorFamilyAdjustment.EmptyMap;
 
         ApplyBasePolish(context, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift);
         rules?.Add(new AppliedRule("Base polish", "Small default lift so the generated preset feels like an upgrade, not just a safety mode.", "contrast, saturation, clarity, shadow lift"));
@@ -199,7 +229,8 @@ public sealed class ProfileEngine
                 ref midtoneHueBias,
                 ref midtoneSaturationBias,
                 ref highlightHueBias,
-                ref highlightSaturationBias);
+                ref highlightSaturationBias,
+                out colorFamilyAdjustments);
             rules?.Add(new AppliedRule("Master style", $"Reference look reads as {masterStyle.ProfileBucket}; {masterTone.Description}", masterTone.Changes));
         }
 
@@ -242,7 +273,8 @@ public sealed class ProfileEngine
             Clamp(midtoneHueBias, -0.05f, 0.05f),
             Clamp(midtoneSaturationBias, -0.14f, 0.14f),
             Clamp(highlightHueBias, -0.04f, 0.04f),
-            Clamp(highlightSaturationBias, -0.10f, 0.10f));
+            Clamp(highlightSaturationBias, -0.10f, 0.10f),
+            colorFamilyAdjustments);
     }
 
     private static void ApplyWeather(GameContext context, SceneTags tags, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float bloomRadius, ref float bloomThreshold, ref float bloomDirt, ref float highlightRecovery, ref float debandStrength, List<AppliedRule>? rules)
@@ -469,11 +501,13 @@ public sealed class ProfileEngine
         ref float midtoneHueBias,
         ref float midtoneSaturationBias,
         ref float highlightHueBias,
-        ref float highlightSaturationBias)
+        ref float highlightSaturationBias,
+        out IReadOnlyDictionary<ColorFamily, ColorFamilyAdjustment> colorFamilyAdjustments)
     {
         var strength = Clamp(configuration.MasterPresetStyleStrength / 100f, 0f, 1f);
         var colorStrength = strength * MasterStyleColorCompatibilityScale(configuration.CompatibilityMode);
         var scene = current.Available ? current : ImageAnalysisResult.Empty;
+        colorFamilyAdjustments = CreateColorFamilyAdjustments(scene, target, colorStrength, current.Available);
 
         var luminanceDelta = target.AverageLuminance - (current.Available ? scene.AverageLuminance : 0.50f);
         var saturationDelta = target.AverageSaturation - (current.Available ? scene.AverageSaturation : 0.38f);
@@ -545,7 +579,54 @@ public sealed class ProfileEngine
 
         return new MasterStyleToneSummary(
             $"tonal percentile matching at {configuration.MasterPresetStyleStrength}% strength: {shadowText}, {highlightText}, {contrastText}; tonal color bias scale {colorStrength:0.##}.",
-            $"shadow floor {sceneShadowFloor:0.00}->{target.ShadowFloor:0.00}, midtone {sceneMidtone:0.00}->{target.MidtoneLevel:0.00}, highlight {sceneHighlightCeiling:0.00}->{target.HighlightCeiling:0.00}, spread {sceneSpread:0.00}->{target.ContrastSpread:0.00}; shadow {shadowColor}, midtone {midtoneColor}, highlight {highlightColor}");
+            $"shadow floor {sceneShadowFloor:0.00}->{target.ShadowFloor:0.00}, midtone {sceneMidtone:0.00}->{target.MidtoneLevel:0.00}, highlight {sceneHighlightCeiling:0.00}->{target.HighlightCeiling:0.00}, spread {sceneSpread:0.00}->{target.ContrastSpread:0.00}; shadow {shadowColor}, midtone {midtoneColor}, highlight {highlightColor}; color families {FormatStrongestFamilyAdjustments(colorFamilyAdjustments)}");
+    }
+
+    private static IReadOnlyDictionary<ColorFamily, ColorFamilyAdjustment> CreateColorFamilyAdjustments(ImageAnalysisResult current, ImageAnalysisResult target, float strength, bool hasCurrentScene)
+    {
+        if (!hasCurrentScene || strength <= 0f)
+        {
+            return ColorFamilyAdjustment.EmptyMap;
+        }
+
+        return Enum.GetValues<ColorFamily>().ToDictionary(
+            family => family,
+            family =>
+            {
+                var currentStats = current.ColorFamilies.TryGetValue(family, out var currentValue) ? currentValue : ColorFamilyStats.Empty(family);
+                var targetStats = target.ColorFamilies.TryGetValue(family, out var targetValue) ? targetValue : ColorFamilyStats.Empty(family);
+                var confidence = MathF.Min(currentStats.Confidence, targetStats.Confidence);
+
+                if (confidence < 0.10f)
+                {
+                    return ColorFamilyAdjustment.Empty(family);
+                }
+
+                var effectiveStrength = strength * confidence;
+                var hue = Clamp(HueDelta(targetStats.Hue, currentStats.Hue) * 0.18f, -0.025f, 0.025f) * effectiveStrength;
+                var saturation = Clamp((targetStats.Saturation - currentStats.Saturation) * 0.20f, -0.050f, 0.050f) * effectiveStrength;
+                var luminance = Clamp((targetStats.Luminance - currentStats.Luminance) * 0.16f, -0.040f, 0.040f) * effectiveStrength;
+
+                return new ColorFamilyAdjustment(
+                    family,
+                    Clamp(hue, -0.020f, 0.020f),
+                    Clamp(saturation, -0.040f, 0.040f),
+                    Clamp(luminance, -0.030f, 0.030f),
+                    confidence);
+            });
+    }
+
+    private static string FormatStrongestFamilyAdjustments(IReadOnlyDictionary<ColorFamily, ColorFamilyAdjustment> adjustments)
+    {
+        var strongest = adjustments.Values
+            .Where(adjustment => adjustment.Score > 0.0005f)
+            .OrderByDescending(adjustment => adjustment.Score)
+            .ThenBy(adjustment => adjustment.Family)
+            .Take(3)
+            .Select(adjustment => FormattableString.Invariant($"{adjustment.Family} H{adjustment.Hue:+0.000;-0.000;0.000} S{adjustment.Saturation:+0.000;-0.000;0.000} L{adjustment.Luminance:+0.000;-0.000;0.000} C{adjustment.Confidence:0.00}"))
+            .ToArray();
+
+        return strongest.Length == 0 ? "held" : string.Join(", ", strongest);
     }
 
     private static string ApplyTonalColorBias(

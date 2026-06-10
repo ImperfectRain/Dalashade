@@ -170,7 +170,8 @@ public sealed class MasterStyleService
             images.Average(image => image.LuminanceP95),
             AverageColor(images.Select(image => image.ShadowColor)),
             AverageColor(images.Select(image => image.MidtoneColor)),
-            AverageColor(images.Select(image => image.HighlightColor)));
+            AverageColor(images.Select(image => image.HighlightColor)),
+            AverageFamilies(images));
     }
 
     private static ImageAnalysisResult Median(ImageAnalysisResult[] images, string folderPath, DateTime newestWriteTime)
@@ -193,7 +194,83 @@ public sealed class MasterStyleService
             MedianValue(images.Select(image => image.LuminanceP95)),
             MedianColor(images.Select(image => image.ShadowColor)),
             MedianColor(images.Select(image => image.MidtoneColor)),
-            MedianColor(images.Select(image => image.HighlightColor)));
+            MedianColor(images.Select(image => image.HighlightColor)),
+            MedianFamilies(images));
+    }
+
+    private static IReadOnlyDictionary<ColorFamily, ColorFamilyStats> AverageFamilies(ImageAnalysisResult[] images)
+    {
+        return Enum.GetValues<ColorFamily>().ToDictionary(
+            family => family,
+            family => AverageFamily(images.Select(image => image.ColorFamilies.TryGetValue(family, out var stats) ? stats : ColorFamilyStats.Empty(family)), family));
+    }
+
+    private static IReadOnlyDictionary<ColorFamily, ColorFamilyStats> MedianFamilies(ImageAnalysisResult[] images)
+    {
+        return Enum.GetValues<ColorFamily>().ToDictionary(
+            family => family,
+            family =>
+            {
+                var stats = images.Select(image => image.ColorFamilies.TryGetValue(family, out var value) ? value : ColorFamilyStats.Empty(family)).ToArray();
+                return new ColorFamilyStats(
+                    family,
+                    MedianValue(stats.Select(value => value.Hue)),
+                    MedianValue(stats.Select(value => value.Saturation)),
+                    MedianValue(stats.Select(value => value.Luminance)),
+                    MedianValue(stats.Select(value => value.Coverage)),
+                    MedianValue(stats.Select(value => value.Confidence)));
+            });
+    }
+
+    private static ColorFamilyStats AverageFamily(IEnumerable<ColorFamilyStats> stats, ColorFamily family)
+    {
+        double hueX = 0;
+        double hueY = 0;
+        double hueWeight = 0;
+        double saturationSum = 0;
+        double luminanceSum = 0;
+        double coverageSum = 0;
+        double confidenceSum = 0;
+        var count = 0;
+
+        foreach (var value in stats)
+        {
+            var chromaWeight = Math.Max(0.05f, value.Saturation) * Math.Max(0.05f, value.Confidence);
+            var angle = value.Hue * MathF.Tau;
+            hueX += Math.Cos(angle) * chromaWeight;
+            hueY += Math.Sin(angle) * chromaWeight;
+            hueWeight += chromaWeight;
+            saturationSum += value.Saturation;
+            luminanceSum += value.Luminance;
+            coverageSum += value.Coverage;
+            confidenceSum += value.Confidence;
+            count++;
+        }
+
+        if (count == 0)
+        {
+            return ColorFamilyStats.Empty(family);
+        }
+
+        var hue = ColorFamilyStats.GetFamilyHueCenter(family);
+        if (hueWeight > 0)
+        {
+            var angle = Math.Atan2(hueY, hueX);
+            if (angle < 0)
+            {
+                angle += MathF.Tau;
+            }
+
+            hue = (float)(angle / MathF.Tau);
+        }
+
+        return new ColorFamilyStats(
+            family,
+            hue,
+            (float)(saturationSum / count),
+            (float)(luminanceSum / count),
+            (float)(coverageSum / count),
+            (float)(confidenceSum / count));
     }
 
     private static TonalColorBias AverageColor(IEnumerable<TonalColorBias> colors)
@@ -290,7 +367,26 @@ public sealed class MasterStyleService
                + Squared(HueDistance(left.HighlightColor.Hue, right.HighlightColor.Hue)) * 0.25f
                + Squared(left.ShadowColor.Saturation - right.ShadowColor.Saturation) * 0.35f
                + Squared(left.MidtoneColor.Saturation - right.MidtoneColor.Saturation) * 0.45f
-               + Squared(left.HighlightColor.Saturation - right.HighlightColor.Saturation) * 0.35f;
+               + Squared(left.HighlightColor.Saturation - right.HighlightColor.Saturation) * 0.35f
+               + ColorFamilyDistance(left, right) * 0.50f;
+    }
+
+    private static float ColorFamilyDistance(ImageAnalysisResult left, ImageAnalysisResult right)
+    {
+        var distance = 0f;
+        foreach (var family in Enum.GetValues<ColorFamily>())
+        {
+            var leftStats = left.ColorFamilies.TryGetValue(family, out var leftValue) ? leftValue : ColorFamilyStats.Empty(family);
+            var rightStats = right.ColorFamilies.TryGetValue(family, out var rightValue) ? rightValue : ColorFamilyStats.Empty(family);
+            var confidence = MathF.Min(leftStats.Confidence, rightStats.Confidence);
+
+            distance += confidence
+                        * (Squared(HueDistance(leftStats.Hue, rightStats.Hue)) * 0.8f
+                           + Squared(leftStats.Saturation - rightStats.Saturation)
+                           + Squared(leftStats.Luminance - rightStats.Luminance) * 0.6f);
+        }
+
+        return distance;
     }
 
     private static float HueDistance(float left, float right)

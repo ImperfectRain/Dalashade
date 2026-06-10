@@ -17,6 +17,7 @@ public sealed class CompatibilityReportExporter
         Configuration configuration,
         PresetAnalysisResult analysis,
         ShaderSupportScan shaderSupport,
+        VisualProfile profile,
         PresetWriteResult writeResult,
         string outputDirectory)
     {
@@ -35,7 +36,7 @@ public sealed class CompatibilityReportExporter
             var timestamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss");
             var path = Path.Combine(outputDirectory, $"{safePresetName}-compatibility-{timestamp}.md");
 
-            File.WriteAllText(path, BuildReport(configuration, analysis, shaderSupport, writeResult), Encoding.UTF8);
+            File.WriteAllText(path, BuildReport(configuration, analysis, shaderSupport, profile, writeResult), Encoding.UTF8);
             return new CompatibilityReportExportResult(true, $"Compatibility report exported: {path}", path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
@@ -48,6 +49,7 @@ public sealed class CompatibilityReportExporter
         Configuration configuration,
         PresetAnalysisResult analysis,
         ShaderSupportScan shaderSupport,
+        VisualProfile profile,
         PresetWriteResult writeResult)
     {
         var report = analysis.Report;
@@ -74,6 +76,7 @@ public sealed class CompatibilityReportExporter
         AppendAuthorities(builder, report.Authorities, authorityPolicy);
         AppendLines(builder, "Warnings", report.Warnings);
         AppendLines(builder, "Multiple Authority Warnings", report.MultipleAuthorityWarnings);
+        AppendColorFamilyAdjustments(builder, profile);
         AppendShaderSupport(builder, shaderSupport);
         AppendChangedVariables(builder, writeResult);
         AppendSanitizeActions(builder, writeResult);
@@ -85,6 +88,26 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("- Unknown effects are active shaders Dalashade does not understand well enough yet.");
 
         return builder.ToString();
+    }
+
+    private static void AppendColorFamilyAdjustments(StringBuilder builder, VisualProfile profile)
+    {
+        builder.AppendLine("## Master Style Color Family Adjustments");
+        builder.AppendLine();
+        var strongest = profile.StrongestColorFamilyAdjustments(8);
+        if (strongest.Count == 0)
+        {
+            builder.AppendLine("- None");
+            builder.AppendLine();
+            return;
+        }
+
+        foreach (var adjustment in strongest)
+        {
+            builder.AppendLine($"- {adjustment.Family}: hue={adjustment.Hue:+0.000;-0.000;0.000} | saturation={adjustment.Saturation:+0.000;-0.000;0.000} | luminance={adjustment.Luminance:+0.000;-0.000;0.000} | confidence={adjustment.Confidence:0.00}");
+        }
+
+        builder.AppendLine();
     }
 
     private static void AppendTechniqueList(StringBuilder builder, string title, IReadOnlyList<PresetTechnique> techniques)

@@ -12,6 +12,42 @@ public sealed record TonalColorBias(float Hue, float Saturation, float Warmth, f
     public static TonalColorBias Empty { get; } = new(0f, 0f, 0f, 0f);
 }
 
+public enum ColorFamily
+{
+    Red,
+    Orange,
+    Yellow,
+    Green,
+    Cyan,
+    Blue,
+    Purple,
+    Magenta
+}
+
+public sealed record ColorFamilyStats(ColorFamily Family, float Hue, float Saturation, float Luminance, float Coverage, float Confidence)
+{
+    public static ColorFamilyStats Empty(ColorFamily family) => new(family, GetFamilyHueCenter(family), 0f, 0f, 0f, 0f);
+
+    public static IReadOnlyDictionary<ColorFamily, ColorFamilyStats> EmptyMap { get; } = Enum.GetValues<ColorFamily>()
+        .ToDictionary(family => family, Empty);
+
+    public static float GetFamilyHueCenter(ColorFamily family)
+    {
+        return family switch
+        {
+            ColorFamily.Red => 0.000f,
+            ColorFamily.Orange => 0.083f,
+            ColorFamily.Yellow => 0.167f,
+            ColorFamily.Green => 0.333f,
+            ColorFamily.Cyan => 0.500f,
+            ColorFamily.Blue => 0.625f,
+            ColorFamily.Purple => 0.750f,
+            ColorFamily.Magenta => 0.875f,
+            _ => 0f
+        };
+    }
+}
+
 public sealed record ImageAnalysisResult(
     bool Available,
     string SourcePath,
@@ -30,9 +66,10 @@ public sealed record ImageAnalysisResult(
     float LuminanceP95,
     TonalColorBias ShadowColor,
     TonalColorBias MidtoneColor,
-    TonalColorBias HighlightColor)
+    TonalColorBias HighlightColor,
+    IReadOnlyDictionary<ColorFamily, ColorFamilyStats> ColorFamilies)
 {
-    public static ImageAnalysisResult Empty { get; } = new(false, string.Empty, DateTimeOffset.MinValue, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, TonalColorBias.Empty, TonalColorBias.Empty, TonalColorBias.Empty);
+    public static ImageAnalysisResult Empty { get; } = new(false, string.Empty, DateTimeOffset.MinValue, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, TonalColorBias.Empty, TonalColorBias.Empty, TonalColorBias.Empty, ColorFamilyStats.EmptyMap);
 
     public float ShadowFloor => LuminanceP05;
     public float MidtoneLevel => LuminanceP50;
@@ -49,7 +86,7 @@ public sealed record ImageAnalysisResult(
             }
 
             return FormattableString.Invariant(
-                $"l{AverageLuminance:0.00}:c{Contrast:0.00}:s{AverageSaturation:0.00}:sh{ShadowClipping:0.00}:hi{HighlightClipping:0.00}:p05{LuminanceP05:0.00}:p50{LuminanceP50:0.00}:p95{LuminanceP95:0.00}:w{Warmth:0.00}:g{GreenBias:0.00}:sc{ShadowColor.Hue:0.00}/{ShadowColor.Saturation:0.00}:mc{MidtoneColor.Hue:0.00}/{MidtoneColor.Saturation:0.00}:hc{HighlightColor.Hue:0.00}/{HighlightColor.Saturation:0.00}");
+                $"l{AverageLuminance:0.00}:c{Contrast:0.00}:s{AverageSaturation:0.00}:sh{ShadowClipping:0.00}:hi{HighlightClipping:0.00}:p05{LuminanceP05:0.00}:p50{LuminanceP50:0.00}:p95{LuminanceP95:0.00}:w{Warmth:0.00}:g{GreenBias:0.00}:sc{ShadowColor.Hue:0.00}/{ShadowColor.Saturation:0.00}:mc{MidtoneColor.Hue:0.00}/{MidtoneColor.Saturation:0.00}:hc{HighlightColor.Hue:0.00}/{HighlightColor.Saturation:0.00}:cf{ColorFamilyMetricsKey(ColorFamilies)}");
         }
     }
 
@@ -74,6 +111,17 @@ public sealed record ImageAnalysisResult(
 
             return FormattableString.Invariant($"{brightness}:{clipping}:{saturation}");
         }
+    }
+
+    private static string ColorFamilyMetricsKey(IReadOnlyDictionary<ColorFamily, ColorFamilyStats> families)
+    {
+        return string.Join(
+            ";",
+            Enum.GetValues<ColorFamily>().Select(family =>
+            {
+                var stats = families.TryGetValue(family, out var value) ? value : ColorFamilyStats.Empty(family);
+                return FormattableString.Invariant($"{family.ToString()[0]}{stats.Hue:0.00}/{stats.Saturation:0.00}/{stats.Luminance:0.00}/{stats.Confidence:0.00}");
+            }));
     }
 }
 
@@ -230,6 +278,7 @@ public sealed class ImageAnalysisService
         var shadowColor = AverageTonalColor(colorSamples.Where(sample => sample.Luminance <= percentiles.P25));
         var midtoneColor = AverageTonalColor(colorSamples.Where(sample => sample.Luminance > percentiles.P25 && sample.Luminance < percentiles.P75));
         var highlightColor = AverageTonalColor(colorSamples.Where(sample => sample.Luminance >= percentiles.P75));
+        var colorFamilies = AnalyzeColorFamilies(colorSamples, (float)weightSum);
 
         return new ImageAnalysisResult(
             true,
@@ -249,7 +298,32 @@ public sealed class ImageAnalysisService
             percentiles.P95,
             shadowColor,
             midtoneColor,
-            highlightColor);
+            highlightColor,
+            colorFamilies);
+    }
+
+    private static IReadOnlyDictionary<ColorFamily, ColorFamilyStats> AnalyzeColorFamilies(IReadOnlyList<WeightedColorSample> samples, float totalWeight)
+    {
+        if (samples.Count == 0 || totalWeight <= 0f)
+        {
+            return ColorFamilyStats.EmptyMap;
+        }
+
+        var buckets = Enum.GetValues<ColorFamily>()
+            .ToDictionary(family => family, _ => new ColorFamilyAccumulator());
+
+        foreach (var sample in samples)
+        {
+            if (sample.Saturation < 0.08f)
+            {
+                continue;
+            }
+
+            var family = GetColorFamily(sample.Hue);
+            buckets[family].Add(sample);
+        }
+
+        return buckets.ToDictionary(pair => pair.Key, pair => pair.Value.ToStats(pair.Key, totalWeight));
     }
 
     private static TonalColorBias AverageTonalColor(IEnumerable<WeightedColorSample> samples)
@@ -323,6 +397,30 @@ public sealed class ImageAnalysisService
         return hue;
     }
 
+    private static ColorFamily GetColorFamily(float hue)
+    {
+        var bestFamily = ColorFamily.Red;
+        var bestDistance = float.MaxValue;
+
+        foreach (var family in Enum.GetValues<ColorFamily>())
+        {
+            var distance = HueDistance(hue, ColorFamilyStats.GetFamilyHueCenter(family));
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                bestFamily = family;
+            }
+        }
+
+        return bestFamily;
+    }
+
+    private static float HueDistance(float left, float right)
+    {
+        var delta = Math.Abs(left - right);
+        return delta > 0.5f ? 1f - delta : delta;
+    }
+
     private static float GetSampleWeight(int x, int y, int width, int height, ImageSamplingMode samplingMode)
     {
         var nx = width <= 1 ? 0.5f : x / (float)(width - 1);
@@ -357,6 +455,61 @@ public sealed class ImageAnalysisService
 internal readonly record struct WeightedLuminanceSample(float Luminance, float Weight);
 
 internal readonly record struct WeightedColorSample(float Luminance, float Weight, float Hue, float Saturation, float Warmth, float Tint);
+
+internal sealed class ColorFamilyAccumulator
+{
+    private double weightSum;
+    private double hueWeightSum;
+    private double hueX;
+    private double hueY;
+    private double saturationSum;
+    private double luminanceSum;
+
+    public void Add(WeightedColorSample sample)
+    {
+        var chromaWeight = sample.Weight * Math.Max(0.05f, sample.Saturation);
+        var angle = sample.Hue * MathF.Tau;
+
+        weightSum += sample.Weight;
+        hueWeightSum += chromaWeight;
+        hueX += Math.Cos(angle) * chromaWeight;
+        hueY += Math.Sin(angle) * chromaWeight;
+        saturationSum += sample.Saturation * sample.Weight;
+        luminanceSum += sample.Luminance * sample.Weight;
+    }
+
+    public ColorFamilyStats ToStats(ColorFamily family, float totalWeight)
+    {
+        if (weightSum <= 0 || totalWeight <= 0f)
+        {
+            return ColorFamilyStats.Empty(family);
+        }
+
+        var hue = ColorFamilyStats.GetFamilyHueCenter(family);
+        if (hueWeightSum > 0)
+        {
+            var angle = Math.Atan2(hueY, hueX);
+            if (angle < 0)
+            {
+                angle += MathF.Tau;
+            }
+
+            hue = (float)(angle / MathF.Tau);
+        }
+
+        var saturation = (float)(saturationSum / weightSum);
+        var coverage = (float)(weightSum / totalWeight);
+        var confidence = MathF.Min(1f, coverage * 8f) * MathF.Min(1f, saturation / 0.35f);
+
+        return new ColorFamilyStats(
+            family,
+            hue,
+            saturation,
+            (float)(luminanceSum / weightSum),
+            coverage,
+            confidence);
+    }
+}
 
 internal readonly record struct LuminancePercentiles(float P05, float P25, float P50, float P75, float P95)
 {

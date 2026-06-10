@@ -15,7 +15,8 @@ public enum ShaderValueMode
     AddAll,
     ScaleComponent,
     AddComponent,
-    MoveTowardNeutral
+    MoveTowardNeutral,
+    MoveTowardNeutralThenAdd
 }
 
 public enum ShaderValueShape
@@ -445,27 +446,36 @@ public sealed class ShaderVariableMapper
         AddAdd(definitions, section, "E_HIGHLIGHTS_HUE", "ReGrade+ highlight hue bias", -1f, 1f, profile => profile.HighlightHueBias, true);
         AddAdd(definitions, section, "E_HIGHLIGHTS_SAT", "ReGrade+ highlight saturation bias", -1f, 1f, profile => profile.HighlightSaturationBias, true);
 
-        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_RED_V2");
-        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_ORANGE_V2");
-        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_YELLOW_V2");
-        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_GREEN_V2");
-        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_CYAN_V2");
-        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_BLUE_V2");
-        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_PURPLE_V2");
-        AddColoristaPreservation(definitions, section, "E_COLORISTA_HSL_MAGENTA_V2");
+        AddColoristaAdjustment(definitions, section, "E_COLORISTA_HSL_RED_V2", ColorFamily.Red);
+        AddColoristaAdjustment(definitions, section, "E_COLORISTA_HSL_ORANGE_V2", ColorFamily.Orange);
+        AddColoristaAdjustment(definitions, section, "E_COLORISTA_HSL_YELLOW_V2", ColorFamily.Yellow);
+        AddColoristaAdjustment(definitions, section, "E_COLORISTA_HSL_GREEN_V2", ColorFamily.Green);
+        AddColoristaAdjustment(definitions, section, "E_COLORISTA_HSL_CYAN_V2", ColorFamily.Cyan);
+        AddColoristaAdjustment(definitions, section, "E_COLORISTA_HSL_BLUE_V2", ColorFamily.Blue);
+        AddColoristaAdjustment(definitions, section, "E_COLORISTA_HSL_PURPLE_V2", ColorFamily.Purple);
+        AddColoristaAdjustment(definitions, section, "E_COLORISTA_HSL_MAGENTA_V2", ColorFamily.Magenta);
     }
 
-    private static void AddColoristaPreservation(List<ShaderVariableDefinition> definitions, string section, string key)
+    private static void AddColoristaAdjustment(List<ShaderVariableDefinition> definitions, string section, string key, ColorFamily family)
     {
-        AddVectorMoveTowardNeutral(
+        AddVector(
             definitions,
             section,
             key,
             ShaderValueShape.Vector3,
-            "ReGrade+ Colorista preservation",
+            ShaderValueMode.MoveTowardNeutralThenAdd,
+            "ReGrade+ Colorista family matching",
             -1f,
             1f,
-            profile => 1f - profile.ColorGradePreservation,
+            profile =>
+            {
+                var adjustment = profile.GetColorFamilyAdjustment(family);
+                return new ShaderValue(
+                    adjustment.Hue,
+                    adjustment.Saturation,
+                    adjustment.Luminance,
+                    1f - profile.ColorGradePreservation);
+            },
             true);
     }
 
@@ -631,6 +641,11 @@ public sealed class ShaderVariableMapper
             return amount;
         }
 
+        if (mode == ShaderValueMode.MoveTowardNeutralThenAdd)
+        {
+            return new ShaderValue(amount.X * strength, amount.Y * strength, amount.Z * strength, amount.W * strength);
+        }
+
         var result = amount;
         for (var i = 0; i < componentCount; i++)
         {
@@ -679,6 +694,7 @@ public sealed class ShaderVariableMapper
                 ShaderValueMode.ScaleComponent => currentComponent * amountComponent,
                 ShaderValueMode.AddComponent => currentComponent + amountComponent,
                 ShaderValueMode.MoveTowardNeutral => currentComponent + ((0f - currentComponent) * amount.X),
+                ShaderValueMode.MoveTowardNeutralThenAdd => currentComponent + ((0f - currentComponent) * amount.W) + amountComponent,
                 _ => currentComponent
             };
 

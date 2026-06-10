@@ -150,6 +150,7 @@ public sealed class Plugin : IDalamudPlugin
             Configuration,
             LastPresetAnalysis,
             LastShaderSupportScan,
+            CurrentProfile,
             LastWriteResult,
             CompatibilityReportDirectory);
         return LastCompatibilityReportExport;
