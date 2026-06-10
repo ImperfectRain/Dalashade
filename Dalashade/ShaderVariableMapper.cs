@@ -179,6 +179,8 @@ public sealed class ShaderVariableMapper
     private static void AddPremiumDefinitions(List<ShaderVariableDefinition> definitions)
     {
         AddReGradePlus(definitions, "MartysMods_REGRADE+.fx", "ReGrade+");
+        AddCombinedRtgi(definitions, "MartysMods_RTGI.fx");
+        AddFftBloom(definitions, "MartysMods_FFTBLOOM.fx");
 
         AddScale(definitions, "MartysMods_RTGI_DIFFUSE.fx", "RT_AO_AMOUNT", "RTGI AO", 0f, 10f, profile => profile.Rtgi, true);
         AddScale(definitions, "MartysMods_RTGI_DIFFUSE.fx", "RT_IL_AMOUNT", "RTGI indirect light", 0f, 10f, profile => profile.Rtgi, true);
@@ -187,6 +189,32 @@ public sealed class ShaderVariableMapper
 
         AddScale(definitions, "MartysMods_RELIGHT.fx", "RELIGHT_INTENSITY", "ReLight", 0f, 10f, profile => profile.ReLight, true);
         AddScale(definitions, "MartysMods_RELIGHT.fx", "RELIGHT_RANGE", "ReLight", 0f, 10f, profile => profile.DepthEffects, true);
+        AddScale(definitions, "MartysMods_RELIGHT.fx", "AMBIENT_INT", "ReLight ambient", 0f, 10f, profile => profile.ReLight, true);
+        AddScale(definitions, "MartysMods_RELIGHT.fx", "LIGHT0_INT", "ReLight primary light", 0f, 10f, profile => profile.ReLight, true);
+        AddScale(definitions, "MartysMods_RELIGHT.fx", "LIGHT1_INT", "ReLight secondary light", 0f, 10f, profile => profile.ReLight, true);
+        AddScale(definitions, "MartysMods_RELIGHT.fx", "SHADOW_Q", "ReLight shadow quality", 0f, 10f, profile => profile.DepthEffects, true);
+        AddScale(definitions, "MartysMods_RELIGHT.fx", "SSS_Q", "ReLight SSS quality", 0f, 10f, profile => profile.DepthEffects, true);
+        AddScale(definitions, "MartysMods_RELIGHT.fx", "USE_SSS", "ReLight SSS toggle", 0f, 1f, _ => 1f, true);
+    }
+
+    private static void AddCombinedRtgi(List<ShaderVariableDefinition> definitions, string section)
+    {
+        AddScale(definitions, section, "RT_AO_AMOUNT", "RTGI AO", 0f, 10f, profile => profile.Rtgi, true);
+        AddScale(definitions, section, "RT_IL_AMOUNT", "RTGI indirect light", 0f, 10f, profile => profile.Rtgi, true);
+        AddScale(definitions, section, "RT_AMBIENT_LEVEL", "RTGI ambient", 0f, 10f, profile => profile.DepthEffects, true);
+        AddScale(definitions, section, "RT_SPEC_AMOUNT", "RTGI specular", 0f, 10f, profile => profile.Rtgi, true);
+        AddScale(definitions, section, "RT_ROUGHNESS", "RTGI roughness", 0f, 1f, profile => profile.Rtgi, true);
+        AddScale(definitions, section, "RT_FADE_DEPTH", "RTGI fade depth", 0.001f, 1f, profile => profile.AoFadeDistance, true);
+        AddScale(definitions, section, "RT_Z_THICKNESS", "RTGI depth thickness", 0.001f, 10f, profile => profile.DepthEffects, true);
+    }
+
+    private static void AddFftBloom(List<ShaderVariableDefinition> definitions, string section)
+    {
+        AddScale(definitions, section, "HDR_BLOOM_INT", "FFTBloom intensity", 0f, 10f, profile => profile.Bloom, true);
+        AddAdd(definitions, section, "HDR_EXPOSURE", "FFTBloom exposure", -5f, 5f, profile => profile.Exposure - 1f, true);
+        AddScale(definitions, section, "HDR_BLOOM_RADIUS", "FFTBloom radius", 0.01f, 10f, profile => profile.BloomRadius, true);
+        AddScale(definitions, section, "HDR_BLOOM_HAZYNESS", "FFTBloom haziness", 0f, 10f, profile => profile.BloomDirt, true);
+        AddRelative(definitions, section, "HDR_WHITEPOINT", "FFTBloom white point", 0.01f, 10f, profile => (profile.WhitePoint - 1f) * 0.35f, true);
     }
 
     private static void AddReGrade(List<ShaderVariableDefinition> definitions, string section, string reason)
