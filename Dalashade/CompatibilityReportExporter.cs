@@ -85,6 +85,7 @@ public sealed class CompatibilityReportExporter
         AppendMasterStyleDiagnostics(builder, configuration, masterDiagnostics);
         AppendColorFamilyAdjustments(builder, profile);
         AppendColorFamilyComparison(builder, currentImage, masterStyle, profile);
+        AppendMappingValidation(builder, configuration, analysis, shaderSupport);
         AppendShaderSupport(builder, shaderSupport);
         AppendChangedVariables(builder, writeResult);
         AppendSanitizeActions(builder, writeResult);
@@ -275,6 +276,174 @@ public sealed class CompatibilityReportExporter
         }
 
         builder.AppendLine();
+    }
+
+    private static void AppendMappingValidation(StringBuilder builder, Configuration configuration, PresetAnalysisResult analysis, ShaderSupportScan shaderSupport)
+    {
+        builder.AppendLine("## Mapping Validation");
+        builder.AppendLine();
+        var activeTechniques = analysis.Techniques
+            .Where(technique => technique.ActivationState == TechniqueActivationState.Active)
+            .GroupBy(technique => technique.Section, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderBy(technique => technique.Section, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (activeTechniques.Length == 0)
+        {
+            builder.AppendLine("- No active shaders were confirmed from the Techniques= line.");
+            builder.AppendLine();
+            return;
+        }
+
+        var definitions = new ShaderVariableMapper().CreateDefinitions(configuration)
+            .Where(definition => !string.IsNullOrWhiteSpace(definition.Section))
+            .GroupBy(definition => definition.Section!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(definition => definition.Key).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToArray(),
+                StringComparer.OrdinalIgnoreCase);
+        var presetKeys = ReadPresetKeys(configuration.BasePresetPath);
+        var mappedBySection = shaderSupport.Items
+            .GroupBy(item => item.Section, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(item => item.Key).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToArray(),
+                StringComparer.OrdinalIgnoreCase);
+
+        var martyControlled = activeTechniques.Count(technique => IsMartyOrImmerse(technique.Section) && technique.SupportLevel is SupportLevel.FullyControlled or SupportLevel.PartiallyControlled);
+        var freeControlled = activeTechniques.Count(technique => !IsMartyOrImmerse(technique.Section) && technique.SupportLevel is SupportLevel.FullyControlled or SupportLevel.PartiallyControlled);
+        var detectedOnly = activeTechniques.Count(technique => technique.SupportLevel == SupportLevel.DetectedOnly);
+        var highRiskGposeOnly = activeTechniques.Count(technique => technique.Risk is EffectRisk.High or EffectRisk.GPoseOnly);
+        var confidenceScore = CalculateMappingConfidence(activeTechniques);
+
+        builder.AppendLine($"- iMMERSE/Marty controlled sections: {martyControlled}");
+        builder.AppendLine($"- Free shader controlled sections: {freeControlled}");
+        builder.AppendLine($"- Detected-only active sections: {detectedOnly}");
+        builder.AppendLine($"- High-risk/GPose-only active sections: {highRiskGposeOnly}");
+        builder.AppendLine($"- Mapping confidence: {FormatMappingConfidence(confidenceScore)} ({confidenceScore:P0})");
+        builder.AppendLine();
+        builder.AppendLine("| Active shader | Support | Role | Risk | Mapped keys found | Known keys missing | Present keys unmapped | Status |");
+        builder.AppendLine("| --- | --- | --- | --- | --- | --- | --- | --- |");
+
+        foreach (var technique in activeTechniques)
+        {
+            definitions.TryGetValue(technique.Section, out var knownKeys);
+            mappedBySection.TryGetValue(technique.Section, out var mappedKeys);
+            presetKeys.TryGetValue(technique.Section, out var presentKeys);
+            knownKeys ??= Array.Empty<string>();
+            mappedKeys ??= Array.Empty<string>();
+            presentKeys ??= Array.Empty<string>();
+            var missingKnown = knownKeys.Except(presentKeys, StringComparer.OrdinalIgnoreCase).OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToArray();
+            var unmappedPresent = presentKeys.Except(knownKeys, StringComparer.OrdinalIgnoreCase).OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToArray();
+
+            builder.AppendLine($"| {EscapeTable(technique.Section)} | {technique.SupportLevel} | {PresetAnalyzer.FormatRole(technique.Role)} | {PresetAnalyzer.FormatRisk(technique.Risk)} | {FormatKeyList(mappedKeys)} | {FormatKeyList(missingKnown)} | {FormatKeyList(unmappedPresent)} | {FormatSupportStatus(technique)} |");
+        }
+
+        builder.AppendLine();
+    }
+
+    private static IReadOnlyDictionary<string, IReadOnlyList<string>> ReadPresetKeys(string path)
+    {
+        var result = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var currentSection = string.Empty;
+        foreach (var line in File.ReadLines(path))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("[", StringComparison.Ordinal) && trimmed.EndsWith("]", StringComparison.Ordinal))
+            {
+                currentSection = trimmed[1..^1];
+                if (!result.ContainsKey(currentSection))
+                {
+                    result[currentSection] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                }
+
+                continue;
+            }
+
+            var separatorIndex = trimmed.IndexOf('=');
+            if (separatorIndex <= 0 || string.IsNullOrWhiteSpace(currentSection))
+            {
+                continue;
+            }
+
+            result[currentSection].Add(trimmed[..separatorIndex].Trim());
+        }
+
+        return result.ToDictionary(
+            pair => pair.Key,
+            pair => (IReadOnlyList<string>)pair.Value.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToArray(),
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static float CalculateMappingConfidence(IReadOnlyList<PresetTechnique> activeTechniques)
+    {
+        if (activeTechniques.Count == 0)
+        {
+            return 0f;
+        }
+
+        var score = activeTechniques.Sum(technique => technique.SupportLevel switch
+        {
+            SupportLevel.FullyControlled => 1.00f,
+            SupportLevel.PartiallyControlled => 0.65f,
+            SupportLevel.DetectedOnly => 0.30f,
+            _ => 0f
+        });
+        score -= activeTechniques.Count(technique => technique.Risk is EffectRisk.High or EffectRisk.GPoseOnly) * 0.10f;
+        return MathF.Min(1f, MathF.Max(0f, score / activeTechniques.Count));
+    }
+
+    private static string FormatMappingConfidence(float score)
+    {
+        return score switch
+        {
+            >= 0.85f => "Excellent",
+            >= 0.65f => "Good",
+            >= 0.45f => "Mixed",
+            >= 0.25f => "Risky",
+            _ => "Poor"
+        };
+    }
+
+    private static string FormatSupportStatus(PresetTechnique technique)
+    {
+        return technique.SupportLevel switch
+        {
+            SupportLevel.FullyControlled => "strict-supported",
+            SupportLevel.PartiallyControlled => "strict-supported partial",
+            SupportLevel.DetectedOnly => "detected-only",
+            _ => "unsupported"
+        };
+    }
+
+    private static bool IsMartyOrImmerse(string section)
+    {
+        return section.Contains("marty", StringComparison.OrdinalIgnoreCase)
+               || section.Contains("immerse", StringComparison.OrdinalIgnoreCase)
+               || section.Contains("martysmods", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FormatKeyList(IReadOnlyList<string> keys)
+    {
+        if (keys.Count == 0)
+        {
+            return "none";
+        }
+
+        var display = keys.Take(12).Select(EscapeTable).ToArray();
+        var suffix = keys.Count > display.Length ? $" +{keys.Count - display.Length} more" : string.Empty;
+        return string.Join(", ", display) + suffix;
+    }
+
+    private static string EscapeTable(string value)
+    {
+        return value.Replace("|", "\\|", StringComparison.Ordinal);
     }
 
     private static void AppendChangedVariables(StringBuilder builder, PresetWriteResult writeResult)

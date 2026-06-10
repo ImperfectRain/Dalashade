@@ -159,14 +159,10 @@ public sealed class ShaderVariableMapper
 
     private static void AddCommonOptionalDefinitions(List<ShaderVariableDefinition> definitions)
     {
-        AddAdd(definitions, "qUINT_lightroom.fx", "Exposure", "Free color", -5f, 5f, profile => profile.Exposure - 1f);
-        AddAdd(definitions, "qUINT_lightroom.fx", "Gamma", "Free color", 0.25f, 4f, profile => profile.ShadowLift * 0.35f);
-        AddAdd(definitions, "qUINT_lightroom.fx", "Contrast", "Free color", -5f, 5f, profile => (profile.Contrast - 1f) * 0.5f);
-        AddAdd(definitions, "qUINT_lightroom.fx", "Saturation", "Free color", -5f, 5f, profile => (profile.Saturation - 1f) * 0.5f);
-        AddScale(definitions, "qUINT_lightroom.fx", "BloomIntensity", "Bloom", 0f, 10f, profile => profile.Bloom);
-        AddRelative(definitions, "qUINT_lightroom.fx", "BloomThreshold", "Bloom threshold", 0f, 10f, profile => (profile.BloomThreshold - 1f) * 0.35f);
-        AddScale(definitions, "qUINT_lightroom.fx", "Sharpness", "Sharpening", 0f, 10f, profile => profile.Sharpness);
-        AddScale(definitions, "qUINT_lightroom.fx", "Clarity", "Clarity", 0f, 10f, profile => profile.Clarity);
+        AddQuintLightroomDefinitions(definitions);
+        AddQuintMxaoDefinitions(definitions);
+        AddGlamayreFastEffectsDefinitions(definitions);
+        AddFreeClarityDefinitions(definitions);
 
         AddAdd(definitions, "prod80_04_ColorTemperature.fx", "Kelvin", "Free color", 1000f, 40000f, profile => profile.Temperature * 1800f);
         AddAdd(definitions, "prod80_04_ColorTemperature.fx", "Temperature", "Free color", -1f, 1f, profile => profile.Temperature * 0.5f);
@@ -180,6 +176,7 @@ public sealed class ShaderVariableMapper
 
         AddScale(definitions, "LUT.fx", "fLUT_AmountChroma", "LUT", 0f, 1f, profile => profile.LutStrength);
         AddScale(definitions, "LUT.fx", "fLUT_AmountLuma", "LUT", 0f, 1f, profile => profile.LutStrength);
+        AddScale(definitions, "LUT.fx", "fLUT_Intensity", "LUT", 0f, 1f, profile => profile.LutStrength);
         AddScale(definitions, "MartysMods_LUTMANAGER.fx", "LUT_INTENSITY", "LUT", 0f, 1f, profile => profile.LutStrength);
         AddScale(definitions, "MartysMods_LUTMANAGER.fx", "LUT_BLEND_INTENSITY_CHROMA", "LUT", 0f, 1f, profile => profile.LutStrength);
         AddScale(definitions, "MartysMods_LUTMANAGER.fx", "LUT_BLEND_INTENSITY_LUMA", "LUT", 0f, 1f, profile => profile.LutStrength);
@@ -187,6 +184,82 @@ public sealed class ShaderVariableMapper
         AddNonImmerseBloomDefinitions(definitions);
         AddNonImmerseSharpenDefinitions(definitions);
         AddNonImmerseColorDefinitions(definitions);
+    }
+
+    private static void AddQuintLightroomDefinitions(List<ShaderVariableDefinition> definitions)
+    {
+        const string section = "qUINT_lightroom.fx";
+        AddAdd(definitions, section, "LIGHTROOM_GLOBAL_EXPOSURE", "Free color exposure", -5f, 5f, profile => profile.Exposure - 1f);
+        AddAdd(definitions, section, "LIGHTROOM_GLOBAL_GAMMA", "Free color gamma", 0.25f, 4f, profile => profile.ShadowLift * 0.25f);
+        AddAdd(definitions, section, "LIGHTROOM_GLOBAL_CONTRAST", "Free color contrast", -5f, 5f, profile => (profile.Contrast - 1f) * 0.35f);
+        AddAdd(definitions, section, "LIGHTROOM_GLOBAL_SATURATION", "Free color saturation", -5f, 5f, profile => (profile.Saturation - 1f) * 0.35f);
+        AddAdd(definitions, section, "LIGHTROOM_GLOBAL_VIBRANCE", "Free color vibrance", -5f, 5f, profile => (profile.Saturation - 1f) * 0.30f);
+        AddAdd(definitions, section, "LIGHTROOM_GLOBAL_TEMPERATURE", "Free color temperature", -1f, 1f, profile => profile.Temperature * 0.35f);
+        AddAdd(definitions, section, "LIGHTROOM_GLOBAL_TINT", "Free color tint", -1f, 1f, profile => profile.Tint * 0.35f);
+        AddRelative(definitions, section, "LIGHTROOM_GLOBAL_BLACK_LEVEL", "Free color black point", -1f, 1f, profile => (profile.BlackPoint - 1f) * 0.20f);
+        AddRelative(definitions, section, "LIGHTROOM_GLOBAL_WHITE_LEVEL", "Free color white point", -1f, 1f, profile => (profile.WhitePoint - 1f) * 0.20f);
+        AddRelative(definitions, section, "LIGHTROOM_GLOBAL_BLACKS_CURVE", "Free color black curve", -1f, 1f, profile => ((profile.BlackPoint - 1f) * 0.18f) + (profile.ShadowLift * 0.08f));
+        AddAdd(definitions, section, "LIGHTROOM_GLOBAL_SHADOWS_CURVE", "Free color shadow curve", -1f, 1f, profile => profile.ShadowLift * 0.18f);
+        AddAdd(definitions, section, "LIGHTROOM_GLOBAL_MIDTONES_CURVE", "Free color midtone curve", -1f, 1f, profile => (profile.MidtoneContrast - 1f) * 0.18f);
+        AddAdd(definitions, section, "LIGHTROOM_GLOBAL_HIGHLIGHTS_CURVE", "Free color highlight curve", -1f, 1f, profile => (profile.HighlightRecovery - 1f) * 0.16f);
+        AddRelative(definitions, section, "LIGHTROOM_GLOBAL_WHITES_CURVE", "Free color white curve", -1f, 1f, profile => (profile.WhitePoint - 1f) * 0.18f);
+
+        AddLightroomFamily(definitions, "RED", ColorFamily.Red);
+        AddLightroomFamily(definitions, "ORANGE", ColorFamily.Orange);
+        AddLightroomFamily(definitions, "YELLOW", ColorFamily.Yellow);
+        AddLightroomFamily(definitions, "GREEN", ColorFamily.Green);
+        AddLightroomFamily(definitions, "AQUA", ColorFamily.Cyan);
+        AddLightroomFamily(definitions, "BLUE", ColorFamily.Blue);
+        AddLightroomFamily(definitions, "MAGENTA", ColorFamily.Magenta);
+    }
+
+    private static void AddLightroomFamily(List<ShaderVariableDefinition> definitions, string lightroomFamily, ColorFamily family)
+    {
+        const string section = "qUINT_lightroom.fx";
+        AddAdd(definitions, section, $"LIGHTROOM_{lightroomFamily}_HUESHIFT", "Free color family hue", -1f, 1f, profile => profile.GetColorFamilyAdjustment(family).Hue * 0.35f);
+        AddAdd(definitions, section, $"LIGHTROOM_{lightroomFamily}_SATURATION", "Free color family saturation", -1f, 1f, profile => profile.GetColorFamilyAdjustment(family).Saturation * 0.45f);
+        AddAdd(definitions, section, $"LIGHTROOM_{lightroomFamily}_EXPOSURE", "Free color family exposure", -1f, 1f, profile => profile.GetColorFamilyAdjustment(family).Luminance * 0.35f);
+    }
+
+    private static void AddQuintMxaoDefinitions(List<ShaderVariableDefinition> definitions)
+    {
+        const string section = "qUINT_mxao.fx";
+        AddScale(definitions, section, "qMXAO_SSAO_AMOUNT", "Ambient occlusion", 0f, 10f, profile => profile.AmbientOcclusion);
+        AddScale(definitions, section, "qMXAO_AMOUNT_COARSE", "Ambient occlusion", 0f, 10f, profile => profile.AmbientOcclusion);
+        AddScale(definitions, section, "qMXAO_AMOUNT_FINE", "Ambient occlusion fine", 0f, 10f, profile => 1f + ((profile.AmbientOcclusion - 1f) * 0.50f));
+        AddScale(definitions, section, "qMXAO_SAMPLE_RADIUS", "AO radius", 0.01f, 20f, profile => profile.AoRadius);
+        AddScale(definitions, section, "qMXAO_SAMPLE_RADIUS_SECONDARY", "AO radius secondary", 0.01f, 20f, profile => 1f + ((profile.AoRadius - 1f) * 0.50f));
+        AddScale(definitions, section, "qMXAO_FADE_DEPTH_END", "AO fade", 0.001f, 1f, profile => profile.AoFadeDistance);
+        AddScale(definitions, section, "qMXAO_FADE_DEPTH_START", "AO fade start", 0.001f, 1f, profile => 1f + ((profile.AoFadeDistance - 1f) * 0.20f));
+    }
+
+    private static void AddGlamayreFastEffectsDefinitions(List<ShaderVariableDefinition> definitions)
+    {
+        AddGlamayreFastEffectsSection(definitions, "Glamayre_Fast_Effects.fx");
+        AddGlamayreFastEffectsSection(definitions, "Glamayre\\Glamayre_Fast_Effects.fx");
+        AddGlamayreFastEffectsSection(definitions, "Glamarye_Fast_Effects.fx");
+    }
+
+    private static void AddGlamayreFastEffectsSection(List<ShaderVariableDefinition> definitions, string section)
+    {
+        AddScale(definitions, section, "ao_strength", "Ambient occlusion", 0f, 10f, profile => profile.AmbientOcclusion);
+        AddScale(definitions, section, "ao_radius", "AO radius", 0.01f, 20f, profile => profile.AoRadius);
+        AddScale(definitions, section, "gi_ao_strength", "RTGI AO", 0f, 10f, profile => 1f + ((profile.AmbientOcclusion - 1f) * 0.50f));
+        AddScale(definitions, section, "gi_local_ao_strength", "RTGI AO local", 0f, 10f, profile => 1f + ((profile.AmbientOcclusion - 1f) * 0.40f));
+        AddScale(definitions, section, "gi_strength", "RTGI indirect light", 0f, 10f, profile => profile.Rtgi);
+        AddScale(definitions, section, "gi_saturation", "RTGI saturation", 0f, 10f, profile => 1f + ((profile.Saturation - 1f) * 0.25f));
+        AddScale(definitions, section, "bounce_multiplier", "RTGI bounce", 0f, 10f, profile => 1f + ((profile.Rtgi - 1f) * 0.35f));
+        AddScale(definitions, section, "sharp_strength", "Sharpening", 0f, 10f, profile => profile.Sharpness);
+        AddInvert(definitions, section, "fxaa_bias", "Anti-aliasing", 0f, 1f, profile => (profile.AntiAliasingStrength - 1f) * 0.03f);
+        AddScale(definitions, section, "tone_map", "Tonemap amount", 0f, 10f, profile => 1f + ((profile.Contrast - 1f) * 0.20f));
+    }
+
+    private static void AddFreeClarityDefinitions(List<ShaderVariableDefinition> definitions)
+    {
+        AddScale(definitions, "Clarity.fx", "ClarityStrength", "Clarity", 0f, 10f, profile => profile.Clarity);
+        AddScale(definitions, "Clarity.fx", "ClarityDarkIntensity", "Clarity dark intensity", 0f, 10f, profile => 1f + (((profile.Clarity - 1f) * 0.40f) + (profile.ShadowLift * 0.15f)));
+        AddScale(definitions, "Clarity.fx", "ClarityLightIntensity", "Clarity light intensity", 0f, 10f, profile => 1f + (((profile.Clarity - 1f) * 0.40f) + ((profile.HighlightRecovery - 1f) * 0.15f)));
+        AddScale(definitions, "Clarity.fx", "ClarityRadius", "Clarity radius", 0.01f, 20f, profile => 1f + ((profile.DepthEffects - 1f) * 0.25f));
     }
 
     private static void AddNonImmerseBloomDefinitions(List<ShaderVariableDefinition> definitions)
@@ -266,14 +339,14 @@ public sealed class ShaderVariableMapper
     private static void AddLutFamilyDefinitions(List<ShaderVariableDefinition> definitions)
     {
         AddScale(definitions, "MultiLUT.fx", "fLUT_AmountChroma", "LUT", 0f, 1f, profile => profile.LutStrength);
-        AddScale(definitions, "MultiLUT.fx", "fLUT_AmountChroma2", "LUT", 0f, 1f, profile => profile.LutStrength);
-        AddScale(definitions, "MultiLUT.fx", "fLUT_AmountChroma3", "LUT", 0f, 1f, profile => profile.LutStrength);
         AddScale(definitions, "MultiLUT.fx", "fLUT_AmountLuma", "LUT", 0f, 1f, profile => profile.LutStrength);
-        AddScale(definitions, "MultiLUT.fx", "fLUT_AmountLuma2", "LUT", 0f, 1f, profile => profile.LutStrength);
-        AddScale(definitions, "MultiLUT.fx", "fLUT_AmountLuma3", "LUT", 0f, 1f, profile => profile.LutStrength);
         AddScale(definitions, "MultiLUT.fx", "fLUT_Intensity", "LUT", 0f, 1f, profile => profile.LutStrength);
-        AddScale(definitions, "MultiLUT.fx", "fLUT_Intensity2", "LUT", 0f, 1f, profile => profile.LutStrength);
-        AddScale(definitions, "MultiLUT.fx", "fLUT_Intensity3", "LUT", 0f, 1f, profile => profile.LutStrength);
+        AddScale(definitions, "MultiLUT.fx", "fLUT_AmountChroma2", "LUT secondary", 0f, 1f, profile => 1f + ((profile.LutStrength - 1f) * 0.50f));
+        AddScale(definitions, "MultiLUT.fx", "fLUT_AmountLuma2", "LUT secondary", 0f, 1f, profile => 1f + ((profile.LutStrength - 1f) * 0.50f));
+        AddScale(definitions, "MultiLUT.fx", "fLUT_Intensity2", "LUT secondary", 0f, 1f, profile => 1f + ((profile.LutStrength - 1f) * 0.50f));
+        AddScale(definitions, "MultiLUT.fx", "fLUT_AmountChroma3", "LUT secondary", 0f, 1f, profile => 1f + ((profile.LutStrength - 1f) * 0.35f));
+        AddScale(definitions, "MultiLUT.fx", "fLUT_AmountLuma3", "LUT secondary", 0f, 1f, profile => 1f + ((profile.LutStrength - 1f) * 0.35f));
+        AddScale(definitions, "MultiLUT.fx", "fLUT_Intensity3", "LUT secondary", 0f, 1f, profile => 1f + ((profile.LutStrength - 1f) * 0.35f));
 
         AddScale(definitions, "CubeLUT3D.fx", "fLUT_AmountChroma", "LUT", 0f, 1f, profile => profile.LutStrength);
         AddScale(definitions, "CubeLUT3D.fx", "fLUT_AmountLuma", "LUT", 0f, 1f, profile => profile.LutStrength);
@@ -297,11 +370,16 @@ public sealed class ShaderVariableMapper
         AddColorPreservation(definitions, "DPX.fx", "Colorfulness", 0f, 10f);
         AddColorPreservation(definitions, "DPX.fx", "Saturation", 0f, 10f);
         AddAdd(definitions, "DPX.fx", "Contrast", "Color grade contrast", -5f, 5f, profile => (profile.Contrast - 1f) * 0.25f);
-        AddVectorScaleAll(definitions, "DPX.fx", "RGB_C", ShaderValueShape.Vector3, "Color grade preservation", -10f, 10f, GameplaySanitizePreservation);
-        AddVectorScaleAll(definitions, "DPX.fx", "RGB_Curve", ShaderValueShape.Vector3, "Color grade preservation", -20f, 20f, GameplaySanitizePreservation);
 
         AddColorPreservation(definitions, "Vibrance.fx", "Vibrance", -1f, 1f);
         AddColorPreservation(definitions, "Colourfulness.fx", "colourfulness", 0f, 10f);
+
+        AddColorPreservation(definitions, "FilmicPass.fx", "Strength", 0f, 1f);
+        AddColorPreservation(definitions, "FilmicPass.fx", "Fade", 0f, 1f);
+        AddAdd(definitions, "FilmicPass.fx", "Contrast", "Color grade contrast", -5f, 5f, profile => (profile.Contrast - 1f) * 0.25f);
+        AddAdd(definitions, "FilmicPass.fx", "Saturation", "Color grade saturation", -5f, 5f, profile => (profile.Saturation - 1f) * 0.25f);
+
+        AddColorPreservation(definitions, "Sepia.fx", "Strength", 0f, 1f);
 
         AddColorPreservation(definitions, "Technicolor2.fx", "Strength", 0f, 1f);
         AddAdd(definitions, "Technicolor2.fx", "Brightness", "Color grade brightness", -5f, 5f, profile => (profile.Exposure - 1f) * 0.25f);
@@ -325,8 +403,9 @@ public sealed class ShaderVariableMapper
         AddAdd(definitions, "Tonemap.fx", "Exposure", "Tonemap exposure", -5f, 5f, profile => profile.Exposure - 1f);
         AddAdd(definitions, "Tonemap.fx", "Gamma", "Tonemap gamma", 0.25f, 4f, profile => profile.ShadowLift * 0.25f);
         AddAdd(definitions, "Tonemap.fx", "Saturation", "Tonemap saturation", -5f, 5f, profile => (profile.Saturation - 1f) * 0.25f);
-        AddColorPreservation(definitions, "Tonemap.fx", "Bleach", 0f, 1f);
-        AddColorPreservation(definitions, "Tonemap.fx", "Defog", 0f, 1f);
+
+        AddScale(definitions, "Reinhard.fx", "ReinhardScale", "Tonemap amount", 0f, 10f, profile => 1f + ((profile.Contrast - 1f) * 0.20f));
+        AddScale(definitions, "Reinhard.fx", "ReinhardStrength", "Tonemap amount", 0f, 10f, profile => 1f + ((profile.Contrast - 1f) * 0.20f));
 
         AddVectorAddAll(definitions, "LiftGammaGain.fx", "RGB_Lift", ShaderValueShape.Vector3, "Lift shadow lift", -2f, 2f, profile => profile.ShadowLift * 0.15f);
         AddVectorAddAll(definitions, "LiftGammaGain.fx", "RGB_Gamma", ShaderValueShape.Vector3, "Lift gamma", 0.25f, 4f, profile => profile.ShadowLift * 0.10f);
@@ -342,6 +421,50 @@ public sealed class ShaderVariableMapper
         AddAdd(definitions, "PiecewiseFilmicTonemap.fx", "Gamma", "Tonemap gamma", 0.25f, 4f, profile => profile.ShadowLift * 0.25f);
         AddColorPreservation(definitions, "PiecewiseFilmicTonemap.fx", "ShoulderStrength", 0f, 10f);
         AddColorPreservation(definitions, "PiecewiseFilmicTonemap.fx", "ToeStrength", 0f, 10f);
+
+        AddPd80Definitions(definitions);
+    }
+
+    private static void AddPd80Definitions(List<ShaderVariableDefinition> definitions)
+    {
+        AddAdd(definitions, "PD80_04_Color_Temperature.fx", "Kelvin", "Free color temperature", 1000f, 40000f, profile => profile.Temperature * 1800f);
+        AddColorPreservation(definitions, "PD80_04_Color_Temperature.fx", "kMix", 0f, 1f);
+
+        const string cbs = "PD80_04_Contrast_Brightness_Saturation.fx";
+        AddAdd(definitions, cbs, "brightness", "Free color brightness", -5f, 5f, profile => (profile.Exposure - 1f) * 0.50f);
+        AddAdd(definitions, cbs, "contrast", "Free color contrast", -5f, 5f, profile => (profile.Contrast - 1f) * 0.35f);
+        AddAdd(definitions, cbs, "saturation", "Free color saturation", -5f, 5f, profile => (profile.Saturation - 1f) * 0.35f);
+        AddAdd(definitions, cbs, "vibrance", "Free color vibrance", -5f, 5f, profile => (profile.Saturation - 1f) * 0.30f);
+        AddAdd(definitions, cbs, "tint", "Free color tint", -1f, 1f, profile => profile.Tint * 0.35f);
+        AddAdd(definitions, cbs, "brightnessD", "Free color depth brightness", -5f, 5f, profile => (profile.Exposure - 1f) * 0.20f);
+        AddAdd(definitions, cbs, "exposureD", "Free color depth exposure", -5f, 5f, profile => (profile.Exposure - 1f) * 0.20f);
+        AddAdd(definitions, cbs, "saturationD", "Free color depth saturation", -5f, 5f, profile => (profile.Saturation - 1f) * 0.15f);
+        AddAdd(definitions, cbs, "vibranceD", "Free color depth vibrance", -5f, 5f, profile => (profile.Saturation - 1f) * 0.15f);
+
+        const string smh = "PD80_03_Shadows_Midtones_Highlights.fx";
+        AddPd80TonalBand(definitions, smh, "s", profile => profile.ShadowLift, profile => profile.ShadowSaturationBias, profile => profile.Tint);
+        AddPd80TonalBand(definitions, smh, "m", profile => profile.MidtoneContrast - 1f, profile => profile.MidtoneSaturationBias, profile => profile.Tint * 0.50f);
+        AddPd80TonalBand(definitions, smh, "h", profile => profile.HighlightRecovery - 1f, profile => profile.HighlightSaturationBias, profile => profile.Temperature);
+
+        AddScale(definitions, "PD80_03_Filmic_Adaptation.fx", "adj_linear", "Tonemap midtone contrast", 0f, 10f, profile => 1f + ((profile.MidtoneContrast - 1f) * 0.25f));
+        AddScale(definitions, "PD80_03_Filmic_Adaptation.fx", "adj_shoulder", "Tonemap highlight recovery", 0f, 10f, profile => 1f + ((profile.HighlightRecovery - 1f) * 0.25f));
+        AddScale(definitions, "PD80_03_Filmic_Adaptation.fx", "adj_toe", "Tonemap shadow lift", 0f, 10f, profile => 1f + (profile.ShadowLift * 0.20f));
+    }
+
+    private static void AddPd80TonalBand(
+        List<ShaderVariableDefinition> definitions,
+        string section,
+        string suffix,
+        Func<VisualProfile, float> tonalAmount,
+        Func<VisualProfile, float> saturationAmount,
+        Func<VisualProfile, float> tintAmount)
+    {
+        AddAdd(definitions, section, $"exposure_{suffix}", "Free color tonal exposure", -5f, 5f, profile => tonalAmount(profile) * 0.20f);
+        AddAdd(definitions, section, $"brightness_{suffix}", "Free color tonal brightness", -5f, 5f, profile => tonalAmount(profile) * 0.20f);
+        AddAdd(definitions, section, $"contrast_{suffix}", "Free color tonal contrast", -5f, 5f, profile => (profile.Contrast - 1f) * 0.15f);
+        AddAdd(definitions, section, $"saturation_{suffix}", "Free color tonal saturation", -5f, 5f, profile => saturationAmount(profile) * 0.30f);
+        AddAdd(definitions, section, $"vibrance_{suffix}", "Free color tonal vibrance", -5f, 5f, profile => saturationAmount(profile) * 0.25f);
+        AddAdd(definitions, section, $"tint_{suffix}", "Free color tonal tint", -1f, 1f, profile => tintAmount(profile) * 0.20f);
     }
 
     private static void AddLevelsPlus(List<ShaderVariableDefinition> definitions, string section)

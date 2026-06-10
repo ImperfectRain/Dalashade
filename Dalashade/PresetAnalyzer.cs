@@ -237,7 +237,7 @@ public sealed class PresetAnalyzer
     {
         var text = $"{entry.TechniqueName} {entry.ShaderFile}".ToLowerInvariant();
 
-        if (ContainsAny(text, "keepui", "restoreui", "launchpad", "insight", "displaydepth", "chromakey", "splitscreen", "aspectratio", "composition", "clipboard", "verticalpreviewer", "uimask", "crashpad"))
+        if (ContainsAny(text, "keepui", "restoreui", "launchpad", "insight", "displaydepth", "stagedepth", "chromakey", "splitscreen", "aspectratio", "composition", "clipboard", "verticalpreviewer", "uimask", "crashpad"))
         {
             return EffectRole.UiUtility;
         }
@@ -247,7 +247,7 @@ public sealed class PresetAnalyzer
             return EffectRole.Dof;
         }
 
-        if (ContainsAny(text, "filmgrain", "simplegrain", "smartnoise", "gr8mmfilm", "noise"))
+        if (ContainsAny(text, "filmgrain", "filmgrain2", "simplegrain", "smartnoise", "gr8mmfilm", "noise"))
         {
             return EffectRole.FilmGrain;
         }
@@ -257,7 +257,7 @@ public sealed class PresetAnalyzer
             return EffectRole.Vignette;
         }
 
-        if (ContainsAny(text, "lensdiffusion", "solaris", "exposurefusion", "ambientlight", "halation", "dehaze", "blooming_hdr", "watchdogs", "reflectivebump", "localcontrast"))
+        if (ContainsAny(text, "lensdiffusion", "solaris", "exposurefusion", "ambientlight", "halation", "dehaze", "blooming_hdr", "watchdogs", "reflectivebump", "localcontrast", "prism", "chromaticaberration", "colorisolation"))
         {
             return EffectRole.Diffusion;
         }
@@ -324,12 +324,17 @@ public sealed class PresetAnalyzer
             return EffectRisk.GPoseOnly;
         }
 
-        if (ContainsAny(text, "regrade+", "technicolor", "lensdiffusion", "solaris", "exposurefusion", "adaptivetint", "adaptivecolorgrading", "watchdogs", "chromaticaberration", "prism", "reflectivebump", "hslshift", "huefx"))
+        if (ContainsAny(text, "regrade+", "technicolor", "lensdiffusion", "solaris", "exposurefusion", "adaptivetint", "adaptivecolorgrading", "watchdogs", "chromaticaberration", "prism", "reflectivebump", "hslshift", "huefx", "colorisolation"))
         {
             return EffectRisk.High;
         }
 
-        if (ContainsAny(text, "ambientlight", "dpx", "colourfulness", "vibrance", "gaussian", "bloominghdr", "localcontrast", "filmgrain", "vignette", "ssdo", "ssao", "mxao 3.4", "mxao 4"))
+        if (role == EffectRole.FilmGrain)
+        {
+            return EffectRisk.GPoseOnly;
+        }
+
+        if (ContainsAny(text, "ambientlight", "dpx", "colourfulness", "vibrance", "gaussian", "bloominghdr", "localcontrast", "vignette", "artisticvignette", "ssdo", "ssao", "mxao 3.4", "mxao 4"))
         {
             return EffectRisk.Moderate;
         }

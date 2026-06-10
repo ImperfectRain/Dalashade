@@ -40,6 +40,9 @@ public sealed class SanitizeActionPipeline
         new("qUINT_dof.fx", "fADOF_ShapeChromaAmount", SanitizeActionType.SetToZero, 0f, "DOF chroma amount", EffectRole.Dof),
         new("qUINT_dof.fx", "fADOF_ShapeCurvatureAmount", SanitizeActionType.Scale, 0.50f, "DOF blur shape curvature", EffectRole.Dof),
         new("qUINT_dof.fx", "fADOF_SmootheningAmount", SanitizeActionType.Scale, 0.50f, "DOF smoothening amount", EffectRole.Dof),
+        new("Glamayre_Fast_Effects.fx", "dof_strength", SanitizeActionType.Scale, 0.25f, "Glamayre DOF strength", EffectRole.Dof),
+        new("Glamayre\\Glamayre_Fast_Effects.fx", "dof_strength", SanitizeActionType.Scale, 0.25f, "Glamayre DOF strength", EffectRole.Dof),
+        new("Glamarye_Fast_Effects.fx", "dof_strength", SanitizeActionType.Scale, 0.25f, "Glamayre DOF strength", EffectRole.Dof),
 
         new("FilmGrain.fx", "Intensity", SanitizeActionType.SetToZero, 0f, "Film grain intensity", EffectRole.FilmGrain),
         new("FilmGrain2.fx", "grainamount", SanitizeActionType.SetToZero, 0f, "Film grain amount", EffectRole.FilmGrain),
