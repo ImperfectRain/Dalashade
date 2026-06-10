@@ -127,7 +127,14 @@ public sealed class ConfigWindow : Window, IDisposable
         }
 
         ImGui.SameLine();
+        if (ImGui.Button("Test Reload"))
+        {
+            plugin.ReloadShadersNow();
+        }
+
+        ImGui.SameLine();
         ImGui.TextUnformatted(plugin.LastWriteResult.Message);
+        ImGui.TextWrapped(plugin.LastReloadResult.Message);
     }
 
     private void DrawTextInput(string label, string currentValue, Action<string> update)

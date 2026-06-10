@@ -1,4 +1,5 @@
 using Dalamud.Game.ClientState.Conditions;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using Lumina.Excel.Sheets;
 using System;
 
@@ -199,13 +200,14 @@ public sealed class GameContextService
         var inGpose = Plugin.ClientState.IsGPosing;
         var inSanctuary = InferSanctuary(territoryName, inDuty);
         var eorzeaHour = GetEorzeaHour();
+        var weather = GetCurrentWeather(territoryId);
 
         Current = new GameContext(
             territoryId,
             territoryName,
             ClassifyTerritory(territoryName, inDuty, inSanctuary),
-            zoneInitWeatherId,
-            zoneInitWeatherName,
+            weather.Id,
+            weather.Name,
             eorzeaHour,
             GetTimeBucket(eorzeaHour),
             inCombat,
@@ -216,6 +218,41 @@ public sealed class GameContextService
             GetDutyContentName(zoneInitContentName),
             zoneInitContentType);
         CurrentTags = SceneClassifier.Classify(Current);
+    }
+
+    private (uint? Id, string Name) GetCurrentWeather(uint territoryId)
+    {
+        try
+        {
+            var weatherId = GetCurrentWeatherId(territoryId);
+            if (weatherId > 0 && Plugin.DataManager.GetExcelSheet<Weather>().TryGetRow(weatherId, out var weather))
+            {
+                var weatherName = weather.Name.ToString();
+                if (!string.IsNullOrWhiteSpace(weatherName))
+                {
+                    return (weatherId, weatherName);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Plugin.Log.Debug(ex, "Could not refresh current weather.");
+        }
+
+        return (zoneInitWeatherId, zoneInitWeatherName);
+    }
+
+    private static unsafe uint GetCurrentWeatherId(uint territoryId)
+    {
+        if (territoryId == 0 || territoryId > ushort.MaxValue)
+        {
+            return 0;
+        }
+
+        var weatherManager = WeatherManager.Instance();
+        return weatherManager == null
+            ? 0
+            : (uint)weatherManager->GetWeatherForHour((ushort)territoryId, 0);
     }
 
     private static string GetDutyContentName(string fallback)

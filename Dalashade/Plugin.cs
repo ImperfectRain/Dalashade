@@ -114,6 +114,12 @@ public sealed class Plugin : IDalamudPlugin
         return LastWriteResult;
     }
 
+    public ReloadResult ReloadShadersNow()
+    {
+        LastReloadResult = reShadeController.ReloadAfterPresetWrite(Configuration);
+        return LastReloadResult;
+    }
+
     private void OnFrameworkUpdate(IFramework framework)
     {
         if (!Configuration.Enabled)

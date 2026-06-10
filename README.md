@@ -8,8 +8,8 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 
 ## What It Does
 
-- Watches territory, combat, cutscene, night/day, and zone-entry weather.
-- Uses Dalamud state like GPose, duty state, content finder info, Eorzea time, and zone-entry weather to infer what kind of scene you are in.
+- Watches territory, combat, cutscene, night/day, and current weather.
+- Uses Dalamud state like GPose, duty state, content finder info, Eorzea time, and client weather data to infer what kind of scene you are in.
 - Classifies the current place as a city, field zone, dungeon/trial/raid-like duty, or interior-ish space.
 - Optionally analyzes the newest screenshot in a folder for brightness, contrast, saturation, crushed shadows, and clipped highlights.
 - Optionally analyzes a master image folder, so you can point it at a look you like and let Dalashade bias the generated preset toward it.
@@ -35,7 +35,7 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 
 The generated preset should live somewhere writable, usually Dalamud's plugin config folder. Keeping it away from the game folder avoids a lot of Windows permission nonsense.
 
-Dalashade can also reload ReShade after it writes the preset. By default it syncs ReShade's reload hotkey to `F5` in `ReShade.ini`, then sends that key after a successful generation. If you already use another reload key, click `Set reload hotkey` in settings and press the key or button you want. Hold Ctrl, Shift, or Alt while pressing it if you use a combo.
+Dalashade can also reload ReShade after it writes the preset. By default it syncs ReShade's reload hotkey to `F5` in `ReShade.ini`, then sends that key after a successful generation. If you already use another reload key, click `Set reload hotkey` in settings and press the key or button you want. Hold Ctrl, Shift, or Alt while pressing it if you use a combo. The settings window also has `Test Reload` so you can check the reload path without regenerating a preset.
 
 ## Screenshot Analysis
 
@@ -62,7 +62,7 @@ Instead of hand-tuning `Central Shroud = these values` forever, it reads what Da
 - city/social, field/exploration, dungeon, raid/trial, interior
 - combat, duty, cutscene, GPose
 
-Those tags feed generic rules. Rain pulls back bloom and saturation a little. Duties favor readability. GPose can go prettier. Night lifts shadows and relaxes AO. It is all category-based, so a new zone should still get sane behavior without anyone manually adding it.
+Those tags feed generic rules. Rain pulls back bloom and saturation a little. Duties favor readability. GPose can go prettier. Night lifts shadows and relaxes AO. Weather is refreshed from the client weather manager during normal updates, with zone-entry weather only kept as a fallback. It is all category-based, so a new zone should still get sane behavior without anyone manually adding it.
 
 ## Master Preset Images
 
