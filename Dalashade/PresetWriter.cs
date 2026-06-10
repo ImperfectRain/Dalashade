@@ -11,7 +11,7 @@ public sealed record ChangedShaderVariable(
     string OldValue,
     string NewValue,
     string ReasonCategory,
-    bool TechniqueActive,
+    TechniqueActivationState ActivationState,
     bool HitMin,
     bool HitMax,
     float AuthorityAdjustmentStrength = 1f,
@@ -27,7 +27,7 @@ public sealed record PresetWriteResult(
     public static PresetWriteResult Skipped(string message) => new(false, message, 0, Array.Empty<ChangedShaderVariable>(), Array.Empty<SanitizedShaderVariable>());
 }
 
-public sealed record ShaderSupportItem(string Section, string Key, bool Controllable, string ReasonCategory, bool TechniqueActive);
+public sealed record ShaderSupportItem(string Section, string Key, bool Controllable, string ReasonCategory, TechniqueActivationState ActivationState);
 
 public sealed record ShaderSupportScan(bool Success, string Message, IReadOnlyList<ShaderSupportItem> Items)
 {
@@ -79,7 +79,7 @@ public sealed class PresetWriter
             var analysis = analyzer.Analyze(configuration);
             var authorityPolicy = GenerationAuthorityPolicy.From(analysis, configuration.CompatibilityMode);
             var adjustments = mapper.CreateAdjustments(profile, configuration, authorityPolicy);
-            var activeTechniques = PresetAnalyzer.ParseActiveTechniqueSections(lines);
+            var activationMap = PresetAnalyzer.ParseTechniqueActivationMap(lines);
             var changes = new List<ChangedShaderVariable>();
             var currentSection = string.Empty;
 
@@ -104,15 +104,20 @@ public sealed class PresetWriter
                     continue;
                 }
 
-                var techniqueActive = PresetAnalyzer.IsTechniqueActive(activeTechniques, currentSection);
-                if (!techniqueActive && configuration.InactiveShaderWriteMode == InactiveShaderWriteMode.Never)
+                var activationState = PresetAnalyzer.GetTechniqueActivationState(activationMap, currentSection);
+                if (activationState != TechniqueActivationState.Active && configuration.InactiveShaderWriteMode == InactiveShaderWriteMode.Never)
                 {
                     continue;
                 }
 
-                if (!techniqueActive
+                if (activationState == TechniqueActivationState.Inactive
                     && configuration.InactiveShaderWriteMode == InactiveShaderWriteMode.SupportedInactiveSections
                     && !HasExactAdjustment(adjustments, currentSection, key))
+                {
+                    continue;
+                }
+
+                if (activationState == TechniqueActivationState.Unknown && !HasExactAdjustment(adjustments, currentSection, key))
                 {
                     continue;
                 }
@@ -134,15 +139,15 @@ public sealed class PresetWriter
                         currentValue,
                         adjustedValue,
                         adjust.ReasonCategory,
-                        techniqueActive,
+                        activationState,
                         adjusted.HitMin,
                         adjusted.HitMax,
                         adjust.AuthorityAdjustmentStrength,
-                        adjusted.Warning));
+                        CombineWarnings(adjusted.Warning, activationState == TechniqueActivationState.Unknown ? "Active technique state could not be confirmed." : null)));
                 }
             }
 
-            var sanitizeChanges = sanitizeActionPipeline.Apply(lines, configuration, activeTechniques, authorityPolicy);
+            var sanitizeChanges = sanitizeActionPipeline.Apply(lines, configuration, activationMap, authorityPolicy);
 
             if (configuration.WriteBackups && File.Exists(generatedPresetPath))
             {
@@ -155,15 +160,16 @@ public sealed class PresetWriter
             File.WriteAllLines(tempPath, lines);
             ReplaceFile(tempPath, generatedPresetPath);
 
-            var inactiveChanges = changes.Count(change => !change.TechniqueActive);
+            var inactiveChanges = changes.Count(change => change.ActivationState == TechniqueActivationState.Inactive);
+            var unknownChanges = changes.Count(change => change.ActivationState == TechniqueActivationState.Unknown);
             var clampedChanges = changes.Count(change => change.HitMin || change.HitMax);
             var warningChanges = changes.Count(change => !string.IsNullOrWhiteSpace(change.Warning));
             var dampenedChanges = changes.Count(change => change.AuthorityAdjustmentStrength < 0.999f);
             var sanitizeChangeCount = sanitizeChanges.Count;
             var message = $"Generated preset written with {changes.Count} supported variable change(s).";
-            if (inactiveChanges > 0 || clampedChanges > 0 || warningChanges > 0 || dampenedChanges > 0 || sanitizeChangeCount > 0)
+            if (inactiveChanges > 0 || unknownChanges > 0 || clampedChanges > 0 || warningChanges > 0 || dampenedChanges > 0 || sanitizeChangeCount > 0)
             {
-                message += $" {inactiveChanges} inactive, {clampedChanges} clamped, {warningChanges} warning(s), {dampenedChanges} authority-dampened, {sanitizeChangeCount} sanitize action(s).";
+                message += $" {inactiveChanges} inactive, {unknownChanges} unknown, {clampedChanges} clamped, {warningChanges} warning(s), {dampenedChanges} authority-dampened, {sanitizeChangeCount} sanitize action(s).";
             }
 
             return new PresetWriteResult(true, message, changes.Count, changes, sanitizeChanges);
@@ -195,7 +201,7 @@ public sealed class PresetWriter
 
             var adjustments = mapper.CreateAdjustments(VisualProfile.Neutral, configuration);
             var lines = File.ReadAllLines(basePresetPath);
-            var activeTechniques = PresetAnalyzer.ParseActiveTechniqueSections(lines);
+            var activationMap = PresetAnalyzer.ParseTechniqueActivationMap(lines);
             var items = new List<ShaderSupportItem>();
             var seen = new HashSet<ShaderVariableKey>(ShaderVariableKeyComparer.Instance);
             var currentSection = string.Empty;
@@ -231,14 +237,15 @@ public sealed class PresetWriter
                     key,
                     true,
                     adjust.ReasonCategory,
-                    PresetAnalyzer.IsTechniqueActive(activeTechniques, currentSection)));
+                    PresetAnalyzer.GetTechniqueActivationState(activationMap, currentSection)));
             }
 
-            var activeCount = items.Count(item => item.TechniqueActive);
-            var inactiveCount = items.Count - activeCount;
+            var activeCount = items.Count(item => item.ActivationState == TechniqueActivationState.Active);
+            var inactiveCount = items.Count(item => item.ActivationState == TechniqueActivationState.Inactive);
+            var unknownCount = items.Count(item => item.ActivationState == TechniqueActivationState.Unknown);
             var message = items.Count == 0
                 ? "No controllable shader variables detected in the base preset."
-                : $"Detected {items.Count} controllable shader variable(s): {activeCount} active, {inactiveCount} inactive.";
+                : $"Detected {items.Count} controllable shader variable(s): {activeCount} active, {inactiveCount} inactive, {unknownCount} unknown.";
             return new ShaderSupportScan(true, message, items.OrderBy(item => item.Section).ThenBy(item => item.Key).ToArray());
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
@@ -276,6 +283,21 @@ public sealed class PresetWriter
     private static bool HasExactAdjustment(IReadOnlyDictionary<ShaderVariableKey, ShaderAdjustment> adjustments, string section, string key)
     {
         return adjustments.ContainsKey(new ShaderVariableKey(section, key));
+    }
+
+    private static string? CombineWarnings(string? first, string? second)
+    {
+        if (string.IsNullOrWhiteSpace(first))
+        {
+            return string.IsNullOrWhiteSpace(second) ? null : second;
+        }
+
+        if (string.IsNullOrWhiteSpace(second))
+        {
+            return first;
+        }
+
+        return $"{first} {second}";
     }
 
     private static bool TryReadSection(string line, out string section)

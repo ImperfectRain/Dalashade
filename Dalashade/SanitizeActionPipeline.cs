@@ -28,7 +28,7 @@ public sealed record SanitizedShaderVariable(
     SanitizeActionType ActionType,
     string Reason,
     EffectRole Role,
-    bool TechniqueActive);
+    TechniqueActivationState ActivationState);
 
 public sealed class SanitizeActionPipeline
 {
@@ -78,7 +78,7 @@ public sealed class SanitizeActionPipeline
     public IReadOnlyList<SanitizedShaderVariable> Apply(
         string[] lines,
         Configuration configuration,
-        IReadOnlySet<string> activeTechniques,
+        TechniqueActivationMap activationMap,
         GenerationAuthorityPolicy authorityPolicy)
     {
         if (configuration.CompatibilityMode != PresetCompatibilityMode.GameplaySanitize)
@@ -111,8 +111,8 @@ public sealed class SanitizeActionPipeline
                 continue;
             }
 
-            var techniqueActive = PresetAnalyzer.IsTechniqueActive(activeTechniques, currentSection);
-            if (!techniqueActive)
+            var activationState = PresetAnalyzer.GetTechniqueActivationState(activationMap, currentSection);
+            if (activationState != TechniqueActivationState.Active)
             {
                 continue;
             }
@@ -137,7 +137,7 @@ public sealed class SanitizeActionPipeline
                 action.Type,
                 action.Reason,
                 action.Role,
-                techniqueActive));
+                activationState));
         }
 
         return changes;

@@ -50,14 +50,23 @@ public enum PresetRiskLevel
     VeryHigh
 }
 
+public enum TechniqueActivationState
+{
+    Active,
+    Inactive,
+    Unknown
+}
+
 public sealed record PresetTechnique(
     string TechniqueName,
     string ShaderFile,
     string Section,
-    bool Active,
+    TechniqueActivationState ActivationState,
     EffectRole Role,
     EffectRisk Risk,
     SupportLevel SupportLevel);
+
+public sealed record TechniqueActivationMap(bool TechniquesLineFound, IReadOnlySet<string> ActiveTechniqueKeys);
 
 public sealed record EffectAuthority(
     EffectRole Role,
@@ -150,16 +159,17 @@ public sealed class PresetAnalyzer
             var sections = ParseSections(lines);
             var activeEntries = ParseTechniqueEntries(lines, "Techniques");
             var sortedEntries = ParseTechniqueEntries(lines, "TechniqueSorting");
+            var activationKnown = ContainsPresetKey(lines, "Techniques");
             var activeKeys = activeEntries.SelectMany(GetTechniqueKeys).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var entries = MergeTechniqueEntries(activeEntries, sortedEntries, sections);
             var techniques = entries
-                .Select(entry => ClassifyTechnique(entry, activeKeys.Contains(entry.DisplayName) || activeKeys.Contains(entry.ShaderFile) || activeKeys.Contains(entry.TechniqueName), controlledSections))
+                .Select(entry => ClassifyTechnique(entry, GetTechniqueActivationState(activationKnown, activeKeys, entry), controlledSections))
                 .GroupBy(TechniqueDedupeKey, StringComparer.OrdinalIgnoreCase)
                 .Select(group => group
-                    .OrderByDescending(technique => technique.Active)
+                    .OrderByDescending(technique => ActivationSortOrder(technique.ActivationState))
                     .ThenBy(technique => technique.SupportLevel)
                     .First())
-                .OrderByDescending(technique => technique.Active)
+                .OrderByDescending(technique => ActivationSortOrder(technique.ActivationState))
                 .ThenBy(technique => technique.Role)
                 .ThenBy(technique => technique.ShaderFile, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -177,7 +187,7 @@ public sealed class PresetAnalyzer
         }
     }
 
-    public static HashSet<string> ParseActiveTechniqueSections(IEnumerable<string> lines)
+    public static TechniqueActivationMap ParseTechniqueActivationMap(IEnumerable<string> lines)
     {
         var activeTechniques = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in ParseTechniqueEntries(lines, "Techniques"))
@@ -187,21 +197,40 @@ public sealed class PresetAnalyzer
             activeTechniques.Add(entry.ShaderFile);
         }
 
-        return activeTechniques;
+        return new TechniqueActivationMap(ContainsPresetKey(lines, "Techniques"), activeTechniques);
     }
 
-    public static bool IsTechniqueActive(IReadOnlySet<string> activeTechniques, string section)
+    public static TechniqueActivationState GetTechniqueActivationState(TechniqueActivationMap activationMap, string section)
     {
-        return activeTechniques.Count == 0 || string.IsNullOrWhiteSpace(section) || activeTechniques.Contains(section);
+        if (!activationMap.TechniquesLineFound || string.IsNullOrWhiteSpace(section))
+        {
+            return TechniqueActivationState.Unknown;
+        }
+
+        return activationMap.ActiveTechniqueKeys.Contains(section)
+            ? TechniqueActivationState.Active
+            : TechniqueActivationState.Inactive;
     }
 
-    private static PresetTechnique ClassifyTechnique(TechniqueEntry entry, bool active, IReadOnlyDictionary<string, int> controlledSections)
+    private static TechniqueActivationState GetTechniqueActivationState(bool activationKnown, IReadOnlySet<string> activeKeys, TechniqueEntry entry)
+    {
+        if (!activationKnown)
+        {
+            return TechniqueActivationState.Unknown;
+        }
+
+        return activeKeys.Contains(entry.DisplayName) || activeKeys.Contains(entry.ShaderFile) || activeKeys.Contains(entry.TechniqueName)
+            ? TechniqueActivationState.Active
+            : TechniqueActivationState.Inactive;
+    }
+
+    private static PresetTechnique ClassifyTechnique(TechniqueEntry entry, TechniqueActivationState activationState, IReadOnlyDictionary<string, int> controlledSections)
     {
         var role = ClassifyRole(entry);
         var risk = ClassifyRisk(entry, role);
         var support = ClassifySupport(entry, role, controlledSections);
 
-        return new PresetTechnique(entry.TechniqueName, entry.ShaderFile, entry.Section, active, role, risk, support);
+        return new PresetTechnique(entry.TechniqueName, entry.ShaderFile, entry.Section, activationState, role, risk, support);
     }
 
     private static EffectRole ClassifyRole(TechniqueEntry entry)
@@ -341,14 +370,14 @@ public sealed class PresetAnalyzer
 
     private static PresetRiskReport BuildReport(IReadOnlyList<PresetTechnique> techniques, IReadOnlyList<string> lines, PresetCompatibilityMode mode)
     {
-        var active = techniques.Where(technique => technique.Active).ToArray();
+        var active = techniques.Where(technique => technique.ActivationState == TechniqueActivationState.Active).ToArray();
         var activeSupported = active.Where(technique => technique.SupportLevel == SupportLevel.FullyControlled).ToArray();
         var activePartial = active.Where(technique => technique.SupportLevel == SupportLevel.PartiallyControlled).ToArray();
         var activeDetectedOnly = active.Where(technique => technique.SupportLevel == SupportLevel.DetectedOnly).ToArray();
         var activeUnsupported = active.Where(technique => technique.SupportLevel == SupportLevel.Unsupported).ToArray();
         var highRiskActive = DeduplicateTechniques(active.Where(technique => technique.Risk is EffectRisk.High or EffectRisk.GPoseOnly)).ToArray();
         var inactiveSupported = techniques
-            .Where(technique => !technique.Active && technique.SupportLevel is SupportLevel.FullyControlled or SupportLevel.PartiallyControlled)
+            .Where(technique => technique.ActivationState != TechniqueActivationState.Active && technique.SupportLevel is SupportLevel.FullyControlled or SupportLevel.PartiallyControlled)
             .GroupBy(TechniqueDedupeKey, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .ToArray();
@@ -515,6 +544,11 @@ public sealed class PresetAnalyzer
 
         warnings.AddRange(multipleAuthorityWarnings);
         warnings.AddRange(FindReGradePlusRiskWarnings(lines));
+
+        if (active.Count == 0 && lines.All(line => !IsPresetKey(line, "Techniques")))
+        {
+            warnings.Add("Active technique state could not be confirmed because the preset does not contain a Techniques= line.");
+        }
 
         if (active.Count > 10)
         {
@@ -713,14 +747,7 @@ public sealed class PresetAnalyzer
     {
         foreach (var line in lines)
         {
-            var separatorIndex = line.IndexOf('=');
-            if (separatorIndex <= 0)
-            {
-                continue;
-            }
-
-            var key = line[..separatorIndex].Trim();
-            if (!string.Equals(key, targetKey, StringComparison.OrdinalIgnoreCase))
+            if (!IsPresetKey(line, targetKey, out var separatorIndex))
             {
                 continue;
             }
@@ -745,6 +772,28 @@ public sealed class PresetAnalyzer
 
         var trimmed = value.Trim();
         return new TechniqueEntry(Path.GetFileNameWithoutExtension(trimmed), trimmed);
+    }
+
+    private static bool ContainsPresetKey(IEnumerable<string> lines, string targetKey)
+    {
+        return lines.Any(line => IsPresetKey(line, targetKey));
+    }
+
+    private static bool IsPresetKey(string line, string targetKey)
+    {
+        return IsPresetKey(line, targetKey, out _);
+    }
+
+    private static bool IsPresetKey(string line, string targetKey, out int separatorIndex)
+    {
+        separatorIndex = line.IndexOf('=');
+        if (separatorIndex <= 0)
+        {
+            return false;
+        }
+
+        var key = line[..separatorIndex].Trim();
+        return string.Equals(key, targetKey, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool TryReadSection(string line, out string section)
@@ -801,6 +850,21 @@ public sealed class PresetAnalyzer
             EffectRisk.GPoseOnly => "GPose-only",
             EffectRisk.UtilityIgnore => "utility/ignored",
             _ => risk.ToString().ToLowerInvariant()
+        };
+    }
+
+    public static string FormatActivationState(TechniqueActivationState activationState)
+    {
+        return activationState.ToString().ToLowerInvariant();
+    }
+
+    private static int ActivationSortOrder(TechniqueActivationState activationState)
+    {
+        return activationState switch
+        {
+            TechniqueActivationState.Active => 2,
+            TechniqueActivationState.Unknown => 1,
+            _ => 0
         };
     }
 

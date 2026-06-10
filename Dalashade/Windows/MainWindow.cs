@@ -174,12 +174,12 @@ public sealed class MainWindow : Window, IDisposable
             {
                 foreach (var technique in report.ActiveSupportedEffects)
                 {
-                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatRole(technique.Role)}, fully controlled)");
+                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatActivationState(technique.ActivationState)}, {PresetAnalyzer.FormatRole(technique.Role)}, fully controlled)");
                 }
 
                 foreach (var technique in report.ActivePartiallySupportedEffects)
                 {
-                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatRole(technique.Role)}, partially controlled)");
+                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatActivationState(technique.ActivationState)}, {PresetAnalyzer.FormatRole(technique.Role)}, partially controlled)");
                 }
 
                 if (report.ActiveSupportedEffects.Count == 0 && report.ActivePartiallySupportedEffects.Count == 0)
@@ -194,7 +194,7 @@ public sealed class MainWindow : Window, IDisposable
             {
                 foreach (var technique in report.ActiveDetectedOnlyEffects)
                 {
-                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatRole(technique.Role)}, {PresetAnalyzer.FormatRisk(technique.Risk)})");
+                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatActivationState(technique.ActivationState)}, {PresetAnalyzer.FormatRole(technique.Role)}, {PresetAnalyzer.FormatRisk(technique.Risk)})");
                 }
 
                 if (report.ActiveDetectedOnlyEffects.Count == 0)
@@ -223,7 +223,7 @@ public sealed class MainWindow : Window, IDisposable
             {
                 foreach (var technique in report.ActiveUnsupportedEffects)
                 {
-                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatRole(technique.Role)}, {PresetAnalyzer.FormatRisk(technique.Risk)})");
+                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatActivationState(technique.ActivationState)}, {PresetAnalyzer.FormatRole(technique.Role)}, {PresetAnalyzer.FormatRisk(technique.Risk)})");
                 }
 
                 ImGui.TreePop();
@@ -233,7 +233,7 @@ public sealed class MainWindow : Window, IDisposable
             {
                 foreach (var technique in report.HighRiskActiveEffects)
                 {
-                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatRole(technique.Role)}, {PresetAnalyzer.FormatRisk(technique.Risk)})");
+                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatActivationState(technique.ActivationState)}, {PresetAnalyzer.FormatRole(technique.Role)}, {PresetAnalyzer.FormatRisk(technique.Risk)})");
                 }
 
                 ImGui.TreePop();
@@ -262,8 +262,7 @@ public sealed class MainWindow : Window, IDisposable
             ImGui.TextWrapped(plugin.LastShaderSupportScan.Message);
             foreach (var item in plugin.LastShaderSupportScan.Items)
             {
-                var active = item.TechniqueActive ? "active" : "inactive";
-                ImGui.BulletText($"{item.Section} / {item.Key} ({item.ReasonCategory}, {active})");
+                ImGui.BulletText($"{item.Section} / {item.Key} ({item.ReasonCategory}, {PresetAnalyzer.FormatActivationState(item.ActivationState)})");
             }
         }
 
@@ -276,9 +275,9 @@ public sealed class MainWindow : Window, IDisposable
 
             foreach (var change in plugin.LastWriteResult.Changes)
             {
-                var active = change.TechniqueActive ? "active" : "inactive";
+                var activation = PresetAnalyzer.FormatActivationState(change.ActivationState);
                 var clamp = change.HitMin ? ", min clamp" : change.HitMax ? ", max clamp" : string.Empty;
-                ImGui.BulletText($"{change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} ({active}{clamp})");
+                ImGui.BulletText($"{change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} ({activation}{clamp})");
                 ImGui.SameLine();
                 ImGui.TextDisabled(change.ReasonCategory);
                 if (!string.IsNullOrWhiteSpace(change.Warning))
@@ -297,8 +296,8 @@ public sealed class MainWindow : Window, IDisposable
 
             foreach (var action in plugin.LastWriteResult.SanitizeActions)
             {
-                var active = action.TechniqueActive ? "active" : "inactive";
-                ImGui.BulletText($"{action.Section} / {action.Key}: {action.OldValue} -> {action.NewValue} ({action.ActionType}, {PresetAnalyzer.FormatRole(action.Role)}, {active})");
+                var activation = PresetAnalyzer.FormatActivationState(action.ActivationState);
+                ImGui.BulletText($"{action.Section} / {action.Key}: {action.OldValue} -> {action.NewValue} ({action.ActionType}, {PresetAnalyzer.FormatRole(action.Role)}, {activation})");
                 ImGui.TextDisabled(action.Reason);
             }
         }

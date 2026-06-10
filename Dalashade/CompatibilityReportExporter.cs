@@ -100,7 +100,7 @@ public sealed class CompatibilityReportExporter
 
         foreach (var technique in DeduplicateTechniques(techniques))
         {
-            builder.AppendLine($"- {PresetAnalyzer.FormatTechnique(technique)} | role={PresetAnalyzer.FormatRole(technique.Role)} | risk={PresetAnalyzer.FormatRisk(technique.Risk)} | support={technique.SupportLevel}");
+            builder.AppendLine($"- {PresetAnalyzer.FormatTechnique(technique)} | activation={PresetAnalyzer.FormatActivationState(technique.ActivationState)} | role={PresetAnalyzer.FormatRole(technique.Role)} | risk={PresetAnalyzer.FormatRisk(technique.Risk)} | support={technique.SupportLevel}");
         }
 
         builder.AppendLine();
@@ -183,8 +183,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine();
         foreach (var item in shaderSupport.Items)
         {
-            var active = item.TechniqueActive ? "active" : "inactive";
-            builder.AppendLine($"- {item.Section} / {item.Key} | {item.ReasonCategory} | {active}");
+            builder.AppendLine($"- {item.Section} / {item.Key} | {item.ReasonCategory} | {PresetAnalyzer.FormatActivationState(item.ActivationState)}");
         }
 
         if (shaderSupport.Items.Count == 0)
@@ -210,11 +209,11 @@ public sealed class CompatibilityReportExporter
 
         foreach (var change in writeResult.Changes)
         {
-            var active = change.TechniqueActive ? "active" : "inactive";
+            var activation = PresetAnalyzer.FormatActivationState(change.ActivationState);
             var clamp = change.HitMin ? "min clamp" : change.HitMax ? "max clamp" : "not clamped";
             var dampening = change.AuthorityAdjustmentStrength < 0.999f ? $" | authority dampening={change.AuthorityAdjustmentStrength:0.##}x" : string.Empty;
             var warning = string.IsNullOrWhiteSpace(change.Warning) ? string.Empty : $" | warning={change.Warning}";
-            builder.AppendLine($"- {change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} | {change.ReasonCategory} | {active} | {clamp}{dampening}{warning}");
+            builder.AppendLine($"- {change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} | {change.ReasonCategory} | {activation} | {clamp}{dampening}{warning}");
         }
 
         builder.AppendLine();
@@ -233,8 +232,7 @@ public sealed class CompatibilityReportExporter
 
         foreach (var action in writeResult.SanitizeActions)
         {
-            var active = action.TechniqueActive ? "active" : "inactive";
-            builder.AppendLine($"- {action.Section} / {action.Key}: {action.OldValue} -> {action.NewValue} | {action.ActionType} | {PresetAnalyzer.FormatRole(action.Role)} | {action.Reason} | {active}");
+            builder.AppendLine($"- {action.Section} / {action.Key}: {action.OldValue} -> {action.NewValue} | {action.ActionType} | {PresetAnalyzer.FormatRole(action.Role)} | {action.Reason} | {PresetAnalyzer.FormatActivationState(action.ActivationState)}");
         }
 
         builder.AppendLine();
