@@ -17,9 +17,14 @@ public sealed record ChangedShaderVariable(
     float AuthorityAdjustmentStrength = 1f,
     string? Warning = null);
 
-public sealed record PresetWriteResult(bool Success, string Message, int ChangedVariables, IReadOnlyList<ChangedShaderVariable> Changes)
+public sealed record PresetWriteResult(
+    bool Success,
+    string Message,
+    int ChangedVariables,
+    IReadOnlyList<ChangedShaderVariable> Changes,
+    IReadOnlyList<SanitizedShaderVariable> SanitizeActions)
 {
-    public static PresetWriteResult Skipped(string message) => new(false, message, 0, Array.Empty<ChangedShaderVariable>());
+    public static PresetWriteResult Skipped(string message) => new(false, message, 0, Array.Empty<ChangedShaderVariable>(), Array.Empty<SanitizedShaderVariable>());
 }
 
 public sealed record ShaderSupportItem(string Section, string Key, bool Controllable, string ReasonCategory, bool TechniqueActive);
@@ -33,6 +38,7 @@ public sealed class PresetWriter
 {
     private readonly ShaderVariableMapper mapper = new();
     private readonly PresetAnalyzer analyzer = new();
+    private readonly SanitizeActionPipeline sanitizeActionPipeline = new();
 
     public PresetWriteResult WriteGeneratedPreset(Configuration configuration, VisualProfile profile)
     {
@@ -136,6 +142,8 @@ public sealed class PresetWriter
                 }
             }
 
+            var sanitizeChanges = sanitizeActionPipeline.Apply(lines, configuration, activeTechniques, authorityPolicy);
+
             if (configuration.WriteBackups && File.Exists(generatedPresetPath))
             {
                 var backupPath = CreateBackupPath(generatedPresetPath);
@@ -151,13 +159,14 @@ public sealed class PresetWriter
             var clampedChanges = changes.Count(change => change.HitMin || change.HitMax);
             var warningChanges = changes.Count(change => !string.IsNullOrWhiteSpace(change.Warning));
             var dampenedChanges = changes.Count(change => change.AuthorityAdjustmentStrength < 0.999f);
+            var sanitizeChangeCount = sanitizeChanges.Count;
             var message = $"Generated preset written with {changes.Count} supported variable change(s).";
-            if (inactiveChanges > 0 || clampedChanges > 0 || warningChanges > 0 || dampenedChanges > 0)
+            if (inactiveChanges > 0 || clampedChanges > 0 || warningChanges > 0 || dampenedChanges > 0 || sanitizeChangeCount > 0)
             {
-                message += $" {inactiveChanges} inactive, {clampedChanges} clamped, {warningChanges} warning(s), {dampenedChanges} authority-dampened.";
+                message += $" {inactiveChanges} inactive, {clampedChanges} clamped, {warningChanges} warning(s), {dampenedChanges} authority-dampened, {sanitizeChangeCount} sanitize action(s).";
             }
 
-            return new PresetWriteResult(true, message, changes.Count, changes);
+            return new PresetWriteResult(true, message, changes.Count, changes, sanitizeChanges);
         }
         catch (UnauthorizedAccessException ex)
         {

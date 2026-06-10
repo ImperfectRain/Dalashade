@@ -288,6 +288,21 @@ public sealed class MainWindow : Window, IDisposable
             }
         }
 
+        if (ImGui.CollapsingHeader("Sanitize actions"))
+        {
+            if (plugin.LastWriteResult.SanitizeActions.Count == 0)
+            {
+                ImGui.TextUnformatted("No sanitize actions recorded yet.");
+            }
+
+            foreach (var action in plugin.LastWriteResult.SanitizeActions)
+            {
+                var active = action.TechniqueActive ? "active" : "inactive";
+                ImGui.BulletText($"{action.Section} / {action.Key}: {action.OldValue} -> {action.NewValue} ({action.ActionType}, {PresetAnalyzer.FormatRole(action.Role)}, {active})");
+                ImGui.TextDisabled(action.Reason);
+            }
+        }
+
         ImGui.Separator();
 
         ImGui.TextWrapped(plugin.LastWriteResult.Message);

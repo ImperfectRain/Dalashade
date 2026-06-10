@@ -76,6 +76,7 @@ public sealed class CompatibilityReportExporter
         AppendLines(builder, "Multiple Authority Warnings", report.MultipleAuthorityWarnings);
         AppendShaderSupport(builder, shaderSupport);
         AppendChangedVariables(builder, writeResult);
+        AppendSanitizeActions(builder, writeResult);
 
         builder.AppendLine("## Notes");
         builder.AppendLine();
@@ -214,6 +215,26 @@ public sealed class CompatibilityReportExporter
             var dampening = change.AuthorityAdjustmentStrength < 0.999f ? $" | authority dampening={change.AuthorityAdjustmentStrength:0.##}x" : string.Empty;
             var warning = string.IsNullOrWhiteSpace(change.Warning) ? string.Empty : $" | warning={change.Warning}";
             builder.AppendLine($"- {change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} | {change.ReasonCategory} | {active} | {clamp}{dampening}{warning}");
+        }
+
+        builder.AppendLine();
+    }
+
+    private static void AppendSanitizeActions(StringBuilder builder, PresetWriteResult writeResult)
+    {
+        builder.AppendLine("## Sanitize Actions");
+        builder.AppendLine();
+        if (writeResult.SanitizeActions.Count == 0)
+        {
+            builder.AppendLine("- None");
+            builder.AppendLine();
+            return;
+        }
+
+        foreach (var action in writeResult.SanitizeActions)
+        {
+            var active = action.TechniqueActive ? "active" : "inactive";
+            builder.AppendLine($"- {action.Section} / {action.Key}: {action.OldValue} -> {action.NewValue} | {action.ActionType} | {PresetAnalyzer.FormatRole(action.Role)} | {action.Reason} | {active}");
         }
 
         builder.AppendLine();
