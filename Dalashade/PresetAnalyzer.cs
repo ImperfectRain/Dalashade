@@ -150,6 +150,11 @@ public sealed class PresetAnalyzer
             var entries = MergeTechniqueEntries(activeEntries, sortedEntries, sections);
             var techniques = entries
                 .Select(entry => ClassifyTechnique(entry, activeKeys.Contains(entry.DisplayName) || activeKeys.Contains(entry.ShaderFile) || activeKeys.Contains(entry.TechniqueName), controlledSections))
+                .GroupBy(TechniqueDedupeKey, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group
+                    .OrderByDescending(technique => technique.Active)
+                    .ThenBy(technique => technique.SupportLevel)
+                    .First())
                 .OrderByDescending(technique => technique.Active)
                 .ThenBy(technique => technique.Role)
                 .ThenBy(technique => technique.ShaderFile, StringComparer.OrdinalIgnoreCase)
@@ -337,9 +342,11 @@ public sealed class PresetAnalyzer
         var activePartial = active.Where(technique => technique.SupportLevel == SupportLevel.PartiallyControlled).ToArray();
         var activeDetectedOnly = active.Where(technique => technique.SupportLevel == SupportLevel.DetectedOnly).ToArray();
         var activeUnsupported = active.Where(technique => technique.SupportLevel == SupportLevel.Unsupported).ToArray();
-        var highRiskActive = active.Where(technique => technique.Risk is EffectRisk.High or EffectRisk.GPoseOnly).ToArray();
+        var highRiskActive = DeduplicateTechniques(active.Where(technique => technique.Risk is EffectRisk.High or EffectRisk.GPoseOnly)).ToArray();
         var inactiveSupported = techniques
             .Where(technique => !technique.Active && technique.SupportLevel is SupportLevel.FullyControlled or SupportLevel.PartiallyControlled)
+            .GroupBy(TechniqueDedupeKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
             .ToArray();
         var authorities = BuildAuthorities(active);
         var multipleAuthorityWarnings = BuildMultipleAuthorityWarnings(active);
@@ -349,10 +356,10 @@ public sealed class PresetAnalyzer
 
         return new PresetRiskReport(
             level,
-            activeSupported,
-            activePartial,
-            activeDetectedOnly,
-            activeUnsupported,
+            DeduplicateTechniques(activeSupported).ToArray(),
+            DeduplicateTechniques(activePartial).ToArray(),
+            DeduplicateTechniques(activeDetectedOnly).ToArray(),
+            DeduplicateTechniques(activeUnsupported).ToArray(),
             highRiskActive,
             inactiveSupported,
             multipleAuthorityWarnings,
@@ -377,7 +384,10 @@ public sealed class PresetAnalyzer
                 .ThenBy(technique => technique.ShaderFile, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             var primary = ordered[0];
-            var secondary = ordered.Skip(1).Select(FormatTechnique).ToArray();
+            var secondary = ordered.Skip(1)
+                .Select(FormatTechnique)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
             var warned = ordered
                 .Where(technique => technique.Risk is EffectRisk.High or EffectRisk.GPoseOnly || technique.SupportLevel == SupportLevel.Unsupported)
                 .Select(FormatTechnique)
@@ -427,6 +437,18 @@ public sealed class PresetAnalyzer
         }
 
         return warnings;
+    }
+
+    private static IEnumerable<PresetTechnique> DeduplicateTechniques(IEnumerable<PresetTechnique> techniques)
+    {
+        return techniques
+            .GroupBy(TechniqueDedupeKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First());
+    }
+
+    private static string TechniqueDedupeKey(PresetTechnique technique)
+    {
+        return $"{technique.TechniqueName}\u001f{technique.ShaderFile}";
     }
 
     private static IReadOnlyList<string> BuildWarnings(

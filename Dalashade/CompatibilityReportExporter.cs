@@ -95,7 +95,7 @@ public sealed class CompatibilityReportExporter
             return;
         }
 
-        foreach (var technique in techniques)
+        foreach (var technique in DeduplicateTechniques(techniques))
         {
             builder.AppendLine($"- {PresetAnalyzer.FormatTechnique(technique)} | role={PresetAnalyzer.FormatRole(technique.Role)} | risk={PresetAnalyzer.FormatRisk(technique.Risk)} | support={technique.SupportLevel}");
         }
@@ -117,11 +117,11 @@ public sealed class CompatibilityReportExporter
         foreach (var authority in authorities)
         {
             builder.AppendLine($"- {PresetAnalyzer.FormatRole(authority.Role)}: primary={authority.PrimaryShader}");
-            foreach (var secondary in authority.SecondaryShaders)
+            foreach (var secondary in authority.SecondaryShaders.Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 builder.AppendLine($"  - secondary={secondary}");
             }
-            foreach (var warned in authority.SuppressedOrWarnedShaders)
+            foreach (var warned in authority.SuppressedOrWarnedShaders.Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 builder.AppendLine($"  - warned={warned}");
             }
@@ -141,7 +141,7 @@ public sealed class CompatibilityReportExporter
             return;
         }
 
-        foreach (var line in lines)
+        foreach (var line in lines.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             builder.AppendLine($"- {line}");
         }
@@ -186,7 +186,8 @@ public sealed class CompatibilityReportExporter
         {
             var active = change.TechniqueActive ? "active" : "inactive";
             var clamp = change.HitMin ? "min clamp" : change.HitMax ? "max clamp" : "not clamped";
-            builder.AppendLine($"- {change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} | {change.ReasonCategory} | {active} | {clamp}");
+            var warning = string.IsNullOrWhiteSpace(change.Warning) ? string.Empty : $" | warning={change.Warning}";
+            builder.AppendLine($"- {change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} | {change.ReasonCategory} | {active} | {clamp}{warning}");
         }
 
         builder.AppendLine();
@@ -197,5 +198,12 @@ public sealed class CompatibilityReportExporter
         var invalid = Path.GetInvalidFileNameChars().ToHashSet();
         var safe = new string(fileName.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray());
         return string.IsNullOrWhiteSpace(safe) ? "UnknownPreset" : safe;
+    }
+
+    private static IEnumerable<PresetTechnique> DeduplicateTechniques(IEnumerable<PresetTechnique> techniques)
+    {
+        return techniques
+            .GroupBy(technique => $"{technique.TechniqueName}\u001f{technique.ShaderFile}", StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First());
     }
 }

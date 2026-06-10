@@ -280,6 +280,10 @@ public sealed class MainWindow : Window, IDisposable
                 ImGui.BulletText($"{change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} ({active}{clamp})");
                 ImGui.SameLine();
                 ImGui.TextDisabled(change.ReasonCategory);
+                if (!string.IsNullOrWhiteSpace(change.Warning))
+                {
+                    ImGui.TextWrapped(change.Warning);
+                }
             }
         }
 

@@ -17,7 +17,7 @@ public readonly record struct ShaderVariableKey(string? Section, string Key);
 
 public sealed record ShaderAdjustment(Func<string, ShaderAdjustmentResult?> Apply, string ReasonCategory);
 
-public sealed record ShaderAdjustmentResult(string NewValue, bool HitMin, bool HitMax);
+public sealed record ShaderAdjustmentResult(string NewValue, bool HitMin, bool HitMax, string? Warning = null);
 
 public sealed record ShaderVariableDefinition(
     string? Section,
@@ -176,7 +176,7 @@ public sealed class ShaderVariableMapper
         AddAdd(definitions, section, "E_GAMMA", reason, -5f, 5f, profile => profile.ShadowLift * 0.5f, true);
         AddAdd(definitions, section, "E_SATURATION", reason, -5f, 5f, profile => (profile.Saturation - 1f) * 0.5f, true);
         AddAdd(definitions, section, "E_VIBRANCE", reason, -5f, 5f, profile => (profile.Saturation - 1f) * 0.5f, true);
-        AddAdd(definitions, section, "E_TEMP", reason, -1f, 1f, profile => profile.Temperature * 0.50f, true);
+        AddAdd(definitions, section, "E_TEMP", reason, 4500f, 8500f, profile => profile.Temperature * 1800f, true);
         AddAdd(definitions, section, "E_TINT", reason, -1f, 1f, profile => profile.Tint * 0.50f, true);
     }
 
@@ -213,10 +213,11 @@ public sealed class ShaderVariableMapper
         }
 
         var result = ApplyMode(current, definition.Amount(profile), definition.Mode, definition.Min, definition.Max);
-        return new ShaderAdjustmentResult(Format(result.Value), result.HitMin, result.HitMax);
+        var warning = CreateSafetyWarning(definition, result.UnclampedValue);
+        return new ShaderAdjustmentResult(Format(result.Value), result.HitMin, result.HitMax, warning);
     }
 
-    private static (float Value, bool HitMin, bool HitMax) ApplyMode(float current, float amount, ShaderValueMode mode, float min, float max)
+    private static (float Value, float UnclampedValue, bool HitMin, bool HitMax) ApplyMode(float current, float amount, ShaderValueMode mode, float min, float max)
     {
         var value = mode switch
         {
@@ -230,7 +231,26 @@ public sealed class ShaderVariableMapper
         var clamped = Clamp(value, min, max);
         var hitMin = value < min;
         var hitMax = value > max;
-        return (clamped, hitMin, hitMax);
+        return (clamped, value, hitMin, hitMax);
+    }
+
+    private static string? CreateSafetyWarning(ShaderVariableDefinition definition, float value)
+    {
+        if (!IsTemperatureLikeKey(definition.Key))
+        {
+            return null;
+        }
+
+        return value is < 1000f or > 20000f
+            ? $"{definition.Section ?? "Any section"} / {definition.Key} wanted to write {Format(value)}, which is outside the temperature safety range."
+            : null;
+    }
+
+    private static bool IsTemperatureLikeKey(string key)
+    {
+        return key.Contains("TEMP", StringComparison.OrdinalIgnoreCase)
+               || key.Contains("TEMPERATURE", StringComparison.OrdinalIgnoreCase)
+               || key.Contains("KELVIN", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool TryParseSingle(string rawValue, out float value)

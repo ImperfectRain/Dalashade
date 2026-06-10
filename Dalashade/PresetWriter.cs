@@ -13,7 +13,8 @@ public sealed record ChangedShaderVariable(
     string ReasonCategory,
     bool TechniqueActive,
     bool HitMin,
-    bool HitMax);
+    bool HitMax,
+    string? Warning = null);
 
 public sealed record PresetWriteResult(bool Success, string Message, int ChangedVariables, IReadOnlyList<ChangedShaderVariable> Changes)
 {
@@ -125,7 +126,8 @@ public sealed class PresetWriter
                         adjust.ReasonCategory,
                         techniqueActive,
                         adjusted.HitMin,
-                        adjusted.HitMax));
+                        adjusted.HitMax,
+                        adjusted.Warning));
                 }
             }
 
@@ -142,10 +144,11 @@ public sealed class PresetWriter
 
             var inactiveChanges = changes.Count(change => !change.TechniqueActive);
             var clampedChanges = changes.Count(change => change.HitMin || change.HitMax);
+            var warningChanges = changes.Count(change => !string.IsNullOrWhiteSpace(change.Warning));
             var message = $"Generated preset written with {changes.Count} supported variable change(s).";
-            if (inactiveChanges > 0 || clampedChanges > 0)
+            if (inactiveChanges > 0 || clampedChanges > 0 || warningChanges > 0)
             {
-                message += $" {inactiveChanges} inactive, {clampedChanges} clamped.";
+                message += $" {inactiveChanges} inactive, {clampedChanges} clamped, {warningChanges} warning(s).";
             }
 
             return new PresetWriteResult(true, message, changes.Count, changes);
