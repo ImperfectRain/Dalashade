@@ -50,15 +50,6 @@ public enum PresetRiskLevel
     VeryHigh
 }
 
-public enum RecommendedCompatibilityMode
-{
-    PreserveBase,
-    AdaptiveBalanced,
-    GameplaySanitize,
-    CinematicPreserve,
-    GposePreserve
-}
-
 public sealed record PresetTechnique(
     string TechniqueName,
     string ShaderFile,
@@ -78,11 +69,12 @@ public sealed record PresetRiskReport(
     PresetRiskLevel Level,
     IReadOnlyList<PresetTechnique> ActiveSupportedEffects,
     IReadOnlyList<PresetTechnique> ActivePartiallySupportedEffects,
+    IReadOnlyList<PresetTechnique> ActiveDetectedOnlyEffects,
     IReadOnlyList<PresetTechnique> ActiveUnsupportedEffects,
     IReadOnlyList<PresetTechnique> HighRiskActiveEffects,
     IReadOnlyList<PresetTechnique> InactiveSupportedEffects,
     IReadOnlyList<string> MultipleAuthorityWarnings,
-    RecommendedCompatibilityMode RecommendedCompatibilityMode,
+    PresetCompatibilityMode RecommendedCompatibilityMode,
     IReadOnlyList<string> Warnings,
     IReadOnlyList<EffectAuthority> Authorities)
 {
@@ -93,8 +85,9 @@ public sealed record PresetRiskReport(
         Array.Empty<PresetTechnique>(),
         Array.Empty<PresetTechnique>(),
         Array.Empty<PresetTechnique>(),
+        Array.Empty<PresetTechnique>(),
         Array.Empty<string>(),
-        RecommendedCompatibilityMode.AdaptiveBalanced,
+        PresetCompatibilityMode.AdaptiveBalanced,
         Array.Empty<string>(),
         Array.Empty<EffectAuthority>());
 }
@@ -165,7 +158,7 @@ public sealed class PresetAnalyzer
 
             return new PresetAnalysisResult(
                 true,
-                $"Preset risk: {report.Level}. Recommended mode: {FormatRecommendedMode(report.RecommendedCompatibilityMode)}.",
+                $"Preset risk: {report.Level}. Recommended mode: {FormatCompatibilityMode(report.RecommendedCompatibilityMode)}.",
                 techniques,
                 report);
         }
@@ -342,6 +335,7 @@ public sealed class PresetAnalyzer
         var active = techniques.Where(technique => technique.Active).ToArray();
         var activeSupported = active.Where(technique => technique.SupportLevel == SupportLevel.FullyControlled).ToArray();
         var activePartial = active.Where(technique => technique.SupportLevel == SupportLevel.PartiallyControlled).ToArray();
+        var activeDetectedOnly = active.Where(technique => technique.SupportLevel == SupportLevel.DetectedOnly).ToArray();
         var activeUnsupported = active.Where(technique => technique.SupportLevel == SupportLevel.Unsupported).ToArray();
         var highRiskActive = active.Where(technique => technique.Risk is EffectRisk.High or EffectRisk.GPoseOnly).ToArray();
         var inactiveSupported = techniques
@@ -357,6 +351,7 @@ public sealed class PresetAnalyzer
             level,
             activeSupported,
             activePartial,
+            activeDetectedOnly,
             activeUnsupported,
             highRiskActive,
             inactiveSupported,
@@ -491,20 +486,20 @@ public sealed class PresetAnalyzer
         };
     }
 
-    private static RecommendedCompatibilityMode RecommendMode(PresetRiskLevel level, IReadOnlyList<PresetTechnique> active)
+    private static PresetCompatibilityMode RecommendMode(PresetRiskLevel level, IReadOnlyList<PresetTechnique> active)
     {
         if (active.Any(technique => technique.Risk == EffectRisk.GPoseOnly) && level >= PresetRiskLevel.High)
         {
-            return RecommendedCompatibilityMode.GposePreserve;
+            return PresetCompatibilityMode.GposePreserve;
         }
 
         return level switch
         {
-            PresetRiskLevel.Low => RecommendedCompatibilityMode.AdaptiveBalanced,
-            PresetRiskLevel.Medium => RecommendedCompatibilityMode.AdaptiveBalanced,
-            PresetRiskLevel.High => RecommendedCompatibilityMode.GameplaySanitize,
-            PresetRiskLevel.VeryHigh => RecommendedCompatibilityMode.GameplaySanitize,
-            _ => RecommendedCompatibilityMode.AdaptiveBalanced
+            PresetRiskLevel.Low => PresetCompatibilityMode.AdaptiveBalanced,
+            PresetRiskLevel.Medium => PresetCompatibilityMode.AdaptiveBalanced,
+            PresetRiskLevel.High => PresetCompatibilityMode.GameplaySanitize,
+            PresetRiskLevel.VeryHigh => PresetCompatibilityMode.GameplaySanitize,
+            _ => PresetCompatibilityMode.AdaptiveBalanced
         };
     }
 
@@ -708,15 +703,15 @@ public sealed class PresetAnalyzer
         };
     }
 
-    public static string FormatRecommendedMode(RecommendedCompatibilityMode mode)
+    public static string FormatCompatibilityMode(PresetCompatibilityMode mode)
     {
         return mode switch
         {
-            RecommendedCompatibilityMode.PreserveBase => "Preserve base",
-            RecommendedCompatibilityMode.AdaptiveBalanced => "Adaptive balanced",
-            RecommendedCompatibilityMode.GameplaySanitize => "Gameplay sanitize",
-            RecommendedCompatibilityMode.CinematicPreserve => "Cinematic preserve",
-            RecommendedCompatibilityMode.GposePreserve => "GPose preserve",
+            PresetCompatibilityMode.PreserveBase => "Preserve base",
+            PresetCompatibilityMode.AdaptiveBalanced => "Adaptive balanced",
+            PresetCompatibilityMode.GameplaySanitize => "Gameplay sanitize",
+            PresetCompatibilityMode.CinematicPreserve => "Cinematic preserve",
+            PresetCompatibilityMode.GposePreserve => "GPose preserve",
             _ => mode.ToString()
         };
     }

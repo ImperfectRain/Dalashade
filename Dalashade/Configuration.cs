@@ -49,6 +49,15 @@ public enum InactiveShaderWriteMode
     AlwaysMatchingKeys
 }
 
+public enum PresetCompatibilityMode
+{
+    PreserveBase,
+    AdaptiveBalanced,
+    GameplaySanitize,
+    CinematicPreserve,
+    GposePreserve
+}
+
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
@@ -76,6 +85,7 @@ public class Configuration : IPluginConfiguration
     public bool SceneLockEnabled { get; set; } = false;
     public bool AutoAdjustInCutscenes { get; set; } = true;
     public bool UsePremiumImmerseEffects { get; set; } = false;
+    public PresetCompatibilityMode CompatibilityMode { get; set; } = PresetCompatibilityMode.AdaptiveBalanced;
     public ShaderMatchingMode ShaderMatchingMode { get; set; } = ShaderMatchingMode.StrictSections;
     public InactiveShaderWriteMode InactiveShaderWriteMode { get; set; } = InactiveShaderWriteMode.SupportedInactiveSections;
     public bool WriteBackups { get; set; } = true;

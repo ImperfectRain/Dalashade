@@ -62,6 +62,12 @@ public sealed class MainWindow : Window, IDisposable
             }
 
             ImGui.SameLine();
+            if (ImGui.Button("Export Report###MainExportCompatibilityReport"))
+            {
+                plugin.ExportCompatibilityReport();
+            }
+
+            ImGui.SameLine();
             if (ImGui.Button("Test Reload###MainTestReload"))
             {
                 plugin.ReloadShadersNow();
@@ -155,9 +161,11 @@ public sealed class MainWindow : Window, IDisposable
             var report = analysis.Report;
             ImGui.TextWrapped(analysis.Message);
             ImGui.TextUnformatted($"Risk: {report.Level}");
-            ImGui.TextUnformatted($"Recommended mode: {PresetAnalyzer.FormatRecommendedMode(report.RecommendedCompatibilityMode)}");
+            ImGui.TextUnformatted($"Selected mode: {PresetAnalyzer.FormatCompatibilityMode(plugin.Configuration.CompatibilityMode)}");
+            ImGui.TextUnformatted($"Recommended mode: {PresetAnalyzer.FormatCompatibilityMode(report.RecommendedCompatibilityMode)}");
             ImGui.TextUnformatted($"Active controlled: {report.ActiveSupportedEffects.Count}");
             ImGui.TextUnformatted($"Active partial: {report.ActivePartiallySupportedEffects.Count}");
+            ImGui.TextUnformatted($"Active detected-only: {report.ActiveDetectedOnlyEffects.Count}");
             ImGui.TextUnformatted($"Active unsupported: {report.ActiveUnsupportedEffects.Count}");
             ImGui.TextUnformatted($"High-risk active: {report.HighRiskActiveEffects.Count}");
 
@@ -181,6 +189,21 @@ public sealed class MainWindow : Window, IDisposable
                 ImGui.TreePop();
             }
 
+            if (ImGui.TreeNode("Active detected-only effects"))
+            {
+                foreach (var technique in report.ActiveDetectedOnlyEffects)
+                {
+                    ImGui.BulletText($"{PresetAnalyzer.FormatTechnique(technique)} ({PresetAnalyzer.FormatRole(technique.Role)}, {PresetAnalyzer.FormatRisk(technique.Risk)})");
+                }
+
+                if (report.ActiveDetectedOnlyEffects.Count == 0)
+                {
+                    ImGui.TextUnformatted("No active detected-only effects.");
+                }
+
+                ImGui.TreePop();
+            }
+
             if (ImGui.TreeNode("Effect authorities"))
             {
                 foreach (var authority in report.Authorities)
@@ -195,7 +218,7 @@ public sealed class MainWindow : Window, IDisposable
                 ImGui.TreePop();
             }
 
-            if (ImGui.TreeNode("Active unsupported effects"))
+            if (ImGui.TreeNode("Active unknown/unsupported effects"))
             {
                 foreach (var technique in report.ActiveUnsupportedEffects)
                 {
@@ -264,6 +287,7 @@ public sealed class MainWindow : Window, IDisposable
 
         ImGui.TextWrapped(plugin.LastWriteResult.Message);
         ImGui.TextWrapped(plugin.LastReloadResult.Message);
+        ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
         ImGui.TextWrapped("Dalashade only edits variables that already exist in the preset. Keep iMMERSE and any Pro/Ultimate shaders installed through ReShade; this plugin does not ship those files.");
     }
 

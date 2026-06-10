@@ -32,6 +32,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ProfileEngine profileEngine = new();
     private readonly PresetWriter presetWriter = new();
     private readonly PresetAnalyzer presetAnalyzer = new();
+    private readonly CompatibilityReportExporter compatibilityReportExporter = new();
     private readonly ReShadeController reShadeController = new();
 
     private DateTimeOffset lastWrite = DateTimeOffset.MinValue;
@@ -51,7 +52,9 @@ public sealed class Plugin : IDalamudPlugin
     public ReloadResult LastReloadResult { get; private set; } = ReloadResult.Skipped("Shaders have not been reloaded yet.");
     public ShaderSupportScan LastShaderSupportScan { get; private set; } = ShaderSupportScan.Skipped("Shader support has not been scanned yet.");
     public PresetAnalysisResult LastPresetAnalysis { get; private set; } = PresetAnalysisResult.Skipped("Preset has not been analyzed yet.");
+    public CompatibilityReportExportResult LastCompatibilityReportExport { get; private set; } = CompatibilityReportExportResult.Skipped("No compatibility report has been exported yet.");
     public string DefaultGeneratedPresetPath => Path.Combine(PluginInterface.ConfigDirectory.FullName, "Dalashade_Generated.ini");
+    public string CompatibilityReportDirectory => Path.Combine(PluginInterface.ConfigDirectory.FullName, "CompatibilityReports");
     public string DefaultScreenshotFolderPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
         "My Games",
@@ -131,6 +134,22 @@ public sealed class Plugin : IDalamudPlugin
         return LastPresetAnalysis;
     }
 
+    public CompatibilityReportExportResult ExportCompatibilityReport()
+    {
+        if (!LastPresetAnalysis.Success)
+        {
+            ScanPresetCompatibility();
+        }
+
+        LastCompatibilityReportExport = compatibilityReportExporter.Export(
+            Configuration,
+            LastPresetAnalysis,
+            LastShaderSupportScan,
+            LastWriteResult,
+            CompatibilityReportDirectory);
+        return LastCompatibilityReportExport;
+    }
+
     public ReloadResult ReloadShadersNow()
     {
         LastReloadResult = reShadeController.ReloadAfterPresetWrite(Configuration);
@@ -195,6 +214,7 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.BasePresetPath,
             Configuration.GeneratedPresetPath,
             Configuration.UsePremiumImmerseEffects,
+            Configuration.CompatibilityMode,
             Configuration.ShaderMatchingMode,
             Configuration.InactiveShaderWriteMode,
             Configuration.ImageSamplingMode,

@@ -119,6 +119,13 @@ public sealed class ConfigWindow : Window, IDisposable
 
         DrawCheckbox("Use installed iMMERSE Pro/Ultimate variables", configuration.UsePremiumImmerseEffects, value => configuration.UsePremiumImmerseEffects = value);
 
+        var compatibilityMode = (int)configuration.CompatibilityMode;
+        if (ImGui.Combo("Compatibility mode", ref compatibilityMode, "Preserve base\0Adaptive balanced\0Gameplay sanitize\0Cinematic preserve\0GPose preserve\0"))
+        {
+            configuration.CompatibilityMode = (PresetCompatibilityMode)compatibilityMode;
+            configuration.Save();
+        }
+
         var matchingMode = (int)configuration.ShaderMatchingMode;
         if (ImGui.Combo("Shader matching", ref matchingMode, "Strict sections\0Known fallbacks\0Loose keys\0"))
         {
@@ -153,7 +160,14 @@ public sealed class ConfigWindow : Window, IDisposable
         }
 
         ImGui.SameLine();
+        if (ImGui.Button("Export Compatibility Report"))
+        {
+            plugin.ExportCompatibilityReport();
+        }
+
+        ImGui.SameLine();
         ImGui.TextWrapped(plugin.LastPresetAnalysis.Message);
+        ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
 
         var minimumSeconds = configuration.MinimumSecondsBetweenWrites;
         if (ImGui.SliderInt("Minimum seconds between writes", ref minimumSeconds, 1, 120))
