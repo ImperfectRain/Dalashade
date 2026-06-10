@@ -7,7 +7,9 @@ using Dalamud.Plugin.Services;
 using Dalashade.Windows;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 namespace Dalashade;
 
@@ -30,6 +32,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ImageAnalysisService imageAnalysisService = new();
     private readonly MasterStyleService masterStyleService = new();
     private readonly ProfileEngine profileEngine = new();
+    private readonly BasePresetLibrary basePresetLibrary = new();
     private readonly PresetWriter presetWriter = new();
     private readonly PresetAnalyzer presetAnalyzer = new();
     private readonly CompatibilityReportExporter compatibilityReportExporter = new();
@@ -55,7 +58,9 @@ public sealed class Plugin : IDalamudPlugin
     public PresetAnalysisResult LastPresetAnalysis { get; private set; } = PresetAnalysisResult.Skipped("Preset has not been analyzed yet.");
     public CompatibilityReportExportResult LastCompatibilityReportExport { get; private set; } = CompatibilityReportExportResult.Skipped("No compatibility report has been exported yet.");
     public PresetRegressionReportResult LastPresetRegressionReport { get; private set; } = PresetRegressionReportResult.Skipped("No preset regression report has been run yet.");
-    public string DefaultGeneratedPresetPath => Path.Combine(PluginInterface.ConfigDirectory.FullName, "Dalashade_Generated.ini");
+    public BasePresetLibraryScan LastBasePresetLibraryScan { get; private set; } = BasePresetLibraryScan.Skipped("Base presets have not been scanned yet.");
+    public string DefaultBasePresetFolderPath => Path.Combine(PluginInterface.ConfigDirectory.FullName, "Base");
+    public string DefaultGeneratedPresetPath => Path.Combine(PluginInterface.ConfigDirectory.FullName, "Generated", "Dalashade_Generated.ini");
     public string CompatibilityReportDirectory => Path.Combine(PluginInterface.ConfigDirectory.FullName, "CompatibilityReports");
     public string PresetRegressionReportDirectory => Path.Combine(PluginInterface.ConfigDirectory.FullName, "PresetRegressionReports");
     public string DefaultScreenshotFolderPath => Path.Combine(
@@ -67,11 +72,8 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin()
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
-        if (string.IsNullOrWhiteSpace(Configuration.GeneratedPresetPath))
-        {
-            Configuration.GeneratedPresetPath = DefaultGeneratedPresetPath;
-            Configuration.Save();
-        }
+        InitializePresetFolders();
+        RefreshBasePresetLibrary();
 
         configWindow = new ConfigWindow(this);
         mainWindow = new MainWindow(this);
@@ -159,6 +161,53 @@ public sealed class Plugin : IDalamudPlugin
         return LastPresetRegressionReport;
     }
 
+    public BasePresetLibraryScan RefreshBasePresetLibrary()
+    {
+        LastBasePresetLibraryScan = basePresetLibrary.Scan(Configuration.BasePresetFolderPath);
+        var matchedSelection = LastBasePresetLibraryScan.Items.FirstOrDefault(item =>
+            string.Equals(item.FullPath, Configuration.BasePresetPath, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(item.FileName, Configuration.SelectedBasePresetFileName, StringComparison.OrdinalIgnoreCase));
+        if (matchedSelection != null)
+        {
+            Configuration.SelectedBasePresetFileName = matchedSelection.FileName;
+            Configuration.BasePresetPath = matchedSelection.FullPath;
+            Configuration.Save();
+        }
+
+        if (Configuration.UseBasePresetFolder
+            && LastBasePresetLibraryScan.Items.Count > 0
+            && string.IsNullOrWhiteSpace(Configuration.BasePresetPath))
+        {
+            SelectBasePreset(LastBasePresetLibraryScan.Items[0]);
+        }
+
+        return LastBasePresetLibraryScan;
+    }
+
+    public void SelectBasePreset(BasePresetLibraryItem item)
+    {
+        Configuration.SelectedBasePresetFileName = item.FileName;
+        Configuration.BasePresetPath = item.FullPath;
+        Configuration.Save();
+    }
+
+    public void OpenBasePresetFolder()
+    {
+        try
+        {
+            Directory.CreateDirectory(Configuration.BasePresetFolderPath);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = Configuration.BasePresetFolderPath,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            Log.Warning(ex, "Could not open base preset folder.");
+        }
+    }
+
     public ReloadResult ReloadShadersNow()
     {
         LastReloadResult = reShadeController.ReloadAfterPresetWrite(Configuration);
@@ -228,6 +277,9 @@ public sealed class Plugin : IDalamudPlugin
     {
         return string.Join(":",
             Configuration.BasePresetPath,
+            Configuration.BasePresetFolderPath,
+            Configuration.SelectedBasePresetFileName,
+            Configuration.UseBasePresetFolder,
             Configuration.GeneratedPresetPath,
             Configuration.UsePremiumImmerseEffects,
             Configuration.CompatibilityMode,
@@ -246,6 +298,47 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.AutoAdjustInCutscenes,
             Configuration.Style,
             Configuration.PerformanceBudget);
+    }
+
+    private void InitializePresetFolders()
+    {
+        var changed = false;
+        if (string.IsNullOrWhiteSpace(Configuration.BasePresetFolderPath))
+        {
+            Configuration.BasePresetFolderPath = DefaultBasePresetFolderPath;
+            changed = true;
+        }
+
+        Directory.CreateDirectory(Configuration.BasePresetFolderPath);
+
+        if (string.IsNullOrWhiteSpace(Configuration.GeneratedPresetPath))
+        {
+            Configuration.GeneratedPresetPath = DefaultGeneratedPresetPath;
+            changed = true;
+        }
+
+        var generatedDirectory = Path.GetDirectoryName(Configuration.GeneratedPresetPath);
+        if (!string.IsNullOrWhiteSpace(generatedDirectory))
+        {
+            Directory.CreateDirectory(generatedDirectory);
+        }
+
+        if (Configuration.UseBasePresetFolder
+            && !string.IsNullOrWhiteSpace(Configuration.SelectedBasePresetFileName)
+            && string.IsNullOrWhiteSpace(Configuration.BasePresetPath))
+        {
+            var selectedPath = Path.Combine(Configuration.BasePresetFolderPath, Configuration.SelectedBasePresetFileName);
+            if (File.Exists(selectedPath))
+            {
+                Configuration.BasePresetPath = selectedPath;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            Configuration.Save();
+        }
     }
 
     private void ReloadShadersIfNeeded()

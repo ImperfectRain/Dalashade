@@ -34,10 +34,11 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.Save();
         }
 
+        DrawBasePresetLibrary();
         DrawTextInput("Base preset path", configuration.BasePresetPath, value => configuration.BasePresetPath = value);
         DrawTextInput("Generated preset path", configuration.GeneratedPresetPath, value => configuration.GeneratedPresetPath = value);
 
-        if (ImGui.Button("Use Dalamud config folder"))
+        if (ImGui.Button("Use default generated path"))
         {
             configuration.GeneratedPresetPath = plugin.DefaultGeneratedPresetPath;
             configuration.Save();
@@ -209,6 +210,59 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.SameLine();
         ImGui.TextUnformatted(plugin.LastWriteResult.Message);
         ImGui.TextWrapped(plugin.LastReloadResult.Message);
+    }
+
+    private void DrawBasePresetLibrary()
+    {
+        DrawCheckbox("Use base preset folder", configuration.UseBasePresetFolder, value => configuration.UseBasePresetFolder = value);
+        DrawTextInput("Base folder", configuration.BasePresetFolderPath, value =>
+        {
+            configuration.BasePresetFolderPath = value;
+            plugin.RefreshBasePresetLibrary();
+        });
+
+        if (ImGui.Button("Open Base Folder"))
+        {
+            plugin.OpenBasePresetFolder();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Refresh Base Presets"))
+        {
+            plugin.RefreshBasePresetLibrary();
+        }
+
+        var scan = plugin.LastBasePresetLibraryScan;
+        ImGui.TextWrapped(scan.Message);
+        if (scan.Items.Count == 0)
+        {
+            ImGui.TextWrapped("No .ini presets found. Place base presets in the Base folder.");
+            return;
+        }
+
+        var selectedLabel = string.IsNullOrWhiteSpace(configuration.SelectedBasePresetFileName)
+            ? "Select a base preset"
+            : configuration.SelectedBasePresetFileName;
+        if (ImGui.BeginCombo("Base preset", selectedLabel))
+        {
+            foreach (var item in scan.Items)
+            {
+                var selected = string.Equals(item.FileName, configuration.SelectedBasePresetFileName, StringComparison.OrdinalIgnoreCase)
+                               || string.Equals(item.FullPath, configuration.BasePresetPath, StringComparison.OrdinalIgnoreCase);
+                var label = $"{item.FileName}###{item.FullPath}";
+                if (ImGui.Selectable(label, selected))
+                {
+                    plugin.SelectBasePreset(item);
+                }
+
+                if (selected)
+                {
+                    ImGui.SetItemDefaultFocus();
+                }
+            }
+
+            ImGui.EndCombo();
+        }
     }
 
     private void DrawTextInput(string label, string currentValue, Action<string> update)
