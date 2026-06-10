@@ -9,6 +9,8 @@ public sealed class ConfigWindow : Window, IDisposable
 {
     private readonly Plugin plugin;
     private readonly Configuration configuration;
+    private readonly KeybindCapture reloadHotkeyCapture = new();
+    private bool capturingReloadHotkey;
 
     public ConfigWindow(Plugin plugin) : base("Dalashade Settings###DalashadeConfig")
     {
@@ -47,14 +49,7 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawCheckbox("Reload shaders after generation", configuration.ReloadShadersAfterGeneration, value => configuration.ReloadShadersAfterGeneration = value);
         DrawCheckbox("Sync reload key to ReShade.ini", configuration.SyncReloadHotkeyToReShadeIni, value => configuration.SyncReloadHotkeyToReShadeIni = value);
 
-        var reloadKey = configuration.ReloadHotkeyVirtualKey;
-        if (ImGui.InputInt("Reload hotkey virtual key", ref reloadKey))
-        {
-            configuration.ReloadHotkeyVirtualKey = Math.Max(0, reloadKey);
-            configuration.Save();
-        }
-
-        ImGui.TextUnformatted("Default is 116, which is F5.");
+        DrawReloadHotkeyPicker();
 
         ImGui.Separator();
 
@@ -152,6 +147,43 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             update(value);
             configuration.Save();
+        }
+    }
+
+    private void DrawReloadHotkeyPicker()
+    {
+        var currentHotkey = Keybind.FromConfiguration(configuration);
+        ImGui.TextUnformatted($"Reload hotkey: {currentHotkey.DisplayName}");
+        ImGui.SameLine();
+
+        var buttonText = capturingReloadHotkey ? "Listening...###ReloadHotkeyPicker" : "Set reload hotkey###ReloadHotkeyPicker";
+        if (ImGui.Button(buttonText))
+        {
+            capturingReloadHotkey = true;
+            reloadHotkeyCapture.Start();
+        }
+
+        if (capturingReloadHotkey)
+        {
+            ImGui.SameLine();
+            ImGui.TextUnformatted("Press a key or button. Hold Ctrl, Shift, or Alt for a combo. Esc cancels.");
+
+            var captured = reloadHotkeyCapture.Poll();
+            if (captured.HasValue)
+            {
+                if (captured.Value.VirtualKey > 0)
+                {
+                    captured.Value.ApplyTo(configuration);
+                    configuration.Save();
+                }
+
+                capturingReloadHotkey = false;
+            }
+        }
+        else
+        {
+            ImGui.SameLine();
+            ImGui.TextUnformatted("Default is F5. Dalashade writes the same combo to ReShade.ini when sync is on.");
         }
     }
 }

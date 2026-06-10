@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -19,26 +20,32 @@ public sealed class ReShadeController
             return ReloadResult.Skipped("Shader reload is disabled.");
         }
 
-        var virtualKey = configuration.ReloadHotkeyVirtualKey;
-        if (virtualKey <= 0)
+        var keybind = Keybind.FromConfiguration(configuration);
+        if (!keybind.IsConfigured)
         {
             return ReloadResult.Skipped("Reload hotkey is not configured.");
         }
 
         var reshadeIniPath = TryFindReShadeIni(configuration);
+        var syncMessage = configuration.SyncReloadHotkeyToReShadeIni
+            ? "ReShade.ini was not found for hotkey sync."
+            : "ReShade.ini hotkey sync is off.";
+
         if (configuration.SyncReloadHotkeyToReShadeIni && reshadeIniPath != null)
         {
-            var syncResult = TrySyncReloadHotkey(reshadeIniPath, virtualKey);
+            var syncResult = TrySyncReloadHotkey(reshadeIniPath, keybind);
             if (!syncResult.Success)
             {
                 return syncResult;
             }
+
+            syncMessage = $"Synced ReShade.ini to {keybind.DisplayName}.";
         }
 
-        Thread.Sleep(150);
-        return SendKey(virtualKey)
-            ? new ReloadResult(true, $"Reload hotkey sent ({FormatVirtualKey(virtualKey)}).")
-            : ReloadResult.Skipped($"Could not send reload hotkey ({FormatVirtualKey(virtualKey)}).");
+        Thread.Sleep(250);
+        return SendKey(keybind)
+            ? new ReloadResult(true, $"Reload hotkey sent ({keybind.DisplayName}). {syncMessage}")
+            : ReloadResult.Skipped($"Could not send reload hotkey ({keybind.DisplayName}). {syncMessage}");
     }
 
     private static string? TryFindReShadeIni(Configuration configuration)
@@ -77,12 +84,12 @@ public sealed class ReShadeController
         return null;
     }
 
-    private static ReloadResult TrySyncReloadHotkey(string reshadeIniPath, int virtualKey)
+    private static ReloadResult TrySyncReloadHotkey(string reshadeIniPath, Keybind keybind)
     {
         try
         {
             var lines = File.ReadAllLines(reshadeIniPath);
-            var expected = $"KeyReload={virtualKey},0,0,0";
+            var expected = $"KeyReload={keybind.ReShadeValue}";
             var replaced = false;
 
             for (var i = 0; i < lines.Length; i++)
@@ -107,7 +114,7 @@ public sealed class ReShadeController
                 File.AppendAllText(reshadeIniPath, $"{Environment.NewLine}{expected}{Environment.NewLine}");
             }
 
-            return new ReloadResult(true, $"ReShade reload hotkey synced to {FormatVirtualKey(virtualKey)}.");
+            return new ReloadResult(true, $"ReShade reload hotkey synced to {keybind.DisplayName}.");
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -119,40 +126,62 @@ public sealed class ReShadeController
         }
     }
 
-    private static bool SendKey(int virtualKey)
+    private static bool SendKey(Keybind keybind)
     {
-        var inputs = new INPUT[2];
-        inputs[0].type = InputKeyboard;
-        inputs[0].u.ki.wVk = (ushort)virtualKey;
-        inputs[1].type = InputKeyboard;
-        inputs[1].u.ki.wVk = (ushort)virtualKey;
-        inputs[1].u.ki.dwFlags = KeyEventKeyUp;
+        var modifiers = new List<ushort>();
+        if (keybind.Ctrl)
+        {
+            modifiers.Add(VkControl);
+        }
 
-        return SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == inputs.Length;
+        if (keybind.Shift)
+        {
+            modifiers.Add(VkShift);
+        }
+
+        if (keybind.Alt)
+        {
+            modifiers.Add(VkMenu);
+        }
+
+        var inputs = new List<INPUT>();
+        foreach (var modifier in modifiers)
+        {
+            inputs.Add(CreateKeyInput(modifier, false));
+        }
+
+        inputs.Add(CreateKeyInput((ushort)keybind.VirtualKey, false));
+        inputs.Add(CreateKeyInput((ushort)keybind.VirtualKey, true));
+
+        for (var i = modifiers.Count - 1; i >= 0; i--)
+        {
+            inputs.Add(CreateKeyInput(modifiers[i], true));
+        }
+
+        return SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<INPUT>()) == inputs.Count;
     }
 
-    private static string FormatVirtualKey(int virtualKey)
+    private static INPUT CreateKeyInput(ushort virtualKey, bool keyUp)
     {
-        return virtualKey switch
+        return new INPUT
         {
-            112 => "F1",
-            113 => "F2",
-            114 => "F3",
-            115 => "F4",
-            116 => "F5",
-            117 => "F6",
-            118 => "F7",
-            119 => "F8",
-            120 => "F9",
-            121 => "F10",
-            122 => "F11",
-            123 => "F12",
-            _ => $"VK {virtualKey}"
+            type = InputKeyboard,
+            u = new InputUnion
+            {
+                ki = new KEYBDINPUT
+                {
+                    wVk = virtualKey,
+                    dwFlags = keyUp ? KeyEventKeyUp : 0
+                }
+            }
         };
     }
 
     private const uint InputKeyboard = 1;
     private const uint KeyEventKeyUp = 0x0002;
+    private const ushort VkShift = 0x10;
+    private const ushort VkControl = 0x11;
+    private const ushort VkMenu = 0x12;
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);

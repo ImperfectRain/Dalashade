@@ -117,16 +117,16 @@ public sealed class ProfileEngine
         rules?.Add(new AppliedRule("Performance target", $"{configuration.PerformanceBudget} budget applied where needed.", "performance weighting"));
 
         return new VisualProfile(
-            Clamp(exposure, 0.85f, 1.20f),
-            Clamp(contrast, 0.85f, 1.20f),
-            Clamp(saturation, 0.85f, 1.15f),
-            Clamp(bloom, 0.50f, 1.25f),
-            Clamp(ao, 0.25f, 1.25f),
-            Clamp(sharpness, 0.50f, 1.15f),
-            Clamp(clarity, 0.50f, 1.15f),
-            Clamp(shadowLift, 0f, 0.25f),
-            Clamp(temperature, -0.18f, 0.18f),
-            Clamp(tint, -0.12f, 0.12f));
+            Clamp(exposure, 0.80f, 1.28f),
+            Clamp(contrast, 0.80f, 1.28f),
+            Clamp(saturation, 0.78f, 1.22f),
+            Clamp(bloom, 0.40f, 1.35f),
+            Clamp(ao, 0.20f, 1.30f),
+            Clamp(sharpness, 0.45f, 1.20f),
+            Clamp(clarity, 0.45f, 1.22f),
+            Clamp(shadowLift, 0f, 0.35f),
+            Clamp(temperature, -0.30f, 0.30f),
+            Clamp(tint, -0.20f, 0.20f));
     }
 
     private static void ApplyWeather(GameContext context, SceneTags tags, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, List<AppliedRule>? rules)
@@ -209,40 +209,40 @@ public sealed class ProfileEngine
 
     private static void ApplyImageAnalysis(ImageAnalysisResult image, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float clarity, ref float shadowLift)
     {
-        if (image.AverageLuminance < 0.25f)
+        if (image.AverageLuminance < 0.30f)
         {
-            exposure += Scale01(0.25f - image.AverageLuminance, 0.25f) * 0.10f;
-            shadowLift += Scale01(image.ShadowClipping, 0.30f) * 0.12f;
-            contrast -= Scale01(image.ShadowClipping, 0.25f) * 0.08f;
-            ao -= Scale01(image.ShadowClipping, 0.25f) * 0.12f;
+            exposure += Scale01(0.30f - image.AverageLuminance, 0.30f) * 0.14f;
+            shadowLift += Scale01(image.ShadowClipping, 0.30f) * 0.16f;
+            contrast -= Scale01(image.ShadowClipping, 0.25f) * 0.10f;
+            ao -= Scale01(image.ShadowClipping, 0.25f) * 0.16f;
         }
 
         if (image.AverageLuminance > 0.72f || image.HighlightClipping > 0.04f)
         {
-            exposure -= Scale01(image.AverageLuminance - 0.72f, 0.28f) * 0.08f;
-            bloom -= Scale01(image.HighlightClipping, 0.12f) * 0.18f;
-            contrast -= Scale01(image.HighlightClipping, 0.12f) * 0.05f;
+            exposure -= Scale01(image.AverageLuminance - 0.72f, 0.28f) * 0.11f;
+            bloom -= Scale01(image.HighlightClipping, 0.12f) * 0.25f;
+            contrast -= Scale01(image.HighlightClipping, 0.12f) * 0.07f;
         }
 
         if (image.AverageSaturation < 0.24f)
         {
-            saturation += 0.04f;
+            saturation += 0.07f;
         }
         else if (image.AverageSaturation > 0.62f)
         {
-            saturation -= 0.05f;
-            bloom -= 0.03f;
+            saturation -= 0.08f;
+            bloom -= 0.05f;
         }
 
         if (image.Contrast < 0.14f)
         {
-            contrast += 0.05f;
-            clarity += 0.04f;
+            contrast += 0.08f;
+            clarity += 0.07f;
         }
         else if (image.Contrast > 0.32f)
         {
-            contrast -= 0.05f;
-            sharpness -= 0.04f;
+            contrast -= 0.07f;
+            sharpness -= 0.06f;
         }
     }
 
@@ -257,31 +257,31 @@ public sealed class ProfileEngine
         var warmthDelta = target.Warmth - (current.Available ? scene.Warmth : 0f);
         var greenDelta = target.GreenBias - (current.Available ? scene.GreenBias : 0f);
 
-        exposure += Clamp(luminanceDelta * 0.35f, -0.10f, 0.10f) * strength;
-        contrast += Clamp(contrastDelta * 0.70f, -0.12f, 0.12f) * strength;
-        saturation += Clamp(saturationDelta * 0.45f, -0.10f, 0.10f) * strength;
-        temperature += Clamp(warmthDelta * 0.60f, -0.16f, 0.16f) * strength;
-        tint += Clamp(greenDelta * 0.45f, -0.10f, 0.10f) * strength;
+        exposure += Clamp(luminanceDelta * 0.55f, -0.16f, 0.16f) * strength;
+        contrast += Clamp(contrastDelta * 1.05f, -0.18f, 0.18f) * strength;
+        saturation += Clamp(saturationDelta * 0.80f, -0.18f, 0.18f) * strength;
+        temperature += Clamp(warmthDelta * 0.95f, -0.24f, 0.24f) * strength;
+        tint += Clamp(greenDelta * 0.75f, -0.16f, 0.16f) * strength;
 
         if (target.HighlightClipping > 0.07f && target.AverageLuminance > 0.58f)
         {
-            bloom += 0.05f * strength;
+            bloom += 0.10f * strength;
         }
         else if (current.Available && current.HighlightClipping > target.HighlightClipping + 0.04f)
         {
-            bloom -= 0.08f * strength;
+            bloom -= 0.14f * strength;
         }
 
         if (target.ShadowClipping < 0.08f && current.Available && current.ShadowClipping > target.ShadowClipping + 0.08f)
         {
-            shadowLift += 0.08f * strength;
-            ao -= 0.06f * strength;
+            shadowLift += 0.12f * strength;
+            ao -= 0.10f * strength;
         }
 
         if (target.Contrast > 0.26f && target.AverageSaturation > 0.42f)
         {
-            clarity += 0.04f * strength;
-            sharpness += 0.02f * strength;
+            clarity += 0.08f * strength;
+            sharpness += 0.04f * strength;
         }
     }
 

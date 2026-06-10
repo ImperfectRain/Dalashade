@@ -28,6 +28,9 @@ public class Configuration : IPluginConfiguration
     public bool ReloadShadersAfterGeneration { get; set; } = true;
     public bool SyncReloadHotkeyToReShadeIni { get; set; } = true;
     public int ReloadHotkeyVirtualKey { get; set; } = 116;
+    public bool ReloadHotkeyCtrl { get; set; } = false;
+    public bool ReloadHotkeyShift { get; set; } = false;
+    public bool ReloadHotkeyAlt { get; set; } = false;
 
     public TargetStyle Style { get; set; } = TargetStyle.Balanced;
     public PerformanceBudget PerformanceBudget { get; set; } = PerformanceBudget.Medium;
@@ -44,7 +47,7 @@ public class Configuration : IPluginConfiguration
     public bool WriteBackups { get; set; } = true;
     public int MinimumSecondsBetweenWrites { get; set; } = 10;
     public int MinimumSecondsBetweenImageSamples { get; set; } = 10;
-    public int MasterPresetStyleStrength { get; set; } = 55;
+    public int MasterPresetStyleStrength { get; set; } = 75;
     public int MasterPresetMaxImages { get; set; } = 24;
     public string ScreenshotFolderPath { get; set; } = string.Empty;
     public string MasterPresetFolderPath { get; set; } = string.Empty;

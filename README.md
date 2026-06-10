@@ -35,7 +35,7 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 
 The generated preset should live somewhere writable, usually Dalamud's plugin config folder. Keeping it away from the game folder avoids a lot of Windows permission nonsense.
 
-Dalashade can also reload ReShade after it writes the preset. By default it syncs ReShade's reload hotkey to `F5` in `ReShade.ini`, then sends that key after a successful generation. If you already use another reload key, change `Reload hotkey virtual key` in settings.
+Dalashade can also reload ReShade after it writes the preset. By default it syncs ReShade's reload hotkey to `F5` in `ReShade.ini`, then sends that key after a successful generation. If you already use another reload key, click `Set reload hotkey` in settings and press the key or button you want. Hold Ctrl, Shift, or Alt while pressing it if you use a combo.
 
 ## Screenshot Analysis
 
@@ -82,7 +82,7 @@ Right now it looks at broad visual traits:
 
 If `Include master preset subfolders` is on, you can make a folder of looks and toss subfolders inside it. Dalashade will average the newest images up to `Master style max images`. That is optional; one image is enough to start.
 
-This will not perfectly recreate another game's renderer. It is more like, "this reference is warmer, punchier, and less shadow-crushed than my current scene, so move the ReShade values that direction." Small, useful, not magic.
+This will not perfectly recreate another game's renderer. It is more like, "this reference is warmer, punchier, and less shadow-crushed than my current scene, so move the ReShade values that direction." It is allowed to be visible now, especially at higher strength, but it is still working through shader variables instead of cloning a whole renderer.
 
 ## iMMERSE Support
 
