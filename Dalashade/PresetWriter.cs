@@ -14,6 +14,7 @@ public sealed record ChangedShaderVariable(
     bool TechniqueActive,
     bool HitMin,
     bool HitMax,
+    float AuthorityAdjustmentStrength = 1f,
     string? Warning = null);
 
 public sealed record PresetWriteResult(bool Success, string Message, int ChangedVariables, IReadOnlyList<ChangedShaderVariable> Changes)
@@ -31,6 +32,7 @@ public sealed record ShaderSupportScan(bool Success, string Message, IReadOnlyLi
 public sealed class PresetWriter
 {
     private readonly ShaderVariableMapper mapper = new();
+    private readonly PresetAnalyzer analyzer = new();
 
     public PresetWriteResult WriteGeneratedPreset(Configuration configuration, VisualProfile profile)
     {
@@ -67,8 +69,10 @@ public sealed class PresetWriter
 
             Directory.CreateDirectory(generatedDirectory);
 
-            var adjustments = mapper.CreateAdjustments(profile, configuration);
             var lines = File.ReadAllLines(basePresetPath);
+            var analysis = analyzer.Analyze(configuration);
+            var authorityPolicy = GenerationAuthorityPolicy.From(analysis, configuration.CompatibilityMode);
+            var adjustments = mapper.CreateAdjustments(profile, configuration, authorityPolicy);
             var activeTechniques = PresetAnalyzer.ParseActiveTechniqueSections(lines);
             var changes = new List<ChangedShaderVariable>();
             var currentSection = string.Empty;
@@ -127,6 +131,7 @@ public sealed class PresetWriter
                         techniqueActive,
                         adjusted.HitMin,
                         adjusted.HitMax,
+                        adjust.AuthorityAdjustmentStrength,
                         adjusted.Warning));
                 }
             }
@@ -145,10 +150,11 @@ public sealed class PresetWriter
             var inactiveChanges = changes.Count(change => !change.TechniqueActive);
             var clampedChanges = changes.Count(change => change.HitMin || change.HitMax);
             var warningChanges = changes.Count(change => !string.IsNullOrWhiteSpace(change.Warning));
+            var dampenedChanges = changes.Count(change => change.AuthorityAdjustmentStrength < 0.999f);
             var message = $"Generated preset written with {changes.Count} supported variable change(s).";
-            if (inactiveChanges > 0 || clampedChanges > 0 || warningChanges > 0)
+            if (inactiveChanges > 0 || clampedChanges > 0 || warningChanges > 0 || dampenedChanges > 0)
             {
-                message += $" {inactiveChanges} inactive, {clampedChanges} clamped, {warningChanges} warning(s).";
+                message += $" {inactiveChanges} inactive, {clampedChanges} clamped, {warningChanges} warning(s), {dampenedChanges} authority-dampened.";
             }
 
             return new PresetWriteResult(true, message, changes.Count, changes);

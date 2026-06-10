@@ -55,7 +55,7 @@ public readonly record struct ShaderValue(float X, float Y = 0f, float Z = 0f, f
     }
 }
 
-public sealed record ShaderAdjustment(Func<string, ShaderAdjustmentResult?> Apply, string ReasonCategory);
+public sealed record ShaderAdjustment(Func<string, ShaderAdjustmentResult?> Apply, string ReasonCategory, EffectRole Role, float AuthorityAdjustmentStrength);
 
 public sealed record ShaderAdjustmentResult(string NewValue, bool HitMin, bool HitMax, string? Warning = null);
 
@@ -64,6 +64,7 @@ public sealed record ShaderVariableDefinition(
     string Key,
     ShaderValueShape Shape,
     ShaderValueMode Mode,
+    EffectRole Role,
     string ReasonCategory,
     float Min,
     float Max,
@@ -92,14 +93,19 @@ public sealed class ShaderVariableMapper
 {
     public IReadOnlyDictionary<ShaderVariableKey, ShaderAdjustment> CreateAdjustments(VisualProfile profile, Configuration configuration)
     {
+        return CreateAdjustments(profile, configuration, GenerationAuthorityPolicy.Empty);
+    }
+
+    public IReadOnlyDictionary<ShaderVariableKey, ShaderAdjustment> CreateAdjustments(VisualProfile profile, Configuration configuration, GenerationAuthorityPolicy authorityPolicy)
+    {
         var adjustments = new Dictionary<ShaderVariableKey, ShaderAdjustment>(ShaderVariableKeyComparer.Instance);
 
         foreach (var definition in CreateDefinitions(configuration))
         {
-            Add(adjustments, definition, profile, definition.Section);
+            Add(adjustments, definition, profile, authorityPolicy, definition.Section);
             if (configuration.ShaderMatchingMode == ShaderMatchingMode.KnownFallbacks && definition.AllowFallback)
             {
-                Add(adjustments, definition, profile, null);
+                Add(adjustments, definition, profile, authorityPolicy, null);
             }
         }
 
@@ -315,7 +321,7 @@ public sealed class ShaderVariableMapper
 
     private static void AddScalar(List<ShaderVariableDefinition> definitions, string? section, string key, ShaderValueMode mode, string reason, float min, float max, Func<VisualProfile, float> amount, bool allowFallback)
     {
-        definitions.Add(new ShaderVariableDefinition(section, key, ShaderValueShape.Scalar, mode, reason, min, max, profile => new ShaderValue(amount(profile)), allowFallback));
+        definitions.Add(new ShaderVariableDefinition(section, key, ShaderValueShape.Scalar, mode, InferRole(reason), reason, min, max, profile => new ShaderValue(amount(profile)), allowFallback));
     }
 
     private static void AddVector(List<ShaderVariableDefinition> definitions, string? section, string key, ShaderValueShape shape, ShaderValueMode mode, string reason, float min, float max, Func<VisualProfile, ShaderValue> amount, bool allowFallback = false)
@@ -325,15 +331,16 @@ public sealed class ShaderVariableMapper
             throw new ArgumentException("Vector definitions must use a vector shape.", nameof(shape));
         }
 
-        definitions.Add(new ShaderVariableDefinition(section, key, shape, mode, reason, min, max, amount, allowFallback));
+        definitions.Add(new ShaderVariableDefinition(section, key, shape, mode, InferRole(reason), reason, min, max, amount, allowFallback));
     }
 
-    private static void Add(Dictionary<ShaderVariableKey, ShaderAdjustment> adjustments, ShaderVariableDefinition definition, VisualProfile profile, string? section)
+    private static void Add(Dictionary<ShaderVariableKey, ShaderAdjustment> adjustments, ShaderVariableDefinition definition, VisualProfile profile, GenerationAuthorityPolicy authorityPolicy, string? section)
     {
-        adjustments[new ShaderVariableKey(section, definition.Key)] = new ShaderAdjustment(value => Apply(value, definition, profile), definition.ReasonCategory);
+        var adjustmentStrength = authorityPolicy.GetAdjustmentStrength(section, definition.Role);
+        adjustments[new ShaderVariableKey(section, definition.Key)] = new ShaderAdjustment(value => Apply(value, definition, profile, adjustmentStrength), definition.ReasonCategory, definition.Role, adjustmentStrength);
     }
 
-    private static ShaderAdjustmentResult? Apply(string rawValue, ShaderVariableDefinition definition, VisualProfile profile)
+    private static ShaderAdjustmentResult? Apply(string rawValue, ShaderVariableDefinition definition, VisualProfile profile, float adjustmentStrength)
     {
         if (definition.Shape == ShaderValueShape.Scalar)
         {
@@ -342,7 +349,8 @@ public sealed class ShaderVariableMapper
                 return null;
             }
 
-            var result = ApplyScalarMode(current, definition.Amount(profile).X, definition.Mode, definition.Min, definition.Max);
+            var amount = ApplyStrength(definition.Amount(profile).X, definition.Mode, adjustmentStrength);
+            var result = ApplyScalarMode(current, amount, definition.Mode, definition.Min, definition.Max);
             var warning = CreateSafetyWarning(definition, result.UnclampedValue);
             return new ShaderAdjustmentResult(Format(result.Value), result.HitMin, result.HitMax, warning);
         }
@@ -353,9 +361,74 @@ public sealed class ShaderVariableMapper
             return null;
         }
 
-        var vectorResult = ApplyVectorMode(currentVector, definition.Amount(profile), definition.Mode, definition.Min, definition.Max, componentCount);
+        var amountVector = ApplyStrength(definition.Amount(profile), definition.Mode, adjustmentStrength, componentCount);
+        var vectorResult = ApplyVectorMode(currentVector, amountVector, definition.Mode, definition.Min, definition.Max, componentCount);
         var vectorWarning = CreateSafetyWarning(definition, vectorResult.UnclampedValue, componentCount);
         return new ShaderAdjustmentResult(FormatVector(vectorResult.Value, componentCount), vectorResult.HitMin, vectorResult.HitMax, vectorWarning);
+    }
+
+    private static EffectRole InferRole(string reason)
+    {
+        if (reason.Contains("bloom", StringComparison.OrdinalIgnoreCase))
+        {
+            return EffectRole.Bloom;
+        }
+
+        if (reason.Contains("sharpen", StringComparison.OrdinalIgnoreCase))
+        {
+            return EffectRole.Sharpen;
+        }
+
+        if (reason.Contains("ambient occlusion", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("ao", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("rtgi", StringComparison.OrdinalIgnoreCase))
+        {
+            return EffectRole.AoGi;
+        }
+
+        if (reason.Contains("color", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("grade", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("exposure", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("saturation", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("contrast", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("temperature", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("tint", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("lut", StringComparison.OrdinalIgnoreCase))
+        {
+            return EffectRole.ColorGrade;
+        }
+
+        return EffectRole.Unknown;
+    }
+
+    private static float ApplyStrength(float amount, ShaderValueMode mode, float strength)
+    {
+        if (strength >= 0.999f)
+        {
+            return amount;
+        }
+
+        return mode switch
+        {
+            ShaderValueMode.Scale or ShaderValueMode.ScaleAll or ShaderValueMode.ScaleComponent => 1f + ((amount - 1f) * strength),
+            _ => amount * strength
+        };
+    }
+
+    private static ShaderValue ApplyStrength(ShaderValue amount, ShaderValueMode mode, float strength, int componentCount)
+    {
+        if (strength >= 0.999f)
+        {
+            return amount;
+        }
+
+        var result = amount;
+        for (var i = 0; i < componentCount; i++)
+        {
+            result = result.WithComponent(i, ApplyStrength(amount.ComponentAt(i), mode, strength));
+        }
+
+        return result;
     }
 
     private static (float Value, float UnclampedValue, bool HitMin, bool HitMax) ApplyScalarMode(float current, float amount, ShaderValueMode mode, float min, float max)

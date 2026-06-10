@@ -69,7 +69,7 @@ public sealed class CompatibilityReportExporter
         AppendTechniqueList(builder, "Active Unknown Effects", report.ActiveUnsupportedEffects);
         AppendTechniqueList(builder, "High-Risk Active Effects", report.HighRiskActiveEffects);
         AppendTechniqueList(builder, "Inactive Supported Effects", report.InactiveSupportedEffects);
-        AppendAuthorities(builder, report.Authorities);
+        AppendAuthorities(builder, report.Authorities, GenerationAuthorityPolicy.From(analysis, configuration.CompatibilityMode));
         AppendLines(builder, "Warnings", report.Warnings);
         AppendLines(builder, "Multiple Authority Warnings", report.MultipleAuthorityWarnings);
         AppendShaderSupport(builder, shaderSupport);
@@ -103,7 +103,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine();
     }
 
-    private static void AppendAuthorities(StringBuilder builder, IReadOnlyList<EffectAuthority> authorities)
+    private static void AppendAuthorities(StringBuilder builder, IReadOnlyList<EffectAuthority> authorities, GenerationAuthorityPolicy authorityPolicy)
     {
         builder.AppendLine("## Effect Authorities");
         builder.AppendLine();
@@ -116,7 +116,12 @@ public sealed class CompatibilityReportExporter
 
         foreach (var authority in authorities)
         {
-            builder.AppendLine($"- {PresetAnalyzer.FormatRole(authority.Role)}: primary={authority.PrimaryShader}");
+            var rolePolicy = authorityPolicy.Roles.FirstOrDefault(role => role.Role == authority.Role);
+            var dampening = rolePolicy is { DampensSecondaries: true }
+                ? $"secondary dampening={rolePolicy.SecondaryAdjustmentStrength:0.##}x"
+                : "secondary dampening=not applied";
+
+            builder.AppendLine($"- {PresetAnalyzer.FormatRole(authority.Role)}: primary={authority.PrimaryShader} | {dampening}");
             foreach (var secondary in authority.SecondaryShaders.Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 builder.AppendLine($"  - secondary={secondary}");
@@ -186,8 +191,9 @@ public sealed class CompatibilityReportExporter
         {
             var active = change.TechniqueActive ? "active" : "inactive";
             var clamp = change.HitMin ? "min clamp" : change.HitMax ? "max clamp" : "not clamped";
+            var dampening = change.AuthorityAdjustmentStrength < 0.999f ? $" | authority dampening={change.AuthorityAdjustmentStrength:0.##}x" : string.Empty;
             var warning = string.IsNullOrWhiteSpace(change.Warning) ? string.Empty : $" | warning={change.Warning}";
-            builder.AppendLine($"- {change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} | {change.ReasonCategory} | {active} | {clamp}{warning}");
+            builder.AppendLine($"- {change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} | {change.ReasonCategory} | {active} | {clamp}{dampening}{warning}");
         }
 
         builder.AppendLine();
