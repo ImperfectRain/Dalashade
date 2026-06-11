@@ -11,6 +11,10 @@ Implemented:
 - `CustomShaderVariableMapper` writes stable `SceneIntent` values into Dalashade custom shader sections when those sections and keys already exist in the base preset.
 - Main window and compatibility reports show whether custom shader support is enabled, which custom sections were detected, and which custom variables were written.
 
+Implemented shader prototypes:
+
+- `shaders/Dalashade_WeatherAtmosphere.fx`
+
 Not implemented yet:
 
 - No custom `.fx` shader files are shipped yet.
@@ -30,6 +34,16 @@ Custom shader writes are intentionally conservative:
 5. No custom shader is required for normal operation.
 
 Dalashade does not insert shader sections or create `.fx` files during generation.
+
+## Recommended ReShade Order
+
+For `Dalashade_WeatherAtmosphere.fx`, use this order:
+
+1. After AO, MXAO, RTGI, and other depth/lighting effects.
+2. Before final sharpening.
+3. Before UI restore, KeepUI, or RestoreUI effects if applicable.
+
+The shader is meant to shape world atmosphere. Keeping it before UI restore helps avoid haze/glow affecting protected UI layers in presets that use UI masking.
 
 ## Supported SceneIntent Variables
 
