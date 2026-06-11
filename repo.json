@@ -20,9 +20,9 @@
       "preset",
       "graphics"
     ],
-    "DownloadLinkInstall": "https://raw.githubusercontent.com/ImperfectRain/Dalashade/master/releases/Dalashade-v1.2.zip",
-    "DownloadLinkUpdate": "https://raw.githubusercontent.com/ImperfectRain/Dalashade/master/releases/Dalashade-v1.2.zip",
-    "DownloadLinkTesting": "https://raw.githubusercontent.com/ImperfectRain/Dalashade/master/releases/Dalashade-v1.2.zip",
+    "DownloadLinkInstall": "https://github.com/ImperfectRain/Dalashade/releases/download/v1.2/Dalashade-v1.2.zip",
+    "DownloadLinkUpdate": "https://github.com/ImperfectRain/Dalashade/releases/download/v1.2/Dalashade-v1.2.zip",
+    "DownloadLinkTesting": "https://github.com/ImperfectRain/Dalashade/releases/download/v1.2/Dalashade-v1.2.zip",
     "DownloadCount": 0,
     "LastUpdate": 1781117094
   }
