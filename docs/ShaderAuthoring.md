@@ -14,6 +14,7 @@ Implemented plugin support:
 Implemented shader prototype:
 
 - `shaders/Dalashade_WeatherAtmosphere.fx`
+- Current tuning is conservative v2: stronger than the first prototype, but bounded by combat/readability dampening and final color-delta guardrails.
 
 Not implemented yet:
 
@@ -63,6 +64,39 @@ For `Dalashade_WeatherAtmosphere.fx`, use this order:
 
 The shader is meant to shape world atmosphere. Keeping it before UI restore helps avoid haze/glow affecting protected UI layers in presets that use UI masking.
 
+## Weather Atmosphere Controls
+
+`Dalashade_WeatherAtmosphere.fx` can be driven by Dalashade or tested manually in ReShade.
+
+Dalashade-driven controls:
+
+| Control | Purpose |
+| --- | --- |
+| `Dalashade_Haze` | Drives bounded depth haze for fog, dust, clouds, and similar atmosphere. |
+| `Dalashade_Wetness` | Adds wet-scene specular glow and contributes to storm mood. |
+| `Dalashade_Cold` | Cools haze tint and strengthens snow/white highlight protection. |
+| `Dalashade_Heat` | Warms haze tint and adds distant heat/dust softness. |
+| `Dalashade_HighlightProtection` | Rolls off bright highlights, especially in snow, wet, and hot scenes. |
+| `Dalashade_ShadowProtection` | Adds modest shadow lift for dark scenes. |
+| `Dalashade_CombatPressure` | Dampens heavy haze, glow, storm mood, and heat softness for gameplay readability. |
+| `Dalashade_Readability` | Adds lighter atmosphere dampening when the scene needs readable gameplay space. |
+| `Dalashade_Atmosphere` | Scales the scene's general atmosphere allowance. |
+| `Dalashade_MagicGlow` | Adds controlled glow for magical/aetherial scenes. |
+| `Dalashade_NeonGlow` | Adds controlled glow for neon/high-tech scenes. |
+| `Dalashade_CinematicPermission` | Allows a small boost to atmosphere outside gameplay-critical moments. |
+
+Manual testing controls:
+
+| Control | Suggested tuning |
+| --- | --- |
+| `Manual Overall Strength` | Default `0.35`. Raise only while tuning; high values make all responses more visible. |
+| `Manual Haze Boost` | Adds haze without needing Dalashade scene tags. Useful for testing depth behavior. |
+| `Manual Glow Boost` | Adds glow without needing wet, magic, or neon intent. |
+| `Manual Storm/Dark Mood` | Tests storm darkening and cool mood response. |
+| `Show Debug Mask` | Shows red depth haze, green glow, and blue protection/readability pressure. |
+
+The v2 shader intentionally does not blur the frame or disable any ReShade techniques. It shapes color, haze, glow, highlight rolloff, and mild softness through bounded masks. Combat-heavy scenes should visibly reduce the heaviest atmosphere while retaining light weather identity.
+
 ## Supported SceneIntent Variables
 
 Future Dalashade shaders can expose these scalar variables in a Dalashade section:
@@ -84,6 +118,8 @@ Future Dalashade shaders can expose these scalar variables in a Dalashade sectio
 | `Dalashade_CinematicPermission` | `SceneIntent.CinematicPermission` |
 
 All values are normalized `0.0` to `1.0`.
+
+`Dalashade_WeatherAtmosphere.fx` currently consumes `Readability`, `Atmosphere`, `HighlightProtection`, `ShadowProtection`, `Haze`, `Wetness`, `Cold`, `Heat`, `MagicGlow`, `NeonGlow`, `CombatPressure`, and `CinematicPermission`.
 
 ## Example Preset Section
 
