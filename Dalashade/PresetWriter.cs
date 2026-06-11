@@ -36,9 +36,10 @@ public sealed record CustomShaderInjectionResult(
     bool TechniqueInjected,
     string Message,
     IReadOnlyList<string> Sections,
-    IReadOnlyList<string> Variables)
+    IReadOnlyList<string> Variables,
+    IReadOnlyList<string> Techniques)
 {
-    public static CustomShaderInjectionResult Skipped { get; } = new(false, false, false, false, false, "Custom shader section injection not attempted.", Array.Empty<string>(), Array.Empty<string>());
+    public static CustomShaderInjectionResult Skipped { get; } = new(false, false, false, false, false, "Custom shader section injection not attempted.", Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>());
 }
 
 public sealed record ShaderSupportItem(string Section, string Key, bool Controllable, string ReasonCategory, TechniqueActivationState ActivationState);
@@ -50,25 +51,45 @@ public sealed record ShaderSupportScan(bool Success, string Message, IReadOnlyLi
 
 public sealed class PresetWriter
 {
-    private const string WeatherAtmosphereSection = "Dalashade_WeatherAtmosphere.fx";
-    private const string WeatherAtmosphereTechnique = "Dalashade_WeatherAtmosphere";
-    private const string WeatherAtmosphereTechniqueEntry = "Dalashade_WeatherAtmosphere@Dalashade_WeatherAtmosphere.fx";
+    private sealed record KnownCustomShaderDefinition(string Section, string Technique, string TechniqueEntry, IReadOnlyList<string> Variables);
 
-    private static readonly string[] WeatherAtmosphereVariables =
-    {
-        "Dalashade_Haze",
-        "Dalashade_Wetness",
-        "Dalashade_Cold",
-        "Dalashade_Heat",
-        "Dalashade_HighlightProtection",
-        "Dalashade_ShadowProtection",
-        "Dalashade_CombatPressure",
-        "Dalashade_Atmosphere",
-        "Dalashade_MagicGlow",
-        "Dalashade_NeonGlow",
-        "Dalashade_Readability",
-        "Dalashade_CinematicPermission"
-    };
+    private static readonly IReadOnlyList<KnownCustomShaderDefinition> KnownCustomShaders =
+    [
+        new(
+            "Dalashade_WeatherAtmosphere.fx",
+            "Dalashade_WeatherAtmosphere",
+            "Dalashade_WeatherAtmosphere@Dalashade_WeatherAtmosphere.fx",
+            [
+                "Dalashade_Haze",
+                "Dalashade_Wetness",
+                "Dalashade_Cold",
+                "Dalashade_Heat",
+                "Dalashade_HighlightProtection",
+                "Dalashade_ShadowProtection",
+                "Dalashade_CombatPressure",
+                "Dalashade_Atmosphere",
+                "Dalashade_MagicGlow",
+                "Dalashade_NeonGlow",
+                "Dalashade_Readability",
+                "Dalashade_CinematicPermission"
+            ]),
+        new(
+            "Dalashade_AdaptiveGrade.fx",
+            "Dalashade_AdaptiveGrade",
+            "Dalashade_AdaptiveGrade@Dalashade_AdaptiveGrade.fx",
+            [
+                "Dalashade_Readability",
+                "Dalashade_Atmosphere",
+                "Dalashade_HighlightProtection",
+                "Dalashade_ShadowProtection",
+                "Dalashade_Cold",
+                "Dalashade_Heat",
+                "Dalashade_MagicGlow",
+                "Dalashade_NeonGlow",
+                "Dalashade_CinematicPermission",
+                "Dalashade_CombatPressure"
+            ])
+    ];
 
     private readonly ShaderVariableMapper mapper = new();
     private readonly CustomShaderVariableMapper customMapper = new();
@@ -355,45 +376,56 @@ public sealed class PresetWriter
         var sectionInjected = false;
         var variablesInjected = false;
         var techniqueInjected = false;
+        var injectedSections = new List<string>();
         var injectedVariables = new List<string>();
+        var injectedTechniques = new List<string>();
 
-        if (!ContainsSection(lines, WeatherAtmosphereSection))
+        foreach (var shader in KnownCustomShaders)
         {
-            if (lines.Count > 0 && !string.IsNullOrWhiteSpace(lines[^1]))
+            if (!ContainsSection(lines, shader.Section))
             {
-                lines.Add(string.Empty);
-            }
-
-            lines.Add($"[{WeatherAtmosphereSection}]");
-            foreach (var variable in WeatherAtmosphereVariables)
-            {
-                lines.Add($"{variable}=0.000000");
-                injectedVariables.Add(variable);
-            }
-
-            sectionInjected = true;
-            variablesInjected = injectedVariables.Count > 0;
-        }
-        else
-        {
-            var insertIndex = FindSectionEnd(lines, WeatherAtmosphereSection);
-            var existingVariables = ReadSectionKeys(lines, WeatherAtmosphereSection);
-            foreach (var variable in WeatherAtmosphereVariables)
-            {
-                if (existingVariables.Contains(variable))
+                if (lines.Count > 0 && !string.IsNullOrWhiteSpace(lines[^1]))
                 {
-                    continue;
+                    lines.Add(string.Empty);
                 }
 
-                lines.Insert(insertIndex, $"{variable}=0.000000");
-                insertIndex++;
-                injectedVariables.Add(variable);
+                lines.Add($"[{shader.Section}]");
+                foreach (var variable in shader.Variables)
+                {
+                    lines.Add($"{variable}=0.000000");
+                    injectedVariables.Add($"{shader.Section}/{variable}");
+                }
+
+                sectionInjected = true;
+                variablesInjected = true;
+                injectedSections.Add(shader.Section);
+            }
+            else
+            {
+                var insertIndex = FindSectionEnd(lines, shader.Section);
+                var existingVariables = ReadSectionKeys(lines, shader.Section);
+                foreach (var variable in shader.Variables)
+                {
+                    if (existingVariables.Contains(variable))
+                    {
+                        continue;
+                    }
+
+                    lines.Insert(insertIndex, $"{variable}=0.000000");
+                    insertIndex++;
+                    injectedVariables.Add($"{shader.Section}/{variable}");
+                }
+
+                variablesInjected = variablesInjected || injectedVariables.Count > 0;
             }
 
-            variablesInjected = injectedVariables.Count > 0;
+            if (TryInjectTechnique(lines, shader))
+            {
+                techniqueInjected = true;
+                injectedTechniques.Add(shader.TechniqueEntry);
+            }
         }
 
-        techniqueInjected = TryInjectTechnique(lines);
         var message = sectionInjected || variablesInjected || techniqueInjected
             ? $"Custom shader injection: section={(sectionInjected ? "yes" : "no")}, variables={(variablesInjected ? "yes" : "no")}, technique={(techniqueInjected ? "yes" : "no")}, generated preset only=yes."
             : "Custom shader injection: known generated preset sections and variables already present; generated preset only=yes.";
@@ -405,8 +437,9 @@ public sealed class PresetWriter
             variablesInjected,
             techniqueInjected,
             message,
-            sectionInjected ? new[] { WeatherAtmosphereSection } : Array.Empty<string>(),
-            injectedVariables.ToArray());
+            injectedSections.ToArray(),
+            injectedVariables.ToArray(),
+            injectedTechniques.ToArray());
     }
 
     private static bool ContainsSection(IEnumerable<string> lines, string section)
@@ -466,7 +499,7 @@ public sealed class PresetWriter
         return keys;
     }
 
-    private static bool TryInjectTechnique(IList<string> lines)
+    private static bool TryInjectTechnique(IList<string> lines, KnownCustomShaderDefinition shader)
     {
         for (var i = 0; i < lines.Count; i++)
         {
@@ -491,14 +524,14 @@ public sealed class PresetWriter
 
             var entries = value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
             if (entries.Any(entry =>
-                    string.Equals(entry, WeatherAtmosphereTechniqueEntry, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(entry, WeatherAtmosphereSection, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(entry, WeatherAtmosphereTechnique, StringComparison.OrdinalIgnoreCase)))
+                    string.Equals(entry, shader.TechniqueEntry, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(entry, shader.Section, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(entry, shader.Technique, StringComparison.OrdinalIgnoreCase)))
             {
                 return false;
             }
 
-            lines[i] = $"{line[..(separatorIndex + 1)]}{value},{WeatherAtmosphereTechniqueEntry}";
+            lines[i] = $"{line[..(separatorIndex + 1)]}{value},{shader.TechniqueEntry}";
             return true;
         }
 

@@ -1,6 +1,6 @@
 # Shader Authoring
 
-This page documents the current scaffolding and first prototype for Dalashade custom ReShade shaders.
+This page documents the current scaffolding and Dalashade custom ReShade shader prototypes.
 
 ## Current Status
 
@@ -12,17 +12,19 @@ Implemented plugin support:
 - `Configuration.AutoInjectDalashadeCustomShaderSections` can optionally add known Dalashade custom shader sections to the generated preset only.
 - Main window and compatibility reports show whether custom shader support is enabled, which custom sections were detected, and which custom variables were written.
 
-Implemented shader prototype:
+Implemented shader prototypes:
 
 - `shaders/Dalashade_WeatherAtmosphere.fx`
 - Current tuning is conservative v2: stronger than the first prototype, but bounded by combat/readability dampening and final color-delta guardrails.
+- `shaders/Dalashade_AdaptiveGrade.fx`
+- Current tuning is a conservative prototype for SceneIntent-driven exposure, contrast, saturation, temperature, highlight rolloff, shadow lift, and cinematic bias.
 
 Not implemented yet:
 
 - No IPC, named pipe, JSON bridge, or live ReShade bridge exists yet.
 - No native ReShade add-on exists yet.
 - No automatic shader installation/copying exists yet.
-- Release packaging of `shaders/Dalashade_WeatherAtmosphere.fx` is not guaranteed by this document. Check the current release task and zip contents before assuming the shader is included in a published plugin package.
+- Release packaging of custom files in `shaders/` is not guaranteed by this document. Check the current release task and zip contents before assuming a shader is included in a published plugin package.
 
 Bridge/add-on integration is planned and not currently implemented. Do not treat this document as a native bridge or IPC implementation reference.
 
@@ -38,11 +40,13 @@ Custom shader writes are intentionally conservative:
 
 When `AutoInjectDalashadeCustomShaderSections` is off, Dalashade does not insert shader sections during generation.
 
-When both `EnableDalashadeCustomShaders` and `AutoInjectDalashadeCustomShaderSections` are on, Dalashade may inject known custom shader sections and variables into the generated preset only. It never mutates the base preset. Initial injection support is limited to `[Dalashade_WeatherAtmosphere.fx]`.
+When both `EnableDalashadeCustomShaders` and `AutoInjectDalashadeCustomShaderSections` are on, Dalashade may inject known custom shader sections and variables into the generated preset only. It never mutates the base preset. Current injection support is limited to `[Dalashade_WeatherAtmosphere.fx]` and `[Dalashade_AdaptiveGrade.fx]`.
 
 The generated WeatherAtmosphere section includes the weather shader intent variables Dalashade currently knows how to write: `Dalashade_Haze`, `Dalashade_Wetness`, `Dalashade_Cold`, `Dalashade_Heat`, `Dalashade_HighlightProtection`, `Dalashade_ShadowProtection`, `Dalashade_CombatPressure`, `Dalashade_Atmosphere`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_Readability`, and `Dalashade_CinematicPermission`.
 
-Dalashade also does not currently install or copy custom shader files into a ReShade shader directory. For manual testing, place `shaders/Dalashade_WeatherAtmosphere.fx` somewhere ReShade scans for shaders, then enable it in ReShade.
+The generated AdaptiveGrade section includes the grade shader intent variables Dalashade currently knows how to write: `Dalashade_Readability`, `Dalashade_Atmosphere`, `Dalashade_HighlightProtection`, `Dalashade_ShadowProtection`, `Dalashade_Cold`, `Dalashade_Heat`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_CinematicPermission`, and `Dalashade_CombatPressure`.
+
+Dalashade also does not currently install or copy custom shader files into a ReShade shader directory. For manual testing, place the needed files from `shaders/` somewhere ReShade scans for shaders, then enable them in ReShade.
 
 ## Manual Installation Diagnostics
 
@@ -56,15 +60,15 @@ The UI and compatibility report distinguish two separate states:
 | Variables injected | Dalashade added missing known `Dalashade_*` variables to a supported custom shader section in the generated preset. |
 | Technique injected | Dalashade appended the known technique entry to an existing non-empty `Techniques=` line in the generated preset. |
 | Generated preset only | Injection happened in the generated output path; the base preset was not modified. |
-| Base preset contains a Dalashade custom shader section | The selected base preset has a section such as `[Dalashade_WeatherAtmosphere.fx]`, so Dalashade can inspect it for supported `Dalashade_*` keys. |
+| Base preset contains a Dalashade custom shader section | The selected base preset has a section such as `[Dalashade_WeatherAtmosphere.fx]` or `[Dalashade_AdaptiveGrade.fx]`, so Dalashade can inspect it for supported `Dalashade_*` keys. |
 | Technique active/inactive/unknown | Dalashade checks whether the section appears active in `Techniques=`. If `Techniques=` is missing, activation is reported as unknown. |
 | Known custom variables found | Matching `Dalashade_*` keys were found in a Dalashade custom shader section. |
 | Variables detected but unchanged | Keys exist, but generation did not write values. Common causes are disabled custom shader support, inactive/unknown technique state, write-mode settings, or values already matching SceneIntent. |
 | Variables written | `SceneIntent` values were written into matching `Dalashade_*` keys during generation. |
 
-This is not the same as shader file installation. ReShade must still be able to find the actual `.fx` file through its own shader search paths. If the section exists but ReShade cannot compile or enable the effect, check ReShade's shader path and install `shaders/Dalashade_WeatherAtmosphere.fx` manually.
+This is not the same as shader file installation. ReShade must still be able to find the actual `.fx` file through its own shader search paths. If the section exists but ReShade cannot compile or enable the effect, check ReShade's shader path and install the relevant file from `shaders/` manually.
 
-Technique injection is intentionally narrow. Dalashade only appends `Dalashade_WeatherAtmosphere@Dalashade_WeatherAtmosphere.fx` when the preset already has a non-empty `Techniques=` line and the entry is not already present. If there is no safe `Techniques=` line to update, Dalashade can still inject the section/variables, but the user may need to enable the technique in ReShade manually.
+Technique injection is intentionally narrow. Dalashade only appends known Dalashade technique entries when the preset already has a non-empty `Techniques=` line and the entry is not already present. If there is no safe `Techniques=` line to update, Dalashade can still inject the section/variables, but the user may need to enable the technique in ReShade manually.
 
 ## Recommended ReShade Order
 
@@ -75,6 +79,15 @@ For `Dalashade_WeatherAtmosphere.fx`, use this order:
 3. Before UI restore, KeepUI, or RestoreUI effects if applicable.
 
 The shader is meant to shape world atmosphere. Keeping it before UI restore helps avoid haze/glow affecting protected UI layers in presets that use UI masking.
+
+For `Dalashade_AdaptiveGrade.fx`, use this order:
+
+1. After atmosphere, lighting, bloom, and major tonemapping effects.
+2. Before final sharpening.
+3. Before UI restore, KeepUI, or RestoreUI effects if applicable.
+4. Avoid stacking it after a strong third-party color grade unless you deliberately want both grades active.
+
+The shader is meant to provide a mild Dalashade-native grade. It should usually sit late enough to see the shaped scene, but early enough that sharpening and UI restoration remain clean.
 
 ## Weather Atmosphere Controls
 
@@ -109,6 +122,39 @@ Manual testing controls:
 
 The v2 shader intentionally does not blur the frame or disable any ReShade techniques. It shapes color, haze, glow, highlight rolloff, and mild softness through bounded masks. Combat-heavy scenes should visibly reduce the heaviest atmosphere while retaining light weather identity.
 
+## Adaptive Grade Controls
+
+`Dalashade_AdaptiveGrade.fx` can be driven by Dalashade or tested manually in ReShade.
+
+Dalashade-driven controls:
+
+| Control | Purpose |
+| --- | --- |
+| `Dalashade_Readability` | Dampens contrast, saturation, and cinematic pressure for readable gameplay. |
+| `Dalashade_Atmosphere` | Gives the grade a little more room in atmospheric scenes. |
+| `Dalashade_HighlightProtection` | Adds mild exposure trim and highlight rolloff to protect bright weather and snow. |
+| `Dalashade_ShadowProtection` | Adds bounded shadow lift without raising the whole frame aggressively. |
+| `Dalashade_Cold` | Biases the grade cooler and contributes to highlight protection. |
+| `Dalashade_Heat` | Biases the grade warmer with a small heat/dust color response. |
+| `Dalashade_MagicGlow` | Adds a subtle magenta/green tint response and modest saturation support. |
+| `Dalashade_NeonGlow` | Adds a subtle cool neon tint response and modest saturation support. |
+| `Dalashade_CinematicPermission` | Allows a small cinematic contrast, saturation, and color-bias lift. |
+| `Dalashade_CombatPressure` | Dampens heavy grading and slightly reduces exposure, saturation, and shadow lift. |
+
+Manual testing controls:
+
+| Control | Suggested tuning |
+| --- | --- |
+| `Manual Overall Strength` | Default `0.35`. Keep this below `0.60` for normal gameplay testing. |
+| `Manual Exposure Trim` | Small additive exposure trim. Use negative values to verify highlight rolloff behavior. |
+| `Manual Contrast` | Adds or removes contrast before safety clamps. |
+| `Manual Saturation` | Adds or removes saturation before gameplay dampening. |
+| `Manual Temperature` | Warms positive values and cools negative values. |
+| `Manual Tint` | Moves the grade toward green or magenta. |
+| `Show Debug Mask` | Shows red highlight rolloff, green shadow lift, and blue cinematic/gameplay pressure. |
+
+The prototype intentionally clamps per-channel movement relative to the source and clamps final output away from pure black and pure white. This keeps the shader usable as a native safety grade instead of a full creative LUT replacement.
+
 ## Supported SceneIntent Variables
 
 Future Dalashade shaders can expose these scalar variables in a Dalashade section:
@@ -133,9 +179,11 @@ All values are normalized `0.0` to `1.0`.
 
 `Dalashade_WeatherAtmosphere.fx` currently consumes `Readability`, `Atmosphere`, `HighlightProtection`, `ShadowProtection`, `Haze`, `Wetness`, `Cold`, `Heat`, `MagicGlow`, `NeonGlow`, `CombatPressure`, and `CinematicPermission`.
 
+`Dalashade_AdaptiveGrade.fx` currently consumes `Readability`, `Atmosphere`, `HighlightProtection`, `ShadowProtection`, `Cold`, `Heat`, `MagicGlow`, `NeonGlow`, `CombatPressure`, and `CinematicPermission`.
+
 ## Example Preset Section
 
-This is the kind of preset section the writer can update once a matching shader exists and custom shader support is enabled. With generated-preset injection enabled, Dalashade can add the WeatherAtmosphere section and known variables to the generated preset automatically:
+These are the kinds of preset sections the writer can update once matching shaders exist and custom shader support is enabled. With generated-preset injection enabled, Dalashade can add known Dalashade sections and variables to the generated preset automatically:
 
 ```ini
 [Dalashade_WeatherAtmosphere.fx]
@@ -152,6 +200,18 @@ Dalashade_NeonGlow=0.000000
 Dalashade_FoliageDensity=0.000000
 Dalashade_CombatPressure=0.000000
 Dalashade_CinematicPermission=0.000000
+
+[Dalashade_AdaptiveGrade.fx]
+Dalashade_Readability=0.000000
+Dalashade_Atmosphere=0.000000
+Dalashade_HighlightProtection=0.000000
+Dalashade_ShadowProtection=0.000000
+Dalashade_Cold=0.000000
+Dalashade_Heat=0.000000
+Dalashade_MagicGlow=0.000000
+Dalashade_NeonGlow=0.000000
+Dalashade_CinematicPermission=0.000000
+Dalashade_CombatPressure=0.000000
 ```
 
 ## Regression Fixture

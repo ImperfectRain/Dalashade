@@ -117,11 +117,14 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Section injected: {(diagnostics.SectionInjected ? "yes" : "no")}");
         builder.AppendLine($"- Variables injected: {(diagnostics.VariablesInjected ? "yes" : "no")}");
         builder.AppendLine($"- Technique injected: {(diagnostics.TechniqueInjected ? "yes" : "no")}");
+        builder.AppendLine($"- Injected sections: {FormatInlineList(writeResult.CustomShaderInjection.Sections)}");
+        builder.AppendLine($"- Injected variables: {FormatInlineList(writeResult.CustomShaderInjection.Variables)}");
+        builder.AppendLine($"- Injected techniques: {FormatInlineList(writeResult.CustomShaderInjection.Techniques)}");
         builder.AppendLine($"- Base preset contains Dalashade custom shader section: {(diagnostics.SectionFound ? "yes" : "no")}");
         builder.AppendLine($"- Known custom variables found: {(diagnostics.KnownVariablesFound ? "yes" : "no")}");
         builder.AppendLine($"- SceneIntent values written: {(diagnostics.ValuesWritten ? "yes" : "no")}");
         builder.AppendLine($"- Variables detected but unchanged: {(diagnostics.VariablesDetectedButUnchanged ? "yes" : "no")}");
-        builder.AppendLine("- Manual shader install: Dalashade does not copy `.fx` files into ReShade. Install `Dalashade_WeatherAtmosphere.fx` in a ReShade shader search folder separately, then add/enable that shader in the base preset.");
+        builder.AppendLine("- Manual shader install: Dalashade does not copy `.fx` files into ReShade. Install needed Dalashade `.fx` files in a ReShade shader search folder separately, then add/enable those shaders in the base preset or generated preset.");
         builder.AppendLine("- Variable writes require a matching base preset section and matching `Dalashade_*` keys.");
         builder.AppendLine("- Static bridge status:");
         foreach (var message in diagnostics.StatusMessages)
@@ -594,6 +597,16 @@ public sealed class CompatibilityReportExporter
         var display = keys.Take(12).Select(EscapeTable).ToArray();
         var suffix = keys.Count > display.Length ? $" +{keys.Count - display.Length} more" : string.Empty;
         return string.Join(", ", display) + suffix;
+    }
+
+    private static string FormatInlineList(IReadOnlyList<string> values)
+    {
+        if (values.Count == 0)
+        {
+            return "none";
+        }
+
+        return string.Join(", ", values.Select(value => $"`{value}`"));
     }
 
     private static string EscapeTable(string value)

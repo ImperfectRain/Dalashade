@@ -623,12 +623,33 @@ public sealed class MainWindow : Window, IDisposable
         DrawSetupItem("Known custom variables found", diagnostics.KnownVariablesFound);
         DrawSetupItem("SceneIntent values written", diagnostics.ValuesWritten);
         ImGui.TextWrapped("Dalashade writes custom shader variables into existing or generated-preset-injected Dalashade custom shader sections. The base preset is never modified.");
-        ImGui.TextWrapped("The .fx shader file is not installed by the plugin. Install Dalashade_WeatherAtmosphere.fx in a ReShade shader search folder separately, then enable it in ReShade.");
+        ImGui.TextWrapped("The .fx shader files are not installed by the plugin. Install needed Dalashade .fx files in a ReShade shader search folder separately, then enable them in ReShade.");
         ImGui.Separator();
 
         foreach (var message in diagnostics.StatusMessages)
         {
             ImGui.BulletText(message);
+        }
+
+        var injection = plugin.LastWriteResult.CustomShaderInjection;
+        if (injection.Sections.Count > 0)
+        {
+            ImGui.TextWrapped($"Injected sections: {string.Join(", ", injection.Sections)}");
+        }
+
+        if (injection.Variables.Count > 0 && ImGui.TreeNode("Injected custom variables###MainInjectedCustomShaderVariables"))
+        {
+            foreach (var variable in injection.Variables)
+            {
+                ImGui.BulletText(variable);
+            }
+
+            ImGui.TreePop();
+        }
+
+        if (injection.Techniques.Count > 0)
+        {
+            ImGui.TextWrapped($"Injected techniques: {string.Join(", ", injection.Techniques)}");
         }
 
         if (diagnostics.Sections.Count == 0)
