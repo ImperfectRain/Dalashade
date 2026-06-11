@@ -88,6 +88,18 @@ public sealed class PresetWriter
                 "Dalashade_NeonGlow",
                 "Dalashade_CinematicPermission",
                 "Dalashade_CombatPressure"
+            ]),
+        new(
+            "Dalashade_SmartSharpen.fx",
+            "Dalashade_SmartSharpen",
+            "Dalashade_SmartSharpen@Dalashade_SmartSharpen.fx",
+            [
+                "Dalashade_Readability",
+                "Dalashade_Haze",
+                "Dalashade_Wetness",
+                "Dalashade_FoliageDensity",
+                "Dalashade_CombatPressure",
+                "Dalashade_HighlightProtection"
             ])
     ];
 
