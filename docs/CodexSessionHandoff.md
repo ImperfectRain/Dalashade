@@ -79,7 +79,7 @@ When adding shader support:
 
 ## Custom Dalashade Shader Philosophy
 
-Custom Dalashade shader support is optional and manual. `shaders/Dalashade_WeatherAtmosphere.fx`, `shaders/Dalashade_AdaptiveGrade.fx`, and `shaders/Dalashade_SmartSharpen.fx` are prototype shaders, and normal operation does not require them.
+Custom Dalashade shader support is optional and manual. `shaders/Dalashade_WeatherAtmosphere.fx`, `shaders/Dalashade_AdaptiveGrade.fx`, `shaders/Dalashade_AtmosphereBloom.fx`, and `shaders/Dalashade_SmartSharpen.fx` are prototype shaders, and normal operation does not require them.
 
 `CustomShaderVariableMapper` writes normalized `SceneIntent` values only when generated preset content contains matching Dalashade custom shader sections and keys. Optional generated-preset-only injection can add known sections and variables, but the plugin does not mutate the base preset, copy `.fx` files, auto-install shaders, or require a custom shader path for normal generation.
 

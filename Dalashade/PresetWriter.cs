@@ -100,6 +100,18 @@ public sealed class PresetWriter
                 "Dalashade_FoliageDensity",
                 "Dalashade_CombatPressure",
                 "Dalashade_HighlightProtection"
+            ]),
+        new(
+            "Dalashade_AtmosphereBloom.fx",
+            "Dalashade_AtmosphereBloom",
+            "Dalashade_AtmosphereBloom@Dalashade_AtmosphereBloom.fx",
+            [
+                "Dalashade_Atmosphere",
+                "Dalashade_MagicGlow",
+                "Dalashade_NeonGlow",
+                "Dalashade_HighlightProtection",
+                "Dalashade_CombatPressure",
+                "Dalashade_CinematicPermission"
             ])
     ];
 

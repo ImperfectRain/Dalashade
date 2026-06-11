@@ -20,6 +20,8 @@ Implemented shader prototypes:
 - Current tuning is a conservative prototype for SceneIntent-driven exposure, contrast, saturation, temperature, highlight rolloff, shadow lift, and cinematic bias.
 - `shaders/Dalashade_SmartSharpen.fx`
 - Current tuning is a conservative clarity prototype that avoids sharpening haze, rain highlights, foliage shimmer, far-depth detail, and combat clutter.
+- `shaders/Dalashade_AtmosphereBloom.fx`
+- Current tuning is a conservative atmospheric bloom prototype that colors magic/neon glow while respecting combat and highlight protection.
 
 Not implemented yet:
 
@@ -42,13 +44,15 @@ Custom shader writes are intentionally conservative:
 
 When `AutoInjectDalashadeCustomShaderSections` is off, Dalashade does not insert shader sections during generation.
 
-When both `EnableDalashadeCustomShaders` and `AutoInjectDalashadeCustomShaderSections` are on, Dalashade may inject known custom shader sections and variables into the generated preset only. It never mutates the base preset. Current injection support is limited to `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, and `[Dalashade_SmartSharpen.fx]`.
+When both `EnableDalashadeCustomShaders` and `AutoInjectDalashadeCustomShaderSections` are on, Dalashade may inject known custom shader sections and variables into the generated preset only. It never mutates the base preset. Current injection support is limited to `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, `[Dalashade_SmartSharpen.fx]`, and `[Dalashade_AtmosphereBloom.fx]`.
 
 The generated WeatherAtmosphere section includes the weather shader intent variables Dalashade currently knows how to write: `Dalashade_Haze`, `Dalashade_Wetness`, `Dalashade_Cold`, `Dalashade_Heat`, `Dalashade_HighlightProtection`, `Dalashade_ShadowProtection`, `Dalashade_CombatPressure`, `Dalashade_Atmosphere`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_Readability`, and `Dalashade_CinematicPermission`.
 
 The generated AdaptiveGrade section includes the grade shader intent variables Dalashade currently knows how to write: `Dalashade_Readability`, `Dalashade_Atmosphere`, `Dalashade_HighlightProtection`, `Dalashade_ShadowProtection`, `Dalashade_Cold`, `Dalashade_Heat`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_CinematicPermission`, and `Dalashade_CombatPressure`.
 
 The generated SmartSharpen section includes the clarity shader intent variables Dalashade currently knows how to write: `Dalashade_Readability`, `Dalashade_Haze`, `Dalashade_Wetness`, `Dalashade_FoliageDensity`, `Dalashade_CombatPressure`, and `Dalashade_HighlightProtection`.
+
+The generated AtmosphereBloom section includes the bloom shader intent variables Dalashade currently knows how to write: `Dalashade_Atmosphere`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_HighlightProtection`, `Dalashade_CombatPressure`, and `Dalashade_CinematicPermission`.
 
 Dalashade also does not currently install or copy custom shader files into a ReShade shader directory. For manual testing, place the needed files from `shaders/` somewhere ReShade scans for shaders, then enable them in ReShade.
 
@@ -64,7 +68,7 @@ The UI and compatibility report distinguish two separate states:
 | Variables injected | Dalashade added missing known `Dalashade_*` variables to a supported custom shader section in the generated preset. |
 | Technique injected | Dalashade appended the known technique entry to an existing non-empty `Techniques=` line in the generated preset. |
 | Generated preset only | Injection happened in the generated output path; the base preset was not modified. |
-| Base preset contains a Dalashade custom shader section | The selected base preset has a section such as `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, or `[Dalashade_SmartSharpen.fx]`, so Dalashade can inspect it for supported `Dalashade_*` keys. |
+| Base preset contains a Dalashade custom shader section | The selected base preset has a section such as `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, `[Dalashade_SmartSharpen.fx]`, or `[Dalashade_AtmosphereBloom.fx]`, so Dalashade can inspect it for supported `Dalashade_*` keys. |
 | Technique active/inactive/unknown | Dalashade checks whether the section appears active in `Techniques=`. If `Techniques=` is missing, activation is reported as unknown. |
 | Known custom variables found | Matching `Dalashade_*` keys were found in a Dalashade custom shader section. |
 | Variables detected but unchanged | Keys exist, but generation did not write values. Common causes are disabled custom shader support, inactive/unknown technique state, write-mode settings, or values already matching SceneIntent. |
@@ -92,6 +96,15 @@ For `Dalashade_AdaptiveGrade.fx`, use this order:
 4. Avoid stacking it after a strong third-party color grade unless you deliberately want both grades active.
 
 The shader is meant to provide a mild Dalashade-native grade. It should usually sit late enough to see the shaped scene, but early enough that sharpening and UI restoration remain clean.
+
+For `Dalashade_AtmosphereBloom.fx`, use this order:
+
+1. After primary lighting and tonemapping effects.
+2. Before `Dalashade_AdaptiveGrade.fx` when you want the grade to shape the bloom color.
+3. Before `Dalashade_SmartSharpen.fx`.
+4. Before UI restore, KeepUI, or RestoreUI effects if applicable.
+
+The shader is a restrained atmospheric glow pass. It should not replace a full creative bloom stack, and it should stay low when the preset already has strong bloom enabled.
 
 For `Dalashade_SmartSharpen.fx`, use this order:
 
@@ -167,6 +180,37 @@ Manual testing controls:
 
 The prototype intentionally clamps per-channel movement relative to the source and clamps final output away from pure black and pure white. This keeps the shader usable as a native safety grade instead of a full creative LUT replacement.
 
+## Atmosphere Bloom Controls
+
+`Dalashade_AtmosphereBloom.fx` can be driven by Dalashade or tested manually in ReShade.
+
+Dalashade-driven controls:
+
+| Control | Purpose |
+| --- | --- |
+| `Dalashade_Atmosphere` | Gives bloom a little more room in atmospheric scenes. |
+| `Dalashade_MagicGlow` | Strengthens and tints aetherial or magical glow. |
+| `Dalashade_NeonGlow` | Strengthens and tints neon or high-tech glow. |
+| `Dalashade_HighlightProtection` | Raises the bright-pass threshold and reduces washout-prone glow. |
+| `Dalashade_CombatPressure` | Dampens bloom during combat and slightly raises threshold. |
+| `Dalashade_CinematicPermission` | Allows a small cinematic bloom boost only outside gameplay-critical moments. |
+
+Manual testing controls:
+
+| Control | Suggested tuning |
+| --- | --- |
+| `BloomStrength` | Default `0.32`. Overall bounded bloom strength. |
+| `BloomThreshold` | Default `0.74`. Base bright-pass threshold before Dalashade protection changes. |
+| `DiffusionStrength` | Default `0.42`. Cheap blur radius for the fixed sample ring. |
+| `MagicGlowStrength` | Default `0.48`. Controls purple/aetherial tint contribution. |
+| `NeonGlowStrength` | Default `0.42`. Controls cyan/neon tint contribution. |
+| `HighlightRestraint` | Default `0.70`. Limits bright highlight washout. |
+| `CombatDampenStrength` | Default `0.72`. Reduces bloom under combat pressure. |
+| `CinematicBoostStrength` | Default `0.34`. Adds limited bloom when cinematic permission is high. |
+| `ShowDebugMask` | Shows red bloom source, green magic/neon intent, and blue combat/highlight restraint. |
+
+The prototype uses a single-pass fixed sample ring rather than a large multi-pass blur. It is meant for cheap scene-aware glow, not large full-screen bloom.
+
 ## Smart Sharpen Controls
 
 `Dalashade_SmartSharpen.fx` can be driven by Dalashade or tested manually in ReShade.
@@ -224,6 +268,8 @@ All values are normalized `0.0` to `1.0`.
 
 `Dalashade_AdaptiveGrade.fx` currently consumes `Readability`, `Atmosphere`, `HighlightProtection`, `ShadowProtection`, `Cold`, `Heat`, `MagicGlow`, `NeonGlow`, `CombatPressure`, and `CinematicPermission`.
 
+`Dalashade_AtmosphereBloom.fx` currently consumes `Atmosphere`, `MagicGlow`, `NeonGlow`, `HighlightProtection`, `CombatPressure`, and `CinematicPermission`.
+
 `Dalashade_SmartSharpen.fx` currently consumes `Readability`, `Haze`, `Wetness`, `FoliageDensity`, `CombatPressure`, and `HighlightProtection`.
 
 ## Example Preset Section
@@ -257,6 +303,14 @@ Dalashade_MagicGlow=0.000000
 Dalashade_NeonGlow=0.000000
 Dalashade_CinematicPermission=0.000000
 Dalashade_CombatPressure=0.000000
+
+[Dalashade_AtmosphereBloom.fx]
+Dalashade_Atmosphere=0.000000
+Dalashade_MagicGlow=0.000000
+Dalashade_NeonGlow=0.000000
+Dalashade_HighlightProtection=0.000000
+Dalashade_CombatPressure=0.000000
+Dalashade_CinematicPermission=0.000000
 
 [Dalashade_SmartSharpen.fx]
 Dalashade_Readability=0.000000
