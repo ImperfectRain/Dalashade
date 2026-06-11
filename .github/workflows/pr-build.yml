@@ -31,31 +31,9 @@ jobs:
     - name: Build Release
       run: dotnet build -c Release --no-restore
 
-    - name: Validate repo.json
+    - name: Validate release manifest
       shell: pwsh
-      run: |
-        Get-Content -Raw repo.json | ConvertFrom-Json | Out-Null
-
-    - name: Validate release zip
-      shell: pwsh
-      run: |
-        $zipPath = "releases/Dalashade-v1.1.zip"
-        if (!(Test-Path $zipPath)) {
-          Write-Host "$zipPath not present; skipping optional release zip validation."
-          exit 0
-        }
-
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
-        try {
-          $hasDll = $zip.Entries | Where-Object { $_.FullName -match '(^|/)Dalashade\.dll$' } | Select-Object -First 1
-          if (-not $hasDll) {
-            throw "$zipPath does not contain Dalashade.dll"
-          }
-        }
-        finally {
-          $zip.Dispose()
-        }
+      run: powershell -ExecutionPolicy Bypass -File .\scripts\ValidateRelease.ps1
 
     - name: Store artifacts
       uses: actions/upload-artifact@v4

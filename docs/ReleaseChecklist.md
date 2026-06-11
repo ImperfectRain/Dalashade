@@ -21,10 +21,11 @@ This page documents the current release process and common release risks.
 5. Confirm the zip contains the plugin DLL and required plugin files.
 6. Update `repo.json`.
 7. Confirm `repo.json` version, changelog, and download URLs match the release.
-8. Validate the raw manifest URL.
-9. Validate the release zip URL.
-10. Test install/update from the custom repository in Dalamud.
-11. Commit and push release metadata only when the release artifact is actually available.
+8. Run `scripts/ValidateRelease.ps1` to validate the manifest and release downloads.
+9. Validate the raw manifest URL.
+10. Validate the release zip URL.
+11. Test install/update from the custom repository in Dalamud.
+12. Commit and push release metadata only when the release artifact is actually available.
 
 ## Build Commands
 
@@ -32,6 +33,18 @@ Use:
 
 ```powershell
 dotnet build -c Release
+```
+
+Validate the release downloads declared by `repo.json`:
+
+```powershell
+.\scripts\ValidateRelease.ps1
+```
+
+If local PowerShell policy blocks script execution, use:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\ValidateRelease.ps1
 ```
 
 Use the existing project/package workflow for creating the release zip. Do not change release packaging during unrelated feature or documentation tasks.
@@ -43,9 +56,9 @@ For `repo.json`, verify:
 | Field | Check |
 | --- | --- |
 | `AssemblyVersion` | Matches the intended release version. |
-| `DownloadLinkInstall` | Points to a real zip. |
-| `DownloadLinkUpdate` | Points to a real zip. |
-| `DownloadLinkTesting` | Points to a real zip if used. |
+| `DownloadLinkInstall` | Points to a real zip that contains `Dalashade.dll`. |
+| `DownloadLinkUpdate` | Points to a real zip that contains `Dalashade.dll`. |
+| `DownloadLinkTesting` | Points to a real zip that contains `Dalashade.dll`. |
 | `Changelog` | Describes the current release, not an older one. |
 
 ## Zip Checks
@@ -57,7 +70,7 @@ Confirm the release zip contains at least:
 | `Dalashade.dll` | Main plugin assembly. |
 | `Dalashade.json` | Dalamud plugin manifest. |
 
-The CI workflow may also verify `releases/Dalashade-v1.1.zip` if present. Keep CI validation in sync with the release artifacts that actually matter.
+CI validates the download links declared in `repo.json`; it does not rely on a hardcoded local release zip name. If `repo.json` points to a GitHub Release asset, that asset must already exist and be downloadable.
 
 ## Common Mistakes
 
@@ -79,18 +92,14 @@ It validates:
 | --- | --- |
 | `dotnet restore` | Restore project dependencies. |
 | `dotnet build -c Release` | Build validation. |
-| `repo.json` parse | Ensures the custom repo manifest is valid JSON. |
-| Optional zip check | Verifies a release zip contains `Dalashade.dll` if the expected zip is present. |
+| `scripts/ValidateRelease.ps1` | Parses `repo.json`, downloads each manifest release URL, verifies each file is a zip, verifies `Dalashade.dll` exists, and checks the DLL assembly version against `AssemblyVersion`. |
 
 ## TODO
 
-Add a dedicated release validation script that checks:
+Potential future release checks:
 
-1. Project version.
-2. `repo.json` version.
-3. Changelog version text.
-4. Download URLs.
-5. Zip contents.
-6. GitHub release availability.
+1. Project version matches `repo.json` version.
+2. Changelog version text matches the release version.
+3. Release zip contains optional shipped assets such as custom shader files if the release task requires them.
 
 Do not update `repo.json` unless the task is explicitly a release or install/update task.
