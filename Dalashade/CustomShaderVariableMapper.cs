@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 
 namespace Dalashade;
 
@@ -25,6 +26,8 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_CombatPressure"] = intent => intent.CombatPressure,
             ["Dalashade_CinematicPermission"] = intent => intent.CinematicPermission
         };
+
+    public static IReadOnlyCollection<string> KnownVariableNames => Variables.Keys.ToArray();
 
     public bool TryGetAdjustment(Configuration configuration, string section, string key, SceneIntent intent, out ShaderAdjustment adjustment)
     {
@@ -52,6 +55,11 @@ public sealed class CustomShaderVariableMapper
         return section.StartsWith("Dalashade", StringComparison.OrdinalIgnoreCase)
                || section.Contains("\\Dalashade", StringComparison.OrdinalIgnoreCase)
                || section.Contains("/Dalashade", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsKnownCustomShaderVariable(string key)
+    {
+        return !string.IsNullOrWhiteSpace(key) && Variables.ContainsKey(key);
     }
 
     private static float Clamp01(float value) => MathF.Min(1f, MathF.Max(0f, value));

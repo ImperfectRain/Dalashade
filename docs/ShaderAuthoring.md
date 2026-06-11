@@ -44,8 +44,12 @@ The UI and compatibility report distinguish two separate states:
 
 | State | Meaning |
 | --- | --- |
+| Custom shader support enabled | `EnableDalashadeCustomShaders` is on, so generation is allowed to write supported `Dalashade_*` values. |
 | Base preset contains a Dalashade custom shader section | The selected base preset has a section such as `[Dalashade_WeatherAtmosphere.fx]`, so Dalashade can inspect it for supported `Dalashade_*` keys. |
-| Custom shader variables detected/written | Matching `Dalashade_*` keys were found and, if custom shader support is enabled, updated during generation. |
+| Technique active/inactive/unknown | Dalashade checks whether the section appears active in `Techniques=`. If `Techniques=` is missing, activation is reported as unknown. |
+| Known custom variables found | Matching `Dalashade_*` keys were found in a Dalashade custom shader section. |
+| Variables detected but unchanged | Keys exist, but generation did not write values. Common causes are disabled custom shader support, inactive/unknown technique state, write-mode settings, or values already matching SceneIntent. |
+| Variables written | `SceneIntent` values were written into matching `Dalashade_*` keys during generation. |
 
 This is not the same as shader file installation. ReShade must still be able to find the actual `.fx` file through its own shader search paths. If the section exists but ReShade cannot compile or enable the effect, check ReShade's shader path and install `shaders/Dalashade_WeatherAtmosphere.fx` manually.
 
@@ -110,13 +114,16 @@ A developer fixture exists at:
 
 It is not a user default preset. It exists so the preset regression harness can verify that `CustomShaderVariableMapper` detects the `Dalashade_WeatherAtmosphere.fx` section and writes SceneIntent variables when `EnableDalashadeCustomShaders` is enabled.
 
-Regression reports include a custom shader section showing detected Dalashade shader sections, detected custom variables, changed custom variables, and the synthetic SceneIntent values used for the simulation.
+Regression reports include a custom shader section showing support state, detected Dalashade shader sections, whether the technique is listed/active, detected custom variables, changed custom variables, static bridge proof status, and the synthetic SceneIntent values used for the simulation.
+
+For custom shader fixture presets, the regression harness enables custom shader writes inside the simulation so the static bridge path can be verified. This does not change normal generation behavior.
 
 ## Where To Edit
 
 | Task | File |
 | --- | --- |
 | Add or rename exported intent variables | `Dalashade/CustomShaderVariableMapper.cs` |
+| Change custom bridge diagnostics | `Dalashade/CustomShaderBridgeDiagnostics.cs` |
 | Change how intent values are produced | `Dalashade/SceneIntent.cs` |
 | Change diagnostics UI | `Dalashade/Windows/MainWindow.cs` |
 | Change report output | `Dalashade/CompatibilityReportExporter.cs` |

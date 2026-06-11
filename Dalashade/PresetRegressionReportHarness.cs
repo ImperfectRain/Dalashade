@@ -58,14 +58,15 @@ public sealed class PresetRegressionReportHarness
                 var analysis = analyzer.Analyze(presetConfiguration);
                 var support = writer.ScanSupportedVariables(presetConfiguration);
                 var writeResult = writer.WriteGeneratedPreset(presetConfiguration, profile, sceneIntent);
+                var customShaderDiagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(presetConfiguration, support, writeResult);
                 TryDelete(presetConfiguration.GeneratedPresetPath);
 
-                var summary = PresetRegressionSummary.From(presetPath, presetFolder, presetConfiguration.CompatibilityMode, analysis, support, writeResult);
+                var summary = PresetRegressionSummary.From(presetPath, presetFolder, presetConfiguration.CompatibilityMode, analysis, support, writeResult, customShaderDiagnostics);
                 summaries.Add(summary);
 
                 var reportName = MakeSafeFileName(Path.GetRelativePath(presetFolder, presetPath));
                 var reportPath = CreateUniqueReportPath(outputDirectory, Path.GetFileNameWithoutExtension(reportName));
-                File.WriteAllText(reportPath, BuildPresetReport(summary, analysis, support, profile, writeResult, sceneIntent), Encoding.UTF8);
+                File.WriteAllText(reportPath, BuildPresetReport(summary, analysis, support, profile, writeResult, sceneIntent, customShaderDiagnostics), Encoding.UTF8);
             }
 
             File.WriteAllText(Path.Combine(outputDirectory, "index.md"), BuildIndexReport(configuration, presetFolder, summaries), Encoding.UTF8);
@@ -91,7 +92,7 @@ public sealed class PresetRegressionReportHarness
             BasePresetPath = presetPath,
             GeneratedPresetPath = Path.Combine(generatedDirectory, $"{Guid.NewGuid():N}.ini"),
             UsePremiumImmerseEffects = source.UsePremiumImmerseEffects,
-            EnableDalashadeCustomShaders = source.EnableDalashadeCustomShaders,
+            EnableDalashadeCustomShaders = source.EnableDalashadeCustomShaders || ContainsCustomShaderSection(presetPath),
             CompatibilityMode = source.CompatibilityMode,
             ShaderMatchingMode = source.ShaderMatchingMode,
             InactiveShaderWriteMode = source.InactiveShaderWriteMode,
@@ -99,6 +100,23 @@ public sealed class PresetRegressionReportHarness
             MaxGeneratedPresetBackups = source.MaxGeneratedPresetBackups,
             TestPresetFolderPath = source.TestPresetFolderPath
         };
+    }
+
+    private static bool ContainsCustomShaderSection(string presetPath)
+    {
+        try
+        {
+            return File.ReadLines(presetPath)
+                .Select(line => line.Trim())
+                .Where(line => line.Length > 2 && line[0] == '[' && line[^1] == ']')
+                .Select(line => line[1..^1])
+                .Any(CustomShaderVariableMapper.IsCustomShaderSection);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            _ = ex;
+            return false;
+        }
     }
 
     private static SceneIntent CreateRegressionSceneIntent()
@@ -132,7 +150,8 @@ public sealed class PresetRegressionReportHarness
         ShaderSupportScan support,
         VisualProfile profile,
         PresetWriteResult writeResult,
-        SceneIntent sceneIntent)
+        SceneIntent sceneIntent,
+        CustomShaderBridgeDiagnostics customShaderDiagnostics)
     {
         var builder = new StringBuilder();
         builder.AppendLine($"# {summary.RelativePath}");
@@ -156,7 +175,7 @@ public sealed class PresetRegressionReportHarness
         AppendTechniqueGroup(builder, "Active unsupported effects", analysis.Report.ActiveUnsupportedEffects);
         AppendAuthorities(builder, analysis.Report.Authorities);
         AppendColorFamilyAdjustments(builder, profile);
-        AppendCustomShaderRegression(builder, analysis, support, writeResult, sceneIntent);
+        AppendCustomShaderRegression(builder, customShaderDiagnostics, sceneIntent);
 
         builder.AppendLine("## Scan Messages");
         builder.AppendLine();
@@ -254,69 +273,65 @@ public sealed class PresetRegressionReportHarness
 
     private static void AppendCustomShaderRegression(
         StringBuilder builder,
-        PresetAnalysisResult analysis,
-        ShaderSupportScan support,
-        PresetWriteResult writeResult,
+        CustomShaderBridgeDiagnostics diagnostics,
         SceneIntent sceneIntent)
     {
-        var customSections = GetCustomShaderSections(analysis, support);
-        var detectedVariables = support.Items
-            .Where(IsCustomShaderItem)
-            .OrderBy(item => item.Section, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        var changedVariables = writeResult.Changes
-            .Where(IsCustomShaderChange)
-            .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
         builder.AppendLine("## Custom shader regression");
         builder.AppendLine();
-        builder.AppendLine($"- Custom shader sections detected: {customSections.Count}");
-        builder.AppendLine($"- Custom shader variables detected: {detectedVariables.Length}");
-        builder.AppendLine($"- Custom shader variables changed: {changedVariables.Length}");
+        builder.AppendLine($"- Custom shader support enabled for simulation: {(diagnostics.SupportEnabled ? "yes" : "no")}");
+        builder.AppendLine($"- Custom shader sections detected: {diagnostics.Sections.Count}");
+        builder.AppendLine($"- Custom shader variables detected: {diagnostics.KnownVariables.Count}");
+        builder.AppendLine($"- Custom shader variables changed: {diagnostics.WrittenVariables.Count}");
+        builder.AppendLine($"- Static bridge path proven: {(diagnostics.ValuesWritten ? "yes" : "no")}");
         builder.AppendLine();
 
+        builder.AppendLine("### Static bridge status");
+        builder.AppendLine();
+        foreach (var message in diagnostics.StatusMessages)
+        {
+            builder.AppendLine($"- {message}");
+        }
+
+        builder.AppendLine();
         builder.AppendLine("### Custom shader sections");
         builder.AppendLine();
-        if (customSections.Count == 0)
+        if (diagnostics.Sections.Count == 0)
         {
             builder.AppendLine("- None");
         }
         else
         {
-            foreach (var section in customSections)
+            foreach (var section in diagnostics.Sections)
             {
-                builder.AppendLine($"- {section}");
+                builder.AppendLine($"- {section.Section} | technique listed={(section.TechniqueAppearsInTechniques ? "yes" : "no")} | activation={PresetAnalyzer.FormatActivationState(section.ActivationState)}");
             }
         }
 
         builder.AppendLine();
         builder.AppendLine("### Custom shader variables detected");
         builder.AppendLine();
-        if (detectedVariables.Length == 0)
+        if (diagnostics.KnownVariables.Count == 0)
         {
             builder.AppendLine("- None");
         }
         else
         {
-            foreach (var item in detectedVariables)
+            foreach (var item in diagnostics.KnownVariables)
             {
-                builder.AppendLine($"- {item.Section} / {item.Key} | activation={PresetAnalyzer.FormatActivationState(item.ActivationState)}");
+                builder.AppendLine($"- {item.Section} / {item.Key} | activation={PresetAnalyzer.FormatActivationState(item.ActivationState)} | controllable={(item.Controllable ? "yes" : "no")} | written={(item.Written ? "yes" : "no")}");
             }
         }
 
         builder.AppendLine();
         builder.AppendLine("### Custom shader variables changed");
         builder.AppendLine();
-        if (changedVariables.Length == 0)
+        if (diagnostics.WrittenVariables.Count == 0)
         {
             builder.AppendLine("- None");
         }
         else
         {
-            foreach (var change in changedVariables)
+            foreach (var change in diagnostics.WrittenVariables)
             {
                 builder.AppendLine($"- {change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} | activation={PresetAnalyzer.FormatActivationState(change.ActivationState)}");
             }
@@ -371,27 +386,6 @@ public sealed class PresetRegressionReportHarness
         }
 
         return reportPath;
-    }
-
-    private static IReadOnlyList<string> GetCustomShaderSections(PresetAnalysisResult analysis, ShaderSupportScan support)
-    {
-        return analysis.Techniques
-            .Select(technique => technique.Section)
-            .Where(CustomShaderVariableMapper.IsCustomShaderSection)
-            .Concat(support.Items.Where(IsCustomShaderItem).Select(item => item.Section))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(section => section, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-    }
-
-    private static bool IsCustomShaderItem(ShaderSupportItem item)
-    {
-        return string.Equals(item.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsCustomShaderChange(ChangedShaderVariable change)
-    {
-        return string.Equals(change.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase);
     }
 
     private static void TryDelete(string path)
@@ -449,8 +443,10 @@ public sealed record PresetRegressionSummary(
         PresetCompatibilityMode selectedMode,
         PresetAnalysisResult analysis,
         ShaderSupportScan support,
-        PresetWriteResult writeResult)
+        PresetWriteResult writeResult,
+        CustomShaderBridgeDiagnostics customShaderDiagnostics)
     {
+        _ = support;
         var report = analysis.Report;
         var warningCount = report.Warnings
             .Concat(writeResult.Changes
@@ -470,28 +466,8 @@ public sealed record PresetRegressionSummary(
             writeResult.Changes.Count(change => change.HitMin || change.HitMax),
             warningCount,
             writeResult.SanitizeActions.Count,
-            GetCustomShaderSectionCount(analysis, support),
-            support.Items.Count(IsCustomShaderItem),
-            writeResult.Changes.Count(IsCustomShaderChange));
-    }
-
-    private static int GetCustomShaderSectionCount(PresetAnalysisResult analysis, ShaderSupportScan support)
-    {
-        return analysis.Techniques
-            .Select(technique => technique.Section)
-            .Where(CustomShaderVariableMapper.IsCustomShaderSection)
-            .Concat(support.Items.Where(IsCustomShaderItem).Select(item => item.Section))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
-    }
-
-    private static bool IsCustomShaderItem(ShaderSupportItem item)
-    {
-        return string.Equals(item.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsCustomShaderChange(ChangedShaderVariable change)
-    {
-        return string.Equals(change.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase);
+            customShaderDiagnostics.Sections.Count,
+            customShaderDiagnostics.KnownVariables.Count,
+            customShaderDiagnostics.WrittenVariables.Count);
     }
 }

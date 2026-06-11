@@ -109,62 +109,55 @@ public sealed class CompatibilityReportExporter
     {
         builder.AppendLine("## Dalashade Custom Shader Diagnostics");
         builder.AppendLine();
-        builder.AppendLine($"- Custom shader support: {(configuration.EnableDalashadeCustomShaders ? "enabled" : "disabled")}");
-        var customItems = shaderSupport.Items
-            .Where(item => string.Equals(item.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(item => item.Section, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        var customChanges = writeResult.Changes
-            .Where(change => string.Equals(change.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        var customSections = analysis.Techniques
-            .Select(technique => technique.Section)
-            .Where(CustomShaderVariableMapper.IsCustomShaderSection)
-            .Concat(customItems.Select(item => item.Section))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(section => section, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        builder.AppendLine($"- Base preset contains Dalashade custom shader section: {(customSections.Length > 0 ? "yes" : "no")}");
+        _ = analysis;
+        var diagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(configuration, shaderSupport, writeResult);
+        builder.AppendLine($"- Custom shader support: {(diagnostics.SupportEnabled ? "enabled" : "disabled")}");
+        builder.AppendLine($"- Base preset contains Dalashade custom shader section: {(diagnostics.SectionFound ? "yes" : "no")}");
+        builder.AppendLine($"- Known custom variables found: {(diagnostics.KnownVariablesFound ? "yes" : "no")}");
+        builder.AppendLine($"- SceneIntent values written: {(diagnostics.ValuesWritten ? "yes" : "no")}");
+        builder.AppendLine($"- Variables detected but unchanged: {(diagnostics.VariablesDetectedButUnchanged ? "yes" : "no")}");
         builder.AppendLine("- Manual shader install: Dalashade does not copy `.fx` files into ReShade. Install `Dalashade_WeatherAtmosphere.fx` in a ReShade shader search folder separately, then add/enable that shader in the base preset.");
         builder.AppendLine("- Variable writes require a matching base preset section and matching `Dalashade_*` keys.");
+        builder.AppendLine("- Static bridge status:");
+        foreach (var message in diagnostics.StatusMessages)
+        {
+            builder.AppendLine($"  - {message}");
+        }
+
         builder.AppendLine("- Custom shader sections found:");
-        if (customSections.Length == 0)
+        if (diagnostics.Sections.Count == 0)
         {
             builder.AppendLine("  - None");
         }
         else
         {
-            foreach (var section in customSections)
+            foreach (var section in diagnostics.Sections)
             {
-                builder.AppendLine($"  - `{section}`");
+                builder.AppendLine($"  - `{section.Section}` | technique listed={(section.TechniqueAppearsInTechniques ? "yes" : "no")} | activation={PresetAnalyzer.FormatActivationState(section.ActivationState)}");
             }
         }
 
         builder.AppendLine("- Custom shader variables detected:");
-        if (customItems.Length == 0)
+        if (diagnostics.KnownVariables.Count == 0)
         {
             builder.AppendLine("  - None");
         }
         else
         {
-            foreach (var item in customItems)
+            foreach (var item in diagnostics.KnownVariables)
             {
-                builder.AppendLine($"  - `{item.Section}` / `{item.Key}` ({PresetAnalyzer.FormatActivationState(item.ActivationState)})");
+                builder.AppendLine($"  - `{item.Section}` / `{item.Key}` | activation={PresetAnalyzer.FormatActivationState(item.ActivationState)} | controllable={(item.Controllable ? "yes" : "no")} | written={(item.Written ? "yes" : "no")}");
             }
         }
 
         builder.AppendLine("- Custom shader variables written:");
-        if (customChanges.Length == 0)
+        if (diagnostics.WrittenVariables.Count == 0)
         {
             builder.AppendLine("  - None");
         }
         else
         {
-            foreach (var change in customChanges)
+            foreach (var change in diagnostics.WrittenVariables)
             {
                 builder.AppendLine($"  - `{change.Section}` / `{change.Key}`: {change.OldValue} -> {change.NewValue}");
             }
