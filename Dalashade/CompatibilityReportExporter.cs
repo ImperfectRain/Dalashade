@@ -170,8 +170,14 @@ public sealed class CompatibilityReportExporter
     {
         builder.AppendLine("## Scene Tags And Stack Diagnostics");
         builder.AppendLine();
+        builder.AppendLine($"- Territory: {diagnostics.TerritoryName} ({diagnostics.TerritoryId})");
+        builder.AppendLine($"- Weather: {diagnostics.WeatherName} ({(diagnostics.WeatherId.HasValue ? diagnostics.WeatherId.Value.ToString() : "unknown")})");
         builder.AppendLine($"- Weather key: {diagnostics.WeatherKey}");
+        builder.AppendLine($"- Active weather tags: {(diagnostics.ActiveWeatherTags.Count == 0 ? "none" : string.Join(", ", diagnostics.ActiveWeatherTags))}");
         builder.AppendLine($"- Biome key: {diagnostics.BiomeKey}");
+        builder.AppendLine($"- Biome confidence: {diagnostics.BiomeConfidence:P0}");
+        builder.AppendLine($"- Biome reason: {diagnostics.BiomeReason}");
+        builder.AppendLine($"- Mood tags: {(diagnostics.MoodTags.Count == 0 ? "none" : string.Join(", ", diagnostics.MoodTags))}");
         builder.AppendLine($"- Area key: {diagnostics.AreaKey}");
         builder.AppendLine($"- Combat: {diagnostics.InCombat}");
         builder.AppendLine($"- Duty: {diagnostics.InDuty}");

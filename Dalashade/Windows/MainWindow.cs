@@ -72,14 +72,16 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Territory: {context.TerritoryName} ({context.TerritoryId})");
         ImGui.TextUnformatted($"World: {context.WorldCategory}");
         ImGui.TextUnformatted($"Content: {context.ContentName} ({context.ContentType})");
-        ImGui.TextUnformatted($"Weather: {context.WeatherName} ({tags.WeatherKey})");
+        ImGui.TextUnformatted($"Weather: {context.WeatherName} ({(context.WeatherId.HasValue ? context.WeatherId.Value.ToString() : "unknown")}, {tags.WeatherKey})");
         ImGui.TextUnformatted($"Time: {context.EorzeaHour:0.0}h ({context.TimeBucket})");
         ImGui.TextUnformatted($"Combat: {context.InCombat}");
         ImGui.TextUnformatted($"Duty: {context.InDuty}");
         ImGui.TextUnformatted($"GPose: {context.InGpose}");
         ImGui.TextUnformatted($"Cutscene: {context.InCutscene}");
         ImGui.TextUnformatted($"Scene Lock: {plugin.Configuration.SceneLockEnabled}");
-        ImGui.TextUnformatted($"Scene Tags: {tags.AreaKey}, {tags.BiomeKey}, combat={tags.NeedsCombatClarity}, duty={tags.NeedsDutyReadability}, cinematic={tags.CinematicAllowed}");
+        ImGui.TextUnformatted($"Scene Tags: {tags.AreaKey}, {tags.BiomeKey} ({tags.BiomeConfidence:P0}), combat={tags.NeedsCombatClarity}, duty={tags.NeedsDutyReadability}, cinematic={tags.CinematicAllowed}");
+        ImGui.TextWrapped($"Biome reason: {tags.BiomeReason}");
+        ImGui.TextWrapped($"Mood tags: {(tags.MoodTags.Count == 0 ? "none" : string.Join(", ", tags.MoodTags))}");
     }
 
     private string SceneTagsSummary()
@@ -91,8 +93,14 @@ public sealed class MainWindow : Window, IDisposable
     private void DrawSceneTags()
     {
         var diagnostics = plugin.CurrentTagStackDiagnostics;
+        ImGui.TextUnformatted($"Territory: {diagnostics.TerritoryName} ({diagnostics.TerritoryId})");
+        ImGui.TextUnformatted($"Weather: {diagnostics.WeatherName} ({(diagnostics.WeatherId.HasValue ? diagnostics.WeatherId.Value.ToString() : "unknown")})");
         ImGui.TextUnformatted($"Weather key: {diagnostics.WeatherKey}");
+        ImGui.TextWrapped($"Active weather tags: {(diagnostics.ActiveWeatherTags.Count == 0 ? "none" : string.Join(", ", diagnostics.ActiveWeatherTags))}");
         ImGui.TextUnformatted($"Biome key: {diagnostics.BiomeKey}");
+        ImGui.TextUnformatted($"Biome confidence: {diagnostics.BiomeConfidence:P0}");
+        ImGui.TextWrapped($"Biome reason: {diagnostics.BiomeReason}");
+        ImGui.TextWrapped($"Mood tags: {(diagnostics.MoodTags.Count == 0 ? "none" : string.Join(", ", diagnostics.MoodTags))}");
         ImGui.TextUnformatted($"Area key: {diagnostics.AreaKey}");
         ImGui.TextUnformatted($"Combat: {diagnostics.InCombat}");
         ImGui.TextUnformatted($"Duty: {diagnostics.InDuty}");

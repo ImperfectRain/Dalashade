@@ -52,7 +52,8 @@ public sealed class SceneIntentBuilder
     public SceneIntent Build(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, Configuration configuration)
     {
         Add("Base", nameof(SceneIntent.Atmosphere), 0.25f, "Baseline atmosphere preservation.");
-        Add("Cutscene/GPose state", nameof(SceneIntent.CinematicPermission), tags.CinematicAllowed ? 0.55f : 0.10f, tags.CinematicAllowed ? "Cinematic treatment is allowed." : "Cinematic treatment is constrained.");
+        Add("Cutscene/GPose state", nameof(SceneIntent.CinematicPermission), tags.CinematicAllowed ? 0.45f : 0.10f, tags.CinematicAllowed ? "Cinematic treatment is allowed." : "Cinematic treatment is constrained.");
+        AddPresentationState(context, configuration);
 
         AddGameplayState(tags, configuration);
         AddTime(tags, configuration);
@@ -89,17 +90,38 @@ public sealed class SceneIntentBuilder
             Add("Combat", nameof(SceneIntent.Readability), 0.80f, "Active combat needs strong readability.");
             Add("Combat", nameof(SceneIntent.CombatPressure), 1.00f, "Combat should dominate safety decisions.");
             Add("Combat", nameof(SceneIntent.CinematicPermission), -0.35f, "Combat reduces cinematic permission.");
+            Add("Combat", nameof(SceneIntent.Atmosphere), -0.20f, "Combat dampens heavy atmosphere so mechanics stay readable.");
+            Add("Combat", nameof(SceneIntent.Haze), -0.12f, "Combat reduces haze pressure without removing weather tags.");
+            Add("Combat", nameof(SceneIntent.MagicGlow), -0.10f, "Combat reduces stylized glow pressure.");
+            Add("Combat", nameof(SceneIntent.NeonGlow), -0.08f, "Combat reduces stylized neon glow pressure.");
         }
         else if (configuration.AutoAdjustInCombat && tags.NeedsDutyReadability)
         {
             Add("Duty", nameof(SceneIntent.Readability), 0.35f, "Duty content outside combat needs mild readability.");
             Add("Duty", nameof(SceneIntent.CombatPressure), 0.25f, "Duty content adds light gameplay pressure.");
             Add("Duty", nameof(SceneIntent.CinematicPermission), -0.10f, "Duty readability slightly reduces cinematic permission.");
+            Add("Duty", nameof(SceneIntent.Atmosphere), -0.06f, "Duty readability slightly dampens atmosphere.");
         }
 
         if (tags.IsDungeonLike || tags.IsRaidLike)
         {
             Add(tags.IsRaidLike ? "Raid area" : "Dungeon area", nameof(SceneIntent.Readability), tags.NeedsCombatClarity ? 0.15f : 0.25f, "Duty-style areas need readable gameplay spaces.");
+        }
+    }
+
+    private void AddPresentationState(GameContext context, Configuration configuration)
+    {
+        if (context.InGpose)
+        {
+            Add("GPose", nameof(SceneIntent.CinematicPermission), 0.35f, "GPose permits stronger cinematic treatment.");
+            Add("GPose", nameof(SceneIntent.Atmosphere), 0.14f, "GPose can preserve more atmosphere.");
+            return;
+        }
+
+        if (configuration.AutoAdjustInCutscenes && context.InCutscene && !context.InCombat)
+        {
+            Add("Cutscene", nameof(SceneIntent.CinematicPermission), 0.22f, "Cutscenes can use more cinematic treatment than normal gameplay.");
+            Add("Cutscene", nameof(SceneIntent.Atmosphere), 0.08f, "Cutscenes can preserve a little more atmosphere.");
         }
     }
 
@@ -187,6 +209,7 @@ public sealed class SceneIntentBuilder
             case "swamp":
                 Add("Biome", nameof(SceneIntent.FoliageDensity), 0.70f, "Dense foliage changes depth and sharpness needs.");
                 Add("Biome", nameof(SceneIntent.ShadowProtection), 0.25f, "Foliage-heavy scenes risk dense shadows.");
+                Add("Biome", nameof(SceneIntent.Atmosphere), 0.08f, "Dense foliage can keep mild environmental atmosphere.");
                 break;
             case "desert":
             case "wasteland":
@@ -208,6 +231,10 @@ public sealed class SceneIntentBuilder
             case "lightFlooded":
                 Add("Biome", nameof(SceneIntent.MagicGlow), 0.55f, "Magical biomes should preserve stylized glow.");
                 Add("Biome", nameof(SceneIntent.HighlightProtection), 0.20f, "Magical glow needs highlight control.");
+                if (tags.MoodTags.Contains("dreamlike", StringComparer.OrdinalIgnoreCase))
+                {
+                    Add("Fae mood", nameof(SceneIntent.Atmosphere), 0.10f, "Dreamlike fae zones keep a little more atmosphere.");
+                }
                 break;
             case "cosmic":
             case "lunar":
@@ -218,10 +245,12 @@ public sealed class SceneIntentBuilder
             case "highTech":
                 Add("Biome", nameof(SceneIntent.NeonGlow), 0.75f, "High-tech zones should preserve neon accents.");
                 Add("Biome", nameof(SceneIntent.HighlightProtection), 0.35f, "Neon and glossy surfaces need highlight protection.");
+                Add("Neon mood", nameof(SceneIntent.Atmosphere), 0.06f, "High-tech neon spaces keep a controlled ambient glow.");
                 break;
             case "imperial":
                 Add("Biome", nameof(SceneIntent.IndustrialHardness), 0.65f, "Imperial spaces have hard industrial contrast.");
                 Add("Biome", nameof(SceneIntent.Readability), 0.12f, "Industrial spaces benefit from clarity.");
+                Add("Industrial mood", nameof(SceneIntent.Atmosphere), -0.04f, "Industrial spaces favor structure over haze.");
                 break;
             case "ancient":
                 Add("Biome", nameof(SceneIntent.IndustrialHardness), 0.25f, "Ancient/ruin spaces need structural clarity.");
@@ -281,13 +310,25 @@ public sealed class SceneIntentBuilder
 
     private void AddPerformanceBudget(PerformanceBudget budget)
     {
-        if (budget != PerformanceBudget.Low)
+        if (budget == PerformanceBudget.Ultra)
         {
             return;
         }
 
-        Add("Performance budget", nameof(SceneIntent.Readability), 0.12f, "Low budget favors readable inexpensive effects.");
-        Add("Performance budget", nameof(SceneIntent.CombatPressure), 0.10f, "Low budget increases safety pressure.");
+        var amount = budget switch
+        {
+            PerformanceBudget.Low => 1.0f,
+            PerformanceBudget.Medium => 0.45f,
+            PerformanceBudget.High => 0.18f,
+            _ => 0.45f
+        };
+
+        Add("Performance budget", nameof(SceneIntent.Readability), 0.12f * amount, "Lower budgets favor readable inexpensive effects.");
+        Add("Performance budget", nameof(SceneIntent.CombatPressure), 0.10f * amount, "Lower budgets add a little safety pressure.");
+        Add("Performance budget", nameof(SceneIntent.CinematicPermission), -0.06f * amount, "Lower budgets reduce expensive-looking cinematic pressure.");
+        Add("Performance budget", nameof(SceneIntent.MagicGlow), -0.05f * amount, "Lower budgets soften extra stylized glow rather than flattening the whole scene.");
+        Add("Performance budget", nameof(SceneIntent.NeonGlow), -0.04f * amount, "Lower budgets soften extra neon glow rather than flattening the whole scene.");
+        Add("Performance budget", nameof(SceneIntent.Haze), -0.04f * amount, "Lower budgets reduce heavy haze pressure conservatively.");
     }
 
     private void Add(string source, string intent, float amount, string reason)
@@ -364,9 +405,17 @@ public sealed record TagStackContribution(
     bool BudgetApplied = false);
 
 public sealed record TagStackDiagnostics(
+    uint TerritoryId,
+    string TerritoryName,
+    uint? WeatherId,
+    string WeatherName,
     IReadOnlyList<string> ActiveTags,
+    IReadOnlyList<string> ActiveWeatherTags,
+    IReadOnlyList<string> MoodTags,
     string WeatherKey,
     string BiomeKey,
+    float BiomeConfidence,
+    string BiomeReason,
     string AreaKey,
     bool InCombat,
     bool InDuty,
@@ -377,9 +426,17 @@ public sealed record TagStackDiagnostics(
     IReadOnlyList<TagStackContribution> Contributions)
 {
     public static TagStackDiagnostics Empty { get; } = new(
+        0,
+        "Unknown",
+        null,
+        "Unknown",
+        Array.Empty<string>(),
+        Array.Empty<string>(),
         Array.Empty<string>(),
         "unknown",
         "unknown",
+        0f,
+        "No scene tags have been classified yet.",
         "unknown",
         false,
         false,
@@ -392,9 +449,17 @@ public sealed record TagStackDiagnostics(
     public static TagStackDiagnostics Create(GameContext context, SceneTags tags, SceneIntent intent, IReadOnlyList<TagStackContribution> contributions)
     {
         return new TagStackDiagnostics(
+            context.TerritoryId,
+            context.TerritoryName,
+            context.WeatherId,
+            context.WeatherName,
             BuildActiveTags(context, tags),
+            BuildActiveWeatherTags(tags),
+            tags.MoodTags,
             tags.WeatherKey,
             tags.BiomeKey,
+            tags.BiomeConfidence,
+            tags.BiomeReason,
             tags.AreaKey,
             context.InCombat,
             context.InDuty,
@@ -419,6 +484,10 @@ public sealed record TagStackDiagnostics(
         if (tags.IsStorm) result.Add("StormWeather");
         if (tags.IsDustStorm) result.Add("DustStormWeather");
         if (tags.IsHeatWave) result.Add("HeatWaveWeather");
+        foreach (var mood in tags.MoodTags)
+        {
+            result.Add($"{mood}Mood");
+        }
         if (tags.IsCityLike) result.Add("City");
         if (tags.IsDungeonLike) result.Add("Dungeon");
         if (tags.IsRaidLike) result.Add("Raid");
@@ -434,5 +503,21 @@ public sealed record TagStackDiagnostics(
         }
 
         return result.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static IReadOnlyList<string> BuildActiveWeatherTags(SceneTags tags)
+    {
+        var result = new List<string>();
+        if (tags.IsRain) result.Add("rain");
+        if (tags.IsFog) result.Add("fog");
+        if (tags.IsCloudy) result.Add("clouds");
+        if (tags.IsOvercast) result.Add("overcast");
+        if (tags.IsGloom) result.Add("gloom");
+        if (tags.IsSnow) result.Add("snow");
+        if (tags.IsStorm) result.Add("storm");
+        if (tags.IsDustStorm) result.Add("dust");
+        if (tags.IsHeatWave) result.Add("heat");
+        if (tags.IsClear) result.Add("clear");
+        return result;
     }
 }

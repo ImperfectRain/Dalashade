@@ -2,6 +2,8 @@ using Dalamud.Game.ClientState.Conditions;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using Lumina.Excel.Sheets;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Dalashade;
 
@@ -88,9 +90,12 @@ public sealed record SceneTags(
     bool NeedsCombatClarity,
     bool NeedsDutyReadability,
     bool CinematicAllowed,
-    string BiomeKey)
+    string BiomeKey,
+    float BiomeConfidence,
+    string BiomeReason,
+    IReadOnlyList<string> MoodTags)
 {
-    public static SceneTags Empty { get; } = new(false, false, false, false, false, false, false, false, false, false, false, true, false, false, false, false, false, false, false, true, "unknown");
+    public static SceneTags Empty { get; } = new(false, false, false, false, false, false, false, false, false, false, false, true, false, false, false, false, false, false, false, true, "unknown", 0f, "No scene tags have been classified yet.", Array.Empty<string>());
 
     public bool NeedsGameplayClarity => NeedsCombatClarity || NeedsDutyReadability;
 
@@ -127,35 +132,37 @@ public sealed record SceneTags(
 
 public static class SceneClassifier
 {
-    private sealed record BiomeKeywordRule(string Biome, string[] Keywords);
+    private sealed record BiomeKeywordRule(string Biome, float Confidence, string Reason, string[] MoodTags, string[] Keywords);
+
+    private sealed record BiomeMatch(string Biome, float Confidence, string Reason, IReadOnlyList<string> MoodTags);
 
     // Territory/content names come from Lumina/Dalamud when available. These rules
     // use curated XIV names first and generic keyword fallbacks for future zones.
     private static readonly BiomeKeywordRule[] BiomeRules =
     {
-        new("highTech", new[] { "solution nine", "heritage found", "alexandria", "neon", "electrope" }),
-        new("lunar", new[] { "mare lamentorum", "moon", "lunar" }),
-        new("cosmic", new[] { "ultima thule", "cosmic", "star", "space" }),
-        new("lightFlooded", new[] { "the empty", "lightwarden", "sin eater", "light flooded", "light-flooded" }),
-        new("fae", new[] { "il mheg", "fae", "pixie", "voeburt", "dream" }),
-        new("imperial", new[] { "garlemald", "castrum", "imperial", "magitek", "factory", "steel", "ceruleum" }),
-        new("volcanic", new[] { "volcano", "lava", "ember", "embers" }),
-        new("underwater", new[] { "underwater", "ocean floor", "oceanfloor" }),
-        new("ancient", new[] { "amaurot", "allagan", "azys lla", "ruin", "ruins", "ancient" }),
-        new("aetherial", new[] { "elpis", "aether", "crystal", "lakeland", "crystarium" }),
-        new("snow", new[] { "snow", "ice", "frost", "glacier", "coerthas", "snowcloak" }),
-        new("alpine", new[] { "mountain", "alpine", "peak", "summit" }),
-        new("jungle", new[] { "jungle", "rainforest", "rak'tika", "rak'tika", "yak t'el", "kozama'uka" }),
-        new("forest", new[] { "forest", "shroud", "woods", "wood", "gridania", "sylph" }),
-        new("swamp", new[] { "swamp", "marsh", "bog", "fen" }),
-        new("steppe", new[] { "azim steppe", "steppe", "grassland", "grasslands" }),
-        new("desert", new[] { "desert", "thanalan", "sagolii", "amh araeng", "shaaloani" }),
-        new("wasteland", new[] { "badlands", "wasteland", "wastes" }),
-        new("cave", new[] { "cave", "cavern", "mine", "tunnel", "subterrane" }),
-        new("void", new[] { "void", "darkness", "abyss", "ascian" }),
-        new("tropical", new[] { "island", "tropical", "tuliyollal" }),
-        new("coastal", new[] { "ruby sea", "ocean", "beach", "sea", "limsa", "mist", "coast" }),
-        new("fire", new[] { "fire", "flame", "inferno" })
+        new("highTech", 0.98f, "Matched Dawntrail high-tech/neon territory keywords.", new[] { "neon", "electrope", "urban" }, new[] { "solution nine", "heritage found", "alexandria", "neon", "electrope", "living memory" }),
+        new("cosmic", 0.98f, "Matched cosmic/space territory keywords.", new[] { "cosmic", "stars" }, new[] { "ultima thule", "cosmic", "star", "stars", "space", "omphalos" }),
+        new("lunar", 0.98f, "Matched lunar territory keywords.", new[] { "lunar", "cold", "cosmic" }, new[] { "mare lamentorum", "moon", "lunar", "bestways burrow" }),
+        new("fae", 0.98f, "Matched fae/dreamlike territory keywords.", new[] { "dreamlike", "magic", "pastel" }, new[] { "il mheg", "voeburt", "fae", "pixie", "dream" }),
+        new("imperial", 0.96f, "Matched Garlean, Castrum, magitek, or factory keywords.", new[] { "industrial", "steel", "cold" }, new[] { "garlemald", "castrum", "imperial", "magitek", "factory", "steel", "ceruleum", "magna glacies", "tower of babil" }),
+        new("jungle", 0.96f, "Matched jungle/rainforest territory keywords.", new[] { "rainforest", "foliage", "humid" }, new[] { "rak'tika", "raktika", "greatwood", "yak t'el", "yak tel", "kozama'uka", "kozamauka", "jungle", "rainforest" }),
+        new("snow", 0.95f, "Matched snow, ice, Coerthas, or Snowcloak keywords.", new[] { "cold", "alpine" }, new[] { "coerthas", "snowcloak", "snow", "ice", "frost", "glacier", "western highlands" }),
+        new("desert", 0.95f, "Matched desert and dry-region territory keywords.", new[] { "dry", "heat", "badlands" }, new[] { "thanalan", "sagolii", "amh araeng", "shaaloani", "desert", "badlands" }),
+        new("coastal", 0.95f, "Matched sea, coast, beach, Limsa, Mist, or Ruby Sea keywords.", new[] { "water", "specular" }, new[] { "ruby sea", "limsa", "mist", "ocean", "beach", "sea", "coast", "coastal", "isle" }),
+        new("lightFlooded", 0.94f, "Matched light-flooded First keywords.", new[] { "highKey", "magic" }, new[] { "the empty", "lightwarden", "sin eater", "light flooded", "light-flooded" }),
+        new("volcanic", 0.92f, "Matched volcanic/lava territory keywords.", new[] { "heat", "fire" }, new[] { "volcano", "lava", "ember", "embers" }),
+        new("underwater", 0.92f, "Matched underwater or ocean-floor keywords.", new[] { "water", "haze" }, new[] { "underwater", "ocean floor", "oceanfloor" }),
+        new("ancient", 0.90f, "Matched ancient, ruin, Amaurot, Allagan, or Azys Lla keywords.", new[] { "ruins", "structured" }, new[] { "amaurot", "allagan", "azys lla", "ruin", "ruins", "ancient" }),
+        new("aetherial", 0.88f, "Matched aetherial, crystal, Elpis, Lakeland, or Crystarium keywords.", new[] { "magic", "crystal" }, new[] { "elpis", "aether", "crystal", "lakeland", "crystarium" }),
+        new("alpine", 0.84f, "Matched mountain/alpine keywords.", new[] { "cold", "highAltitude" }, new[] { "mountain", "alpine", "peak", "summit" }),
+        new("forest", 0.82f, "Matched forest, Shroud, Gridania, or woods keywords.", new[] { "foliage" }, new[] { "forest", "shroud", "woods", "wood", "gridania", "sylph" }),
+        new("swamp", 0.82f, "Matched swamp/marsh keywords.", new[] { "wet", "foliage" }, new[] { "swamp", "marsh", "bog", "fen" }),
+        new("steppe", 0.82f, "Matched steppe/grassland keywords.", new[] { "open", "grassland" }, new[] { "azim steppe", "steppe", "grassland", "grasslands" }),
+        new("wasteland", 0.80f, "Matched wasteland/wastes keywords.", new[] { "dry", "badlands" }, new[] { "badlands", "wasteland", "wastes" }),
+        new("cave", 0.80f, "Matched cave/cavern/mine keywords.", new[] { "dark", "interior" }, new[] { "cave", "cavern", "mine", "tunnel", "subterrane" }),
+        new("void", 0.80f, "Matched void/darkness/abyss keywords.", new[] { "dark", "magic" }, new[] { "void", "darkness", "abyss", "ascian" }),
+        new("tropical", 0.78f, "Matched island/tropical/Tuliyollal keywords.", new[] { "warm", "coastal" }, new[] { "island", "tropical", "tuliyollal" }),
+        new("fire", 0.78f, "Matched fire/flame/inferno keywords.", new[] { "heat", "fire" }, new[] { "fire", "flame", "inferno" })
     };
 
     public static SceneTags Classify(GameContext context)
@@ -182,6 +189,7 @@ public static class SceneClassifier
         var needsCombatClarity = context.InCombat;
         var needsDutyReadability = context.InDuty && !context.InCombat;
         var biome = InferBiome(territory, weather, content, isSnow, isFog, isCloudy || isOvercast || isGloom);
+        var moodTags = BuildMoodTags(biome, isRain, isFog, isCloudy, isOvercast, isGloom, isSnow, isStorm, isDustStorm, isHeatWave);
 
         return new SceneTags(
             context.TimeBucket == TimeBucket.Night,
@@ -203,40 +211,95 @@ public static class SceneClassifier
             isInterior,
             needsCombatClarity,
             needsDutyReadability,
-            !context.InCombat && (!context.InCutscene || context.InGpose),
-            biome);
+            !context.InCombat && (!needsDutyReadability || context.InCutscene || context.InGpose),
+            biome.Biome,
+            biome.Confidence,
+            biome.Reason,
+            moodTags);
     }
 
-    private static string InferBiome(string territory, string weather, string content, bool isSnow, bool isFog, bool isCloudMood)
+    private static BiomeMatch InferBiome(string territory, string weather, string content, bool isSnow, bool isFog, bool isCloudMood)
     {
-        var text = $"{territory} {weather} {content}";
+        var text = NormalizeSearchText($"{territory} {weather} {content}");
         if (isSnow)
         {
-            return "snow";
+            return new BiomeMatch("snow", 1.0f, "Snow or blizzard weather overrides terrain biome to avoid missing active snow scenes.", new[] { "cold", "weatherOverride" });
         }
 
         foreach (var rule in BiomeRules)
         {
             if (ContainsAny(text, rule.Keywords))
             {
-                return rule.Biome;
+                var matchedKeyword = rule.Keywords.First(keyword => text.Contains(NormalizeSearchText(keyword), StringComparison.OrdinalIgnoreCase));
+                var moodTags = AddContextualMoodTags(rule.MoodTags, text);
+                var reason = $"{rule.Reason} Matched `{matchedKeyword}`.";
+                if (text.Contains("garlemald", StringComparison.OrdinalIgnoreCase))
+                {
+                    reason += " Garlemald also adds cold/alpine mood context.";
+                }
+
+                return new BiomeMatch(rule.Biome, rule.Confidence, reason, moodTags);
             }
         }
 
-        return isFog || isCloudMood ? "overcast" : "neutral";
+        return isFog || isCloudMood
+            ? new BiomeMatch("overcast", 0.55f, "No territory biome matched; fog/cloud/gloom weather supplied an overcast mood fallback.", new[] { "overcast", "haze" })
+            : new BiomeMatch("neutral", 0.25f, "No specific territory, content, or weather biome keyword matched.", Array.Empty<string>());
+    }
+
+    private static IReadOnlyList<string> BuildMoodTags(BiomeMatch biome, bool isRain, bool isFog, bool isCloudy, bool isOvercast, bool isGloom, bool isSnow, bool isStorm, bool isDustStorm, bool isHeatWave)
+    {
+        var moods = new List<string>(biome.MoodTags);
+        if (isRain) moods.Add("wet");
+        if (isFog) moods.Add("haze");
+        if (isCloudy) moods.Add("clouds");
+        if (isOvercast) moods.Add("overcast");
+        if (isGloom) moods.Add("dark");
+        if (isSnow) moods.Add("cold");
+        if (isStorm) moods.Add("storm");
+        if (isDustStorm) moods.Add("dust");
+        if (isHeatWave) moods.Add("heat");
+        return moods
+            .Where(mood => !string.IsNullOrWhiteSpace(mood))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(mood => mood, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static IReadOnlyList<string> AddContextualMoodTags(IReadOnlyList<string> moodTags, string text)
+    {
+        if (!text.Contains("garlemald", StringComparison.OrdinalIgnoreCase))
+        {
+            return moodTags;
+        }
+
+        return moodTags
+            .Concat(new[] { "alpine", "snow" })
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static bool ContainsAny(string value, params string[] candidates)
     {
+        var normalizedValue = NormalizeSearchText(value);
         foreach (var candidate in candidates)
         {
-            if (value.Contains(candidate, StringComparison.OrdinalIgnoreCase))
+            if (normalizedValue.Contains(NormalizeSearchText(candidate), StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static string NormalizeSearchText(string value)
+    {
+        return value
+            .ToLowerInvariant()
+            .Replace('’', '\'')
+            .Replace('`', '\'')
+            .Replace("the rak'tika", "rak'tika", StringComparison.OrdinalIgnoreCase);
     }
 }
 

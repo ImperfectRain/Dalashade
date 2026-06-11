@@ -702,12 +702,18 @@ public sealed class ProfileEngine
 
     private static void ApplyPerformanceBudget(PerformanceBudget budget, GameContext context, ref float ao, ref float rtgi, ref float relight, ref float depthEffects, ref float bloom, ref float bloomRadius, ref float sharpness, ref float sharpenThreshold, ref float clarity, ref float antiAliasingStrength, ref float lutStrength)
     {
-        if (!context.InCombat)
+        var pressure = context.InCombat
+            ? 1f
+            : budget == PerformanceBudget.Low
+                ? 0.35f
+                : 0f;
+
+        if (pressure <= 0f)
         {
             return;
         }
 
-        var aoScale = budget switch
+        var aoTarget = budget switch
         {
             PerformanceBudget.Low => 0.40f,
             PerformanceBudget.Medium => 0.65f,
@@ -716,87 +722,87 @@ public sealed class ProfileEngine
             _ => 0.65f
         };
 
-        ao *= aoScale;
-        rtgi *= budget switch
+        ao *= Lerp(1f, aoTarget, pressure);
+        rtgi *= Lerp(1f, budget switch
         {
             PerformanceBudget.Low => 0.25f,
             PerformanceBudget.Medium => 0.60f,
             PerformanceBudget.High => 0.85f,
             PerformanceBudget.Ultra => 1.00f,
             _ => 0.60f
-        };
-        relight *= budget switch
+        }, pressure);
+        relight *= Lerp(1f, budget switch
         {
             PerformanceBudget.Low => 0.35f,
             PerformanceBudget.Medium => 0.70f,
             PerformanceBudget.High => 0.90f,
             PerformanceBudget.Ultra => 1.00f,
             _ => 0.70f
-        };
-        depthEffects *= budget switch
+        }, pressure);
+        depthEffects *= Lerp(1f, budget switch
         {
             PerformanceBudget.Low => 0.35f,
             PerformanceBudget.Medium => 0.70f,
             PerformanceBudget.High => 0.90f,
             PerformanceBudget.Ultra => 1.00f,
             _ => 0.70f
-        };
-        bloom *= budget switch
+        }, pressure);
+        bloom *= Lerp(1f, budget switch
         {
             PerformanceBudget.Low => 0.65f,
             PerformanceBudget.Medium => 0.80f,
             PerformanceBudget.High => 0.92f,
             PerformanceBudget.Ultra => 1.00f,
             _ => 0.80f
-        };
-        bloomRadius *= budget switch
+        }, pressure);
+        bloomRadius *= Lerp(1f, budget switch
         {
             PerformanceBudget.Low => 0.70f,
             PerformanceBudget.Medium => 0.85f,
             PerformanceBudget.High => 0.95f,
             PerformanceBudget.Ultra => 1.00f,
             _ => 0.85f
-        };
-        clarity *= budget switch
+        }, pressure);
+        clarity *= Lerp(1f, budget switch
         {
             PerformanceBudget.Low => 0.75f,
             PerformanceBudget.Medium => 0.90f,
             PerformanceBudget.High => 0.96f,
             PerformanceBudget.Ultra => 1.00f,
             _ => 0.90f
-        };
-        sharpness *= budget switch
+        }, pressure);
+        sharpness *= Lerp(1f, budget switch
         {
             PerformanceBudget.Low => 0.85f,
             PerformanceBudget.Medium => 0.92f,
             PerformanceBudget.High => 0.97f,
             PerformanceBudget.Ultra => 1.00f,
             _ => 0.92f
-        };
-        sharpenThreshold *= budget switch
+        }, pressure);
+        sharpenThreshold *= Lerp(1f, budget switch
         {
             PerformanceBudget.Low => 1.10f,
             PerformanceBudget.Medium => 1.06f,
             PerformanceBudget.High => 1.02f,
             PerformanceBudget.Ultra => 1.00f,
             _ => 1.06f
-        };
-        antiAliasingStrength *= budget switch
+        }, pressure);
+        antiAliasingStrength *= Lerp(1f, budget switch
         {
             PerformanceBudget.Low => 0.96f,
             PerformanceBudget.Medium => 1.00f,
             PerformanceBudget.High => 1.04f,
             PerformanceBudget.Ultra => 1.08f,
             _ => 1.00f
-        };
-        lutStrength *= budget switch
+        }, pressure);
+        lutStrength *= Lerp(1f, budget switch
         {
             PerformanceBudget.Low => 0.82f,
             PerformanceBudget.Medium => 0.92f,
             PerformanceBudget.High => 0.98f,
             PerformanceBudget.Ultra => 1.00f,
             _ => 0.92f
-        };
+        }, pressure);
     }
 
     private static void ApplySceneIntentBudgets(
