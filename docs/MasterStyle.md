@@ -26,7 +26,7 @@ Implemented behavior:
 
 | Feature | Notes |
 | --- | --- |
-| Master folder | Controlled by `Configuration.MasterPresetImageFolderPath`. |
+| Master folder | Controlled by `Configuration.MasterPresetFolderPath`. |
 | Supported images | The service enumerates image files from the configured folder. |
 | Subfolders | Optional through `Configuration.MasterPresetIncludeSubfolders`. |
 | Max images | Controlled by `Configuration.MasterPresetMaxImages`. |
@@ -114,7 +114,7 @@ Compatibility reports also include master style diagnostics when available.
 
 | Symptom | Check |
 | --- | --- |
-| Enabled but no master images | Verify `MasterPresetImageFolderPath` and supported image files. |
+| Enabled but no master images | Verify `MasterPresetFolderPath` and supported image files. |
 | Effective strength near zero | Check raw strength, compatibility mode, and scene similarity dampening. |
 | Current and master look similar | The matcher may correctly produce small deltas. |
 | Variables changed but image barely changes | The active shader may have weak visual response or ReShade may not have reloaded. |

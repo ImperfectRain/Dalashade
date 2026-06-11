@@ -9,7 +9,7 @@ This page documents how Dalashade reports preset compatibility and generation di
 | `Dalashade/PresetAnalyzer.cs` | Preset parsing, activation state, support classification, risk classification, authorities, warnings. |
 | `Dalashade/CompatibilityReportExporter.cs` | Markdown compatibility report export. |
 | `Dalashade/PresetRegressionReportHarness.cs` | Batch preset regression report generation. |
-| `Dalashade/ShaderSupportScanner.cs` | Scans supported shader variables for the selected preset. |
+| `Dalashade/PresetWriter.cs` | Scans supported shader variables for the selected preset through `PresetWriter.ScanSupportedVariables(...)`. |
 | `Dalashade/SceneIntent.cs` | Provides scene intent and tag-stack diagnostics. |
 | `Dalashade/Windows/MainWindow.cs` | Runtime status, changed variables, sanitize actions, applied rules, diagnostics. |
 | `Dalashade/Windows/ConfigWindow.cs` | Scan/export/report commands and settings. |
