@@ -54,7 +54,7 @@ The generated SmartSharpen section includes the clarity shader intent variables 
 
 The generated AtmosphereBloom section includes the bloom shader intent variables Dalashade currently knows how to write: `Dalashade_Atmosphere`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_HighlightProtection`, `Dalashade_CombatPressure`, and `Dalashade_CinematicPermission`.
 
-Dalashade also does not currently install or copy custom shader files into a ReShade shader directory. For manual testing, place the needed files from `shaders/` somewhere ReShade scans for shaders, then enable them in ReShade.
+Dalashade also does not currently install or copy custom shader files into a ReShade shader directory, and generated-preset injection does not enable techniques automatically. For manual testing, place the needed files from `shaders/` somewhere ReShade scans for shaders, then enable wanted techniques in ReShade.
 
 ## Manual Installation Diagnostics
 
@@ -66,7 +66,7 @@ The UI and compatibility report distinguish two separate states:
 | Auto-inject generated preset sections enabled | `AutoInjectDalashadeCustomShaderSections` is on, so generation may add known sections to the generated preset only. |
 | Section injected | Dalashade added a supported custom shader section to the generated preset. |
 | Variables injected | Dalashade added missing known `Dalashade_*` variables to a supported custom shader section in the generated preset. |
-| Technique injected | Dalashade appended the known technique entry to an existing non-empty `Techniques=` line in the generated preset. |
+| Technique injected | Currently expected to be `no`. Auto-injection adds sections and variables only; users must enable wanted techniques in ReShade. |
 | Generated preset only | Injection happened in the generated output path; the base preset was not modified. |
 | Base preset contains a Dalashade custom shader section | The selected base preset has a section such as `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, `[Dalashade_SmartSharpen.fx]`, or `[Dalashade_AtmosphereBloom.fx]`, so Dalashade can inspect it for supported `Dalashade_*` keys. |
 | Technique active/inactive/unknown | Dalashade checks whether the section appears active in `Techniques=`. If `Techniques=` is missing, activation is reported as unknown. |
@@ -76,7 +76,7 @@ The UI and compatibility report distinguish two separate states:
 
 This is not the same as shader file installation. ReShade must still be able to find the actual `.fx` file through its own shader search paths. If the section exists but ReShade cannot compile or enable the effect, check ReShade's shader path and install the relevant file from `shaders/` manually.
 
-Technique injection is intentionally narrow. Dalashade only appends known Dalashade technique entries when the preset already has a non-empty `Techniques=` line and the entry is not already present. If there is no safe `Techniques=` line to update, Dalashade can still inject the section/variables, but the user may need to enable the technique in ReShade manually.
+Technique auto-injection is disabled. Dalashade can inject known sections and variables into the generated preset, but it does not append Dalashade custom shader entries to `Techniques=`. Users must install the relevant `.fx` files and enable wanted techniques in ReShade manually.
 
 ## Recommended ReShade Order
 

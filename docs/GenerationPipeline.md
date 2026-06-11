@@ -19,7 +19,7 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
     - If `EnableDalashadeCustomShaders` is enabled, `CustomShaderVariableMapper` can also write normalized `SceneIntent` values into matching Dalashade custom shader sections.
     - If `AutoInjectDalashadeCustomShaderSections` is also enabled, known Dalashade custom shader sections and variables can be inserted into the generated preset only.
     - Custom shader variable writes happen when the generated preset content contains matching Dalashade section/key lines, either from the base preset or from generated-preset-only injection.
-    - Dalashade does not copy `.fx` files or require custom shaders for normal operation.
+    - Dalashade does not append custom shader entries to `Techniques=`, copy `.fx` files, or require custom shaders for normal operation.
 13. `GenerationAuthorityPolicy.From()` dampens secondary authorities for selected compatibility modes.
 14. The writer edits only matching section/key lines, records `ChangedShaderVariable` entries, and applies `SanitizeActionPipeline` only when allowed by mode.
 15. If backups are enabled and the generated preset already exists, `PresetWriter` creates and prunes backups.

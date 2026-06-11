@@ -590,7 +590,7 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Dalashade custom shader support: {(plugin.Configuration.EnableDalashadeCustomShaders ? "enabled" : "disabled")}");
         DrawCustomShaderDiagnostics();
         ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
-        ImGui.TextWrapped("Dalashade only edits variables that already exist in the preset. Keep iMMERSE and any Pro/Ultimate shaders installed through ReShade; this plugin does not ship those files.");
+        ImGui.TextWrapped("Dalashade only edits known variables present in generated preset content. Keep iMMERSE and any Pro/Ultimate shaders installed through ReShade; this plugin does not ship those files.");
 
         if (ImGui.TreeNode("Detected shader support###MainDetectedShaderSupport"))
         {
@@ -618,12 +618,12 @@ public sealed class MainWindow : Window, IDisposable
         DrawSetupItem("Injection is generated preset only", diagnostics.GeneratedPresetOnlyInjection);
         DrawSetupItem("Known section injected", diagnostics.SectionInjected);
         DrawSetupItem("Known variables injected", diagnostics.VariablesInjected);
-        DrawSetupItem("Technique injected", diagnostics.TechniqueInjected);
+        DrawSetupItem("Technique auto-injection disabled", !diagnostics.TechniqueInjected);
         DrawSetupItem("Base preset contains Dalashade custom shader section", diagnostics.SectionFound);
         DrawSetupItem("Known custom variables found", diagnostics.KnownVariablesFound);
-        DrawSetupItem("SceneIntent values written", diagnostics.ValuesWritten);
+        DrawSetupItem("SceneIntent values written into generated preset", diagnostics.ValuesWritten);
         ImGui.TextWrapped("Dalashade writes custom shader variables into existing or generated-preset-injected Dalashade custom shader sections. The base preset is never modified.");
-        ImGui.TextWrapped("The .fx shader files are not installed by the plugin. Install needed Dalashade .fx files in a ReShade shader search folder separately, then enable them in ReShade.");
+        ImGui.TextWrapped("The .fx shader files are not installed by the plugin, and techniques are not auto-enabled. Install needed Dalashade .fx files in a ReShade shader search folder separately, then enable wanted techniques in ReShade.");
         ImGui.Separator();
 
         foreach (var message in diagnostics.StatusMessages)
@@ -650,6 +650,10 @@ public sealed class MainWindow : Window, IDisposable
         if (injection.Techniques.Count > 0)
         {
             ImGui.TextWrapped($"Injected techniques: {string.Join(", ", injection.Techniques)}");
+        }
+        else if (injection.Attempted)
+        {
+            ImGui.TextWrapped("Injected techniques: none. Auto-injection only adds sections and variables.");
         }
 
         if (diagnostics.Sections.Count == 0)

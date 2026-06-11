@@ -116,23 +116,23 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Generated preset only injection: {(diagnostics.GeneratedPresetOnlyInjection ? "yes" : "no")}");
         builder.AppendLine($"- Section injected: {(diagnostics.SectionInjected ? "yes" : "no")}");
         builder.AppendLine($"- Variables injected: {(diagnostics.VariablesInjected ? "yes" : "no")}");
-        builder.AppendLine($"- Technique injected: {(diagnostics.TechniqueInjected ? "yes" : "no")}");
+        builder.AppendLine("- Technique auto-injection: disabled; users must enable wanted custom shader techniques in ReShade.");
         builder.AppendLine($"- Injected sections: {FormatInlineList(writeResult.CustomShaderInjection.Sections)}");
         builder.AppendLine($"- Injected variables: {FormatInlineList(writeResult.CustomShaderInjection.Variables)}");
         builder.AppendLine($"- Injected techniques: {FormatInlineList(writeResult.CustomShaderInjection.Techniques)}");
         builder.AppendLine($"- Base preset contains Dalashade custom shader section: {(diagnostics.SectionFound ? "yes" : "no")}");
         builder.AppendLine($"- Known custom variables found: {(diagnostics.KnownVariablesFound ? "yes" : "no")}");
-        builder.AppendLine($"- SceneIntent values written: {(diagnostics.ValuesWritten ? "yes" : "no")}");
+        builder.AppendLine($"- SceneIntent values written into generated preset: {(diagnostics.ValuesWritten ? "yes" : "no")}");
         builder.AppendLine($"- Variables detected but unchanged: {(diagnostics.VariablesDetectedButUnchanged ? "yes" : "no")}");
-        builder.AppendLine("- Manual shader install: Dalashade does not copy `.fx` files into ReShade. Install needed Dalashade `.fx` files in a ReShade shader search folder separately, then add/enable those shaders in the base preset or generated preset.");
-        builder.AppendLine("- Variable writes require a matching base preset section and matching `Dalashade_*` keys.");
+        builder.AppendLine("- Manual shader install: Dalashade does not copy `.fx` files into ReShade. Install needed Dalashade `.fx` files in a ReShade shader search folder separately, then enable wanted custom shader techniques in ReShade.");
+        builder.AppendLine("- Variable writes require matching Dalashade custom shader section/key lines in generated preset content. Those lines can come from the base preset or from generated-preset-only injection.");
         builder.AppendLine("- Static bridge status:");
         foreach (var message in diagnostics.StatusMessages)
         {
             builder.AppendLine($"  - {message}");
         }
 
-        builder.AppendLine("- Custom shader sections found:");
+        builder.AppendLine("- Base preset custom shader sections found:");
         if (diagnostics.Sections.Count == 0)
         {
             builder.AppendLine("  - None");
@@ -145,7 +145,7 @@ public sealed class CompatibilityReportExporter
             }
         }
 
-        builder.AppendLine("- Custom shader variables detected:");
+        builder.AppendLine("- Base preset custom shader variables detected:");
         if (diagnostics.KnownVariables.Count == 0)
         {
             builder.AppendLine("  - None");
@@ -158,7 +158,7 @@ public sealed class CompatibilityReportExporter
             }
         }
 
-        builder.AppendLine("- Custom shader variables written:");
+        builder.AppendLine("- Generated preset custom shader variables written:");
         if (diagnostics.WrittenVariables.Count == 0)
         {
             builder.AppendLine("  - None");

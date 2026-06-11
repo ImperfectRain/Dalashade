@@ -342,7 +342,7 @@ public sealed class GameContextService
         var inGpose = Plugin.ClientState.IsGPosing;
         var inSanctuary = InferSanctuary(territoryName, inDuty);
         var eorzeaHour = GetEorzeaHour();
-        var weather = GetCurrentWeather(territoryId);
+        var weather = GetCurrentWeather(territoryId, eorzeaHour);
 
         Current = new GameContext(
             territoryId,
@@ -362,11 +362,11 @@ public sealed class GameContextService
         CurrentTags = SceneClassifier.Classify(Current);
     }
 
-    private (uint? Id, string Name) GetCurrentWeather(uint territoryId)
+    private (uint? Id, string Name) GetCurrentWeather(uint territoryId, float eorzeaHour)
     {
         try
         {
-            var weatherId = GetCurrentWeatherId(territoryId);
+            var weatherId = GetCurrentWeatherId(territoryId, eorzeaHour);
             if (weatherId > 0 && Plugin.DataManager.GetExcelSheet<Weather>().TryGetRow(weatherId, out var weather))
             {
                 var weatherName = weather.Name.ToString();
@@ -384,7 +384,7 @@ public sealed class GameContextService
         return (zoneInitWeatherId, zoneInitWeatherName);
     }
 
-    private static unsafe uint GetCurrentWeatherId(uint territoryId)
+    private static unsafe uint GetCurrentWeatherId(uint territoryId, float eorzeaHour)
     {
         if (territoryId == 0 || territoryId > ushort.MaxValue)
         {
@@ -392,9 +392,10 @@ public sealed class GameContextService
         }
 
         var weatherManager = WeatherManager.Instance();
+        var weatherHour = (byte)Math.Clamp((int)MathF.Floor(eorzeaHour), 0, 23);
         return weatherManager == null
             ? 0
-            : (uint)weatherManager->GetWeatherForHour((ushort)territoryId, 0);
+            : (uint)weatherManager->GetWeatherForHour((ushort)territoryId, weatherHour);
     }
 
     private static string GetDutyContentName(string fallback)

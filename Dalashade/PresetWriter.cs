@@ -181,6 +181,7 @@ public sealed class PresetWriter
                 }
 
                 var key = line[..separatorIndex].Trim();
+                var generatedCustomShaderVariable = IsGeneratedCustomShaderVariable(injectionResult, currentSection, key);
                 if (!TryGetAdjustment(adjustments, configuration.ShaderMatchingMode, currentSection, key, out var adjust)
                     && !customMapper.TryGetAdjustment(configuration, currentSection, key, sceneIntent, out adjust))
                 {
@@ -188,19 +189,24 @@ public sealed class PresetWriter
                 }
 
                 var activationState = PresetAnalyzer.GetTechniqueActivationState(activationMap, currentSection);
-                if (activationState != TechniqueActivationState.Active && configuration.InactiveShaderWriteMode == InactiveShaderWriteMode.Never)
+                if (activationState != TechniqueActivationState.Active
+                    && configuration.InactiveShaderWriteMode == InactiveShaderWriteMode.Never
+                    && !generatedCustomShaderVariable)
                 {
                     continue;
                 }
 
                 if (activationState == TechniqueActivationState.Inactive
                     && configuration.InactiveShaderWriteMode == InactiveShaderWriteMode.SupportedInactiveSections
-                    && !HasExactAdjustment(adjustments, currentSection, key))
+                    && !HasExactAdjustment(adjustments, currentSection, key)
+                    && !generatedCustomShaderVariable)
                 {
                     continue;
                 }
 
-                if (activationState == TechniqueActivationState.Unknown && !HasExactAdjustment(adjustments, currentSection, key))
+                if (activationState == TechniqueActivationState.Unknown
+                    && !HasExactAdjustment(adjustments, currentSection, key)
+                    && !generatedCustomShaderVariable)
                 {
                     continue;
                 }
@@ -443,11 +449,8 @@ public sealed class PresetWriter
                 variablesInjected = variablesInjected || injectedVariables.Count > 0;
             }
 
-            if (TryInjectTechnique(lines, shader))
-            {
-                techniqueInjected = true;
-                injectedTechniques.Add(shader.TechniqueEntry);
-            }
+            // Section and variable injection intentionally does not activate techniques.
+            // Users still need to install the .fx file and enable wanted shaders in ReShade.
         }
 
         var message = sectionInjected || variablesInjected || techniqueInjected
@@ -523,43 +526,10 @@ public sealed class PresetWriter
         return keys;
     }
 
-    private static bool TryInjectTechnique(IList<string> lines, KnownCustomShaderDefinition shader)
+    private static bool IsGeneratedCustomShaderVariable(CustomShaderInjectionResult injection, string section, string key)
     {
-        for (var i = 0; i < lines.Count; i++)
-        {
-            var line = lines[i];
-            var trimmed = line.TrimStart();
-            if (!trimmed.StartsWith("Techniques=", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var separatorIndex = line.IndexOf('=');
-            if (separatorIndex < 0)
-            {
-                return false;
-            }
-
-            var value = line[(separatorIndex + 1)..].Trim();
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return false;
-            }
-
-            var entries = value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-            if (entries.Any(entry =>
-                    string.Equals(entry, shader.TechniqueEntry, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(entry, shader.Section, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(entry, shader.Technique, StringComparison.OrdinalIgnoreCase)))
-            {
-                return false;
-            }
-
-            lines[i] = $"{line[..(separatorIndex + 1)]}{value},{shader.TechniqueEntry}";
-            return true;
-        }
-
-        return false;
+        return injection.Variables.Any(variable =>
+            string.Equals(variable, $"{section}/{key}", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool TryReadSection(string line, out string section)

@@ -190,7 +190,17 @@ public static class CustomShaderBridgeDiagnosticsBuilder
         {
             messages.Add(injection.Attempted
                 ? injection.Message
-                : "Generated preset injection is enabled but has not run yet.");
+                : "Generated preset section/variable injection is enabled but has not run yet.");
+        }
+
+        if (injection.SectionInjected)
+        {
+            messages.Add("Generated preset injection added known custom shader section(s); the base preset was not modified.");
+        }
+
+        if (injection.VariablesInjected)
+        {
+            messages.Add("Generated preset injection added known custom shader variable key(s) that can receive SceneIntent values.");
         }
 
         if (sections.Count == 0 && !injection.SectionInjected)
@@ -224,7 +234,7 @@ public static class CustomShaderBridgeDiagnosticsBuilder
 
         if (writtenVariables.Count > 0)
         {
-            messages.Add("Static bridge path active: SceneIntent values were written into Dalashade custom shader variables.");
+            messages.Add("Static bridge path active: SceneIntent values were written into generated preset Dalashade custom shader variables.");
         }
     }
 
