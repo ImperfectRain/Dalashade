@@ -3,7 +3,7 @@
     "Author": "ImperfectRain",
     "Name": "Dalashade",
     "InternalName": "Dalashade",
-    "AssemblyVersion": "1.1.0.0",
+    "AssemblyVersion": "1.2.0.0",
     "Description": "Dalashade generates a separate ReShade preset from your base preset, then nudges known shader values using territory, weather, time, combat, cutscenes, and optional screenshot analysis. Use /dalashade to open it.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/ImperfectRain/Dalashade",
@@ -20,9 +20,9 @@
       "preset",
       "graphics"
     ],
-    "DownloadLinkInstall": "https://raw.githubusercontent.com/ImperfectRain/Dalashade/master/releases/Dalashade-v1.1.zip",
-    "DownloadLinkUpdate": "https://raw.githubusercontent.com/ImperfectRain/Dalashade/master/releases/Dalashade-v1.1.zip",
-    "DownloadLinkTesting": "https://raw.githubusercontent.com/ImperfectRain/Dalashade/master/releases/Dalashade-v1.1.zip",
+    "DownloadLinkInstall": "https://raw.githubusercontent.com/ImperfectRain/Dalashade/master/releases/Dalashade-v1.2.zip",
+    "DownloadLinkUpdate": "https://raw.githubusercontent.com/ImperfectRain/Dalashade/master/releases/Dalashade-v1.2.zip",
+    "DownloadLinkTesting": "https://raw.githubusercontent.com/ImperfectRain/Dalashade/master/releases/Dalashade-v1.2.zip",
     "DownloadCount": 0,
     "LastUpdate": 1781117094
   }
