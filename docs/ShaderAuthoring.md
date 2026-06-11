@@ -38,6 +38,17 @@ Dalashade does not insert shader sections or create `.fx` files during generatio
 
 Dalashade also does not currently install or copy custom shader files into a ReShade shader directory. For manual testing, place `shaders/Dalashade_WeatherAtmosphere.fx` somewhere ReShade scans for shaders, then enable it in ReShade.
 
+## Manual Installation Diagnostics
+
+The UI and compatibility report distinguish two separate states:
+
+| State | Meaning |
+| --- | --- |
+| Base preset contains a Dalashade custom shader section | The selected base preset has a section such as `[Dalashade_WeatherAtmosphere.fx]`, so Dalashade can inspect it for supported `Dalashade_*` keys. |
+| Custom shader variables detected/written | Matching `Dalashade_*` keys were found and, if custom shader support is enabled, updated during generation. |
+
+This is not the same as shader file installation. ReShade must still be able to find the actual `.fx` file through its own shader search paths. If the section exists but ReShade cannot compile or enable the effect, check ReShade's shader path and install `shaders/Dalashade_WeatherAtmosphere.fx` manually.
+
 ## Recommended ReShade Order
 
 For `Dalashade_WeatherAtmosphere.fx`, use this order:

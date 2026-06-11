@@ -569,7 +569,9 @@ public sealed class MainWindow : Window, IDisposable
 
     private string DebugSummary()
     {
-        return $"{plugin.LastShaderSupportScan.Items.Count} supported variables detected";
+        var customSections = GetCustomShaderSections();
+        var customSummary = customSections.Length > 0 ? $", custom shader section present" : ", no custom shader section";
+        return $"{plugin.LastShaderSupportScan.Items.Count} supported variables detected{customSummary}";
     }
 
     private void DrawDebugDiagnostics()
@@ -619,6 +621,12 @@ public sealed class MainWindow : Window, IDisposable
             return;
         }
 
+        ImGui.TextUnformatted($"Custom shader variable writes: {(plugin.Configuration.EnableDalashadeCustomShaders ? "enabled" : "disabled")}");
+        DrawSetupItem("Base preset contains Dalashade custom shader section", customSections.Length > 0);
+        ImGui.TextWrapped("Dalashade can only write custom shader variables when the current base preset already contains a Dalashade custom shader section and matching Dalashade_* keys.");
+        ImGui.TextWrapped("The .fx shader file is not installed by the plugin. Install Dalashade_WeatherAtmosphere.fx in a ReShade shader search folder separately, then enable it in ReShade.");
+        ImGui.Separator();
+
         if (customSections.Length == 0)
         {
             ImGui.TextUnformatted("No Dalashade custom shader sections detected in the current base preset.");
@@ -629,6 +637,20 @@ public sealed class MainWindow : Window, IDisposable
             {
                 ImGui.BulletText($"Section: {section}");
             }
+        }
+
+        if (customItems.Length == 0)
+        {
+            ImGui.TextUnformatted("No supported Dalashade custom shader variables detected in the current base preset.");
+        }
+        else if (ImGui.TreeNode("Detected custom variables###MainCustomShaderVariables"))
+        {
+            foreach (var item in customItems)
+            {
+                ImGui.BulletText($"{item.Section} / {item.Key} ({PresetAnalyzer.FormatActivationState(item.ActivationState)})");
+            }
+
+            ImGui.TreePop();
         }
 
         if (customChanges.Length == 0)
@@ -644,6 +666,19 @@ public sealed class MainWindow : Window, IDisposable
         }
 
         ImGui.TreePop();
+    }
+
+    private string[] GetCustomShaderSections()
+    {
+        return plugin.LastPresetAnalysis.Techniques
+            .Select(technique => technique.Section)
+            .Where(CustomShaderVariableMapper.IsCustomShaderSection)
+            .Concat(plugin.LastShaderSupportScan.Items
+                .Where(item => string.Equals(item.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase))
+                .Select(item => item.Section))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(section => section, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static void DrawTechniqueTree(string title, params IReadOnlyList<PresetTechnique>[] groups)

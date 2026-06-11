@@ -128,6 +128,9 @@ public sealed class CompatibilityReportExporter
             .OrderBy(section => section, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
+        builder.AppendLine($"- Base preset contains Dalashade custom shader section: {(customSections.Length > 0 ? "yes" : "no")}");
+        builder.AppendLine("- Manual shader install: Dalashade does not copy `.fx` files into ReShade. Install `Dalashade_WeatherAtmosphere.fx` in a ReShade shader search folder separately, then add/enable that shader in the base preset.");
+        builder.AppendLine("- Variable writes require a matching base preset section and matching `Dalashade_*` keys.");
         builder.AppendLine("- Custom shader sections found:");
         if (customSections.Length == 0)
         {
@@ -138,6 +141,19 @@ public sealed class CompatibilityReportExporter
             foreach (var section in customSections)
             {
                 builder.AppendLine($"  - `{section}`");
+            }
+        }
+
+        builder.AppendLine("- Custom shader variables detected:");
+        if (customItems.Length == 0)
+        {
+            builder.AppendLine("  - None");
+        }
+        else
+        {
+            foreach (var item in customItems)
+            {
+                builder.AppendLine($"  - `{item.Section}` / `{item.Key}` ({PresetAnalyzer.FormatActivationState(item.ActivationState)})");
             }
         }
 

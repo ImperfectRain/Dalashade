@@ -192,6 +192,7 @@ public sealed class ConfigWindow : Window, IDisposable
 
         DrawCheckbox("Enable Dalashade custom shader variables", configuration.EnableDalashadeCustomShaders, value => configuration.EnableDalashadeCustomShaders = value);
         ImGui.TextWrapped("Writes normalized SceneIntent variables only into Dalashade custom shader sections that already exist in the base preset.");
+        ImGui.TextWrapped("This does not install .fx shader files. Install Dalashade_WeatherAtmosphere.fx in ReShade separately, add it to a base preset, then Dalashade can update its Dalashade_* variables.");
     }
 
     private string ReShadeReloadSummary()
