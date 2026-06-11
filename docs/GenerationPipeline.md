@@ -16,6 +16,9 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
 10. If master style is available, `MasterStyleMatcher.Match()` in `Dalashade/MasterStyleMatcher.cs` returns deltas, diagnostics, rules, and color-family adjustments.
 11. `Plugin.ScanPresetCompatibility()` runs `PresetWriter.ScanSupportedVariables()` and `PresetAnalyzer.Analyze()`.
 12. `PresetWriter.WriteGeneratedPreset()` reads the base preset and creates shader adjustments from `ShaderVariableMapper.CreateAdjustments()`.
+    - If `EnableDalashadeCustomShaders` is enabled, `CustomShaderVariableMapper` can also write normalized `SceneIntent` values into matching Dalashade custom shader sections.
+    - Custom shader variable writes only happen when the base preset already contains matching Dalashade section/key lines, such as `[Dalashade_WeatherAtmosphere.fx]` with `Dalashade_Haze=...`.
+    - Dalashade does not insert custom shader sections, copy `.fx` files, or require custom shaders for normal operation.
 13. `GenerationAuthorityPolicy.From()` dampens secondary authorities for selected compatibility modes.
 14. The writer edits only matching section/key lines, records `ChangedShaderVariable` entries, and applies `SanitizeActionPipeline` only when allowed by mode.
 15. If backups are enabled and the generated preset already exists, `PresetWriter` creates and prunes backups.
@@ -37,6 +40,7 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
 | Profile generation | `Dalashade/VisualProfile.cs` |
 | Compatibility analysis | `Dalashade/PresetAnalyzer.cs` |
 | Shader definitions | `Dalashade/ShaderVariableMapper.cs` |
+| Custom shader intent definitions | `Dalashade/CustomShaderVariableMapper.cs` |
 | Preset write | `Dalashade/PresetWriter.cs` |
 | Gameplay sanitize | `Dalashade/SanitizeActionPipeline.cs` |
 | Reload | `Dalashade/ReShadeController.cs` |

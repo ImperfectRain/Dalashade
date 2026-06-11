@@ -21,6 +21,7 @@ This map lists implemented files and their current responsibilities. Do not inve
 | Preset writer | `Dalashade/PresetWriter.cs` | `PresetWriter`, `PresetWriteResult`, `ChangedShaderVariable`, `ShaderSupportScan` | Reads base preset, applies mapped values, writes generated preset, backups, support scan | Yes, carefully | Do not overwrite base preset. |
 | Shader variable mapping | `Dalashade/ShaderVariableMapper.cs` | `ShaderVariableMapper`, `ShaderVariableDefinition`, `ShaderAdjustment` | Known shader section/key mappings, clamps, vector/scalar value math | Yes, carefully | Prefer strict section mappings. Avoid LooseKeys changes. |
 | Custom shader intent mapping | `Dalashade/CustomShaderVariableMapper.cs` | `CustomShaderVariableMapper` | Writes normalized `SceneIntent` values into Dalashade custom shader sections when enabled | Yes, for future custom shader tasks. | No custom shader is required for normal operation. |
+| Weather atmosphere shader prototype | `shaders/Dalashade_WeatherAtmosphere.fx` | ReShade technique `Dalashade_WeatherAtmosphere` | First custom `.fx` prototype for depth-aware haze, glow, weather mood, and highlight protection | Yes, for shader authoring tasks. | Manual ReShade install/use for now; no automatic shader installation exists yet. |
 | Gameplay sanitize | `Dalashade/SanitizeActionPipeline.cs` | `SanitizeActionPipeline`, `SanitizeAction` | Separate GameplaySanitize-only reductions | Yes | Do not disable shaders unless clearly safe and requested. |
 | Authority policy | `Dalashade/GenerationAuthorityPolicy.cs` | `GenerationAuthorityPolicy`, `CompatibilityRolePolicies` | Primary/secondary authority dampening and role policies | Yes, carefully | Changes alter how multiple shaders share roles. |
 | Compatibility reports | `Dalashade/CompatibilityReportExporter.cs` | `CompatibilityReportExporter` | Markdown compatibility report export and mapping validation | Yes | Diagnostic only. Should not change generation. |
@@ -40,6 +41,7 @@ This map lists implemented files and their current responsibilities. Do not inve
 | --- | --- |
 | Change weather behavior | `Dalashade/GameContext.cs`, `Dalashade/VisualProfile.cs`, `docs/SceneTagsAndIntent.md` |
 | Add shader support | `Dalashade/ShaderVariableMapper.cs`, `Dalashade/PresetAnalyzer.cs`, `Dalashade/PresetWriter.cs`, `docs/ShaderMapping.md` |
+| Add custom Dalashade shader work | `shaders/`, `Dalashade/CustomShaderVariableMapper.cs`, `docs/ShaderAuthoring.md` |
 | Fix generated preset output | `Dalashade/PresetWriter.cs`, `Dalashade/ShaderVariableMapper.cs`, `Dalashade/CompatibilityReportExporter.cs` |
 | Improve master style | `Dalashade/MasterStyle.cs`, `Dalashade/MasterStyleMatcher.cs`, `Dalashade/MasterStyleDiagnostics.cs`, `Dalashade/Windows/MainWindow.cs` |
 | Fix ReShade reload | `Dalashade/ReShadeController.cs`, `Dalashade/Keybind.cs`, `docs/ReShadeReload.md` |
