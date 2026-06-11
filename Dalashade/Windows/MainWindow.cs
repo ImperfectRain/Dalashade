@@ -614,10 +614,15 @@ public sealed class MainWindow : Window, IDisposable
         }
 
         DrawSetupItem("Custom shader support enabled", diagnostics.SupportEnabled);
+        DrawSetupItem("Auto-inject generated preset sections enabled", diagnostics.AutoInjectionEnabled);
+        DrawSetupItem("Injection is generated preset only", diagnostics.GeneratedPresetOnlyInjection);
+        DrawSetupItem("Known section injected", diagnostics.SectionInjected);
+        DrawSetupItem("Known variables injected", diagnostics.VariablesInjected);
+        DrawSetupItem("Technique injected", diagnostics.TechniqueInjected);
         DrawSetupItem("Base preset contains Dalashade custom shader section", diagnostics.SectionFound);
         DrawSetupItem("Known custom variables found", diagnostics.KnownVariablesFound);
         DrawSetupItem("SceneIntent values written", diagnostics.ValuesWritten);
-        ImGui.TextWrapped("Dalashade can only write custom shader variables when the current base preset already contains a Dalashade custom shader section and matching Dalashade_* keys.");
+        ImGui.TextWrapped("Dalashade writes custom shader variables into existing or generated-preset-injected Dalashade custom shader sections. The base preset is never modified.");
         ImGui.TextWrapped("The .fx shader file is not installed by the plugin. Install Dalashade_WeatherAtmosphere.fx in a ReShade shader search folder separately, then enable it in ReShade.");
         ImGui.Separator();
 

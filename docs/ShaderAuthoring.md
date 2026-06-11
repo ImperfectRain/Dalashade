@@ -9,6 +9,7 @@ Implemented plugin support:
 - Top-level `shaders/` folder exists for custom `.fx` files.
 - `Configuration.EnableDalashadeCustomShaders` gates all custom shader variable writes.
 - `CustomShaderVariableMapper` writes stable `SceneIntent` values into Dalashade custom shader sections when those sections and keys already exist in the base preset.
+- `Configuration.AutoInjectDalashadeCustomShaderSections` can optionally add known Dalashade custom shader sections to the generated preset only.
 - Main window and compatibility reports show whether custom shader support is enabled, which custom sections were detected, and which custom variables were written.
 
 Implemented shader prototype:
@@ -30,12 +31,16 @@ Bridge/add-on integration is planned and not currently implemented. Do not treat
 Custom shader writes are intentionally conservative:
 
 1. `EnableDalashadeCustomShaders` must be enabled.
-2. The preset must already contain a Dalashade custom shader section.
+2. The preset must already contain a Dalashade custom shader section, or generated-preset-only injection must be explicitly enabled.
 3. The section name must start with `Dalashade` or include `/Dalashade` or `\Dalashade`.
 4. The variable key must exactly match a known `Dalashade_*` SceneIntent variable.
 5. No custom shader is required for normal operation.
 
-Dalashade does not insert shader sections or create `.fx` files during generation.
+When `AutoInjectDalashadeCustomShaderSections` is off, Dalashade does not insert shader sections during generation.
+
+When both `EnableDalashadeCustomShaders` and `AutoInjectDalashadeCustomShaderSections` are on, Dalashade may inject known custom shader sections and variables into the generated preset only. It never mutates the base preset. Initial injection support is limited to `[Dalashade_WeatherAtmosphere.fx]`.
+
+The generated WeatherAtmosphere section includes the weather shader intent variables Dalashade currently knows how to write: `Dalashade_Haze`, `Dalashade_Wetness`, `Dalashade_Cold`, `Dalashade_Heat`, `Dalashade_HighlightProtection`, `Dalashade_ShadowProtection`, `Dalashade_CombatPressure`, `Dalashade_Atmosphere`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_Readability`, and `Dalashade_CinematicPermission`.
 
 Dalashade also does not currently install or copy custom shader files into a ReShade shader directory. For manual testing, place `shaders/Dalashade_WeatherAtmosphere.fx` somewhere ReShade scans for shaders, then enable it in ReShade.
 
@@ -46,6 +51,11 @@ The UI and compatibility report distinguish two separate states:
 | State | Meaning |
 | --- | --- |
 | Custom shader support enabled | `EnableDalashadeCustomShaders` is on, so generation is allowed to write supported `Dalashade_*` values. |
+| Auto-inject generated preset sections enabled | `AutoInjectDalashadeCustomShaderSections` is on, so generation may add known sections to the generated preset only. |
+| Section injected | Dalashade added a supported custom shader section to the generated preset. |
+| Variables injected | Dalashade added missing known `Dalashade_*` variables to a supported custom shader section in the generated preset. |
+| Technique injected | Dalashade appended the known technique entry to an existing non-empty `Techniques=` line in the generated preset. |
+| Generated preset only | Injection happened in the generated output path; the base preset was not modified. |
 | Base preset contains a Dalashade custom shader section | The selected base preset has a section such as `[Dalashade_WeatherAtmosphere.fx]`, so Dalashade can inspect it for supported `Dalashade_*` keys. |
 | Technique active/inactive/unknown | Dalashade checks whether the section appears active in `Techniques=`. If `Techniques=` is missing, activation is reported as unknown. |
 | Known custom variables found | Matching `Dalashade_*` keys were found in a Dalashade custom shader section. |
@@ -53,6 +63,8 @@ The UI and compatibility report distinguish two separate states:
 | Variables written | `SceneIntent` values were written into matching `Dalashade_*` keys during generation. |
 
 This is not the same as shader file installation. ReShade must still be able to find the actual `.fx` file through its own shader search paths. If the section exists but ReShade cannot compile or enable the effect, check ReShade's shader path and install `shaders/Dalashade_WeatherAtmosphere.fx` manually.
+
+Technique injection is intentionally narrow. Dalashade only appends `Dalashade_WeatherAtmosphere@Dalashade_WeatherAtmosphere.fx` when the preset already has a non-empty `Techniques=` line and the entry is not already present. If there is no safe `Techniques=` line to update, Dalashade can still inject the section/variables, but the user may need to enable the technique in ReShade manually.
 
 ## Recommended ReShade Order
 
@@ -123,10 +135,10 @@ All values are normalized `0.0` to `1.0`.
 
 ## Example Preset Section
 
-This is the kind of preset section the writer can update once a matching shader exists and custom shader support is enabled:
+This is the kind of preset section the writer can update once a matching shader exists and custom shader support is enabled. With generated-preset injection enabled, Dalashade can add the WeatherAtmosphere section and known variables to the generated preset automatically:
 
 ```ini
-[Dalashade_Intent.fx]
+[Dalashade_WeatherAtmosphere.fx]
 Dalashade_Readability=0.000000
 Dalashade_Atmosphere=0.000000
 Dalashade_HighlightProtection=0.000000

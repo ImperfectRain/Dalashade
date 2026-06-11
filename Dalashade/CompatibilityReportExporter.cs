@@ -112,6 +112,11 @@ public sealed class CompatibilityReportExporter
         _ = analysis;
         var diagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(configuration, shaderSupport, writeResult);
         builder.AppendLine($"- Custom shader support: {(diagnostics.SupportEnabled ? "enabled" : "disabled")}");
+        builder.AppendLine($"- Auto-inject known sections into generated preset: {(diagnostics.AutoInjectionEnabled ? "enabled" : "disabled")}");
+        builder.AppendLine($"- Generated preset only injection: {(diagnostics.GeneratedPresetOnlyInjection ? "yes" : "no")}");
+        builder.AppendLine($"- Section injected: {(diagnostics.SectionInjected ? "yes" : "no")}");
+        builder.AppendLine($"- Variables injected: {(diagnostics.VariablesInjected ? "yes" : "no")}");
+        builder.AppendLine($"- Technique injected: {(diagnostics.TechniqueInjected ? "yes" : "no")}");
         builder.AppendLine($"- Base preset contains Dalashade custom shader section: {(diagnostics.SectionFound ? "yes" : "no")}");
         builder.AppendLine($"- Known custom variables found: {(diagnostics.KnownVariablesFound ? "yes" : "no")}");
         builder.AppendLine($"- SceneIntent values written: {(diagnostics.ValuesWritten ? "yes" : "no")}");

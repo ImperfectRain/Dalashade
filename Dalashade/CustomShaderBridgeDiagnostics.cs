@@ -19,7 +19,12 @@ public sealed record CustomShaderVariableDiagnostic(
 
 public sealed record CustomShaderBridgeDiagnostics(
     bool SupportEnabled,
+    bool AutoInjectionEnabled,
     bool BasePresetReadable,
+    bool GeneratedPresetOnlyInjection,
+    bool SectionInjected,
+    bool VariablesInjected,
+    bool TechniqueInjected,
     IReadOnlyList<CustomShaderSectionDiagnostic> Sections,
     IReadOnlyList<CustomShaderVariableDiagnostic> KnownVariables,
     IReadOnlyList<ChangedShaderVariable> WrittenVariables,
@@ -55,10 +60,15 @@ public static class CustomShaderBridgeDiagnosticsBuilder
         if (string.IsNullOrWhiteSpace(configuration.BasePresetPath) || !File.Exists(configuration.BasePresetPath))
         {
             messages.Add("Base preset path not found; custom shader section scan unavailable.");
-            AppendConditionMessages(configuration.EnableDalashadeCustomShaders, sections, variables, writtenVariables, messages);
+            AppendConditionMessages(configuration, writeResult.CustomShaderInjection, sections, variables, writtenVariables, messages);
             return new CustomShaderBridgeDiagnostics(
                 configuration.EnableDalashadeCustomShaders,
+                configuration.AutoInjectDalashadeCustomShaderSections,
                 false,
+                writeResult.CustomShaderInjection.GeneratedPresetOnly,
+                writeResult.CustomShaderInjection.SectionInjected,
+                writeResult.CustomShaderInjection.VariablesInjected,
+                writeResult.CustomShaderInjection.TechniqueInjected,
                 Array.Empty<CustomShaderSectionDiagnostic>(),
                 Array.Empty<CustomShaderVariableDiagnostic>(),
                 writtenVariables,
@@ -130,10 +140,15 @@ public static class CustomShaderBridgeDiagnosticsBuilder
                 .OrderBy(variable => variable.Section, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(variable => variable.Key, StringComparer.OrdinalIgnoreCase));
 
-            AppendConditionMessages(configuration.EnableDalashadeCustomShaders, sections, variables, writtenVariables, messages);
+            AppendConditionMessages(configuration, writeResult.CustomShaderInjection, sections, variables, writtenVariables, messages);
             return new CustomShaderBridgeDiagnostics(
                 configuration.EnableDalashadeCustomShaders,
+                configuration.AutoInjectDalashadeCustomShaderSections,
                 true,
+                writeResult.CustomShaderInjection.GeneratedPresetOnly,
+                writeResult.CustomShaderInjection.SectionInjected,
+                writeResult.CustomShaderInjection.VariablesInjected,
+                writeResult.CustomShaderInjection.TechniqueInjected,
                 sections,
                 variables,
                 writtenVariables,
@@ -142,10 +157,15 @@ public static class CustomShaderBridgeDiagnosticsBuilder
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
             messages.Add($"Custom shader section scan failed: {ex.Message}");
-            AppendConditionMessages(configuration.EnableDalashadeCustomShaders, sections, variables, writtenVariables, messages);
+            AppendConditionMessages(configuration, writeResult.CustomShaderInjection, sections, variables, writtenVariables, messages);
             return new CustomShaderBridgeDiagnostics(
                 configuration.EnableDalashadeCustomShaders,
+                configuration.AutoInjectDalashadeCustomShaderSections,
                 false,
+                writeResult.CustomShaderInjection.GeneratedPresetOnly,
+                writeResult.CustomShaderInjection.SectionInjected,
+                writeResult.CustomShaderInjection.VariablesInjected,
+                writeResult.CustomShaderInjection.TechniqueInjected,
                 Array.Empty<CustomShaderSectionDiagnostic>(),
                 Array.Empty<CustomShaderVariableDiagnostic>(),
                 writtenVariables,
@@ -154,20 +174,32 @@ public static class CustomShaderBridgeDiagnosticsBuilder
     }
 
     private static void AppendConditionMessages(
-        bool supportEnabled,
+        Configuration configuration,
+        CustomShaderInjectionResult injection,
         IReadOnlyList<CustomShaderSectionDiagnostic> sections,
         IReadOnlyList<CustomShaderVariableDiagnostic> variables,
         IReadOnlyList<ChangedShaderVariable> writtenVariables,
         List<string> messages)
     {
-        if (!supportEnabled)
+        if (!configuration.EnableDalashadeCustomShaders)
         {
             messages.Add("Support disabled: enable Dalashade custom shader variables before generation can write SceneIntent values.");
         }
 
-        if (sections.Count == 0)
+        if (configuration.AutoInjectDalashadeCustomShaderSections)
+        {
+            messages.Add(injection.Attempted
+                ? injection.Message
+                : "Generated preset injection is enabled but has not run yet.");
+        }
+
+        if (sections.Count == 0 && !injection.SectionInjected)
         {
             messages.Add("Section missing: the base preset does not contain a Dalashade custom shader section.");
+        }
+        else if (sections.Count == 0 && injection.SectionInjected)
+        {
+            messages.Add("Base preset section missing, but Dalashade injected a known custom shader section into the generated preset only.");
         }
 
         if (sections.Any(section => section.ActivationState == TechniqueActivationState.Inactive))
@@ -180,7 +212,7 @@ public static class CustomShaderBridgeDiagnosticsBuilder
             messages.Add("Technique state unknown: Techniques= is missing or could not confirm activation.");
         }
 
-        if (sections.Count > 0 && variables.Count == 0)
+        if (sections.Count > 0 && variables.Count == 0 && !injection.VariablesInjected)
         {
             messages.Add("Variables missing: Dalashade custom shader section exists, but no known Dalashade_* variables were found.");
         }

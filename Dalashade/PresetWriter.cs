@@ -22,9 +22,23 @@ public sealed record PresetWriteResult(
     string Message,
     int ChangedVariables,
     IReadOnlyList<ChangedShaderVariable> Changes,
-    IReadOnlyList<SanitizedShaderVariable> SanitizeActions)
+    IReadOnlyList<SanitizedShaderVariable> SanitizeActions,
+    CustomShaderInjectionResult CustomShaderInjection)
 {
-    public static PresetWriteResult Skipped(string message) => new(false, message, 0, Array.Empty<ChangedShaderVariable>(), Array.Empty<SanitizedShaderVariable>());
+    public static PresetWriteResult Skipped(string message) => new(false, message, 0, Array.Empty<ChangedShaderVariable>(), Array.Empty<SanitizedShaderVariable>(), CustomShaderInjectionResult.Skipped);
+}
+
+public sealed record CustomShaderInjectionResult(
+    bool Attempted,
+    bool GeneratedPresetOnly,
+    bool SectionInjected,
+    bool VariablesInjected,
+    bool TechniqueInjected,
+    string Message,
+    IReadOnlyList<string> Sections,
+    IReadOnlyList<string> Variables)
+{
+    public static CustomShaderInjectionResult Skipped { get; } = new(false, false, false, false, false, "Custom shader section injection not attempted.", Array.Empty<string>(), Array.Empty<string>());
 }
 
 public sealed record ShaderSupportItem(string Section, string Key, bool Controllable, string ReasonCategory, TechniqueActivationState ActivationState);
@@ -36,6 +50,26 @@ public sealed record ShaderSupportScan(bool Success, string Message, IReadOnlyLi
 
 public sealed class PresetWriter
 {
+    private const string WeatherAtmosphereSection = "Dalashade_WeatherAtmosphere.fx";
+    private const string WeatherAtmosphereTechnique = "Dalashade_WeatherAtmosphere";
+    private const string WeatherAtmosphereTechniqueEntry = "Dalashade_WeatherAtmosphere@Dalashade_WeatherAtmosphere.fx";
+
+    private static readonly string[] WeatherAtmosphereVariables =
+    {
+        "Dalashade_Haze",
+        "Dalashade_Wetness",
+        "Dalashade_Cold",
+        "Dalashade_Heat",
+        "Dalashade_HighlightProtection",
+        "Dalashade_ShadowProtection",
+        "Dalashade_CombatPressure",
+        "Dalashade_Atmosphere",
+        "Dalashade_MagicGlow",
+        "Dalashade_NeonGlow",
+        "Dalashade_Readability",
+        "Dalashade_CinematicPermission"
+    };
+
     private readonly ShaderVariableMapper mapper = new();
     private readonly CustomShaderVariableMapper customMapper = new();
     private readonly PresetAnalyzer analyzer = new();
@@ -76,7 +110,8 @@ public sealed class PresetWriter
 
             Directory.CreateDirectory(generatedDirectory);
 
-            var lines = File.ReadAllLines(basePresetPath);
+            var lines = File.ReadAllLines(basePresetPath).ToList();
+            var injectionResult = InjectCustomShaderSections(configuration, lines);
             var analysis = analyzer.Analyze(configuration);
             var authorityPolicy = GenerationAuthorityPolicy.From(analysis, configuration.CompatibilityMode);
             var adjustments = mapper.CreateAdjustments(profile, configuration, authorityPolicy);
@@ -85,7 +120,7 @@ public sealed class PresetWriter
             var changes = new List<ChangedShaderVariable>();
             var currentSection = string.Empty;
 
-            for (var i = 0; i < lines.Length; i++)
+            for (var i = 0; i < lines.Count; i++)
             {
                 var line = lines[i];
                 if (TryReadSection(line, out var section))
@@ -150,7 +185,8 @@ public sealed class PresetWriter
                 }
             }
 
-            var sanitizeChanges = sanitizeActionPipeline.Apply(lines, configuration, activationMap, authorityPolicy);
+            var writableLines = lines.ToArray();
+            var sanitizeChanges = sanitizeActionPipeline.Apply(writableLines, configuration, activationMap, authorityPolicy);
 
             if (configuration.WriteBackups && File.Exists(generatedPresetPath))
             {
@@ -160,7 +196,7 @@ public sealed class PresetWriter
             }
 
             var tempPath = $"{generatedPresetPath}.tmp";
-            File.WriteAllLines(tempPath, lines);
+            File.WriteAllLines(tempPath, writableLines);
             ReplaceFile(tempPath, generatedPresetPath);
 
             var inactiveChanges = changes.Count(change => change.ActivationState == TechniqueActivationState.Inactive);
@@ -175,7 +211,12 @@ public sealed class PresetWriter
                 message += $" {inactiveChanges} inactive, {unknownChanges} unknown, {clampedChanges} clamped, {warningChanges} warning(s), {dampenedChanges} authority-dampened, {sanitizeChangeCount} sanitize action(s).";
             }
 
-            return new PresetWriteResult(true, message, changes.Count, changes, sanitizeChanges);
+            if (injectionResult.Attempted)
+            {
+                message += $" {injectionResult.Message}";
+            }
+
+            return new PresetWriteResult(true, message, changes.Count, changes, sanitizeChanges, injectionResult);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -302,6 +343,166 @@ public sealed class PresetWriter
         }
 
         return $"{first} {second}";
+    }
+
+    private static CustomShaderInjectionResult InjectCustomShaderSections(Configuration configuration, List<string> lines)
+    {
+        if (!configuration.EnableDalashadeCustomShaders || !configuration.AutoInjectDalashadeCustomShaderSections)
+        {
+            return CustomShaderInjectionResult.Skipped;
+        }
+
+        var sectionInjected = false;
+        var variablesInjected = false;
+        var techniqueInjected = false;
+        var injectedVariables = new List<string>();
+
+        if (!ContainsSection(lines, WeatherAtmosphereSection))
+        {
+            if (lines.Count > 0 && !string.IsNullOrWhiteSpace(lines[^1]))
+            {
+                lines.Add(string.Empty);
+            }
+
+            lines.Add($"[{WeatherAtmosphereSection}]");
+            foreach (var variable in WeatherAtmosphereVariables)
+            {
+                lines.Add($"{variable}=0.000000");
+                injectedVariables.Add(variable);
+            }
+
+            sectionInjected = true;
+            variablesInjected = injectedVariables.Count > 0;
+        }
+        else
+        {
+            var insertIndex = FindSectionEnd(lines, WeatherAtmosphereSection);
+            var existingVariables = ReadSectionKeys(lines, WeatherAtmosphereSection);
+            foreach (var variable in WeatherAtmosphereVariables)
+            {
+                if (existingVariables.Contains(variable))
+                {
+                    continue;
+                }
+
+                lines.Insert(insertIndex, $"{variable}=0.000000");
+                insertIndex++;
+                injectedVariables.Add(variable);
+            }
+
+            variablesInjected = injectedVariables.Count > 0;
+        }
+
+        techniqueInjected = TryInjectTechnique(lines);
+        var message = sectionInjected || variablesInjected || techniqueInjected
+            ? $"Custom shader injection: section={(sectionInjected ? "yes" : "no")}, variables={(variablesInjected ? "yes" : "no")}, technique={(techniqueInjected ? "yes" : "no")}, generated preset only=yes."
+            : "Custom shader injection: known generated preset sections and variables already present; generated preset only=yes.";
+
+        return new CustomShaderInjectionResult(
+            true,
+            true,
+            sectionInjected,
+            variablesInjected,
+            techniqueInjected,
+            message,
+            sectionInjected ? new[] { WeatherAtmosphereSection } : Array.Empty<string>(),
+            injectedVariables.ToArray());
+    }
+
+    private static bool ContainsSection(IEnumerable<string> lines, string section)
+    {
+        return lines.Any(line => TryReadSection(line, out var currentSection)
+                                 && string.Equals(currentSection, section, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static int FindSectionEnd(IReadOnlyList<string> lines, string section)
+    {
+        var inSection = false;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (TryReadSection(lines[i], out var currentSection))
+            {
+                if (inSection)
+                {
+                    return i;
+                }
+
+                inSection = string.Equals(currentSection, section, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        return lines.Count;
+    }
+
+    private static HashSet<string> ReadSectionKeys(IEnumerable<string> lines, string section)
+    {
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var inSection = false;
+        foreach (var line in lines)
+        {
+            if (TryReadSection(line, out var currentSection))
+            {
+                if (inSection && !string.Equals(currentSection, section, StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                inSection = string.Equals(currentSection, section, StringComparison.OrdinalIgnoreCase);
+                continue;
+            }
+
+            if (!inSection)
+            {
+                continue;
+            }
+
+            var separatorIndex = line.IndexOf('=');
+            if (separatorIndex > 0)
+            {
+                keys.Add(line[..separatorIndex].Trim());
+            }
+        }
+
+        return keys;
+    }
+
+    private static bool TryInjectTechnique(IList<string> lines)
+    {
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.TrimStart();
+            if (!trimmed.StartsWith("Techniques=", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var separatorIndex = line.IndexOf('=');
+            if (separatorIndex < 0)
+            {
+                return false;
+            }
+
+            var value = line[(separatorIndex + 1)..].Trim();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            var entries = value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (entries.Any(entry =>
+                    string.Equals(entry, WeatherAtmosphereTechniqueEntry, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(entry, WeatherAtmosphereSection, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(entry, WeatherAtmosphereTechnique, StringComparison.OrdinalIgnoreCase)))
+            {
+                return false;
+            }
+
+            lines[i] = $"{line[..(separatorIndex + 1)]}{value},{WeatherAtmosphereTechniqueEntry}";
+            return true;
+        }
+
+        return false;
     }
 
     private static bool TryReadSection(string line, out string section)

@@ -161,7 +161,7 @@ public sealed class ConfigWindow : Window, IDisposable
 
     private string ShaderMatchingSummary()
     {
-        return $"{configuration.ShaderMatchingMode}, inactive writes {configuration.InactiveShaderWriteMode}, custom shaders {(configuration.EnableDalashadeCustomShaders ? "on" : "off")}";
+        return $"{configuration.ShaderMatchingMode}, inactive writes {configuration.InactiveShaderWriteMode}, custom shaders {(configuration.EnableDalashadeCustomShaders ? "on" : "off")}, injection {(configuration.AutoInjectDalashadeCustomShaderSections ? "on" : "off")}";
     }
 
     private Vector4? ShaderMatchingWarningColor()
@@ -191,8 +191,9 @@ public sealed class ConfigWindow : Window, IDisposable
         }
 
         DrawCheckbox("Enable Dalashade custom shader variables", configuration.EnableDalashadeCustomShaders, value => configuration.EnableDalashadeCustomShaders = value);
-        ImGui.TextWrapped("Writes normalized SceneIntent variables only into Dalashade custom shader sections that already exist in the base preset.");
-        ImGui.TextWrapped("This does not install .fx shader files. Install Dalashade_WeatherAtmosphere.fx in ReShade separately, add it to a base preset, then Dalashade can update its Dalashade_* variables.");
+        DrawCheckbox("Auto-inject known Dalashade shader sections into generated preset", configuration.AutoInjectDalashadeCustomShaderSections, value => configuration.AutoInjectDalashadeCustomShaderSections = value);
+        ImGui.TextWrapped("When enabled with custom shader variables, Dalashade can add known Dalashade custom shader sections and variables to the generated preset only. The base preset is never modified.");
+        ImGui.TextWrapped("This does not install .fx shader files. Install Dalashade_WeatherAtmosphere.fx in ReShade separately so ReShade can compile the injected generated-preset section.");
     }
 
     private string ReShadeReloadSummary()
