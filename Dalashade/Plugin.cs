@@ -54,6 +54,7 @@ public sealed class Plugin : IDalamudPlugin
     public VisualProfile CurrentProfile { get; private set; } = VisualProfile.Neutral;
     public IReadOnlyList<AppliedRule> CurrentRules { get; private set; } = Array.Empty<AppliedRule>();
     public MasterStyleDiagnostics CurrentMasterStyleDiagnostics { get; private set; } = MasterStyleDiagnostics.FromUnavailable(new Configuration(), ImageAnalysisResult.Empty, ImageAnalysisResult.Empty, 0, "Master style has not run yet.");
+    public TagStackDiagnostics CurrentTagStackDiagnostics { get; private set; } = TagStackDiagnostics.Empty;
     public PresetWriteResult LastWriteResult { get; private set; } = PresetWriteResult.Skipped("No preset has been generated yet.");
     public ReloadResult LastReloadResult { get; private set; } = ReloadResult.Skipped("Shaders have not been reloaded yet.");
     public ShaderSupportScan LastShaderSupportScan { get; private set; } = ShaderSupportScan.Skipped("Shader support has not been scanned yet.");
@@ -122,6 +123,7 @@ public sealed class Plugin : IDalamudPlugin
         CurrentProfile = result.Profile;
         CurrentRules = result.Rules;
         CurrentMasterStyleDiagnostics = result.MasterStyleDiagnostics;
+        CurrentTagStackDiagnostics = result.TagStackDiagnostics;
         ScanPresetCompatibility();
         LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile);
         ReloadShadersIfNeeded();
@@ -157,6 +159,7 @@ public sealed class Plugin : IDalamudPlugin
             LastShaderSupportScan,
             CurrentProfile,
             CurrentMasterStyleDiagnostics,
+            CurrentTagStackDiagnostics,
             CurrentImageAnalysis,
             CurrentMasterStyle,
             LastWriteResult,
@@ -280,6 +283,7 @@ public sealed class Plugin : IDalamudPlugin
         CurrentProfile = result.Profile;
         CurrentRules = result.Rules;
         CurrentMasterStyleDiagnostics = result.MasterStyleDiagnostics;
+        CurrentTagStackDiagnostics = result.TagStackDiagnostics;
 
         if (Configuration.SceneLockEnabled)
         {

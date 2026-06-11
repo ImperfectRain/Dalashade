@@ -72,19 +72,27 @@ public sealed record SceneTags(
     bool IsDawnOrDusk,
     bool IsRain,
     bool IsFog,
+    bool IsCloudy,
+    bool IsOvercast,
+    bool IsGloom,
     bool IsSnow,
     bool IsStorm,
+    bool IsDustStorm,
+    bool IsHeatWave,
     bool IsClear,
     bool IsCityLike,
     bool IsDungeonLike,
     bool IsRaidLike,
     bool IsFieldLike,
     bool IsInteriorLike,
-    bool NeedsGameplayClarity,
+    bool NeedsCombatClarity,
+    bool NeedsDutyReadability,
     bool CinematicAllowed,
     string BiomeKey)
 {
-    public static SceneTags Empty { get; } = new(false, false, false, false, false, false, true, false, false, false, false, false, false, true, "unknown");
+    public static SceneTags Empty { get; } = new(false, false, false, false, false, false, false, false, false, false, false, true, false, false, false, false, false, false, false, true, "unknown");
+
+    public bool NeedsGameplayClarity => NeedsCombatClarity || NeedsDutyReadability;
 
     public string WeatherKey
     {
@@ -92,8 +100,13 @@ public sealed record SceneTags(
         {
             if (IsStorm) return "storm";
             if (IsSnow) return "snow";
+            if (IsDustStorm) return "dust";
+            if (IsHeatWave) return "heat";
             if (IsRain) return "rain";
+            if (IsGloom) return "gloom";
             if (IsFog) return "fog";
+            if (IsOvercast) return "overcast";
+            if (IsCloudy) return "clouds";
             return "clear";
         }
     }
@@ -114,55 +127,103 @@ public sealed record SceneTags(
 
 public static class SceneClassifier
 {
+    private sealed record BiomeKeywordRule(string Biome, string[] Keywords);
+
+    // Territory/content names come from Lumina/Dalamud when available. These rules
+    // use curated XIV names first and generic keyword fallbacks for future zones.
+    private static readonly BiomeKeywordRule[] BiomeRules =
+    {
+        new("highTech", new[] { "solution nine", "heritage found", "alexandria", "neon", "electrope" }),
+        new("lunar", new[] { "mare lamentorum", "moon", "lunar" }),
+        new("cosmic", new[] { "ultima thule", "cosmic", "star", "space" }),
+        new("lightFlooded", new[] { "the empty", "lightwarden", "sin eater", "light flooded", "light-flooded" }),
+        new("fae", new[] { "il mheg", "fae", "pixie", "voeburt", "dream" }),
+        new("imperial", new[] { "garlemald", "castrum", "imperial", "magitek", "factory", "steel", "ceruleum" }),
+        new("volcanic", new[] { "volcano", "lava", "ember", "embers" }),
+        new("underwater", new[] { "underwater", "ocean floor", "oceanfloor" }),
+        new("ancient", new[] { "amaurot", "allagan", "azys lla", "ruin", "ruins", "ancient" }),
+        new("aetherial", new[] { "elpis", "aether", "crystal", "lakeland", "crystarium" }),
+        new("snow", new[] { "snow", "ice", "frost", "glacier", "coerthas", "snowcloak" }),
+        new("alpine", new[] { "mountain", "alpine", "peak", "summit" }),
+        new("jungle", new[] { "jungle", "rainforest", "rak'tika", "rak'tika", "yak t'el", "kozama'uka" }),
+        new("forest", new[] { "forest", "shroud", "woods", "wood", "gridania", "sylph" }),
+        new("swamp", new[] { "swamp", "marsh", "bog", "fen" }),
+        new("steppe", new[] { "azim steppe", "steppe", "grassland", "grasslands" }),
+        new("desert", new[] { "desert", "thanalan", "sagolii", "amh araeng", "shaaloani" }),
+        new("wasteland", new[] { "badlands", "wasteland", "wastes" }),
+        new("cave", new[] { "cave", "cavern", "mine", "tunnel", "subterrane" }),
+        new("void", new[] { "void", "darkness", "abyss", "ascian" }),
+        new("tropical", new[] { "island", "tropical", "tuliyollal" }),
+        new("coastal", new[] { "ruby sea", "ocean", "beach", "sea", "limsa", "mist", "coast" }),
+        new("fire", new[] { "fire", "flame", "inferno" })
+    };
+
     public static SceneTags Classify(GameContext context)
     {
         var weather = context.WeatherName.ToLowerInvariant();
         var content = $"{context.ContentName} {context.ContentType}".ToLowerInvariant();
         var territory = context.TerritoryName.ToLowerInvariant();
 
-        var isRain = ContainsAny(weather, "rain", "showers");
-        var isFog = ContainsAny(weather, "fog", "gloom", "cloud", "overcast", "mist");
+        var isRain = ContainsAny(weather, "rain", "showers", "drizzle");
+        var isFog = ContainsAny(weather, "fog", "mist");
+        var isCloudy = ContainsAny(weather, "cloud");
+        var isOvercast = ContainsAny(weather, "overcast");
+        var isGloom = ContainsAny(weather, "gloom", "umbral", "darkness");
         var isSnow = ContainsAny(weather, "snow", "blizzard");
         var isStorm = ContainsAny(weather, "storm", "thunder", "gales");
+        var isDustStorm = ContainsAny(weather, "dust", "sandstorm", "sand storm", "dust storm");
+        var isHeatWave = ContainsAny(weather, "heat", "heat wave", "heatwave");
 
         var isDungeon = context.InDuty && ContainsAny(content, "dungeon", "deep dungeon", "variant", "criterion");
         var isRaid = context.InDuty && ContainsAny(content, "raid", "trial", "ultimate", "savage", "unreal");
         var isCity = context.InSanctuary && !context.InDuty;
         var isInterior = context.WorldCategory == WorldCategory.Interior || isDungeon || isRaid;
         var isField = !context.InDuty && !isCity && !isInterior;
-        var needsGameplayClarity = context.InCombat || context.InDuty;
-        var biome = InferBiome(territory, weather, content, isSnow, isFog);
+        var needsCombatClarity = context.InCombat;
+        var needsDutyReadability = context.InDuty && !context.InCombat;
+        var biome = InferBiome(territory, weather, content, isSnow, isFog, isCloudy || isOvercast || isGloom);
 
         return new SceneTags(
             context.TimeBucket == TimeBucket.Night,
             context.TimeBucket is TimeBucket.Dawn or TimeBucket.Dusk,
             isRain,
             isFog,
+            isCloudy,
+            isOvercast,
+            isGloom,
             isSnow,
             isStorm,
-            !isRain && !isFog && !isSnow && !isStorm,
+            isDustStorm,
+            isHeatWave,
+            !isRain && !isFog && !isCloudy && !isOvercast && !isGloom && !isSnow && !isStorm && !isDustStorm && !isHeatWave,
             isCity,
             isDungeon,
             isRaid,
             isField,
             isInterior,
-            needsGameplayClarity,
+            needsCombatClarity,
+            needsDutyReadability,
             !context.InCombat && (!context.InCutscene || context.InGpose),
             biome);
     }
 
-    private static string InferBiome(string territory, string weather, string content, bool isSnow, bool isFog)
+    private static string InferBiome(string territory, string weather, string content, bool isSnow, bool isFog, bool isCloudMood)
     {
         var text = $"{territory} {weather} {content}";
-        if (isSnow || ContainsAny(text, "snow", "ice", "frost", "glacier", "coerthas", "garlemald")) return "snow";
-        if (ContainsAny(text, "forest", "shroud", "woods", "jungle", "rak'tika", "yak t'el")) return "forest";
-        if (ContainsAny(text, "desert", "thanalan", "sagolii", "amh araeng")) return "desert";
-        if (ContainsAny(text, "cave", "cavern", "mine", "tunnel", "subterrane")) return "cave";
-        if (ContainsAny(text, "void", "darkness", "abyss", "ascian")) return "void";
-        if (ContainsAny(text, "aether", "crystal", "ultima thule", "elpis")) return "aetherial";
-        if (ContainsAny(text, "ocean", "beach", "sea", "limsa", "mist")) return "coastal";
-        if (ContainsAny(text, "fire", "lava", "volcano", "embers")) return "fire";
-        return isFog ? "overcast" : "neutral";
+        if (isSnow)
+        {
+            return "snow";
+        }
+
+        foreach (var rule in BiomeRules)
+        {
+            if (ContainsAny(text, rule.Keywords))
+            {
+                return rule.Biome;
+            }
+        }
+
+        return isFog || isCloudMood ? "overcast" : "neutral";
     }
 
     private static bool ContainsAny(string value, params string[] candidates)

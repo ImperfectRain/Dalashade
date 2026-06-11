@@ -11,15 +11,16 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
 5. `SceneClassifier.Classify()` converts `GameContext` into `SceneTags`.
 6. If enabled, `ImageAnalysisService.Refresh()` in `Dalashade/ImageAnalysis.cs` analyzes the latest screenshot.
 7. If enabled, `MasterStyleService.Refresh()` in `Dalashade/MasterStyle.cs` analyzes selected master style images.
-8. `ProfileEngine.CreateWithRules()` in `Dalashade/VisualProfile.cs` creates a `VisualProfile` and applied rules.
-9. If master style is available, `MasterStyleMatcher.Match()` in `Dalashade/MasterStyleMatcher.cs` returns deltas, diagnostics, rules, and color-family adjustments.
-10. `Plugin.ScanPresetCompatibility()` runs `PresetWriter.ScanSupportedVariables()` and `PresetAnalyzer.Analyze()`.
-11. `PresetWriter.WriteGeneratedPreset()` reads the base preset and creates shader adjustments from `ShaderVariableMapper.CreateAdjustments()`.
-12. `GenerationAuthorityPolicy.From()` dampens secondary authorities for selected compatibility modes.
-13. The writer edits only matching section/key lines, records `ChangedShaderVariable` entries, and applies `SanitizeActionPipeline` only when allowed by mode.
-14. If backups are enabled and the generated preset already exists, `PresetWriter` creates and prunes backups.
-15. `PresetWriter` writes a temporary file and replaces the generated preset path.
-16. `Plugin.ReloadShadersIfNeeded()` optionally calls `ReShadeController.ReloadAfterPresetWrite()`.
+8. `SceneIntent.From(...)` in `Dalashade/SceneIntent.cs` summarizes tags into stack-aware intent values.
+9. `ProfileEngine.CreateWithRules()` in `Dalashade/VisualProfile.cs` creates a `VisualProfile`, applied rules, and tag-stack diagnostics.
+10. If master style is available, `MasterStyleMatcher.Match()` in `Dalashade/MasterStyleMatcher.cs` returns deltas, diagnostics, rules, and color-family adjustments.
+11. `Plugin.ScanPresetCompatibility()` runs `PresetWriter.ScanSupportedVariables()` and `PresetAnalyzer.Analyze()`.
+12. `PresetWriter.WriteGeneratedPreset()` reads the base preset and creates shader adjustments from `ShaderVariableMapper.CreateAdjustments()`.
+13. `GenerationAuthorityPolicy.From()` dampens secondary authorities for selected compatibility modes.
+14. The writer edits only matching section/key lines, records `ChangedShaderVariable` entries, and applies `SanitizeActionPipeline` only when allowed by mode.
+15. If backups are enabled and the generated preset already exists, `PresetWriter` creates and prunes backups.
+16. `PresetWriter` writes a temporary file and replaces the generated preset path.
+17. `Plugin.ReloadShadersIfNeeded()` optionally calls `ReShadeController.ReloadAfterPresetWrite()`.
 
 ## Pipeline Ownership
 
@@ -29,6 +30,7 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
 | UI buttons | `Dalashade/Windows/MainWindow.cs`, `Dalashade/Windows/ConfigWindow.cs` |
 | Paths/config | `Dalashade/Configuration.cs`, `Plugin.InitializePresetFolders()`, `Plugin.ResolveEffectiveBasePresetPath()` |
 | Context and tags | `Dalashade/GameContext.cs` |
+| Scene intent and tag diagnostics | `Dalashade/SceneIntent.cs` |
 | Screenshot analysis | `Dalashade/ImageAnalysis.cs` |
 | Master image selection | `Dalashade/MasterStyle.cs` |
 | Master style deltas | `Dalashade/MasterStyleMatcher.cs` |

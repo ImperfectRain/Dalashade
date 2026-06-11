@@ -19,6 +19,7 @@ public sealed class CompatibilityReportExporter
         ShaderSupportScan shaderSupport,
         VisualProfile profile,
         MasterStyleDiagnostics masterDiagnostics,
+        TagStackDiagnostics tagStackDiagnostics,
         ImageAnalysisResult currentImage,
         ImageAnalysisResult masterStyle,
         PresetWriteResult writeResult,
@@ -40,7 +41,7 @@ public sealed class CompatibilityReportExporter
             var timestamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss");
             var path = Path.Combine(outputDirectory, $"{safePresetName}-compatibility-{timestamp}.md");
 
-            File.WriteAllText(path, BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, currentImage, masterStyle, writeResult, effectiveBasePresetPath), Encoding.UTF8);
+            File.WriteAllText(path, BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, tagStackDiagnostics, currentImage, masterStyle, writeResult, effectiveBasePresetPath), Encoding.UTF8);
             return new CompatibilityReportExportResult(true, $"Compatibility report exported: {path}", path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
@@ -55,6 +56,7 @@ public sealed class CompatibilityReportExporter
         ShaderSupportScan shaderSupport,
         VisualProfile profile,
         MasterStyleDiagnostics masterDiagnostics,
+        TagStackDiagnostics tagStackDiagnostics,
         ImageAnalysisResult currentImage,
         ImageAnalysisResult masterStyle,
         PresetWriteResult writeResult,
@@ -84,6 +86,7 @@ public sealed class CompatibilityReportExporter
         AppendAuthorities(builder, report.Authorities, authorityPolicy);
         AppendLines(builder, "Warnings", report.Warnings);
         AppendLines(builder, "Multiple Authority Warnings", report.MultipleAuthorityWarnings);
+        AppendTagStackDiagnostics(builder, tagStackDiagnostics);
         AppendMasterStyleDiagnostics(builder, configuration, masterDiagnostics);
         AppendColorFamilyAdjustments(builder, profile);
         AppendColorFamilyComparison(builder, currentImage, masterStyle, profile);
@@ -99,6 +102,59 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("- Unknown effects are active shaders Dalashade does not understand well enough yet.");
 
         return builder.ToString();
+    }
+
+    private static void AppendTagStackDiagnostics(StringBuilder builder, TagStackDiagnostics diagnostics)
+    {
+        builder.AppendLine("## Scene Tags And Stack Diagnostics");
+        builder.AppendLine();
+        builder.AppendLine($"- Weather key: {diagnostics.WeatherKey}");
+        builder.AppendLine($"- Biome key: {diagnostics.BiomeKey}");
+        builder.AppendLine($"- Area key: {diagnostics.AreaKey}");
+        builder.AppendLine($"- Combat: {diagnostics.InCombat}");
+        builder.AppendLine($"- Duty: {diagnostics.InDuty}");
+        builder.AppendLine($"- Cutscene: {diagnostics.InCutscene}");
+        builder.AppendLine($"- GPose: {diagnostics.InGpose}");
+        builder.AppendLine($"- Active tags: {(diagnostics.ActiveTags.Count == 0 ? "none" : string.Join(", ", diagnostics.ActiveTags))}");
+        builder.AppendLine();
+        builder.AppendLine("### Scene Intent");
+        builder.AppendLine();
+        builder.AppendLine($"- Readability: {diagnostics.Intent.Readability:0.###}");
+        builder.AppendLine($"- Atmosphere: {diagnostics.Intent.Atmosphere:0.###}");
+        builder.AppendLine($"- Highlight protection: {diagnostics.Intent.HighlightProtection:0.###}");
+        builder.AppendLine($"- Shadow protection: {diagnostics.Intent.ShadowProtection:0.###}");
+        builder.AppendLine($"- Haze: {diagnostics.Intent.Haze:0.###}");
+        builder.AppendLine($"- Wetness: {diagnostics.Intent.Wetness:0.###}");
+        builder.AppendLine($"- Cold: {diagnostics.Intent.Cold:0.###}");
+        builder.AppendLine($"- Heat: {diagnostics.Intent.Heat:0.###}");
+        builder.AppendLine($"- Specular risk: {diagnostics.Intent.SpecularRisk:0.###}");
+        builder.AppendLine($"- Foliage density: {diagnostics.Intent.FoliageDensity:0.###}");
+        builder.AppendLine($"- Neon glow: {diagnostics.Intent.NeonGlow:0.###}");
+        builder.AppendLine($"- Magic glow: {diagnostics.Intent.MagicGlow:0.###}");
+        builder.AppendLine($"- Cinematic permission: {diagnostics.Intent.CinematicPermission:0.###}");
+        builder.AppendLine($"- Combat pressure: {diagnostics.Intent.CombatPressure:0.###}");
+        builder.AppendLine();
+        builder.AppendLine("### Stack Budget Contributions");
+        builder.AppendLine();
+        if (diagnostics.Contributions.Count == 0)
+        {
+            builder.AppendLine("- None");
+            builder.AppendLine();
+            return;
+        }
+
+        foreach (var contribution in diagnostics.Contributions)
+        {
+            var flags = contribution.BudgetApplied ? "budget applied" : "informational";
+            if (contribution.Dampened)
+            {
+                flags += ", dampened";
+            }
+
+            builder.AppendLine($"- {contribution.Variable}: {contribution.Source} {contribution.Change} | {contribution.Before:0.###} -> {contribution.After:0.###} | {flags}");
+        }
+
+        builder.AppendLine();
     }
 
     private static void AppendColorFamilyComparison(StringBuilder builder, ImageAnalysisResult currentImage, ImageAnalysisResult masterStyle, VisualProfile profile)

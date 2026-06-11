@@ -10,6 +10,7 @@ This page documents how Dalashade reports preset compatibility and generation di
 | `Dalashade/CompatibilityReportExporter.cs` | Markdown compatibility report export. |
 | `Dalashade/PresetRegressionReportHarness.cs` | Batch preset regression report generation. |
 | `Dalashade/ShaderSupportScanner.cs` | Scans supported shader variables for the selected preset. |
+| `Dalashade/SceneIntent.cs` | Provides scene intent and tag-stack diagnostics. |
 | `Dalashade/Windows/MainWindow.cs` | Runtime status, changed variables, sanitize actions, applied rules, diagnostics. |
 | `Dalashade/Windows/ConfigWindow.cs` | Scan/export/report commands and settings. |
 
@@ -103,6 +104,7 @@ The main window includes sections for:
 | Changed Variables | Written shader variable changes. |
 | Sanitize Actions | Gameplay sanitize changes. |
 | Applied Rules | Profile generation rules. |
+| Scene Tags | Weather, biome, area, intent values, and stack-budget contributions. |
 | Screenshot Analysis | Current screenshot stats. |
 | Master Style | Master style diagnostics. |
 | Regression Reports | Last regression run status. |

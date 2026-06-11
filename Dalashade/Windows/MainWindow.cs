@@ -42,6 +42,7 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.Spacing();
 
         UiSection.Draw("MainCurrentStatus", "Current Status", true, CurrentStatusSummary(), DrawCurrentStatus);
+        UiSection.Draw("MainSceneTags", "Scene Tags", true, SceneTagsSummary(), DrawSceneTags);
         UiSection.Draw("MainBasePreset", "Base Preset", true, BasePresetSummary(), DrawBasePreset, BasePresetWarningColor());
         UiSection.Draw("MainGeneration", "Generation", true, GenerationSummary(), DrawGeneration, GenerationWarningColor());
         UiSection.Draw("MainReShadeReload", "ReShade Reload", true, ReShadeReloadSummary(), DrawReShadeReload, ReShadeReloadWarningColor());
@@ -78,7 +79,66 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"GPose: {context.InGpose}");
         ImGui.TextUnformatted($"Cutscene: {context.InCutscene}");
         ImGui.TextUnformatted($"Scene Lock: {plugin.Configuration.SceneLockEnabled}");
-        ImGui.TextUnformatted($"Scene Tags: {tags.AreaKey}, {tags.BiomeKey}, clarity={tags.NeedsGameplayClarity}, cinematic={tags.CinematicAllowed}");
+        ImGui.TextUnformatted($"Scene Tags: {tags.AreaKey}, {tags.BiomeKey}, combat={tags.NeedsCombatClarity}, duty={tags.NeedsDutyReadability}, cinematic={tags.CinematicAllowed}");
+    }
+
+    private string SceneTagsSummary()
+    {
+        var diagnostics = plugin.CurrentTagStackDiagnostics;
+        return $"{diagnostics.WeatherKey}, {diagnostics.BiomeKey}, {diagnostics.Contributions.Count} budget actions";
+    }
+
+    private void DrawSceneTags()
+    {
+        var diagnostics = plugin.CurrentTagStackDiagnostics;
+        ImGui.TextUnformatted($"Weather key: {diagnostics.WeatherKey}");
+        ImGui.TextUnformatted($"Biome key: {diagnostics.BiomeKey}");
+        ImGui.TextUnformatted($"Area key: {diagnostics.AreaKey}");
+        ImGui.TextUnformatted($"Combat: {diagnostics.InCombat}");
+        ImGui.TextUnformatted($"Duty: {diagnostics.InDuty}");
+        ImGui.TextUnformatted($"Cutscene: {diagnostics.InCutscene}");
+        ImGui.TextUnformatted($"GPose: {diagnostics.InGpose}");
+        ImGui.TextWrapped($"Active tags: {(diagnostics.ActiveTags.Count == 0 ? "none" : string.Join(", ", diagnostics.ActiveTags))}");
+
+        if (ImGui.TreeNode("Scene intent###MainSceneIntent"))
+        {
+            ImGui.TextUnformatted($"Readability: {diagnostics.Intent.Readability:0.###}");
+            ImGui.TextUnformatted($"Atmosphere: {diagnostics.Intent.Atmosphere:0.###}");
+            ImGui.TextUnformatted($"Highlight Protection: {diagnostics.Intent.HighlightProtection:0.###}");
+            ImGui.TextUnformatted($"Shadow Protection: {diagnostics.Intent.ShadowProtection:0.###}");
+            ImGui.TextUnformatted($"Haze: {diagnostics.Intent.Haze:0.###}");
+            ImGui.TextUnformatted($"Wetness: {diagnostics.Intent.Wetness:0.###}");
+            ImGui.TextUnformatted($"Cold: {diagnostics.Intent.Cold:0.###}");
+            ImGui.TextUnformatted($"Heat: {diagnostics.Intent.Heat:0.###}");
+            ImGui.TextUnformatted($"Specular Risk: {diagnostics.Intent.SpecularRisk:0.###}");
+            ImGui.TextUnformatted($"Foliage Density: {diagnostics.Intent.FoliageDensity:0.###}");
+            ImGui.TextUnformatted($"Neon Glow: {diagnostics.Intent.NeonGlow:0.###}");
+            ImGui.TextUnformatted($"Magic Glow: {diagnostics.Intent.MagicGlow:0.###}");
+            ImGui.TextUnformatted($"Cinematic Permission: {diagnostics.Intent.CinematicPermission:0.###}");
+            ImGui.TextUnformatted($"Combat Pressure: {diagnostics.Intent.CombatPressure:0.###}");
+            ImGui.TreePop();
+        }
+
+        if (ImGui.TreeNode("Stack budget contributions###MainSceneStackContributions"))
+        {
+            if (diagnostics.Contributions.Count == 0)
+            {
+                ImGui.TextUnformatted("No stack budget actions applied.");
+            }
+
+            foreach (var contribution in diagnostics.Contributions)
+            {
+                var flags = contribution.BudgetApplied ? "budget" : "info";
+                if (contribution.Dampened)
+                {
+                    flags += ", dampened";
+                }
+
+                ImGui.BulletText($"{contribution.Variable}: {contribution.Before:0.###} -> {contribution.After:0.###} ({contribution.Source}, {contribution.Change}, {flags})");
+            }
+
+            ImGui.TreePop();
+        }
     }
 
     private string BasePresetSummary()
