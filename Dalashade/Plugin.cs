@@ -114,6 +114,7 @@ public sealed class Plugin : IDalamudPlugin
 
     public PresetWriteResult GenerateNow()
     {
+        ResolveEffectiveBasePresetPath(true);
         contextService.Refresh();
         imageAnalysisService.Refresh(Configuration, true);
         masterStyleService.Refresh(Configuration, CurrentImageAnalysis, true);
@@ -137,6 +138,7 @@ public sealed class Plugin : IDalamudPlugin
 
     public PresetAnalysisResult ScanPresetCompatibility()
     {
+        ResolveEffectiveBasePresetPath(true);
         LastShaderSupportScan = presetWriter.ScanSupportedVariables(Configuration);
         LastPresetAnalysis = presetAnalyzer.Analyze(Configuration);
         return LastPresetAnalysis;
@@ -158,6 +160,7 @@ public sealed class Plugin : IDalamudPlugin
             CurrentImageAnalysis,
             CurrentMasterStyle,
             LastWriteResult,
+            ResolveEffectiveBasePresetPath(true),
             CompatibilityReportDirectory);
         return LastCompatibilityReportExport;
     }
@@ -398,6 +401,24 @@ public sealed class Plugin : IDalamudPlugin
         {
             Configuration.Save();
         }
+    }
+
+    private string ResolveEffectiveBasePresetPath(bool updateConfiguration)
+    {
+        var effectivePath = Configuration.BasePresetPath;
+        if (Configuration.UseBasePresetFolder && !string.IsNullOrWhiteSpace(Configuration.SelectedBasePresetFileName))
+        {
+            var selectedPath = Path.Combine(Configuration.BasePresetFolderPath, Configuration.SelectedBasePresetFileName);
+            effectivePath = selectedPath;
+            if (!string.Equals(Configuration.BasePresetPath, selectedPath, StringComparison.OrdinalIgnoreCase)
+                && updateConfiguration)
+            {
+                Configuration.BasePresetPath = selectedPath;
+                Configuration.Save();
+            }
+        }
+
+        return effectivePath;
     }
 
     private void ReloadShadersIfNeeded()

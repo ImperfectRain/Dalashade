@@ -22,6 +22,7 @@ public sealed class CompatibilityReportExporter
         ImageAnalysisResult currentImage,
         ImageAnalysisResult masterStyle,
         PresetWriteResult writeResult,
+        string effectiveBasePresetPath,
         string outputDirectory)
     {
         try
@@ -32,14 +33,14 @@ public sealed class CompatibilityReportExporter
             }
 
             Directory.CreateDirectory(outputDirectory);
-            var presetName = string.IsNullOrWhiteSpace(configuration.BasePresetPath)
+            var presetName = string.IsNullOrWhiteSpace(effectiveBasePresetPath)
                 ? "UnknownPreset"
-                : Path.GetFileNameWithoutExtension(configuration.BasePresetPath);
+                : Path.GetFileNameWithoutExtension(effectiveBasePresetPath);
             var safePresetName = MakeSafeFileName(presetName);
             var timestamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss");
             var path = Path.Combine(outputDirectory, $"{safePresetName}-compatibility-{timestamp}.md");
 
-            File.WriteAllText(path, BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, currentImage, masterStyle, writeResult), Encoding.UTF8);
+            File.WriteAllText(path, BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, currentImage, masterStyle, writeResult, effectiveBasePresetPath), Encoding.UTF8);
             return new CompatibilityReportExportResult(true, $"Compatibility report exported: {path}", path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
@@ -56,7 +57,8 @@ public sealed class CompatibilityReportExporter
         MasterStyleDiagnostics masterDiagnostics,
         ImageAnalysisResult currentImage,
         ImageAnalysisResult masterStyle,
-        PresetWriteResult writeResult)
+        PresetWriteResult writeResult,
+        string effectiveBasePresetPath)
     {
         var report = analysis.Report;
         var builder = new StringBuilder();
@@ -64,7 +66,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("# Dalashade Compatibility Report");
         builder.AppendLine();
         builder.AppendLine($"Generated: {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}");
-        builder.AppendLine($"Base preset: `{configuration.BasePresetPath}`");
+        builder.AppendLine($"Base preset: `{effectiveBasePresetPath}`");
         builder.AppendLine($"Generated preset: `{configuration.GeneratedPresetPath}`");
         builder.AppendLine($"Selected compatibility mode: {PresetAnalyzer.FormatCompatibilityMode(configuration.CompatibilityMode)}");
         builder.AppendLine($"Recommended compatibility mode: {PresetAnalyzer.FormatCompatibilityMode(report.RecommendedCompatibilityMode)}");
@@ -85,7 +87,7 @@ public sealed class CompatibilityReportExporter
         AppendMasterStyleDiagnostics(builder, configuration, masterDiagnostics);
         AppendColorFamilyAdjustments(builder, profile);
         AppendColorFamilyComparison(builder, currentImage, masterStyle, profile);
-        AppendMappingValidation(builder, configuration, analysis, shaderSupport);
+        AppendMappingValidation(builder, configuration, analysis, shaderSupport, effectiveBasePresetPath);
         AppendShaderSupport(builder, shaderSupport);
         AppendChangedVariables(builder, writeResult);
         AppendSanitizeActions(builder, writeResult);
@@ -278,7 +280,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine();
     }
 
-    private static void AppendMappingValidation(StringBuilder builder, Configuration configuration, PresetAnalysisResult analysis, ShaderSupportScan shaderSupport)
+    private static void AppendMappingValidation(StringBuilder builder, Configuration configuration, PresetAnalysisResult analysis, ShaderSupportScan shaderSupport, string effectiveBasePresetPath)
     {
         builder.AppendLine("## Mapping Validation");
         builder.AppendLine();
@@ -303,7 +305,13 @@ public sealed class CompatibilityReportExporter
                 group => group.Key,
                 group => group.Select(definition => definition.Key).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToArray(),
                 StringComparer.OrdinalIgnoreCase);
-        var presetKeys = ReadPresetKeys(configuration.BasePresetPath);
+        var presetKeys = ReadPresetKeys(effectiveBasePresetPath, out var keyScanWarning);
+        if (!string.IsNullOrWhiteSpace(keyScanWarning))
+        {
+            builder.AppendLine($"- {keyScanWarning}");
+            builder.AppendLine();
+        }
+
         var mappedBySection = shaderSupport.Items
             .GroupBy(item => item.Section, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
@@ -343,11 +351,13 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine();
     }
 
-    private static IReadOnlyDictionary<string, IReadOnlyList<string>> ReadPresetKeys(string path)
+    private static IReadOnlyDictionary<string, IReadOnlyList<string>> ReadPresetKeys(string path, out string? warning)
     {
+        warning = null;
         var result = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
+            warning = "Preset key scan unavailable: base preset path not found.";
             return new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         }
 
