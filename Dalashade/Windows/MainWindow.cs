@@ -577,6 +577,8 @@ public sealed class MainWindow : Window, IDisposable
         DrawSetupItem("Shader variables detected", plugin.LastShaderSupportScan.Items.Count > 0);
         DrawSetupItem("Generated at least once", plugin.LastWriteResult.Success);
         DrawSetupItem("Reload attempted", plugin.LastReloadResult.Success);
+        ImGui.TextUnformatted($"Dalashade custom shader support: {(plugin.Configuration.EnableDalashadeCustomShaders ? "enabled" : "disabled")}");
+        DrawCustomShaderDiagnostics();
         ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
         ImGui.TextWrapped("Dalashade only edits variables that already exist in the preset. Keep iMMERSE and any Pro/Ultimate shaders installed through ReShade; this plugin does not ship those files.");
 
@@ -590,6 +592,58 @@ public sealed class MainWindow : Window, IDisposable
 
             ImGui.TreePop();
         }
+    }
+
+    private void DrawCustomShaderDiagnostics()
+    {
+        var customItems = plugin.LastShaderSupportScan.Items
+            .Where(item => string.Equals(item.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(item => item.Section, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var customChanges = plugin.LastWriteResult.Changes
+            .Where(change => string.Equals(change.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var customSections = plugin.LastPresetAnalysis.Techniques
+            .Select(technique => technique.Section)
+            .Where(CustomShaderVariableMapper.IsCustomShaderSection)
+            .Concat(customItems.Select(item => item.Section))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(section => section, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (!ImGui.TreeNode("Dalashade custom shaders###MainCustomShaderDiagnostics"))
+        {
+            return;
+        }
+
+        if (customSections.Length == 0)
+        {
+            ImGui.TextUnformatted("No Dalashade custom shader sections detected in the current base preset.");
+        }
+        else
+        {
+            foreach (var section in customSections)
+            {
+                ImGui.BulletText($"Section: {section}");
+            }
+        }
+
+        if (customChanges.Length == 0)
+        {
+            ImGui.TextUnformatted("No Dalashade custom shader variables written yet.");
+        }
+        else
+        {
+            foreach (var change in customChanges)
+            {
+                ImGui.BulletText($"{change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue}");
+            }
+        }
+
+        ImGui.TreePop();
     }
 
     private static void DrawTechniqueTree(string title, params IReadOnlyList<PresetTechnique>[] groups)

@@ -20,6 +20,7 @@ These docs are for users who want to understand what Dalashade is doing, maintai
 | Territory, weather, time, combat tags | [SceneTagsAndIntent.md](SceneTagsAndIntent.md) |
 | Generated preset write behavior | [PresetWriting.md](PresetWriting.md) |
 | Shader support and mappings | [ShaderMapping.md](ShaderMapping.md) |
+| Custom shader authoring scaffold | [ShaderAuthoring.md](ShaderAuthoring.md) |
 | Master style matching | [MasterStyle.md](MasterStyle.md) |
 | Compatibility reports and diagnostics | [CompatibilityAndDiagnostics.md](CompatibilityAndDiagnostics.md) |
 | ReShade reload behavior | [ReShadeReload.md](ReShadeReload.md) |

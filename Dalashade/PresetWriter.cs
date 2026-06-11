@@ -37,10 +37,11 @@ public sealed record ShaderSupportScan(bool Success, string Message, IReadOnlyLi
 public sealed class PresetWriter
 {
     private readonly ShaderVariableMapper mapper = new();
+    private readonly CustomShaderVariableMapper customMapper = new();
     private readonly PresetAnalyzer analyzer = new();
     private readonly SanitizeActionPipeline sanitizeActionPipeline = new();
 
-    public PresetWriteResult WriteGeneratedPreset(Configuration configuration, VisualProfile profile)
+    public PresetWriteResult WriteGeneratedPreset(Configuration configuration, VisualProfile profile, SceneIntent? sceneIntent = null)
     {
         try
         {
@@ -79,6 +80,7 @@ public sealed class PresetWriter
             var analysis = analyzer.Analyze(configuration);
             var authorityPolicy = GenerationAuthorityPolicy.From(analysis, configuration.CompatibilityMode);
             var adjustments = mapper.CreateAdjustments(profile, configuration, authorityPolicy);
+            sceneIntent ??= SceneIntent.Neutral;
             var activationMap = PresetAnalyzer.ParseTechniqueActivationMap(lines);
             var changes = new List<ChangedShaderVariable>();
             var currentSection = string.Empty;
@@ -99,7 +101,8 @@ public sealed class PresetWriter
                 }
 
                 var key = line[..separatorIndex].Trim();
-                if (!TryGetAdjustment(adjustments, configuration.ShaderMatchingMode, currentSection, key, out var adjust))
+                if (!TryGetAdjustment(adjustments, configuration.ShaderMatchingMode, currentSection, key, out var adjust)
+                    && !customMapper.TryGetAdjustment(configuration, currentSection, key, sceneIntent, out adjust))
                 {
                     continue;
                 }
@@ -221,7 +224,8 @@ public sealed class PresetWriter
                 }
 
                 var key = line[..separatorIndex].Trim();
-                if (!TryGetAdjustment(adjustments, configuration.ShaderMatchingMode, currentSection, key, out var adjust))
+                if (!TryGetAdjustment(adjustments, configuration.ShaderMatchingMode, currentSection, key, out var adjust)
+                    && !customMapper.TryGetAdjustment(configuration, currentSection, key, SceneIntent.Neutral, out adjust))
                 {
                     continue;
                 }

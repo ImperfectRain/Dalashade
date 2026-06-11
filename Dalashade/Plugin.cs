@@ -125,7 +125,7 @@ public sealed class Plugin : IDalamudPlugin
         CurrentMasterStyleDiagnostics = result.MasterStyleDiagnostics;
         CurrentTagStackDiagnostics = result.TagStackDiagnostics;
         ScanPresetCompatibility();
-        LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile);
+        LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile, CurrentTagStackDiagnostics.Intent);
         ReloadShadersIfNeeded();
         lastProfileKey = CreateProfileKey();
         lastWrite = DateTimeOffset.UtcNow;
@@ -302,7 +302,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
-        LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile);
+        LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile, CurrentTagStackDiagnostics.Intent);
         if (LastWriteResult.Success)
         {
             ScanPresetCompatibility();
@@ -340,6 +340,7 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.GeneratedPresetPath,
             Configuration.ReShadeIniPath,
             Configuration.UsePremiumImmerseEffects,
+            Configuration.EnableDalashadeCustomShaders,
             Configuration.CompatibilityMode,
             Configuration.ShaderMatchingMode,
             Configuration.InactiveShaderWriteMode,

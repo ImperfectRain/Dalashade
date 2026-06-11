@@ -91,6 +91,7 @@ public sealed class CompatibilityReportExporter
         AppendColorFamilyAdjustments(builder, profile);
         AppendColorFamilyComparison(builder, currentImage, masterStyle, profile);
         AppendMappingValidation(builder, configuration, analysis, shaderSupport, effectiveBasePresetPath);
+        AppendCustomShaderDiagnostics(builder, configuration, analysis, shaderSupport, writeResult);
         AppendShaderSupport(builder, shaderSupport);
         AppendChangedVariables(builder, writeResult);
         AppendSanitizeActions(builder, writeResult);
@@ -102,6 +103,58 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("- Unknown effects are active shaders Dalashade does not understand well enough yet.");
 
         return builder.ToString();
+    }
+
+    private static void AppendCustomShaderDiagnostics(StringBuilder builder, Configuration configuration, PresetAnalysisResult analysis, ShaderSupportScan shaderSupport, PresetWriteResult writeResult)
+    {
+        builder.AppendLine("## Dalashade Custom Shader Diagnostics");
+        builder.AppendLine();
+        builder.AppendLine($"- Custom shader support: {(configuration.EnableDalashadeCustomShaders ? "enabled" : "disabled")}");
+        var customItems = shaderSupport.Items
+            .Where(item => string.Equals(item.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(item => item.Section, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var customChanges = writeResult.Changes
+            .Where(change => string.Equals(change.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var customSections = analysis.Techniques
+            .Select(technique => technique.Section)
+            .Where(CustomShaderVariableMapper.IsCustomShaderSection)
+            .Concat(customItems.Select(item => item.Section))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(section => section, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        builder.AppendLine("- Custom shader sections found:");
+        if (customSections.Length == 0)
+        {
+            builder.AppendLine("  - None");
+        }
+        else
+        {
+            foreach (var section in customSections)
+            {
+                builder.AppendLine($"  - `{section}`");
+            }
+        }
+
+        builder.AppendLine("- Custom shader variables written:");
+        if (customChanges.Length == 0)
+        {
+            builder.AppendLine("  - None");
+        }
+        else
+        {
+            foreach (var change in customChanges)
+            {
+                builder.AppendLine($"  - `{change.Section}` / `{change.Key}`: {change.OldValue} -> {change.NewValue}");
+            }
+        }
+
+        builder.AppendLine();
     }
 
     private static void AppendTagStackDiagnostics(StringBuilder builder, TagStackDiagnostics diagnostics)

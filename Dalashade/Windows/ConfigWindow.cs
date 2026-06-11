@@ -161,7 +161,7 @@ public sealed class ConfigWindow : Window, IDisposable
 
     private string ShaderMatchingSummary()
     {
-        return $"{configuration.ShaderMatchingMode}, inactive writes {configuration.InactiveShaderWriteMode}";
+        return $"{configuration.ShaderMatchingMode}, inactive writes {configuration.InactiveShaderWriteMode}, custom shaders {(configuration.EnableDalashadeCustomShaders ? "on" : "off")}";
     }
 
     private Vector4? ShaderMatchingWarningColor()
@@ -189,6 +189,9 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.InactiveShaderWriteMode = (InactiveShaderWriteMode)inactiveWriteMode;
             configuration.Save();
         }
+
+        DrawCheckbox("Enable Dalashade custom shader variables", configuration.EnableDalashadeCustomShaders, value => configuration.EnableDalashadeCustomShaders = value);
+        ImGui.TextWrapped("Writes normalized SceneIntent variables only into Dalashade custom shader sections that already exist in the base preset.");
     }
 
     private string ReShadeReloadSummary()

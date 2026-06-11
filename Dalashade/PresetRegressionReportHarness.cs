@@ -90,6 +90,7 @@ public sealed class PresetRegressionReportHarness
             BasePresetPath = presetPath,
             GeneratedPresetPath = Path.Combine(generatedDirectory, $"{Guid.NewGuid():N}.ini"),
             UsePremiumImmerseEffects = source.UsePremiumImmerseEffects,
+            EnableDalashadeCustomShaders = source.EnableDalashadeCustomShaders,
             CompatibilityMode = source.CompatibilityMode,
             ShaderMatchingMode = source.ShaderMatchingMode,
             InactiveShaderWriteMode = source.InactiveShaderWriteMode,
