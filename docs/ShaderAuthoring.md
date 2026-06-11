@@ -91,6 +91,16 @@ Dalashade_CombatPressure=0.000000
 Dalashade_CinematicPermission=0.000000
 ```
 
+## Regression Fixture
+
+A developer fixture exists at:
+
+`test-presets/custom-shader-fixtures/DalashadeWeatherAtmosphere.ini`
+
+It is not a user default preset. It exists so the preset regression harness can verify that `CustomShaderVariableMapper` detects the `Dalashade_WeatherAtmosphere.fx` section and writes SceneIntent variables when `EnableDalashadeCustomShaders` is enabled.
+
+Regression reports include a custom shader section showing detected Dalashade shader sections, detected custom variables, changed custom variables, and the synthetic SceneIntent values used for the simulation.
+
 ## Where To Edit
 
 | Task | File |

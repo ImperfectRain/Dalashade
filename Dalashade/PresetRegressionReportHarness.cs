@@ -51,12 +51,13 @@ public sealed class PresetRegressionReportHarness
             Directory.CreateDirectory(generatedDirectory);
 
             var summaries = new List<PresetRegressionSummary>();
+            var sceneIntent = CreateRegressionSceneIntent();
             foreach (var presetPath in presets)
             {
                 var presetConfiguration = CreatePresetConfiguration(configuration, presetPath, generatedDirectory);
                 var analysis = analyzer.Analyze(presetConfiguration);
                 var support = writer.ScanSupportedVariables(presetConfiguration);
-                var writeResult = writer.WriteGeneratedPreset(presetConfiguration, profile);
+                var writeResult = writer.WriteGeneratedPreset(presetConfiguration, profile, sceneIntent);
                 TryDelete(presetConfiguration.GeneratedPresetPath);
 
                 var summary = PresetRegressionSummary.From(presetPath, presetFolder, presetConfiguration.CompatibilityMode, analysis, support, writeResult);
@@ -64,7 +65,7 @@ public sealed class PresetRegressionReportHarness
 
                 var reportName = MakeSafeFileName(Path.GetRelativePath(presetFolder, presetPath));
                 var reportPath = CreateUniqueReportPath(outputDirectory, Path.GetFileNameWithoutExtension(reportName));
-                File.WriteAllText(reportPath, BuildPresetReport(summary, analysis, support, profile, writeResult), Encoding.UTF8);
+                File.WriteAllText(reportPath, BuildPresetReport(summary, analysis, support, profile, writeResult, sceneIntent), Encoding.UTF8);
             }
 
             File.WriteAllText(Path.Combine(outputDirectory, "index.md"), BuildIndexReport(configuration, presetFolder, summaries), Encoding.UTF8);
@@ -100,12 +101,38 @@ public sealed class PresetRegressionReportHarness
         };
     }
 
+    private static SceneIntent CreateRegressionSceneIntent()
+    {
+        return new SceneIntent(
+            0.62f,
+            0.48f,
+            0.71f,
+            0.38f,
+            0.57f,
+            0.42f,
+            0.29f,
+            0.18f,
+            0.22f,
+            0.33f,
+            0.27f,
+            0.16f,
+            0.11f,
+            0.52f,
+            0.44f,
+            new[]
+            {
+                new SceneIntentContribution("Regression harness", nameof(SceneIntent.Readability), 0.62f, "Synthetic intent used to verify custom shader variable writes."),
+                new SceneIntentContribution("Regression harness", nameof(SceneIntent.HighlightProtection), 0.71f, "Synthetic intent used to verify custom shader variable writes.")
+            });
+    }
+
     private static string BuildPresetReport(
         PresetRegressionSummary summary,
         PresetAnalysisResult analysis,
         ShaderSupportScan support,
         VisualProfile profile,
-        PresetWriteResult writeResult)
+        PresetWriteResult writeResult,
+        SceneIntent sceneIntent)
     {
         var builder = new StringBuilder();
         builder.AppendLine($"# {summary.RelativePath}");
@@ -118,6 +145,9 @@ public sealed class PresetRegressionReportHarness
         builder.AppendLine($"Clamped variable count: {summary.ClampedVariableCount}");
         builder.AppendLine($"Warning count: {summary.WarningCount}");
         builder.AppendLine($"Sanitize action count: {summary.SanitizeActionCount}");
+        builder.AppendLine($"Custom shader sections detected: {summary.CustomShaderSectionCount}");
+        builder.AppendLine($"Custom shader variables detected: {summary.CustomShaderVariableCount}");
+        builder.AppendLine($"Custom shader variables changed: {summary.CustomShaderChangedVariableCount}");
         builder.AppendLine();
 
         AppendTechniqueGroup(builder, "Active controlled effects", analysis.Report.ActiveSupportedEffects);
@@ -126,6 +156,7 @@ public sealed class PresetRegressionReportHarness
         AppendTechniqueGroup(builder, "Active unsupported effects", analysis.Report.ActiveUnsupportedEffects);
         AppendAuthorities(builder, analysis.Report.Authorities);
         AppendColorFamilyAdjustments(builder, profile);
+        AppendCustomShaderRegression(builder, analysis, support, writeResult, sceneIntent);
 
         builder.AppendLine("## Scan Messages");
         builder.AppendLine();
@@ -167,12 +198,12 @@ public sealed class PresetRegressionReportHarness
         builder.AppendLine($"Selected compatibility mode: {PresetAnalyzer.FormatCompatibilityMode(configuration.CompatibilityMode)}");
         builder.AppendLine($"Preset count: {summaries.Count}");
         builder.AppendLine();
-        builder.AppendLine("| Preset | Risk | Recommended | Changed | Clamped | Warnings | Sanitize |");
-        builder.AppendLine("| --- | --- | --- | ---: | ---: | ---: | ---: |");
+        builder.AppendLine("| Preset | Risk | Recommended | Changed | Clamped | Warnings | Sanitize | Custom sections | Custom vars | Custom changed |");
+        builder.AppendLine("| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
 
         foreach (var summary in summaries)
         {
-            builder.AppendLine($"| {EscapeTable(summary.RelativePath)} | {summary.RiskLevel} | {summary.RecommendedCompatibilityMode} | {summary.ChangedVariableCount} | {summary.ClampedVariableCount} | {summary.WarningCount} | {summary.SanitizeActionCount} |");
+            builder.AppendLine($"| {EscapeTable(summary.RelativePath)} | {summary.RiskLevel} | {summary.RecommendedCompatibilityMode} | {summary.ChangedVariableCount} | {summary.ClampedVariableCount} | {summary.WarningCount} | {summary.SanitizeActionCount} | {summary.CustomShaderSectionCount} | {summary.CustomShaderVariableCount} | {summary.CustomShaderChangedVariableCount} |");
         }
 
         builder.AppendLine();
@@ -221,6 +252,102 @@ public sealed class PresetRegressionReportHarness
         builder.AppendLine();
     }
 
+    private static void AppendCustomShaderRegression(
+        StringBuilder builder,
+        PresetAnalysisResult analysis,
+        ShaderSupportScan support,
+        PresetWriteResult writeResult,
+        SceneIntent sceneIntent)
+    {
+        var customSections = GetCustomShaderSections(analysis, support);
+        var detectedVariables = support.Items
+            .Where(IsCustomShaderItem)
+            .OrderBy(item => item.Section, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var changedVariables = writeResult.Changes
+            .Where(IsCustomShaderChange)
+            .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        builder.AppendLine("## Custom shader regression");
+        builder.AppendLine();
+        builder.AppendLine($"- Custom shader sections detected: {customSections.Count}");
+        builder.AppendLine($"- Custom shader variables detected: {detectedVariables.Length}");
+        builder.AppendLine($"- Custom shader variables changed: {changedVariables.Length}");
+        builder.AppendLine();
+
+        builder.AppendLine("### Custom shader sections");
+        builder.AppendLine();
+        if (customSections.Count == 0)
+        {
+            builder.AppendLine("- None");
+        }
+        else
+        {
+            foreach (var section in customSections)
+            {
+                builder.AppendLine($"- {section}");
+            }
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### Custom shader variables detected");
+        builder.AppendLine();
+        if (detectedVariables.Length == 0)
+        {
+            builder.AppendLine("- None");
+        }
+        else
+        {
+            foreach (var item in detectedVariables)
+            {
+                builder.AppendLine($"- {item.Section} / {item.Key} | activation={PresetAnalyzer.FormatActivationState(item.ActivationState)}");
+            }
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### Custom shader variables changed");
+        builder.AppendLine();
+        if (changedVariables.Length == 0)
+        {
+            builder.AppendLine("- None");
+        }
+        else
+        {
+            foreach (var change in changedVariables)
+            {
+                builder.AppendLine($"- {change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} | activation={PresetAnalyzer.FormatActivationState(change.ActivationState)}");
+            }
+        }
+
+        builder.AppendLine();
+        AppendSceneIntentValues(builder, sceneIntent);
+    }
+
+    private static void AppendSceneIntentValues(StringBuilder builder, SceneIntent sceneIntent)
+    {
+        builder.AppendLine("### SceneIntent values used");
+        builder.AppendLine();
+        builder.AppendLine($"- Readability: {sceneIntent.Readability:0.###}");
+        builder.AppendLine($"- Atmosphere: {sceneIntent.Atmosphere:0.###}");
+        builder.AppendLine($"- HighlightProtection: {sceneIntent.HighlightProtection:0.###}");
+        builder.AppendLine($"- ShadowProtection: {sceneIntent.ShadowProtection:0.###}");
+        builder.AppendLine($"- Haze: {sceneIntent.Haze:0.###}");
+        builder.AppendLine($"- Wetness: {sceneIntent.Wetness:0.###}");
+        builder.AppendLine($"- Cold: {sceneIntent.Cold:0.###}");
+        builder.AppendLine($"- Heat: {sceneIntent.Heat:0.###}");
+        builder.AppendLine($"- MagicGlow: {sceneIntent.MagicGlow:0.###}");
+        builder.AppendLine($"- NeonGlow: {sceneIntent.NeonGlow:0.###}");
+        builder.AppendLine($"- FoliageDensity: {sceneIntent.FoliageDensity:0.###}");
+        builder.AppendLine($"- IndustrialHardness: {sceneIntent.IndustrialHardness:0.###}");
+        builder.AppendLine($"- CosmicMood: {sceneIntent.CosmicMood:0.###}");
+        builder.AppendLine($"- CombatPressure: {sceneIntent.CombatPressure:0.###}");
+        builder.AppendLine($"- CinematicPermission: {sceneIntent.CinematicPermission:0.###}");
+        builder.AppendLine();
+    }
+
     private static string MakeSafeFileName(string value)
     {
         var invalid = Path.GetInvalidFileNameChars().Concat(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }).ToHashSet();
@@ -244,6 +371,27 @@ public sealed class PresetRegressionReportHarness
         }
 
         return reportPath;
+    }
+
+    private static IReadOnlyList<string> GetCustomShaderSections(PresetAnalysisResult analysis, ShaderSupportScan support)
+    {
+        return analysis.Techniques
+            .Select(technique => technique.Section)
+            .Where(CustomShaderVariableMapper.IsCustomShaderSection)
+            .Concat(support.Items.Where(IsCustomShaderItem).Select(item => item.Section))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(section => section, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static bool IsCustomShaderItem(ShaderSupportItem item)
+    {
+        return string.Equals(item.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsCustomShaderChange(ChangedShaderVariable change)
+    {
+        return string.Equals(change.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase);
     }
 
     private static void TryDelete(string path)
@@ -290,7 +438,10 @@ public sealed record PresetRegressionSummary(
     int ChangedVariableCount,
     int ClampedVariableCount,
     int WarningCount,
-    int SanitizeActionCount)
+    int SanitizeActionCount,
+    int CustomShaderSectionCount,
+    int CustomShaderVariableCount,
+    int CustomShaderChangedVariableCount)
 {
     public static PresetRegressionSummary From(
         string presetPath,
@@ -300,7 +451,6 @@ public sealed record PresetRegressionSummary(
         ShaderSupportScan support,
         PresetWriteResult writeResult)
     {
-        _ = support;
         var report = analysis.Report;
         var warningCount = report.Warnings
             .Concat(writeResult.Changes
@@ -319,6 +469,29 @@ public sealed record PresetRegressionSummary(
             writeResult.ChangedVariables,
             writeResult.Changes.Count(change => change.HitMin || change.HitMax),
             warningCount,
-            writeResult.SanitizeActions.Count);
+            writeResult.SanitizeActions.Count,
+            GetCustomShaderSectionCount(analysis, support),
+            support.Items.Count(IsCustomShaderItem),
+            writeResult.Changes.Count(IsCustomShaderChange));
+    }
+
+    private static int GetCustomShaderSectionCount(PresetAnalysisResult analysis, ShaderSupportScan support)
+    {
+        return analysis.Techniques
+            .Select(technique => technique.Section)
+            .Where(CustomShaderVariableMapper.IsCustomShaderSection)
+            .Concat(support.Items.Where(IsCustomShaderItem).Select(item => item.Section))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+    }
+
+    private static bool IsCustomShaderItem(ShaderSupportItem item)
+    {
+        return string.Equals(item.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsCustomShaderChange(ChangedShaderVariable change)
+    {
+        return string.Equals(change.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase);
     }
 }
