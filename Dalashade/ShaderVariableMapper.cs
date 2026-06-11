@@ -190,14 +190,15 @@ public sealed class ShaderVariableMapper
     {
         const string section = "qUINT_lightroom.fx";
         AddAdd(definitions, section, "LIGHTROOM_GLOBAL_EXPOSURE", "Free color exposure", -5f, 5f, profile => profile.Exposure - 1f);
-        AddAdd(definitions, section, "LIGHTROOM_GLOBAL_GAMMA", "Free color gamma", 0.25f, 4f, profile => profile.ShadowLift * 0.25f);
+        AddAdd(definitions, section, "LIGHTROOM_GLOBAL_GAMMA", "Free color gamma", -1f, 1f, profile => (profile.ShadowLift * 0.12f) + ((profile.MidtoneContrast - 1f) * 0.08f));
         AddAdd(definitions, section, "LIGHTROOM_GLOBAL_CONTRAST", "Free color contrast", -5f, 5f, profile => (profile.Contrast - 1f) * 0.35f);
         AddAdd(definitions, section, "LIGHTROOM_GLOBAL_SATURATION", "Free color saturation", -5f, 5f, profile => (profile.Saturation - 1f) * 0.35f);
         AddAdd(definitions, section, "LIGHTROOM_GLOBAL_VIBRANCE", "Free color vibrance", -5f, 5f, profile => (profile.Saturation - 1f) * 0.30f);
         AddAdd(definitions, section, "LIGHTROOM_GLOBAL_TEMPERATURE", "Free color temperature", -1f, 1f, profile => profile.Temperature * 0.35f);
         AddAdd(definitions, section, "LIGHTROOM_GLOBAL_TINT", "Free color tint", -1f, 1f, profile => profile.Tint * 0.35f);
-        AddRelative(definitions, section, "LIGHTROOM_GLOBAL_BLACK_LEVEL", "Free color black point", -1f, 1f, profile => (profile.BlackPoint - 1f) * 0.20f);
-        AddRelative(definitions, section, "LIGHTROOM_GLOBAL_WHITE_LEVEL", "Free color white point", -1f, 1f, profile => (profile.WhitePoint - 1f) * 0.20f);
+        // qUINT Lightroom level keys are 0-255 style levels, not normalized -1..1 offsets.
+        AddRelative(definitions, section, "LIGHTROOM_GLOBAL_BLACK_LEVEL", "Free color black point", 0f, 255f, profile => (profile.BlackPoint - 1f) * 12f);
+        AddRelative(definitions, section, "LIGHTROOM_GLOBAL_WHITE_LEVEL", "Free color white point", 0f, 255f, profile => (profile.WhitePoint - 1f) * 24f);
         AddRelative(definitions, section, "LIGHTROOM_GLOBAL_BLACKS_CURVE", "Free color black curve", -1f, 1f, profile => ((profile.BlackPoint - 1f) * 0.18f) + (profile.ShadowLift * 0.08f));
         AddAdd(definitions, section, "LIGHTROOM_GLOBAL_SHADOWS_CURVE", "Free color shadow curve", -1f, 1f, profile => profile.ShadowLift * 0.18f);
         AddAdd(definitions, section, "LIGHTROOM_GLOBAL_MIDTONES_CURVE", "Free color midtone curve", -1f, 1f, profile => (profile.MidtoneContrast - 1f) * 0.18f);
