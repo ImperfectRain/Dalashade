@@ -110,12 +110,29 @@ public sealed class MainWindow : Window, IDisposable
             ImGui.TextUnformatted($"Wetness: {diagnostics.Intent.Wetness:0.###}");
             ImGui.TextUnformatted($"Cold: {diagnostics.Intent.Cold:0.###}");
             ImGui.TextUnformatted($"Heat: {diagnostics.Intent.Heat:0.###}");
-            ImGui.TextUnformatted($"Specular Risk: {diagnostics.Intent.SpecularRisk:0.###}");
-            ImGui.TextUnformatted($"Foliage Density: {diagnostics.Intent.FoliageDensity:0.###}");
-            ImGui.TextUnformatted($"Neon Glow: {diagnostics.Intent.NeonGlow:0.###}");
             ImGui.TextUnformatted($"Magic Glow: {diagnostics.Intent.MagicGlow:0.###}");
-            ImGui.TextUnformatted($"Cinematic Permission: {diagnostics.Intent.CinematicPermission:0.###}");
+            ImGui.TextUnformatted($"Neon Glow: {diagnostics.Intent.NeonGlow:0.###}");
+            ImGui.TextUnformatted($"Foliage Density: {diagnostics.Intent.FoliageDensity:0.###}");
+            ImGui.TextUnformatted($"Industrial Hardness: {diagnostics.Intent.IndustrialHardness:0.###}");
+            ImGui.TextUnformatted($"Cosmic Mood: {diagnostics.Intent.CosmicMood:0.###}");
             ImGui.TextUnformatted($"Combat Pressure: {diagnostics.Intent.CombatPressure:0.###}");
+            ImGui.TextUnformatted($"Cinematic Permission: {diagnostics.Intent.CinematicPermission:0.###}");
+            ImGui.TreePop();
+        }
+
+        if (ImGui.TreeNode("Scene intent contributors###MainSceneIntentContributors"))
+        {
+            if (diagnostics.IntentContributions.Count == 0)
+            {
+                ImGui.TextUnformatted("No scene intent contributions recorded.");
+            }
+
+            foreach (var contribution in diagnostics.IntentContributions)
+            {
+                ImGui.BulletText($"{contribution.Intent}: {contribution.Amount:+0.###;-0.###;0} from {contribution.Source}");
+                ImGui.TextWrapped(contribution.Reason);
+            }
+
             ImGui.TreePop();
         }
 

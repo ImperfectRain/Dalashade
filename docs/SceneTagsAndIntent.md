@@ -13,7 +13,7 @@ Scene context is collected in `Dalashade/GameContext.cs`.
 | Weather lookup | `GameContextService.RefreshWeather()` | Uses `FFXIVClientStructs` weather data first, then zone-init fallback. |
 | Time buckets | `GameContextService.GetTimeBucket()` | Converts Eorzea hour into Dawn, Day, Dusk, or Night. |
 | Scene tags | `SceneClassifier.Classify(GameContext context)` | Converts raw context into weather, area, biome, and gameplay tags. |
-| Scene intent | `SceneIntent.From(...)` in `Dalashade/SceneIntent.cs` | Converts tags into stack-aware intent values before profile stack budgets. |
+| Scene intent | `SceneIntentBuilder.Build(...)` in `Dalashade/SceneIntent.cs` | Converts tags, screenshot analysis, target style, and performance budget into stack-aware intent values before profile stack budgets. |
 | Visual profile effects | `ProfileEngine.Create()` in `Dalashade/VisualProfile.cs` | Applies context adjustments, scene-intent stack budgets, screenshot analysis, master style, target style, and performance budget. |
 
 ## Current Weather Tags
@@ -94,7 +94,19 @@ Combat clarity is stronger. Duty readability is milder and preserves more atmosp
 
 ## Scene Intent And Stack Budgets
 
-`SceneIntent` is implemented in `Dalashade/SceneIntent.cs`. It summarizes tags into normalized values:
+`SceneIntent` is implemented in `Dalashade/SceneIntent.cs`. It is the stable internal scene-language contract intended for future Dalashade shaders and future ReShade bridge work.
+
+`SceneIntentBuilder.Build(...)` feeds it from:
+
+1. `GameContext`
+2. refined weather tags
+3. refined biome/mood tags
+4. combat, duty, cutscene, and GPose state
+5. screenshot analysis when enabled and available
+6. target style
+7. performance budget
+
+All intent values are normalized from `0` to `1`.
 
 | Intent value | Purpose |
 | --- | --- |
@@ -106,14 +118,17 @@ Combat clarity is stronger. Duty readability is milder and preserves more atmosp
 | `Wetness` | Rain/storm wet-scene pressure. |
 | `Cold` | Snow, ice, lunar, or cold-scene pressure. |
 | `Heat` | Desert, dust, heatwave, fire, or volcanic pressure. |
-| `SpecularRisk` | Water, snow, rain, neon, or bright surface risk. |
-| `FoliageDensity` | Forest, jungle, or swamp density. |
-| `NeonGlow` | High-tech/neon pressure. |
 | `MagicGlow` | Aetherial, fae, cosmic, lunar, or light-flooded pressure. |
-| `CinematicPermission` | How much cinematic treatment is allowed. |
+| `NeonGlow` | High-tech/neon pressure. |
+| `FoliageDensity` | Forest, jungle, or swamp density. |
+| `IndustrialHardness` | Imperial, factory, ruin, or hard-surface structural pressure. |
+| `CosmicMood` | Lunar and cosmic scene mood. |
 | `CombatPressure` | How much combat should dominate visual safety. |
+| `CinematicPermission` | How much cinematic treatment is allowed. |
 
 Current stack budgets protect bloom, AO, shadow lift, bloom dirt, and saturation from repeated context reductions/additions. Snow weather also dampens snow-biome handling so snow does not apply full-strength twice.
+
+Intent contribution diagnostics are stored as `SceneIntentContribution` records so the UI/report can show which tags or systems contributed to each value.
 
 Diagnostics are exposed through:
 

@@ -127,12 +127,28 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Wetness: {diagnostics.Intent.Wetness:0.###}");
         builder.AppendLine($"- Cold: {diagnostics.Intent.Cold:0.###}");
         builder.AppendLine($"- Heat: {diagnostics.Intent.Heat:0.###}");
-        builder.AppendLine($"- Specular risk: {diagnostics.Intent.SpecularRisk:0.###}");
-        builder.AppendLine($"- Foliage density: {diagnostics.Intent.FoliageDensity:0.###}");
-        builder.AppendLine($"- Neon glow: {diagnostics.Intent.NeonGlow:0.###}");
         builder.AppendLine($"- Magic glow: {diagnostics.Intent.MagicGlow:0.###}");
-        builder.AppendLine($"- Cinematic permission: {diagnostics.Intent.CinematicPermission:0.###}");
+        builder.AppendLine($"- Neon glow: {diagnostics.Intent.NeonGlow:0.###}");
+        builder.AppendLine($"- Foliage density: {diagnostics.Intent.FoliageDensity:0.###}");
+        builder.AppendLine($"- Industrial hardness: {diagnostics.Intent.IndustrialHardness:0.###}");
+        builder.AppendLine($"- Cosmic mood: {diagnostics.Intent.CosmicMood:0.###}");
         builder.AppendLine($"- Combat pressure: {diagnostics.Intent.CombatPressure:0.###}");
+        builder.AppendLine($"- Cinematic permission: {diagnostics.Intent.CinematicPermission:0.###}");
+        builder.AppendLine();
+        builder.AppendLine("### Scene Intent Contributions");
+        builder.AppendLine();
+        if (diagnostics.IntentContributions.Count == 0)
+        {
+            builder.AppendLine("- None");
+        }
+        else
+        {
+            foreach (var contribution in diagnostics.IntentContributions)
+            {
+                builder.AppendLine($"- {contribution.Intent}: {contribution.Amount:+0.###;-0.###;0} from {contribution.Source} - {contribution.Reason}");
+            }
+        }
+
         builder.AppendLine();
         builder.AppendLine("### Stack Budget Contributions");
         builder.AppendLine();

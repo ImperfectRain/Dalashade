@@ -133,7 +133,7 @@ public sealed class ProfileEngine
             masterStyle,
             masterImageCount,
             configuration.MatchMasterPresetStyle ? "Master analysis unavailable." : "Master style disabled.");
-        var sceneIntent = SceneIntent.From(context, tags, configuration);
+        var sceneIntent = new SceneIntentBuilder().Build(context, tags, imageAnalysis, configuration);
         var tagContributions = new List<TagStackContribution>();
 
         ApplyBasePolish(context, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift);
@@ -831,7 +831,7 @@ public sealed class ProfileEngine
         ApplyFloor("AmbientOcclusion", "Scene intent stack budget", aoFloor, ref ao, contributions, rules);
         ApplyCap("ShadowLift", "Scene intent stack budget", shadowLiftCap, ref shadowLift, contributions, rules);
 
-        if (intent.SpecularRisk > 0.40f || intent.Haze > 0.55f)
+        if (intent.HighlightProtection > 0.40f || intent.Haze > 0.55f || intent.Wetness > 0.55f)
         {
             var before = bloomDirt;
             var floor = 0.42f;

@@ -11,7 +11,7 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
 5. `SceneClassifier.Classify()` converts `GameContext` into `SceneTags`.
 6. If enabled, `ImageAnalysisService.Refresh()` in `Dalashade/ImageAnalysis.cs` analyzes the latest screenshot.
 7. If enabled, `MasterStyleService.Refresh()` in `Dalashade/MasterStyle.cs` analyzes selected master style images.
-8. `SceneIntent.From(...)` in `Dalashade/SceneIntent.cs` summarizes tags into stack-aware intent values.
+8. `SceneIntentBuilder.Build(...)` in `Dalashade/SceneIntent.cs` summarizes context, tags, screenshot analysis, target style, and performance budget into stack-aware intent values.
 9. `ProfileEngine.CreateWithRules()` in `Dalashade/VisualProfile.cs` creates a `VisualProfile`, applied rules, and tag-stack diagnostics.
 10. If master style is available, `MasterStyleMatcher.Match()` in `Dalashade/MasterStyleMatcher.cs` returns deltas, diagnostics, rules, and color-family adjustments.
 11. `Plugin.ScanPresetCompatibility()` runs `PresetWriter.ScanSupportedVariables()` and `PresetAnalyzer.Analyze()`.
