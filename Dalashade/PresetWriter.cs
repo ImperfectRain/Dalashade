@@ -103,7 +103,22 @@ public sealed class PresetWriter
                 "Dalashade_Wetness",
                 "Dalashade_FoliageDensity",
                 "Dalashade_CombatPressure",
-                "Dalashade_HighlightProtection"
+                "Dalashade_HighlightProtection",
+                "Dalashade_SharpenAuthority",
+                "SharpenStrength",
+                "EdgeClarityStrength",
+                "StructuralClarityStrength",
+                "TextureDetailStrength",
+                "AntiCrunchStrength",
+                "DepthDampenStrength",
+                "FarDepthDampenStrength",
+                "FoliageDampenStrength",
+                "HighlightDampenStrength",
+                "HaloDampenStrength",
+                "SkyDampenStrength",
+                "HazeDampenStrength",
+                "CombatDampenStrength",
+                "LumaOnlyStrength"
             ]),
         new(
             "Dalashade_AtmosphereBloom.fx",
@@ -166,6 +181,7 @@ public sealed class PresetWriter
             var lines = File.ReadAllLines(basePresetPath).ToList();
             var injectionResult = InjectCustomShaderSections(configuration, lines);
             var analysis = analyzer.Analyze(configuration);
+            var smartSharpenAuthority = SmartSharpenAuthority.Analyze(analysis);
             var authorityPolicy = GenerationAuthorityPolicy.From(analysis, configuration.CompatibilityMode);
             var adjustments = mapper.CreateAdjustments(profile, configuration, authorityPolicy);
             sceneIntent ??= SceneIntent.Neutral;
@@ -191,6 +207,7 @@ public sealed class PresetWriter
                 var key = line[..separatorIndex].Trim();
                 var generatedCustomShaderVariable = IsGeneratedCustomShaderVariable(injectionResult, currentSection, key);
                 if (!TryGetAdjustment(adjustments, configuration.ShaderMatchingMode, currentSection, key, out var adjust)
+                    && !(configuration.EnableDalashadeCustomShaders && SmartSharpenAuthority.TryGetAdjustment(currentSection, key, sceneIntent, smartSharpenAuthority, out adjust))
                     && !customMapper.TryGetAdjustment(configuration, currentSection, key, sceneIntent, out adjust))
                 {
                     continue;
@@ -304,6 +321,8 @@ public sealed class PresetWriter
 
             var adjustments = mapper.CreateAdjustments(VisualProfile.Neutral, configuration);
             var lines = File.ReadAllLines(basePresetPath);
+            var analysis = analyzer.Analyze(configuration);
+            var smartSharpenAuthority = SmartSharpenAuthority.Analyze(analysis);
             var activationMap = PresetAnalyzer.ParseTechniqueActivationMap(lines);
             var items = new List<ShaderSupportItem>();
             var seen = new HashSet<ShaderVariableKey>(ShaderVariableKeyComparer.Instance);
@@ -325,6 +344,7 @@ public sealed class PresetWriter
 
                 var key = line[..separatorIndex].Trim();
                 if (!TryGetAdjustment(adjustments, configuration.ShaderMatchingMode, currentSection, key, out var adjust)
+                    && !(configuration.EnableDalashadeCustomShaders && SmartSharpenAuthority.TryGetAdjustment(currentSection, key, SceneIntent.Neutral, smartSharpenAuthority, out adjust))
                     && !customMapper.TryGetAdjustment(configuration, currentSection, key, SceneIntent.Neutral, out adjust))
                 {
                     continue;

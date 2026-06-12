@@ -29,7 +29,10 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_CinematicPermission"] = intent => intent.CinematicPermission
         };
 
-    public static IReadOnlyCollection<string> KnownVariableNames => Variables.Keys.ToArray();
+    public static IReadOnlyCollection<string> KnownVariableNames => Variables.Keys
+        .Concat(SmartSharpenAuthority.WritableVariables)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
 
     public bool TryGetAdjustment(Configuration configuration, string section, string key, SceneIntent intent, out ShaderAdjustment adjustment)
     {
@@ -61,7 +64,8 @@ public sealed class CustomShaderVariableMapper
 
     public static bool IsKnownCustomShaderVariable(string key)
     {
-        return !string.IsNullOrWhiteSpace(key) && Variables.ContainsKey(key);
+        return !string.IsNullOrWhiteSpace(key)
+               && (Variables.ContainsKey(key) || SmartSharpenAuthority.WritableVariables.Contains(key, StringComparer.OrdinalIgnoreCase));
     }
 
     private static float Clamp01(float value) => MathF.Min(1f, MathF.Max(0f, value));

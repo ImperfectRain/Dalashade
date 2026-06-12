@@ -109,8 +109,7 @@ public sealed class CompatibilityReportExporter
     {
         builder.AppendLine("## Dalashade Custom Shader Diagnostics");
         builder.AppendLine();
-        _ = analysis;
-        var diagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(configuration, shaderSupport, writeResult);
+        var diagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(configuration, shaderSupport, writeResult, analysis);
         builder.AppendLine($"- Custom shader support: {(diagnostics.SupportEnabled ? "enabled" : "disabled")}");
         builder.AppendLine($"- Auto-inject known sections into generated preset: {(diagnostics.AutoInjectionEnabled ? "enabled" : "disabled")}");
         builder.AppendLine($"- Generated preset only injection: {(diagnostics.GeneratedPresetOnlyInjection ? "yes" : "no")}");
@@ -124,6 +123,9 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Base preset known custom variables found: {(diagnostics.KnownVariablesFound ? "yes" : "no")}");
         builder.AppendLine($"- SceneIntent values written into generated preset: {(diagnostics.ValuesWritten ? "yes" : "no")}");
         builder.AppendLine($"- Variables detected but unchanged: {(diagnostics.VariablesDetectedButUnchanged ? "yes" : "no")}");
+        builder.AppendLine($"- SmartSharpen authority: {diagnostics.SmartSharpenAuthority.Level.ToString().ToLowerInvariant()} ({diagnostics.SmartSharpenAuthority.ShaderValue:0})");
+        builder.AppendLine($"- Other active sharpeners: {FormatInlineList(diagnostics.SmartSharpenAuthority.OtherActiveSharpeners)}");
+        builder.AppendLine($"- SmartSharpen authority reason: {diagnostics.SmartSharpenAuthority.Reason}");
         builder.AppendLine("- Manual shader install/activation: Dalashade does not copy `.fx` files into ReShade or enable techniques. Install needed Dalashade `.fx` files in a ReShade shader search folder separately, then enable wanted custom shader techniques in ReShade.");
         builder.AppendLine("- Variable writes require matching Dalashade custom shader section/key lines in generated preset content. Those lines can come from the base preset or from generated-preset-only injection.");
         builder.AppendLine("- Static bridge status:");

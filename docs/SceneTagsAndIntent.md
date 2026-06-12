@@ -191,7 +191,7 @@ Biome intent contributions are confidence-aware. High-confidence territory mappi
 
 Intent contribution diagnostics are stored as `SceneIntentContribution` records so the UI/report can show which tags or systems contributed to each value.
 
-First-party Dalashade shaders consume these normalized values directly when custom shader support is enabled. `WeatherAtmosphere` owns depth haze, weather air, canopy air, heat/dust, and highlight shoulder behavior. `AdaptiveGrade` owns scene-aware tone and color, including `IndustrialHardness` and `CosmicMood`. `AtmosphereBloom` owns selective wet, heat, canopy, magic, and neon glow. `SmartSharpen` owns final clarity and dampens sharpening in haze, foliage, wet highlights, sky gradients, and combat.
+First-party Dalashade shaders consume these normalized values directly when custom shader support is enabled. `WeatherAtmosphere` owns depth haze, weather air, canopy air, heat/dust, and highlight shoulder behavior. `AdaptiveGrade` owns scene-aware tone and color, including `IndustrialHardness` and `CosmicMood`. `AtmosphereBloom` owns selective wet, heat, canopy, magic, and neon glow. `SmartSharpen` owns final clarity and dampens sharpening in haze, foliage, wet highlights, sky gradients, and combat. SmartSharpen also receives a preset-analysis-derived `Dalashade_SharpenAuthority` value so it can run as a restrained secondary pass when Marty Sharpen, Clarity-style sharpening, or another sharpen authority is already active.
 
 Diagnostics are exposed through:
 

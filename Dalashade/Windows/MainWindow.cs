@@ -587,7 +587,7 @@ public sealed class MainWindow : Window, IDisposable
 
     private string DebugSummary()
     {
-        var customDiagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(plugin.Configuration, plugin.LastShaderSupportScan, plugin.LastWriteResult);
+        var customDiagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(plugin.Configuration, plugin.LastShaderSupportScan, plugin.LastWriteResult, plugin.LastPresetAnalysis);
         var customSummary = customDiagnostics.SectionFound ? ", custom shader section present" : ", no custom shader section";
         return $"{plugin.LastShaderSupportScan.Items.Count} supported variables detected{customSummary}";
     }
@@ -616,7 +616,7 @@ public sealed class MainWindow : Window, IDisposable
 
     private void DrawCustomShaderDiagnostics()
     {
-        var diagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(plugin.Configuration, plugin.LastShaderSupportScan, plugin.LastWriteResult);
+        var diagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(plugin.Configuration, plugin.LastShaderSupportScan, plugin.LastWriteResult, plugin.LastPresetAnalysis);
 
         if (!ImGui.TreeNode("Dalashade custom shaders###MainCustomShaderDiagnostics"))
         {
@@ -632,6 +632,12 @@ public sealed class MainWindow : Window, IDisposable
         DrawSetupItem("Base preset contains Dalashade custom shader section", diagnostics.SectionFound);
         DrawSetupItem("Known custom variables found", diagnostics.KnownVariablesFound);
         DrawSetupItem("SceneIntent values written into generated preset", diagnostics.ValuesWritten);
+        ImGui.TextWrapped($"SmartSharpen authority: {diagnostics.SmartSharpenAuthority.Level.ToString().ToLowerInvariant()} ({diagnostics.SmartSharpenAuthority.ShaderValue:0})");
+        ImGui.TextWrapped(diagnostics.SmartSharpenAuthority.Reason);
+        if (diagnostics.SmartSharpenAuthority.OtherActiveSharpeners.Count > 0)
+        {
+            ImGui.TextWrapped($"Other active sharpeners: {string.Join(", ", diagnostics.SmartSharpenAuthority.OtherActiveSharpeners)}");
+        }
         ImGui.TextWrapped("Dalashade writes custom shader variables into existing or generated-preset-injected Dalashade custom shader sections. The base preset is never modified.");
         ImGui.TextWrapped("Technique activation remains manual. Install needed Dalashade .fx files in a ReShade shader search folder separately, then enable wanted techniques in ReShade.");
         ImGui.Separator();

@@ -25,6 +25,7 @@ public sealed record CustomShaderBridgeDiagnostics(
     bool SectionInjected,
     bool VariablesInjected,
     bool TechniqueInjected,
+    SmartSharpenAuthorityDiagnostic SmartSharpenAuthority,
     IReadOnlyList<CustomShaderSectionDiagnostic> Sections,
     IReadOnlyList<CustomShaderVariableDiagnostic> KnownVariables,
     IReadOnlyList<ChangedShaderVariable> WrittenVariables,
@@ -42,8 +43,12 @@ public static class CustomShaderBridgeDiagnosticsBuilder
     public static CustomShaderBridgeDiagnostics Build(
         Configuration configuration,
         ShaderSupportScan supportScan,
-        PresetWriteResult writeResult)
+        PresetWriteResult writeResult,
+        PresetAnalysisResult? analysis = null)
     {
+        var smartSharpenAuthority = analysis is { Success: true }
+            ? SmartSharpenAuthority.Analyze(analysis)
+            : SmartSharpenAuthorityDiagnostic.Unknown;
         var supportItems = supportScan.Items
             .Where(IsCustomShaderSupportItem)
             .ToArray();
@@ -69,6 +74,7 @@ public static class CustomShaderBridgeDiagnosticsBuilder
                 writeResult.CustomShaderInjection.SectionInjected,
                 writeResult.CustomShaderInjection.VariablesInjected,
                 writeResult.CustomShaderInjection.TechniqueInjected,
+                smartSharpenAuthority,
                 Array.Empty<CustomShaderSectionDiagnostic>(),
                 Array.Empty<CustomShaderVariableDiagnostic>(),
                 writtenVariables,
@@ -149,6 +155,7 @@ public static class CustomShaderBridgeDiagnosticsBuilder
                 writeResult.CustomShaderInjection.SectionInjected,
                 writeResult.CustomShaderInjection.VariablesInjected,
                 writeResult.CustomShaderInjection.TechniqueInjected,
+                smartSharpenAuthority,
                 sections,
                 variables,
                 writtenVariables,
@@ -166,6 +173,7 @@ public static class CustomShaderBridgeDiagnosticsBuilder
                 writeResult.CustomShaderInjection.SectionInjected,
                 writeResult.CustomShaderInjection.VariablesInjected,
                 writeResult.CustomShaderInjection.TechniqueInjected,
+                smartSharpenAuthority,
                 Array.Empty<CustomShaderSectionDiagnostic>(),
                 Array.Empty<CustomShaderVariableDiagnostic>(),
                 writtenVariables,
@@ -241,16 +249,23 @@ public static class CustomShaderBridgeDiagnosticsBuilder
         {
             messages.Add("Static bridge path active: SceneIntent values were written into generated preset Dalashade custom shader variables.");
         }
+
+        if (writtenVariables.Any(change => string.Equals(change.Section, SmartSharpenAuthority.Section, StringComparison.OrdinalIgnoreCase)))
+        {
+            messages.Add("SmartSharpen generated tuning written: authority-aware slider values were written into the generated preset.");
+        }
     }
 
     private static bool IsCustomShaderSupportItem(ShaderSupportItem item)
     {
-        return string.Equals(item.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(item.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(item.ReasonCategory, SmartSharpenAuthority.ReasonCategory, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsCustomShaderChange(ChangedShaderVariable change)
     {
-        return string.Equals(change.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(change.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(change.ReasonCategory, SmartSharpenAuthority.ReasonCategory, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool TryReadSection(string line, out string section)

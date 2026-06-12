@@ -55,6 +55,13 @@ uniform float EdgeClarityStrength <
     ui_label = "Edge Clarity Strength";
 > = 0.42;
 
+uniform float StructuralClarityStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Structural Clarity Strength";
+    ui_tooltip = "Broad silhouette/geometry clarity. This is safer than texture-detail sharpening in foliage.";
+> = 0.50;
+
 uniform float TextureDetailStrength <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -74,11 +81,39 @@ uniform float DepthDampenStrength <
     ui_label = "Depth Dampen Strength";
 > = 0.55;
 
+uniform float FarDepthDampenStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Far Depth Dampen Strength";
+    ui_tooltip = "Extra reduction for distant trees, heat haze, fog, and background detail.";
+> = 0.72;
+
+uniform float FoliageDampenStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Foliage Dampen Strength";
+    ui_tooltip = "Reduces leaf/grass micro-sharpening in forest and jungle scenes.";
+> = 0.80;
+
 uniform float HighlightDampenStrength <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
     ui_label = "Highlight Dampen Strength";
 > = 0.72;
+
+uniform float HaloDampenStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Halo Dampen Strength";
+    ui_tooltip = "Reduces bright-edge halos around clouds, lamps, water glints, sand, and white architecture.";
+> = 0.78;
+
+uniform float SkyDampenStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Sky Dampen Strength";
+    ui_tooltip = "Suppresses sharpening on sky, fog, and smooth gradients.";
+> = 0.78;
 
 uniform float HazeDampenStrength <
     ui_type = "slider";
@@ -92,10 +127,30 @@ uniform float CombatDampenStrength <
     ui_label = "Combat Dampen Strength";
 > = 0.66;
 
+uniform float LumaOnlyStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Luma Only Strength";
+    ui_tooltip = "How much sharpening is applied through luma-safe reconstruction instead of full RGB detail.";
+> = 0.80;
+
+uniform float Dalashade_SharpenAuthority <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 2.0;
+    ui_label = "Dalashade Sharpen Authority";
+    ui_tooltip = "0 passive, 1 secondary when another sharpener is active, 2 primary adaptive sharpen.";
+> = 2.0;
+
 uniform bool ShowDebugMask <
     ui_label = "Show Debug Mask";
-    ui_tooltip = "Red shows sharpen mask, green shows edge clarity, blue shows dampening pressure.";
+    ui_tooltip = "Shows the selected SmartSharpen mask.";
 > = false;
+
+uniform int DebugView <
+    ui_type = "combo";
+    ui_items = "Composite\0Structural edge\0Texture detail\0Final sharpen\0Dampening\0Foliage/far-depth\0";
+    ui_label = "Debug View";
+> = 0;
 
 float Dalashade_SmartSharpenLuma(float3 color)
 {
@@ -117,13 +172,20 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float3 south = Dalashade_SmartSharpenSample(texcoord + float2(0.0, texel.y));
     float3 east = Dalashade_SmartSharpenSample(texcoord + float2(texel.x, 0.0));
     float3 west = Dalashade_SmartSharpenSample(texcoord + float2(-texel.x, 0.0));
+    float3 farNorth = Dalashade_SmartSharpenSample(texcoord + float2(0.0, -texel.y * 2.0));
+    float3 farSouth = Dalashade_SmartSharpenSample(texcoord + float2(0.0, texel.y * 2.0));
+    float3 farEast = Dalashade_SmartSharpenSample(texcoord + float2(texel.x * 2.0, 0.0));
+    float3 farWest = Dalashade_SmartSharpenSample(texcoord + float2(-texel.x * 2.0, 0.0));
     float3 blur = (north + south + east + west) * 0.25;
+    float3 wideBlur = (center * 0.20) + ((north + south + east + west) * 0.10) + ((farNorth + farSouth + farEast + farWest) * 0.10);
 
     float centerLuma = Dalashade_SmartSharpenLuma(center);
     float blurLuma = Dalashade_SmartSharpenLuma(blur);
+    float wideBlurLuma = Dalashade_SmartSharpenLuma(wideBlur);
     float detailLuma = abs(centerLuma - blurLuma);
-    float edgeMask = smoothstep(0.010, 0.115, detailLuma);
-    float microDetailMask = 1.0 - smoothstep(0.070, 0.180, detailLuma);
+    float structuralLuma = abs(centerLuma - wideBlurLuma);
+    float structuralEdgeMask = smoothstep(0.026, 0.170, structuralLuma);
+    float textureDetailMask = smoothstep(0.004, 0.040, detailLuma) * (1.0 - smoothstep(0.060, 0.150, structuralLuma));
     float colorVariance = max(max(abs(center.r - center.g), abs(center.g - center.b)), abs(center.r - center.b));
 
     // Intent masks reduce sharpening where clarity usually becomes shimmer, halos, or combat clutter.
@@ -133,46 +195,93 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float foliage = saturate(Dalashade_FoliageDensity);
     float combat = saturate(Dalashade_CombatPressure);
     float highlightProtection = saturate(Dalashade_HighlightProtection);
+    float authority = saturate(Dalashade_SharpenAuthority * 0.5);
 
     float brightMask = smoothstep(0.62, 0.96, centerLuma);
-    float skyGradientMask = smoothstep(0.52, 0.92, centerLuma) * (1.0 - smoothstep(0.012, 0.060, detailLuma)) * (1.0 - smoothstep(0.030, 0.18, colorVariance));
-    float specularEdgeMask = brightMask * smoothstep(0.018, 0.090, detailLuma);
+    float veryBrightMask = smoothstep(0.78, 1.0, centerLuma);
+    float smoothGradientMask = (1.0 - smoothstep(0.008, 0.050, max(detailLuma, structuralLuma))) * (1.0 - smoothstep(0.030, 0.18, colorVariance));
+    float skyGradientMask = smoothstep(0.50, 0.94, centerLuma) * smoothGradientMask;
+    float specularEdgeMask = max(brightMask * smoothstep(0.014, 0.080, detailLuma), veryBrightMask * smoothstep(0.018, 0.100, structuralLuma));
     float depth = ReShade::GetLinearizedDepth(texcoord);
-    float farDepthMask = smoothstep(0.20, 0.92, depth);
+    float midDepthMask = smoothstep(0.10, 0.55, depth);
+    float farDepthMask = smoothstep(0.28, 0.92, depth);
 
-    float hazePressure = saturate(max(haze, wetness * 0.70) * HazeDampenStrength);
-    float foliagePressure = saturate(foliage * (0.30 + microDetailMask * 0.55));
-    float highlightPressure = saturate((highlightProtection * 0.75 + wetness * 0.28) * specularEdgeMask * HighlightDampenStrength);
-    float depthPressure = saturate(farDepthMask * DepthDampenStrength * (0.45 + haze * 0.55));
-    float combatPressure = saturate(combat * CombatDampenStrength);
-    float skyPressure = saturate(skyGradientMask * (0.45 + highlightProtection * 0.30));
-    float dampen = saturate(hazePressure + foliagePressure * 0.38 + highlightPressure + depthPressure * 0.55 + combatPressure + skyPressure);
+    float hazePressure = saturate(max(haze, wetness * 0.72) * HazeDampenStrength);
+    float foliageTexturePressure = saturate(foliage * FoliageDampenStrength * (0.42 + textureDetailMask * 0.72 + farDepthMask * 0.24));
+    float foliageStructurePressure = saturate(foliage * 0.22 * (1.0 - structuralEdgeMask * 0.45));
+    float highlightPressure = saturate((highlightProtection * 0.72 + wetness * 0.22 + veryBrightMask * 0.36) * specularEdgeMask * HighlightDampenStrength);
+    float haloPressure = saturate((veryBrightMask * 0.42 + specularEdgeMask * 0.58) * HaloDampenStrength);
+    float depthTexturePressure = saturate((midDepthMask * DepthDampenStrength * 0.35 + farDepthMask * FarDepthDampenStrength) * (0.45 + haze * 0.55));
+    float skyPressure = saturate(skyGradientMask * SkyDampenStrength);
+    float secondaryAuthorityPressure = 1.0 - authority;
 
-    // Readability can add edge clarity, but the same safety masks keep it from crunching fog, leaves, or bright halos.
-    float readableEdgeBoost = readability * EdgeClarityStrength * edgeMask * (1.0 - saturate(haze * 0.55 + combat * 0.24 + skyPressure));
-    float textureDetail = TextureDetailStrength * microDetailMask * (1.0 - saturate(foliage * 0.62 + haze * 0.45 + wetness * 0.30));
-    float mediumEdgeClarity = edgeMask * (1.0 - specularEdgeMask * 0.55) * (1.0 - skyPressure);
-    float sharpenAmount = SharpenStrength * (0.32 + readableEdgeBoost * 0.42 + textureDetail * 0.20 + mediumEdgeClarity * 0.06);
-    sharpenAmount *= 1.0 - dampen * 0.86;
-    sharpenAmount = clamp(sharpenAmount, 0.0, 0.34);
+    float structuralDampen = saturate(hazePressure * 0.36 + highlightPressure * 0.52 + haloPressure * 0.44 + skyPressure + foliageStructurePressure + secondaryAuthorityPressure * 0.24);
+    float textureDampen = saturate(hazePressure * 0.78 + wetness * 0.25 + foliageTexturePressure + depthTexturePressure + highlightPressure + haloPressure * 0.74 + skyPressure + secondaryAuthorityPressure * 0.58);
+    float dampen = saturate(max(structuralDampen * 0.72, textureDampen));
 
-    float3 detail = center - blur;
+    // Structural clarity uses broader low-frequency luma edges: silhouettes, trunks, rocks, buildings, armor, and readable geometry.
+    float structuralBoost = (StructuralClarityStrength + EdgeClarityStrength * 0.34) * structuralEdgeMask;
+    structuralBoost *= 0.62 + readability * 0.18 + combat * 0.12;
+    structuralBoost *= 1.0 - structuralDampen * 0.78;
 
-    // Anti-crunch limits high-contrast dark/light edge pushes before they become harsh outlines.
-    float crunchGuard = smoothstep(0.12, 0.34, abs(detailLuma)) * AntiCrunchStrength;
-    float detailLimit = lerp(0.090, 0.032, saturate(crunchGuard + highlightPressure * 0.65 + skyPressure * 0.50));
+    // Texture detail is a separate, much smaller channel. Foliage, haze, wetness, far depth, and secondary authority suppress it hard.
+    float textureBoost = TextureDetailStrength * textureDetailMask;
+    textureBoost *= 1.0 - textureDampen * 0.94;
+    textureBoost *= 1.0 - saturate(foliage * 0.62 + farDepthMask * 0.42);
+
+    float structuralAmount = clamp(SharpenStrength * structuralBoost * authority, 0.0, 0.145);
+    float textureAmount = clamp(SharpenStrength * textureBoost * authority, 0.0, 0.052);
+    float sharpenAmount = structuralAmount + textureAmount;
+
+    float3 structuralDetail = center - wideBlur;
+    float3 textureDetail = center - blur;
+
+    // Luma-safe reconstruction avoids chroma ringing; remaining RGB detail is kept tiny and heavily clamped.
+    float structuralDeltaLuma = centerLuma - wideBlurLuma;
+    float textureDeltaLuma = centerLuma - blurLuma;
+    float lumaDelta = structuralDeltaLuma * structuralAmount + textureDeltaLuma * textureAmount;
+    float3 lumaOnlyDetail = float3(lumaDelta, lumaDelta, lumaDelta);
+    float3 rgbDetail = structuralDetail * structuralAmount + textureDetail * textureAmount;
+    float lumaOnly = saturate(LumaOnlyStrength + foliage * 0.10 + highlightPressure * 0.12);
+    float3 detail = lerp(rgbDetail, lumaOnlyDetail, lumaOnly);
+
+    // Anti-crunch and halo guards limit high-contrast pushes before they become gritty outlines.
+    float crunchGuard = smoothstep(0.11, 0.32, max(detailLuma, structuralLuma)) * AntiCrunchStrength;
+    float detailLimit = lerp(0.060, 0.018, saturate(crunchGuard + highlightPressure * 0.60 + haloPressure * 0.55 + skyPressure * 0.70));
     detail = clamp(detail, -detailLimit, detailLimit);
 
-    float3 sharpened = center + detail * sharpenAmount;
+    float3 sharpened = center + detail;
 
-    // Final delta guardrail keeps the prototype subtle even with manual sliders raised.
-    sharpened = min(sharpened, center + 0.075);
-    sharpened = max(sharpened, center - 0.075);
+    // Final delta guardrail keeps SmartSharpen secondary-safe even when another sharpener or Clarity is active.
+    float deltaLimit = lerp(0.026, 0.065, authority) * (1.0 - saturate(foliage * 0.18 + farDepthMask * 0.16 + veryBrightMask * 0.10));
+    sharpened = min(sharpened, center + deltaLimit);
+    sharpened = max(sharpened, center - deltaLimit);
     sharpened = saturate(sharpened);
 
     if (ShowDebugMask)
     {
-        return float4(saturate(sharpenAmount * 3.0), saturate(readableEdgeBoost * 2.4 + mediumEdgeClarity * 0.55), saturate(dampen), 1.0);
+        if (DebugView == 1)
+        {
+            return float4(structuralEdgeMask, saturate(structuralAmount * 8.0), saturate(structuralDampen), 1.0);
+        }
+        if (DebugView == 2)
+        {
+            return float4(textureDetailMask, saturate(textureAmount * 16.0), saturate(textureDampen), 1.0);
+        }
+        if (DebugView == 3)
+        {
+            return float4(saturate(sharpenAmount * 8.0), saturate(structuralAmount * 8.0), saturate(textureAmount * 16.0), 1.0);
+        }
+        if (DebugView == 4)
+        {
+            return float4(saturate(haloPressure + highlightPressure), saturate(skyPressure), saturate(dampen), 1.0);
+        }
+        if (DebugView == 5)
+        {
+            return float4(saturate(foliageTexturePressure), saturate(farDepthMask), saturate(depthTexturePressure), 1.0);
+        }
+
+        return float4(saturate(structuralAmount * 8.0), saturate(textureAmount * 16.0), saturate(dampen), 1.0);
     }
 
     return float4(sharpened, 1.0);

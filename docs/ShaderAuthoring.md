@@ -50,7 +50,7 @@ The generated WeatherAtmosphere section includes the weather shader intent varia
 
 The generated AdaptiveGrade section includes the grade shader intent variables Dalashade currently knows how to write: `Dalashade_Readability`, `Dalashade_Atmosphere`, `Dalashade_HighlightProtection`, `Dalashade_ShadowProtection`, `Dalashade_Cold`, `Dalashade_Heat`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_FoliageDensity`, `Dalashade_IndustrialHardness`, `Dalashade_CosmicMood`, `Dalashade_CinematicPermission`, and `Dalashade_CombatPressure`.
 
-The generated SmartSharpen section includes the clarity shader intent variables Dalashade currently knows how to write: `Dalashade_Readability`, `Dalashade_Haze`, `Dalashade_Wetness`, `Dalashade_FoliageDensity`, `Dalashade_CombatPressure`, and `Dalashade_HighlightProtection`.
+The generated SmartSharpen section includes the clarity shader intent variables Dalashade currently knows how to write: `Dalashade_Readability`, `Dalashade_Haze`, `Dalashade_Wetness`, `Dalashade_FoliageDensity`, `Dalashade_CombatPressure`, `Dalashade_HighlightProtection`, and `Dalashade_SharpenAuthority`. It can also write SmartSharpen tuning sliders such as `SharpenStrength`, `StructuralClarityStrength`, `TextureDetailStrength`, and dampening controls when those keys exist or are injected.
 
 The generated AtmosphereBloom section includes the bloom shader intent variables Dalashade currently knows how to write: `Dalashade_Atmosphere`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_FoliageDensity`, `Dalashade_Wetness`, `Dalashade_Heat`, `Dalashade_Readability`, `Dalashade_HighlightProtection`, `Dalashade_CombatPressure`, and `Dalashade_CinematicPermission`.
 
@@ -73,6 +73,7 @@ The UI and compatibility report distinguish two separate states:
 | Known custom variables found | Matching `Dalashade_*` keys were found in a Dalashade custom shader section. |
 | Variables detected but unchanged | Keys exist, but generation did not write values. Common causes are disabled custom shader support, inactive/unknown technique state, write-mode settings, or values already matching SceneIntent. |
 | Variables written | `SceneIntent` values were written into matching `Dalashade_*` keys during generation. |
+| SmartSharpen authority | Whether `Dalashade_SmartSharpen.fx` should behave as primary, secondary, or passive based on other active sharpeners in the preset. |
 
 This is not the same as shader file installation. ReShade must still be able to find the actual `.fx` file through its own shader search paths. If the section exists but ReShade cannot compile or enable the effect, check ReShade's shader path and install the relevant file from `shaders/` manually.
 
@@ -236,22 +237,29 @@ Dalashade-driven controls:
 | `Dalashade_FoliageDensity` | Reduces fine texture sharpening in foliage-heavy scenes to avoid shimmer. |
 | `Dalashade_CombatPressure` | Dampens sharpening in combat so clarity does not turn into clutter. |
 | `Dalashade_HighlightProtection` | Reduces sharpening on bright highlight edges that are likely to halo. |
+| `Dalashade_SharpenAuthority` | `0` passive, `1` secondary when another sharpener is active, `2` primary when SmartSharpen is the main sharpen pass. |
 
 Manual testing controls:
 
 | Control | Suggested tuning |
 | --- | --- |
 | `SharpenStrength` | Default `0.36`. Overall bounded sharpen strength. |
-| `EdgeClarityStrength` | Default `0.42`. Raises readable edge clarity, especially with `Dalashade_Readability`. |
-| `TextureDetailStrength` | Default `0.24`. Adds limited fine-detail clarity, reduced by haze and foliage. |
+| `EdgeClarityStrength` | Default `0.42`. Legacy edge-clarity multiplier retained for compatibility. |
+| `StructuralClarityStrength` | Default `0.50`. Broad silhouette and geometry clarity for characters, trunks, rocks, buildings, and armor. |
+| `TextureDetailStrength` | Default `0.24`. Adds limited fine-detail clarity; generated secondary-authority values reduce this heavily. |
 | `AntiCrunchStrength` | Default `0.70`. Limits gritty or outlined high-contrast edges. |
 | `DepthDampenStrength` | Default `0.55`. Reduces far-depth sharpening when depth data is usable. |
+| `FarDepthDampenStrength` | Default `0.72`. Extra suppression for distant canopy, heat haze, fog, and background texture shimmer. |
+| `FoliageDampenStrength` | Default `0.80`. Strongly reduces leaf/grass micro-detail sharpening in forest and jungle scenes. |
 | `HighlightDampenStrength` | Default `0.72`. Reduces sharpening on bright and wet highlight edges. |
+| `HaloDampenStrength` | Default `0.78`. Reduces halos around bright clouds, lamps, water glints, sand, and white architecture. |
+| `SkyDampenStrength` | Default `0.78`. Suppresses sky, fog, and smooth-gradient sharpening. |
 | `HazeDampenStrength` | Default `0.68`. Reduces sharpening in haze, fog, dust, and rain pressure. |
 | `CombatDampenStrength` | Default `0.66`. Reduces sharpening under combat pressure. |
-| `ShowDebugMask` | Shows red sharpen amount, green readability edge clarity, and blue dampening pressure. |
+| `LumaOnlyStrength` | Default `0.80`. Uses luma-safe reconstruction to avoid color ringing and chroma halos. |
+| `ShowDebugMask` / `DebugView` | Shows composite, structural edge, texture detail, final sharpen, dampening, or foliage/far-depth suppression masks. |
 
-The shader is intentionally subtle. It avoids sky gradients, far-depth haze, wet/specular edges, and foliage micro-detail before adding readability clarity. If edges look crunchy, lower `SharpenStrength` first, then raise `AntiCrunchStrength` or the relevant dampening slider. Do not use this shader as an anti-aliasing replacement.
+The shader uses two channels. Structural clarity uses broad, lower-frequency luma edges for silhouettes and readable geometry. Texture detail is separate and much smaller, then strongly dampened by foliage, haze, wetness, far depth, bright edges, sky/smooth gradients, and secondary sharpen authority. If Marty Sharpen or another non-Dalashade sharpener is active, generated SmartSharpen values default to secondary authority: lower overall strength, much lower texture detail, higher anti-crunch, and stronger foliage/far-depth/halo dampening. Do not use this shader as an anti-aliasing replacement.
 
 ## Supported SceneIntent Variables
 
@@ -274,8 +282,9 @@ Future Dalashade shaders can expose these scalar variables in a Dalashade sectio
 | `Dalashade_CosmicMood` | `SceneIntent.CosmicMood` |
 | `Dalashade_CombatPressure` | `SceneIntent.CombatPressure` |
 | `Dalashade_CinematicPermission` | `SceneIntent.CinematicPermission` |
+| `Dalashade_SharpenAuthority` | Active preset sharpen authority analysis, not `SceneIntent` |
 
-All values are normalized `0.0` to `1.0`.
+SceneIntent values are normalized `0.0` to `1.0`. `Dalashade_SharpenAuthority` is preset-analysis-derived and uses `0`, `1`, or `2`.
 
 `Dalashade_WeatherAtmosphere.fx` currently consumes `Readability`, `Atmosphere`, `HighlightProtection`, `ShadowProtection`, `Haze`, `Wetness`, `Cold`, `Heat`, `MagicGlow`, `NeonGlow`, `FoliageDensity`, `CombatPressure`, and `CinematicPermission`.
 
@@ -283,7 +292,7 @@ All values are normalized `0.0` to `1.0`.
 
 `Dalashade_AtmosphereBloom.fx` currently consumes `Atmosphere`, `MagicGlow`, `NeonGlow`, `FoliageDensity`, `Wetness`, `Heat`, `Readability`, `HighlightProtection`, `CombatPressure`, and `CinematicPermission`.
 
-`Dalashade_SmartSharpen.fx` currently consumes `Readability`, `Haze`, `Wetness`, `FoliageDensity`, `CombatPressure`, and `HighlightProtection`.
+`Dalashade_SmartSharpen.fx` currently consumes `Readability`, `Haze`, `Wetness`, `FoliageDensity`, `CombatPressure`, `HighlightProtection`, and preset-derived `SharpenAuthority`.
 
 ## Example Preset Section
 
@@ -339,6 +348,21 @@ Dalashade_Wetness=0.000000
 Dalashade_FoliageDensity=0.000000
 Dalashade_CombatPressure=0.000000
 Dalashade_HighlightProtection=0.000000
+Dalashade_SharpenAuthority=0.000000
+SharpenStrength=0.000000
+EdgeClarityStrength=0.000000
+StructuralClarityStrength=0.000000
+TextureDetailStrength=0.000000
+AntiCrunchStrength=0.000000
+DepthDampenStrength=0.000000
+FarDepthDampenStrength=0.000000
+FoliageDampenStrength=0.000000
+HighlightDampenStrength=0.000000
+HaloDampenStrength=0.000000
+SkyDampenStrength=0.000000
+HazeDampenStrength=0.000000
+CombatDampenStrength=0.000000
+LumaOnlyStrength=0.000000
 ```
 
 ## Regression Fixture
