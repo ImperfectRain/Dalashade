@@ -15,13 +15,13 @@ Implemented plugin support:
 Implemented shader prototypes:
 
 - `shaders/Dalashade_WeatherAtmosphere.fx`
-- Current tuning is conservative v2: stronger than the first prototype, but bounded by combat/readability dampening and final color-delta guardrails.
+- Scene-aware weather and air pass: depth-weighted fog/dust, wet air glow, coastal highlight control, canopy air, snow/cold separation, and gameplay dampening.
 - `shaders/Dalashade_AdaptiveGrade.fx`
-- Current tuning is a conservative prototype for SceneIntent-driven exposure, contrast, saturation, temperature, highlight rolloff, shadow lift, and cinematic bias.
+- Scene-aware native grade: exposure trim, contrast, selective saturation, biome temperature/tint, highlight shoulder, black-depth preservation, and industrial/cosmic bias.
 - `shaders/Dalashade_SmartSharpen.fx`
-- Current tuning is a conservative clarity prototype that avoids sharpening haze, rain highlights, foliage shimmer, far-depth detail, and combat clutter.
+- Context-aware clarity pass that avoids sharpening haze, sky gradients, wet highlights, foliage shimmer, far-depth detail, and combat clutter.
 - `shaders/Dalashade_AtmosphereBloom.fx`
-- Current tuning is a conservative atmospheric bloom prototype that colors magic/neon glow while respecting combat and highlight protection.
+- Selective atmospheric bloom for bright sources, wet speculars, canopy openings, distant heat glow, magic/aether, and neon accents.
 
 Not implemented yet:
 
@@ -48,11 +48,11 @@ When both `EnableDalashadeCustomShaders` and `AutoInjectDalashadeCustomShaderSec
 
 The generated WeatherAtmosphere section includes the weather shader intent variables Dalashade currently knows how to write: `Dalashade_Haze`, `Dalashade_Wetness`, `Dalashade_Cold`, `Dalashade_Heat`, `Dalashade_HighlightProtection`, `Dalashade_ShadowProtection`, `Dalashade_CombatPressure`, `Dalashade_Atmosphere`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_FoliageDensity`, `Dalashade_Readability`, and `Dalashade_CinematicPermission`.
 
-The generated AdaptiveGrade section includes the grade shader intent variables Dalashade currently knows how to write: `Dalashade_Readability`, `Dalashade_Atmosphere`, `Dalashade_HighlightProtection`, `Dalashade_ShadowProtection`, `Dalashade_Cold`, `Dalashade_Heat`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_FoliageDensity`, `Dalashade_CinematicPermission`, and `Dalashade_CombatPressure`.
+The generated AdaptiveGrade section includes the grade shader intent variables Dalashade currently knows how to write: `Dalashade_Readability`, `Dalashade_Atmosphere`, `Dalashade_HighlightProtection`, `Dalashade_ShadowProtection`, `Dalashade_Cold`, `Dalashade_Heat`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_FoliageDensity`, `Dalashade_IndustrialHardness`, `Dalashade_CosmicMood`, `Dalashade_CinematicPermission`, and `Dalashade_CombatPressure`.
 
 The generated SmartSharpen section includes the clarity shader intent variables Dalashade currently knows how to write: `Dalashade_Readability`, `Dalashade_Haze`, `Dalashade_Wetness`, `Dalashade_FoliageDensity`, `Dalashade_CombatPressure`, and `Dalashade_HighlightProtection`.
 
-The generated AtmosphereBloom section includes the bloom shader intent variables Dalashade currently knows how to write: `Dalashade_Atmosphere`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_FoliageDensity`, `Dalashade_HighlightProtection`, `Dalashade_CombatPressure`, and `Dalashade_CinematicPermission`.
+The generated AtmosphereBloom section includes the bloom shader intent variables Dalashade currently knows how to write: `Dalashade_Atmosphere`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_FoliageDensity`, `Dalashade_Wetness`, `Dalashade_Heat`, `Dalashade_Readability`, `Dalashade_HighlightProtection`, `Dalashade_CombatPressure`, and `Dalashade_CinematicPermission`.
 
 Dalashade also does not currently install or copy custom shader files into a ReShade shader directory, and generated-preset injection does not enable techniques automatically. For manual testing, place the needed files from `shaders/` somewhere ReShade scans for shaders, then enable wanted techniques in ReShade.
 
@@ -77,6 +77,8 @@ The UI and compatibility report distinguish two separate states:
 This is not the same as shader file installation. ReShade must still be able to find the actual `.fx` file through its own shader search paths. If the section exists but ReShade cannot compile or enable the effect, check ReShade's shader path and install the relevant file from `shaders/` manually.
 
 Technique auto-injection is disabled. Dalashade can inject known sections and variables into the generated preset, but it does not append Dalashade custom shader entries to `Techniques=`. Base preset technique inactive/unknown means only that the base preset did not confirm activation. Users must install the relevant `.fx` files and enable wanted techniques in ReShade manually.
+
+Compatibility analysis classifies the four `Dalashade_*` first-party shader sections as controlled Dalashade effects when they appear in a preset. This means reports should treat them as known first-party color, bloom, clarity, or atmosphere roles rather than unsupported third-party effects. Variable writes still require matching generated-preset section/key lines and custom shader support enabled.
 
 ## Recommended ReShade Order
 
@@ -145,8 +147,9 @@ Manual testing controls:
 | `Manual Glow Boost` | Adds glow without needing wet, magic, or neon intent. |
 | `Manual Storm/Dark Mood` | Tests storm darkening and cool mood response. |
 | `Show Debug Mask` | Shows red depth haze, green glow, and blue protection/readability pressure. |
+| `Debug View` | Selects composite, depth haze, highlight protection, weather glow, foliage dampening, or heat/dust masks. |
 
-The v2 shader intentionally does not blur the frame or disable any ReShade techniques. It shapes color, haze, glow, highlight rolloff, and mild softness through bounded masks. Heat haze and depth haze are weighted toward distance so hot desert nights avoid full-screen lift. Foliage-heavy atmospheric scenes reduce veil haze and get a small canopy-light response instead of gray wash. Combat-heavy scenes should visibly reduce the heaviest atmosphere while retaining light weather identity.
+The shader intentionally does not blur the whole frame or disable any ReShade techniques. It shapes color, haze, glow, highlight rolloff, and mild softness through bounded masks. Heat haze and depth haze are weighted toward distance so hot desert nights avoid full-screen lift. Foliage-heavy atmospheric scenes reduce veil haze and get a small canopy-light response instead of gray wash. Combat-heavy scenes should visibly reduce the heaviest atmosphere while retaining light weather identity.
 
 ## Adaptive Grade Controls
 
@@ -165,6 +168,8 @@ Dalashade-driven controls:
 | `Dalashade_MagicGlow` | Adds a subtle magenta/green tint response and modest saturation support. |
 | `Dalashade_NeonGlow` | Adds a subtle cool neon tint response and modest saturation support. |
 | `Dalashade_FoliageDensity` | Adds restrained green richness and dampens global shadow lift in foliage-heavy scenes. |
+| `Dalashade_IndustrialHardness` | Adds harder contrast, cooler tone, restrained saturation, and black-depth preservation for imperial/industrial spaces. |
+| `Dalashade_CosmicMood` | Adds cool blue/violet bias and high-depth contrast for lunar/cosmic scenes. |
 | `Dalashade_CinematicPermission` | Allows a small cinematic contrast, saturation, and color-bias lift. |
 | `Dalashade_CombatPressure` | Dampens heavy grading and slightly reduces exposure, saturation, and shadow lift. |
 
@@ -180,7 +185,7 @@ Manual testing controls:
 | `Manual Tint` | Moves the grade toward green or magenta. |
 | `Show Debug Mask` | Shows red highlight rolloff, green shadow lift, and blue cinematic/gameplay pressure. |
 
-The prototype intentionally clamps per-channel movement relative to the source and clamps final output away from pure black and pure white. This keeps the shader usable as a native safety grade instead of a full creative LUT replacement.
+The shader intentionally clamps per-channel movement relative to the source and clamps final output away from pure black and pure white. It uses selective color response: coastal/desert heat warms bright mids, jungle foliage gets richer greens without gray lift, snow/cosmic scenes cool highlights and shadows, and imperial/industrial scenes become harder and less pastel. It is a native safety grade, not a full creative LUT replacement.
 
 ## Atmosphere Bloom Controls
 
@@ -194,6 +199,9 @@ Dalashade-driven controls:
 | `Dalashade_MagicGlow` | Strengthens and tints aetherial or magical glow. |
 | `Dalashade_NeonGlow` | Strengthens and tints neon or high-tech glow. |
 | `Dalashade_FoliageDensity` | Allows subtle green-gold canopy/sky-light bloom through foliage when atmosphere is high. |
+| `Dalashade_Wetness` | Adds small wet-specular glow on bright rain/water highlights. |
+| `Dalashade_Heat` | Adds restrained distant warm atmospheric glow for heat/dust scenes. |
+| `Dalashade_Readability` | Raises restraint when the scene needs gameplay clarity. |
 | `Dalashade_HighlightProtection` | Raises the bright-pass threshold and reduces washout-prone glow. |
 | `Dalashade_CombatPressure` | Dampens bloom during combat and slightly raises threshold. |
 | `Dalashade_CinematicPermission` | Allows a small cinematic bloom boost only outside gameplay-critical moments. |
@@ -212,7 +220,7 @@ Manual testing controls:
 | `CinematicBoostStrength` | Default `0.34`. Adds limited bloom when cinematic permission is high. |
 | `ShowDebugMask` | Shows red bloom source, green magic/neon intent, and blue combat/highlight restraint. |
 
-The prototype uses a single-pass fixed sample ring rather than a large multi-pass blur. It is meant for cheap scene-aware glow, not large full-screen bloom.
+The shader uses a single-pass fixed sample ring rather than a large multi-pass blur. It is meant for cheap scene-aware glow, not large full-screen bloom. Bright coastal scenes should keep clean specular sparkle without nuclear sand/sky bloom; jungle scenes should get subtle canopy openings; rain should pick up small wet highlights; neon and magic should tint local luminous sources; combat and readability pressure should cut strength quickly.
 
 ## Smart Sharpen Controls
 
@@ -243,7 +251,7 @@ Manual testing controls:
 | `CombatDampenStrength` | Default `0.66`. Reduces sharpening under combat pressure. |
 | `ShowDebugMask` | Shows red sharpen amount, green readability edge clarity, and blue dampening pressure. |
 
-The prototype is intentionally subtle. If edges look crunchy, lower `SharpenStrength` first, then raise `AntiCrunchStrength` or the relevant dampening slider. Do not use this shader as an anti-aliasing replacement.
+The shader is intentionally subtle. It avoids sky gradients, far-depth haze, wet/specular edges, and foliage micro-detail before adding readability clarity. If edges look crunchy, lower `SharpenStrength` first, then raise `AntiCrunchStrength` or the relevant dampening slider. Do not use this shader as an anti-aliasing replacement.
 
 ## Supported SceneIntent Variables
 
@@ -262,6 +270,8 @@ Future Dalashade shaders can expose these scalar variables in a Dalashade sectio
 | `Dalashade_MagicGlow` | `SceneIntent.MagicGlow` |
 | `Dalashade_NeonGlow` | `SceneIntent.NeonGlow` |
 | `Dalashade_FoliageDensity` | `SceneIntent.FoliageDensity` |
+| `Dalashade_IndustrialHardness` | `SceneIntent.IndustrialHardness` |
+| `Dalashade_CosmicMood` | `SceneIntent.CosmicMood` |
 | `Dalashade_CombatPressure` | `SceneIntent.CombatPressure` |
 | `Dalashade_CinematicPermission` | `SceneIntent.CinematicPermission` |
 
@@ -269,9 +279,9 @@ All values are normalized `0.0` to `1.0`.
 
 `Dalashade_WeatherAtmosphere.fx` currently consumes `Readability`, `Atmosphere`, `HighlightProtection`, `ShadowProtection`, `Haze`, `Wetness`, `Cold`, `Heat`, `MagicGlow`, `NeonGlow`, `FoliageDensity`, `CombatPressure`, and `CinematicPermission`.
 
-`Dalashade_AdaptiveGrade.fx` currently consumes `Readability`, `Atmosphere`, `HighlightProtection`, `ShadowProtection`, `Cold`, `Heat`, `MagicGlow`, `NeonGlow`, `FoliageDensity`, `CombatPressure`, and `CinematicPermission`.
+`Dalashade_AdaptiveGrade.fx` currently consumes `Readability`, `Atmosphere`, `HighlightProtection`, `ShadowProtection`, `Cold`, `Heat`, `MagicGlow`, `NeonGlow`, `FoliageDensity`, `IndustrialHardness`, `CosmicMood`, `CombatPressure`, and `CinematicPermission`.
 
-`Dalashade_AtmosphereBloom.fx` currently consumes `Atmosphere`, `MagicGlow`, `NeonGlow`, `FoliageDensity`, `HighlightProtection`, `CombatPressure`, and `CinematicPermission`.
+`Dalashade_AtmosphereBloom.fx` currently consumes `Atmosphere`, `MagicGlow`, `NeonGlow`, `FoliageDensity`, `Wetness`, `Heat`, `Readability`, `HighlightProtection`, `CombatPressure`, and `CinematicPermission`.
 
 `Dalashade_SmartSharpen.fx` currently consumes `Readability`, `Haze`, `Wetness`, `FoliageDensity`, `CombatPressure`, and `HighlightProtection`.
 
@@ -305,6 +315,8 @@ Dalashade_Heat=0.000000
 Dalashade_MagicGlow=0.000000
 Dalashade_NeonGlow=0.000000
 Dalashade_FoliageDensity=0.000000
+Dalashade_IndustrialHardness=0.000000
+Dalashade_CosmicMood=0.000000
 Dalashade_CinematicPermission=0.000000
 Dalashade_CombatPressure=0.000000
 
@@ -313,6 +325,9 @@ Dalashade_Atmosphere=0.000000
 Dalashade_MagicGlow=0.000000
 Dalashade_NeonGlow=0.000000
 Dalashade_FoliageDensity=0.000000
+Dalashade_Wetness=0.000000
+Dalashade_Heat=0.000000
+Dalashade_Readability=0.000000
 Dalashade_HighlightProtection=0.000000
 Dalashade_CombatPressure=0.000000
 Dalashade_CinematicPermission=0.000000

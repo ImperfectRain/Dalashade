@@ -23,6 +23,8 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_MagicGlow"] = intent => intent.MagicGlow,
             ["Dalashade_NeonGlow"] = intent => intent.NeonGlow,
             ["Dalashade_FoliageDensity"] = intent => intent.FoliageDensity,
+            ["Dalashade_IndustrialHardness"] = intent => intent.IndustrialHardness,
+            ["Dalashade_CosmicMood"] = intent => intent.CosmicMood,
             ["Dalashade_CombatPressure"] = intent => intent.CombatPressure,
             ["Dalashade_CinematicPermission"] = intent => intent.CinematicPermission
         };

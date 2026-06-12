@@ -20,6 +20,7 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
 9. `ProfileEngine.CreateWithRules()` in `Dalashade/VisualProfile.cs` creates a `VisualProfile`, applied rules, and tag-stack diagnostics.
 10. If master style is available, `MasterStyleMatcher.Match()` in `Dalashade/MasterStyleMatcher.cs` returns deltas, diagnostics, rules, and color-family adjustments.
 11. `Plugin.ScanPresetCompatibility()` runs `PresetWriter.ScanSupportedVariables()` and `PresetAnalyzer.Analyze()`.
+    - First-party `Dalashade_*` shader sections are classified as known controlled Dalashade effects when they appear in preset content.
 12. `PresetWriter.WriteGeneratedPreset()` reads the base preset and creates shader adjustments from `ShaderVariableMapper.CreateAdjustments()`.
     - If `EnableDalashadeCustomShaders` is enabled, `CustomShaderVariableMapper` can also write normalized `SceneIntent` values into matching Dalashade custom shader sections.
     - If `AutoInjectDalashadeCustomShaderSections` is also enabled, known Dalashade custom shader sections and variables can be inserted into the generated preset only.

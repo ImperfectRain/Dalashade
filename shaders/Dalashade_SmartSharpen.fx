@@ -124,6 +124,7 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float detailLuma = abs(centerLuma - blurLuma);
     float edgeMask = smoothstep(0.010, 0.115, detailLuma);
     float microDetailMask = 1.0 - smoothstep(0.070, 0.180, detailLuma);
+    float colorVariance = max(max(abs(center.r - center.g), abs(center.g - center.b)), abs(center.r - center.b));
 
     // Intent masks reduce sharpening where clarity usually becomes shimmer, halos, or combat clutter.
     float readability = saturate(Dalashade_Readability);
@@ -134,6 +135,7 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float highlightProtection = saturate(Dalashade_HighlightProtection);
 
     float brightMask = smoothstep(0.62, 0.96, centerLuma);
+    float skyGradientMask = smoothstep(0.52, 0.92, centerLuma) * (1.0 - smoothstep(0.012, 0.060, detailLuma)) * (1.0 - smoothstep(0.030, 0.18, colorVariance));
     float specularEdgeMask = brightMask * smoothstep(0.018, 0.090, detailLuma);
     float depth = ReShade::GetLinearizedDepth(texcoord);
     float farDepthMask = smoothstep(0.20, 0.92, depth);
@@ -143,12 +145,14 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float highlightPressure = saturate((highlightProtection * 0.75 + wetness * 0.28) * specularEdgeMask * HighlightDampenStrength);
     float depthPressure = saturate(farDepthMask * DepthDampenStrength * (0.45 + haze * 0.55));
     float combatPressure = saturate(combat * CombatDampenStrength);
-    float dampen = saturate(hazePressure + foliagePressure * 0.38 + highlightPressure + depthPressure * 0.55 + combatPressure);
+    float skyPressure = saturate(skyGradientMask * (0.45 + highlightProtection * 0.30));
+    float dampen = saturate(hazePressure + foliagePressure * 0.38 + highlightPressure + depthPressure * 0.55 + combatPressure + skyPressure);
 
     // Readability can add edge clarity, but the same safety masks keep it from crunching fog, leaves, or bright halos.
-    float readableEdgeBoost = readability * EdgeClarityStrength * edgeMask * (1.0 - saturate(haze * 0.55 + combat * 0.30));
+    float readableEdgeBoost = readability * EdgeClarityStrength * edgeMask * (1.0 - saturate(haze * 0.55 + combat * 0.24 + skyPressure));
     float textureDetail = TextureDetailStrength * microDetailMask * (1.0 - saturate(foliage * 0.62 + haze * 0.45 + wetness * 0.30));
-    float sharpenAmount = SharpenStrength * (0.30 + readableEdgeBoost * 0.38 + textureDetail * 0.22);
+    float mediumEdgeClarity = edgeMask * (1.0 - specularEdgeMask * 0.55) * (1.0 - skyPressure);
+    float sharpenAmount = SharpenStrength * (0.32 + readableEdgeBoost * 0.42 + textureDetail * 0.20 + mediumEdgeClarity * 0.06);
     sharpenAmount *= 1.0 - dampen * 0.86;
     sharpenAmount = clamp(sharpenAmount, 0.0, 0.34);
 
@@ -156,7 +160,7 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
 
     // Anti-crunch limits high-contrast dark/light edge pushes before they become harsh outlines.
     float crunchGuard = smoothstep(0.12, 0.34, abs(detailLuma)) * AntiCrunchStrength;
-    float detailLimit = lerp(0.085, 0.035, crunchGuard + highlightPressure * 0.65);
+    float detailLimit = lerp(0.090, 0.032, saturate(crunchGuard + highlightPressure * 0.65 + skyPressure * 0.50));
     detail = clamp(detail, -detailLimit, detailLimit);
 
     float3 sharpened = center + detail * sharpenAmount;
@@ -168,7 +172,7 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
 
     if (ShowDebugMask)
     {
-        return float4(saturate(sharpenAmount * 3.0), saturate(readableEdgeBoost * 2.4), saturate(dampen), 1.0);
+        return float4(saturate(sharpenAmount * 3.0), saturate(readableEdgeBoost * 2.4 + mediumEdgeClarity * 0.55), saturate(dampen), 1.0);
     }
 
     return float4(sharpened, 1.0);

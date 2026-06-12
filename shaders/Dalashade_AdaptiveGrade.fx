@@ -56,6 +56,20 @@ uniform float Dalashade_FoliageDensity <
     ui_tooltip = "Scene-driven foliage density. Higher values preserve richer greens and restrain gray shadow lift.";
 > = 0.0;
 
+uniform float Dalashade_IndustrialHardness <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Industrial Hardness";
+    ui_tooltip = "Scene-driven industrial/imperial pressure. Higher values favor harder contrast and lower color softness.";
+> = 0.0;
+
+uniform float Dalashade_CosmicMood <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Cosmic Mood";
+    ui_tooltip = "Scene-driven cosmic/lunar pressure. Higher values bias the grade cooler and more otherworldly.";
+> = 0.0;
+
 uniform float Dalashade_CinematicPermission <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -152,11 +166,14 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float magicGlow = saturate(Dalashade_MagicGlow);
     float neonGlow = saturate(Dalashade_NeonGlow);
     float foliage = saturate(Dalashade_FoliageDensity);
+    float industrial = saturate(Dalashade_IndustrialHardness);
+    float cosmic = saturate(Dalashade_CosmicMood);
     float cinematic = saturate(Dalashade_CinematicPermission);
     float manualStrength = saturate(Dalashade_ManualStrength);
     float safety = 1.0 - saturate(readability * 0.42 + combat * 0.58);
     float foliageRichness = foliage * atmosphere * safety;
-    float gradeStrength = manualStrength * (0.42 + atmosphere * 0.20 + cinematic * 0.20) * (0.55 + safety * 0.45);
+    float authoredIdentity = max(max(foliage, max(heat, cold)), max(max(neonGlow, magicGlow), max(industrial, cosmic)));
+    float gradeStrength = manualStrength * (0.44 + atmosphere * 0.18 + cinematic * 0.18 + authoredIdentity * 0.08) * (0.55 + safety * 0.45);
 
     float luma = Dalashade_Luma(source);
     float highlightMask = smoothstep(0.62, 0.98, luma);
@@ -166,20 +183,26 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float exposureTrim = Dalashade_ManualExposure
         + (shadowProtection * 0.020)
         - (highlightProtection * 0.026)
-        - (combat * 0.010);
+        - (combat * 0.010)
+        - (industrial * 0.006)
+        - (cosmic * 0.004);
     float contrastAmount = Dalashade_ManualContrast
         + (cinematic * safety * 0.052)
         + (atmosphere * safety * 0.018)
         + (foliageRichness * 0.014)
+        + (industrial * safety * 0.045)
+        + (cosmic * safety * 0.020)
         - (readability * 0.026);
     float saturationAmount = Dalashade_ManualSaturation
         + (cinematic * safety * 0.035)
         + (max(magicGlow, neonGlow) * safety * 0.025)
         + (foliageRichness * 0.030)
+        + (cosmic * safety * 0.014)
+        - (industrial * 0.040)
         - (readability * 0.032)
         - (combat * 0.026);
-    float temperature = Dalashade_ManualTemperature + (heat * 0.070) - (cold * 0.065);
-    float tint = Dalashade_ManualTint + (magicGlow * 0.030) - (neonGlow * 0.012);
+    float temperature = Dalashade_ManualTemperature + (heat * 0.074) - (cold * 0.065) - (cosmic * 0.040) - (industrial * 0.018);
+    float tint = Dalashade_ManualTint + (magicGlow * 0.030) - (neonGlow * 0.012) + (cosmic * 0.020) - (industrial * 0.010);
 
     exposureTrim = clamp(exposureTrim, -0.085, 0.075);
     contrastAmount = clamp(contrastAmount, -0.085, 0.115);
@@ -192,20 +215,37 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     graded = Dalashade_SafeSaturation(graded, saturationAmount);
     graded = Dalashade_TemperatureTint(graded, temperature, tint);
 
+    // Biome-aware color response is selective: greens are protected in forests, metal is harder, and cosmic scenes cool shadows without global saturation abuse.
+    float greenSignal = saturate((source.g - max(source.r, source.b) * 0.78) * 2.4);
+    float warmSignal = saturate((source.r - source.b) * 1.8 + heat * 0.20);
+    float coolSignal = saturate((source.b - source.r) * 1.6 + cold * 0.18 + cosmic * 0.28);
+    float foliageColor = foliageRichness * greenSignal * (1.0 - highlightMask * 0.45);
+    graded = lerp(graded, graded * float3(0.965, 1.055, 0.940), foliageColor * 0.18);
+    graded = lerp(graded, graded * float3(1.045, 1.010, 0.940), heat * warmSignal * 0.052 * safety);
+    graded = lerp(graded, graded * float3(0.940, 0.970, 1.055), max(cold, cosmic) * coolSignal * 0.060 * safety);
+    graded = lerp(graded, float3(Dalashade_Luma(graded), Dalashade_Luma(graded), Dalashade_Luma(graded)), industrial * 0.045);
+
     // Cinematic bias is intentionally small and automatically weakens under gameplay pressure.
     float3 cinematicTint = lerp(float3(1.0, 0.985, 0.955), float3(0.955, 0.985, 1.0), cold);
     cinematicTint = lerp(cinematicTint, float3(1.0, 0.962, 0.912), heat * 0.65);
     cinematicTint = lerp(cinematicTint, float3(0.95, 0.98, 1.04), neonGlow * 0.30);
     cinematicTint = lerp(cinematicTint, float3(0.965, 1.020, 0.950), foliageRichness * 0.28);
+    cinematicTint = lerp(cinematicTint, float3(0.920, 0.960, 1.055), cosmic * 0.35);
+    cinematicTint = lerp(cinematicTint, float3(0.965, 0.982, 1.010), industrial * 0.20);
     float cinematicBias = cinematic * safety * (0.025 + atmosphere * 0.015);
     graded = lerp(graded, graded * cinematicTint, cinematicBias);
 
     // Highlight and shadow protection keep the grade usable in gameplay and bright weather.
-    float rolloff = min((highlightProtection * 0.15 + cold * 0.05 + heat * 0.035) * highlightMask, 0.20);
+    float rolloff = min((highlightProtection * 0.17 + cold * 0.055 + heat * 0.045 + cosmic * 0.020) * highlightMask, 0.24);
     graded = lerp(graded, graded / (1.0 + graded), rolloff * manualStrength);
 
-    float lift = min(shadowProtection * shadowMask * (0.060 - combat * 0.022) * (1.0 - foliage * 0.30), 0.075);
+    float selectiveShadowLift = (0.060 - combat * 0.022) * (1.0 - foliage * 0.34) * (1.0 - industrial * 0.22);
+    float lift = min(shadowProtection * shadowMask * selectiveShadowLift, 0.072);
     graded += lift * manualStrength * (1.0 - source);
+
+    // Preserve black depth in forests, industrial zones, and gloom-heavy scenes by recovering contrast in the deepest shadows.
+    float blackDepth = shadowMask * (foliage * 0.035 + industrial * 0.030 + cosmic * 0.014) * (1.0 - combat * 0.45);
+    graded = lerp(graded, graded * (1.0 - blackDepth), saturate(1.0 - readability * 0.40));
 
     // Guardrails prevent the grade from crushing or blowing out relative to the input.
     graded = min(graded, source + 0.18);

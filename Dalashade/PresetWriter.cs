@@ -88,6 +88,8 @@ public sealed class PresetWriter
                 "Dalashade_MagicGlow",
                 "Dalashade_NeonGlow",
                 "Dalashade_FoliageDensity",
+                "Dalashade_IndustrialHardness",
+                "Dalashade_CosmicMood",
                 "Dalashade_CinematicPermission",
                 "Dalashade_CombatPressure"
             ]),
@@ -112,6 +114,9 @@ public sealed class PresetWriter
                 "Dalashade_MagicGlow",
                 "Dalashade_NeonGlow",
                 "Dalashade_FoliageDensity",
+                "Dalashade_Wetness",
+                "Dalashade_Heat",
+                "Dalashade_Readability",
                 "Dalashade_HighlightProtection",
                 "Dalashade_CombatPressure",
                 "Dalashade_CinematicPermission"
@@ -481,20 +486,31 @@ public sealed class PresetWriter
     private static int FindSectionEnd(IReadOnlyList<string> lines, string section)
     {
         var inSection = false;
+        var lastContentIndex = -1;
         for (var i = 0; i < lines.Count; i++)
         {
             if (TryReadSection(lines[i], out var currentSection))
             {
                 if (inSection)
                 {
-                    return i;
+                    return lastContentIndex >= 0 ? lastContentIndex + 1 : i;
                 }
 
                 inSection = string.Equals(currentSection, section, StringComparison.OrdinalIgnoreCase);
+                if (inSection)
+                {
+                    lastContentIndex = i;
+                }
+                continue;
+            }
+
+            if (inSection && !string.IsNullOrWhiteSpace(lines[i]))
+            {
+                lastContentIndex = i;
             }
         }
 
-        return lines.Count;
+        return lastContentIndex >= 0 ? lastContentIndex + 1 : lines.Count;
     }
 
     private static HashSet<string> ReadSectionKeys(IEnumerable<string> lines, string section)

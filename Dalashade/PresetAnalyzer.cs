@@ -237,6 +237,26 @@ public sealed class PresetAnalyzer
     {
         var text = $"{entry.TechniqueName} {entry.ShaderFile}".ToLowerInvariant();
 
+        if (IsFirstPartyDalashadeShader(entry, "weatheratmosphere"))
+        {
+            return EffectRole.Diffusion;
+        }
+
+        if (IsFirstPartyDalashadeShader(entry, "adaptivegrade"))
+        {
+            return EffectRole.ColorGrade;
+        }
+
+        if (IsFirstPartyDalashadeShader(entry, "atmospherebloom"))
+        {
+            return EffectRole.Bloom;
+        }
+
+        if (IsFirstPartyDalashadeShader(entry, "smartsharpen"))
+        {
+            return EffectRole.Sharpen;
+        }
+
         if (ContainsAny(text, "keepui", "restoreui", "launchpad", "insight", "displaydepth", "stagedepth", "chromakey", "splitscreen", "aspectratio", "composition", "clipboard", "verticalpreviewer", "uimask", "crashpad"))
         {
             return EffectRole.UiUtility;
@@ -314,6 +334,11 @@ public sealed class PresetAnalyzer
     {
         var text = $"{entry.TechniqueName} {entry.ShaderFile}".ToLowerInvariant();
 
+        if (IsFirstPartyDalashadeShader(entry))
+        {
+            return EffectRisk.Safe;
+        }
+
         if (role == EffectRole.UiUtility)
         {
             return EffectRisk.UtilityIgnore;
@@ -344,6 +369,11 @@ public sealed class PresetAnalyzer
 
     private static SupportLevel ClassifySupport(TechniqueEntry entry, EffectRole role, IReadOnlyDictionary<string, int> controlledSections)
     {
+        if (IsFirstPartyDalashadeShader(entry))
+        {
+            return SupportLevel.FullyControlled;
+        }
+
         if (role == EffectRole.UiUtility)
         {
             return SupportLevel.DetectedOnly;
@@ -371,6 +401,22 @@ public sealed class PresetAnalyzer
 
         var text = $"{entry.TechniqueName} {entry.ShaderFile}".ToLowerInvariant();
         return ContainsAny(text, "ffxiv", "marty", "quint", "prod80", "pd80", "pirate", "ppfx", "dh_");
+    }
+
+    private static bool IsFirstPartyDalashadeShader(TechniqueEntry entry, string? shaderFamily = null)
+    {
+        var text = $"{entry.TechniqueName} {entry.ShaderFile}".ToLowerInvariant();
+        if (!text.Contains("dalashade_", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(shaderFamily))
+        {
+            return ContainsAny(text, "weatheratmosphere", "adaptivegrade", "atmospherebloom", "smartsharpen");
+        }
+
+        return text.Contains(shaderFamily, StringComparison.OrdinalIgnoreCase);
     }
 
     private static PresetRiskReport BuildReport(IReadOnlyList<PresetTechnique> techniques, IReadOnlyList<string> lines, PresetCompatibilityMode mode)
