@@ -33,6 +33,17 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
 16. `PresetWriter` writes a temporary file and replaces the generated preset path.
 17. `Plugin.ReloadShadersIfNeeded()` optionally calls `ReShadeController.ReloadAfterPresetWrite()`.
 
+## Report-Only Diagnostics
+
+Compatibility report export can build `MaterialIntent` diagnostics from the existing tag stack, screenshot metrics, and SceneIntent context.
+
+- MaterialIntent is inferred material likelihood, not true engine material ID detection.
+- `EnableMaterialIntent` controls whether MaterialIntent is calculated; disabled returns neutral values.
+- `EnableMaterialIntentDiagnostics` controls whether reports/UI show the diagnostics.
+- `EnableMaterialIntentShaderMapping` allows generated-preset MaterialIntent uniform writes only when MaterialIntent is enabled, strength is greater than `0.0`, and matching known Dalashade custom shader keys exist.
+- When MaterialIntent shader mapping is disabled, MaterialIntent variables are skipped entirely. Generated-preset-only injection does not add material keys in that state.
+- MaterialIntent does not change `SceneIntent` or `VisualProfile`.
+
 ## Pipeline Ownership
 
 | Stage | Owner |
@@ -42,6 +53,7 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
 | Paths/config | `Dalashade/Configuration.cs`, `Plugin.InitializePresetFolders()`, `Plugin.ResolveEffectiveBasePresetPath()` |
 | Context and tags | `Dalashade/GameContext.cs` |
 | Scene intent and tag diagnostics | `Dalashade/SceneIntent.cs` |
+| Material intent report diagnostics | `Dalashade/MaterialIntent.cs`, `Dalashade/MaterialIntentBuilder.cs` |
 | Screenshot analysis | `Dalashade/ImageAnalysis.cs` |
 | Master image selection | `Dalashade/MasterStyle.cs` |
 | Master style deltas | `Dalashade/MasterStyleMatcher.cs` |

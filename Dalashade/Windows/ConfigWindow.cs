@@ -31,6 +31,7 @@ public sealed class ConfigWindow : Window, IDisposable
         UiSection.Draw("ConfigPaths", "Paths", true, PathsSummary(), DrawPaths);
         UiSection.Draw("ConfigBasePresetLibrary", "Base Preset Library", true, BaseLibrarySummary(), DrawBasePresetLibrary);
         UiSection.Draw("ConfigGenerationBehavior", "Generation Behavior", true, GenerationBehaviorSummary(), DrawGenerationBehavior);
+        UiSection.Draw("ConfigMaterialIntent", "Material Intent", false, MaterialIntentSummary(), DrawMaterialIntent);
         UiSection.Draw("ConfigCompatibilityMode", "Compatibility Mode", false, CompatibilitySummary(), DrawCompatibilityMode);
         UiSection.Draw("ConfigShaderMatching", "Shader Matching", false, ShaderMatchingSummary(), DrawShaderMatching, ShaderMatchingWarningColor());
         UiSection.Draw("ConfigReShadeReload", "ReShade Reload", false, ReShadeReloadSummary(), DrawReShadeReloadSection, ReShadeReloadWarningColor());
@@ -126,6 +127,37 @@ public sealed class ConfigWindow : Window, IDisposable
 
         ImGui.SameLine();
         ImGui.TextWrapped(plugin.LastWriteResult.Message);
+    }
+
+    private string MaterialIntentSummary()
+    {
+        if (!configuration.EnableMaterialIntent)
+        {
+            return "Disabled";
+        }
+
+        var mapping = configuration.EnableMaterialIntentShaderMapping ? "mapping toggle on" : "diagnostics only";
+        return $"Experimental inferred materials, strength {configuration.MaterialIntentStrength:0.##}, {mapping}";
+    }
+
+    private void DrawMaterialIntent()
+    {
+        DrawCheckbox("Enable MaterialIntent inference", configuration.EnableMaterialIntent, value => configuration.EnableMaterialIntent = value);
+        DrawCheckbox("Show MaterialIntent diagnostics in reports/UI", configuration.EnableMaterialIntentDiagnostics, value => configuration.EnableMaterialIntentDiagnostics = value);
+        DrawCheckbox("Allow MaterialIntent shader variable writes", configuration.EnableMaterialIntentShaderMapping, value => configuration.EnableMaterialIntentShaderMapping = value);
+        DrawFloatSlider("MaterialIntent strength", configuration.MaterialIntentStrength, 0f, 1f, value => configuration.MaterialIntentStrength = value);
+        DrawCheckbox("Enable material debug mask variables", configuration.EnableMaterialDebugMasks, value => configuration.EnableMaterialDebugMasks = value);
+
+        var debugMode = configuration.MaterialDebugMaskMode;
+        if (ImGui.SliderInt("Material debug mask mode", ref debugMode, 0, 12))
+        {
+            configuration.MaterialDebugMaskMode = debugMode;
+            configuration.Save();
+        }
+
+        ImGui.TextWrapped("Experimental/inferred: MaterialIntent estimates likely scene material families from tags and screenshot metrics. It is not true FFXIV engine material ID detection.");
+        ImGui.TextWrapped("Shader mapping writes MaterialIntent variables only into matching known Dalashade custom shader sections when enabled. Missing uniforms are skipped safely.");
+        ImGui.TextWrapped("Current first-party shaders do not consume these material uniforms yet, so normal visuals remain unchanged. Config changes affect generated presets only after regeneration. No live ReShade control is implemented.");
     }
 
     private string CompatibilitySummary()

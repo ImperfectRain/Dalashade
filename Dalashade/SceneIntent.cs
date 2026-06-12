@@ -621,7 +621,7 @@ public sealed record TagStackDiagnostics(
 
     private static bool IsSecondaryMoodTag(string tag)
     {
-        return tag is "coastal" or "tropical" or "seaside" or "beach" or "rainforest" or "lush" or "verdant" or "desert" or "badlands" or "alpine" or "lunar" or "cosmic" or "alien" or "aetherial" or "fae" or "ancient" or "ruins" or "highTech" or "neon" or "urban" or "imperial" or "industrial" or "moonlit";
+        return tag is "coastal" or "tropical" or "seaside" or "beach" or "rainforest" or "lush" or "verdant" or "desert" or "badlands" or "alpine" or "lunar" or "cosmic" or "alien" or "aetherial" or "fae" or "ancient" or "ruins" or "structured" or "highTech" or "neon" or "urban" or "imperial" or "industrial" or "moonlit";
     }
 
     private static bool IsMaterialTag(string tag)

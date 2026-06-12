@@ -101,6 +101,12 @@ public class Configuration : IPluginConfiguration
     public bool UsePremiumImmerseEffects { get; set; } = false;
     public bool EnableDalashadeCustomShaders { get; set; } = false;
     public bool AutoInjectDalashadeCustomShaderSections { get; set; } = false;
+    public bool EnableMaterialIntent { get; set; } = false;
+    public bool EnableMaterialIntentDiagnostics { get; set; } = true;
+    public bool EnableMaterialIntentShaderMapping { get; set; } = false;
+    public float MaterialIntentStrength { get; set; } = 0.25f;
+    public bool EnableMaterialDebugMasks { get; set; } = false;
+    public int MaterialDebugMaskMode { get; set; } = 0;
     public PresetCompatibilityMode CompatibilityMode { get; set; } = PresetCompatibilityMode.AdaptiveBalanced;
     public ShaderMatchingMode ShaderMatchingMode { get; set; } = ShaderMatchingMode.StrictSections;
     public InactiveShaderWriteMode InactiveShaderWriteMode { get; set; } = InactiveShaderWriteMode.SupportedInactiveSections;

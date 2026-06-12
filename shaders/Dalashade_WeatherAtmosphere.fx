@@ -85,6 +85,61 @@ uniform float Dalashade_CinematicPermission <
     ui_tooltip = "Scene-driven permission for stronger atmosphere outside gameplay-critical moments.";
 > = 0.0;
 
+uniform float Dalashade_MaterialFoliage <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Foliage";
+    ui_tooltip = "Inferred foliage likelihood. Supports humid canopy atmosphere without gray wash.";
+> = 0.0;
+
+uniform float Dalashade_MaterialSandDust <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Sand/Dust";
+    ui_tooltip = "Inferred sand or dust likelihood. Supports warm distance haze and dust air.";
+> = 0.0;
+
+uniform float Dalashade_MaterialSnowIce <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Snow/Ice";
+    ui_tooltip = "Inferred snow or ice likelihood. Supports cold air and white highlight protection.";
+> = 0.0;
+
+uniform float Dalashade_MaterialWaterSpecular <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Water/Specular";
+    ui_tooltip = "Inferred water or wet/specular likelihood. Supports coastal mist or wet-air diffusion only when weather supports it.";
+> = 0.0;
+
+uniform float Dalashade_MaterialCrystalAether <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Crystal/Aether";
+    ui_tooltip = "Inferred crystal or aether likelihood. Supports subtle cosmic/aetherial depth veil.";
+> = 0.0;
+
+uniform float Dalashade_MaterialSkyCloudFog <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Sky/Cloud/Fog";
+    ui_tooltip = "Inferred sky, cloud, fog, or atmosphere likelihood. Controls actual fog/mist/sky depth behavior.";
+> = 0.0;
+
+uniform int Dalashade_MaterialDebugMode <
+    ui_type = "combo";
+    ui_items = "Off\0Overview\0Foliage humidity\0Sand/dust depth\0Snow/ice air\0Water/wet mist\0Crystal/aether veil\0Sky/fog depth\0Final air influence\0";
+    ui_label = "Dalashade Material Debug Mode";
+    ui_tooltip = "Shows material-aware air influence masks. These masks are inferred likelihoods, not true engine material IDs.";
+> = 0;
+
+uniform float Dalashade_MaterialDebugStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Debug Strength";
+> = 1.0;
+
 uniform float Dalashade_ManualStrength <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -162,6 +217,12 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float manualStrength = Dalashade_Saturate(Dalashade_ManualStrength);
     float manualMood = Dalashade_Saturate(Dalashade_ManualMood);
     float manualGlow = Dalashade_Saturate(Dalashade_ManualGlowBoost);
+    float materialFoliage = Dalashade_Saturate(Dalashade_MaterialFoliage);
+    float materialSandDust = Dalashade_Saturate(Dalashade_MaterialSandDust);
+    float materialSnowIce = Dalashade_Saturate(Dalashade_MaterialSnowIce);
+    float materialWater = Dalashade_Saturate(Dalashade_MaterialWaterSpecular);
+    float materialCrystal = Dalashade_Saturate(Dalashade_MaterialCrystalAether);
+    float materialSkyFog = Dalashade_Saturate(Dalashade_MaterialSkyCloudFog);
 
     float luma = dot(color, float3(0.2126, 0.7152, 0.0722));
     float brightMask = smoothstep(0.54, 0.96, luma);
@@ -173,26 +234,37 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float cinematicBoost = 1.0 + cinematic * 0.12;
 
     // Atmospheric perspective: fog/mist and dust thicken with distance; foreground gameplay space stays mostly untouched.
-    float weatherAmount = max(max(haze, wetness * 0.62), max(cold * 0.58, heat * 0.68));
-    float dustSoftness = heat * (0.50 + haze * 0.28);
-    float fogLike = saturate(haze * (1.0 - heat * 0.28));
+    float realFogWeather = saturate(max(haze, materialSkyFog * haze));
+    float waterMist = materialWater * max(wetness, haze * 0.34) * smoothstep(0.18, 0.92, depth);
+    float dustAir = max(heat, materialSandDust) * (0.42 + haze * 0.18) * smoothstep(0.22, 0.98, depth);
+    float snowAir = max(cold, materialSnowIce) * (0.34 + haze * 0.18) * smoothstep(0.10, 0.92, depth);
+    float aetherAir = materialCrystal * max(magicGlow, atmosphere * 0.45) * smoothstep(0.18, 0.96, depth);
+    float skyFogAir = materialSkyFog * realFogWeather * smoothstep(0.12, 0.94, depth);
+    float humidAir = max(foliage, materialFoliage) * atmosphere * (0.20 + wetness * 0.16 + haze * 0.10) * smoothstep(0.12, 0.78, depth);
+    float weatherAmount = max(max(realFogWeather, wetness * 0.62 + waterMist * 0.28), max(max(cold, materialSnowIce) * 0.58, max(heat, materialSandDust) * 0.68));
+    float dustSoftness = max(heat, materialSandDust) * (0.50 + haze * 0.28);
+    float fogLike = saturate(realFogWeather * (1.0 - max(heat, materialSandDust) * 0.28));
     float heatDistance = smoothstep(0.26, 0.96, depth);
-    float distanceWeight = lerp(distant * 0.72 + midDistance * 0.18, heatDistance * heatDistance, heat);
-    float foliageHazeRestraint = 1.0 - foliage * atmosphere * 0.46;
+    float distanceWeight = lerp(distant * 0.72 + midDistance * 0.18, heatDistance * heatDistance, max(heat, materialSandDust));
+    float foliageHazeRestraint = 1.0 - max(foliage, materialFoliage) * atmosphere * 0.50;
     float depthHaze = distanceWeight * weatherAmount * foliageHazeRestraint;
+    depthHaze += dustAir * 0.035 + snowAir * 0.026 + waterMist * 0.020 + aetherAir * 0.026 + skyFogAir * 0.035 + humidAir * 0.012;
     depthHaze *= (0.15 + atmosphere * 0.16 + fogLike * 0.07 + dustSoftness * 0.08) * gameplayDampen * cinematicBoost;
-    depthHaze = min(depthHaze, lerp(0.22, 0.31, saturate(fogLike + heat * 0.45)));
+    depthHaze = min(depthHaze, lerp(0.22, 0.32, saturate(fogLike + max(heat, materialSandDust) * 0.45 + materialSkyFog * haze * 0.30)));
 
     float3 hazeTint = float3(0.63, 0.68, 0.72);
-    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.78, 0.87, 1.00), cold * 0.42);
-    hazeTint = Dalashade_SafeLerp(hazeTint, float3(1.00, 0.76, 0.50), heat * 0.42);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.78, 0.87, 1.00), max(cold, materialSnowIce) * 0.42);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(1.00, 0.76, 0.50), max(heat, materialSandDust) * 0.42);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.70, 0.82, 0.68), humidAir * 0.80);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.62, 0.70, 0.92), materialCrystal * magicGlow * 0.32);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.54, 0.57, 0.66), manualMood * 0.40);
 
     float3 result = Dalashade_SafeLerp(color, hazeTint, depthHaze * manualStrength);
 
     // Wet air scattering: rain/wetness softens bright wet highlights without lifting the entire scene.
-    float rainGlow = max(wetness * 0.54, specularMask * wetness * 0.78);
+    float rainGlow = max(wetness * 0.54, specularMask * max(wetness, waterMist) * 0.78);
     float glowIntent = max(max(rainGlow, haze * 0.32), max(magicGlow * 0.40, neonGlow * 0.35));
+    glowIntent = max(glowIntent, materialCrystal * magicGlow * 0.34);
     glowIntent = max(glowIntent, manualGlow * 0.45);
     glowIntent *= gameplayDampen;
     float glowAmount = min((brightMask * 0.70 + specularMask * 0.55) * glowIntent * (0.085 + atmosphere * 0.075), 0.18);
@@ -202,7 +274,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
 
     // Dense rainforest canopies get local green-gold sky light on bright openings, while haze and shadow lift are restrained.
     float canopyOpenings = smoothstep(0.50, 0.90, luma) * (1.0 - shadowMask * 0.70);
-    float canopyLight = foliage * atmosphere * gameplayDampen * canopyOpenings;
+    float canopyLight = max(foliage, materialFoliage) * atmosphere * gameplayDampen * canopyOpenings;
     canopyLight *= 0.032 + max(magicGlow, cinematic) * 0.016;
     float3 canopyTint = float3(0.60, 0.86, 0.48);
     result = Dalashade_SoftLighten(result, canopyTint, min(canopyLight * manualStrength, 0.055));
@@ -214,19 +286,20 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     result = Dalashade_SafeLerp(result, result * float3(0.90, 0.93, 1.0), stormMood * 0.10 * manualStrength);
 
     // Highlight shoulder: bright sand, clouds, snow, and specular water roll off before bloom/grade can clip them.
-    float snowHighlightGuard = cold * max(highlightProtection, brightMask);
-    float coastalGlareGuard = highlightProtection * brightMask * (1.0 - wetness * 0.25) * (0.035 + atmosphere * 0.025);
-    float highlightRollOff = highlightProtection * brightMask * (0.09 + cold * 0.11 + heat * 0.055);
+    float snowHighlightGuard = max(cold, materialSnowIce) * max(highlightProtection, brightMask);
+    float coastalGlareGuard = highlightProtection * brightMask * (1.0 - wetness * 0.25) * (0.035 + atmosphere * 0.025 + materialWater * 0.010);
+    float highlightRollOff = highlightProtection * brightMask * (0.09 + max(cold, materialSnowIce) * 0.11 + max(heat, materialSandDust) * 0.055);
     highlightRollOff = max(highlightRollOff, snowHighlightGuard * specularMask * 0.10);
+    highlightRollOff = max(highlightRollOff, materialSnowIce * brightMask * 0.055);
     highlightRollOff = max(highlightRollOff, coastalGlareGuard);
     result = lerp(result, result / (1.0 + result), min(highlightRollOff * manualStrength, 0.27));
 
     // Shadow lift stays selective; foliage-heavy and gloomy scenes keep trunks/background dark instead of milky.
-    float shadowLift = shadowProtection * shadowMask * 0.032 * (1.0 - combat * 0.35) * (1.0 - foliage * 0.46);
+    float shadowLift = shadowProtection * shadowMask * 0.032 * (1.0 - combat * 0.35) * (1.0 - max(foliage, materialFoliage) * 0.46);
     result += shadowLift * manualStrength;
 
     // Heat/dust softness is distance-weighted so night desert scenes get air thickness, not a full-screen lift.
-    float heatShimmerSoftness = heat * heatDistance * heatDistance * (0.050 + haze * 0.018) * gameplayDampen;
+    float heatShimmerSoftness = max(heat, materialSandDust) * heatDistance * heatDistance * (0.050 + haze * 0.018) * gameplayDampen;
     float warmLuma = dot(result, float3(0.26, 0.67, 0.07));
     result = Dalashade_SafeLerp(result, float3(warmLuma, warmLuma, warmLuma), heatShimmerSoftness * manualStrength);
 
@@ -238,7 +311,42 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     if (Dalashade_ShowDebugMask)
     {
         float foliageDampen = saturate(foliage * atmosphere * 0.85);
-        float heatDust = saturate(heatShimmerSoftness * 8.0 + heat * heatDistance * 0.35);
+        float heatDust = saturate(heatShimmerSoftness * 8.0 + max(heat, materialSandDust) * heatDistance * 0.35);
+        float materialDebugStrength = Dalashade_Saturate(Dalashade_MaterialDebugStrength);
+        float materialAir = saturate(humidAir + dustAir + snowAir + waterMist + aetherAir + skyFogAir);
+        if (Dalashade_MaterialDebugMode == 1)
+        {
+            return float4(saturate(dustAir + waterMist) * materialDebugStrength, saturate(humidAir + aetherAir) * materialDebugStrength, saturate(snowAir + skyFogAir) * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 2)
+        {
+            return float4(materialFoliage * materialDebugStrength, humidAir * 5.0 * materialDebugStrength, foliageHazeRestraint * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 3)
+        {
+            return float4(materialSandDust * materialDebugStrength, dustAir * 4.0 * materialDebugStrength, heatDistance * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 4)
+        {
+            return float4(materialSnowIce * materialDebugStrength, snowAir * 5.0 * materialDebugStrength, highlightRollOff * 5.0 * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 5)
+        {
+            return float4(materialWater * materialDebugStrength, waterMist * 5.0 * materialDebugStrength, rainGlow * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 6)
+        {
+            return float4(materialCrystal * materialDebugStrength, aetherAir * 5.0 * materialDebugStrength, magicGlow * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 7)
+        {
+            return float4(materialSkyFog * materialDebugStrength, skyFogAir * 5.0 * materialDebugStrength, realFogWeather * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 8)
+        {
+            return float4(materialAir * materialDebugStrength, saturate(depthHaze * 4.0) * materialDebugStrength, saturate(highlightRollOff * 5.0) * materialDebugStrength, 1.0);
+        }
+
         if (Dalashade_DebugView == 1)
         {
             return float4(saturate(depthHaze * 4.0), saturate(distanceWeight), saturate(haze), 1.0);

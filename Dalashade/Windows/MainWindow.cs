@@ -43,6 +43,7 @@ public sealed class MainWindow : Window, IDisposable
 
         UiSection.Draw("MainCurrentStatus", "Current Status", true, CurrentStatusSummary(), DrawCurrentStatus);
         UiSection.Draw("MainSceneTags", "Scene Tags", true, SceneTagsSummary(), DrawSceneTags);
+        UiSection.Draw("MainMaterialIntent", "Material Intent", false, MaterialIntentSummary(), DrawMaterialIntent);
         UiSection.Draw("MainBasePreset", "Base Preset", true, BasePresetSummary(), DrawBasePreset, BasePresetWarningColor());
         UiSection.Draw("MainGeneration", "Generation", true, GenerationSummary(), DrawGeneration, GenerationWarningColor());
         UiSection.Draw("MainReShadeReload", "ReShade Reload", true, ReShadeReloadSummary(), DrawReShadeReload, ReShadeReloadWarningColor());
@@ -174,6 +175,97 @@ public sealed class MainWindow : Window, IDisposable
     private static string FormatTagList(IReadOnlyList<string> tags)
     {
         return tags.Count == 0 ? "none" : string.Join(", ", tags);
+    }
+
+    private string MaterialIntentSummary()
+    {
+        var configuration = plugin.Configuration;
+        if (!configuration.EnableMaterialIntent)
+        {
+            return "Disabled";
+        }
+
+        if (!configuration.EnableMaterialIntentDiagnostics)
+        {
+            return $"Enabled, diagnostics hidden, strength {configuration.MaterialIntentStrength:0.##}";
+        }
+
+        var strongest = MaterialIntent.ChannelNames
+            .Select(channel => new { Channel = channel, Value = plugin.CurrentMaterialIntent.ValueFor(channel) })
+            .OrderByDescending(item => item.Value)
+            .FirstOrDefault();
+        var strongestText = strongest == null || strongest.Value <= 0f ? "no material pressure" : $"{strongest.Channel} {strongest.Value:0.##}";
+        return $"Experimental inferred materials, {strongestText}";
+    }
+
+    private void DrawMaterialIntent()
+    {
+        var configuration = plugin.Configuration;
+        ImGui.TextUnformatted($"Enabled: {(configuration.EnableMaterialIntent ? "yes" : "no")}");
+        ImGui.TextUnformatted($"Diagnostics: {(configuration.EnableMaterialIntentDiagnostics ? "enabled" : "disabled")}");
+        ImGui.TextUnformatted($"Shader mapping: {(configuration.EnableMaterialIntentShaderMapping ? "enabled" : "disabled")}");
+        ImGui.TextUnformatted($"Strength: {configuration.MaterialIntentStrength:0.###}");
+        ImGui.TextUnformatted($"Debug masks: {(configuration.EnableMaterialDebugMasks ? $"enabled, mode {configuration.MaterialDebugMaskMode}" : "disabled")}");
+        ImGui.TextWrapped("Experimental/inferred material likelihood. This is not true engine material ID detection.");
+
+        if (!configuration.EnableMaterialIntent)
+        {
+            ImGui.TextWrapped("MaterialIntent is disabled. Values are neutral and no calculation is used.");
+            return;
+        }
+
+        if (!configuration.EnableMaterialIntentDiagnostics)
+        {
+            ImGui.TextWrapped("MaterialIntent diagnostics are disabled. Enable diagnostics in settings to inspect channel values and contributions.");
+            return;
+        }
+
+        if (!configuration.EnableMaterialIntentShaderMapping)
+        {
+            ImGui.TextWrapped("Diagnostics only, no visual shader mapping.");
+        }
+
+        var intent = plugin.CurrentMaterialIntent;
+        if (ImGui.BeginTable("MaterialIntentValuesTable", 2))
+        {
+            ImGui.TableSetupColumn("Channel");
+            ImGui.TableSetupColumn("Value");
+            ImGui.TableHeadersRow();
+            foreach (var channel in MaterialIntent.ChannelNames)
+            {
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted(channel);
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted($"{intent.ValueFor(channel):0.###}");
+            }
+
+            ImGui.EndTable();
+        }
+
+        if (ImGui.TreeNode("MaterialIntent contributions###MainMaterialIntentContributions"))
+        {
+            foreach (var channel in MaterialIntent.ChannelNames)
+            {
+                var contributions = intent.Contributions
+                    .Where(contribution => string.Equals(contribution.Channel, channel, StringComparison.Ordinal) && Math.Abs(contribution.Amount) > 0.0001f)
+                    .OrderByDescending(contribution => Math.Abs(contribution.Amount))
+                    .Take(6)
+                    .ToArray();
+                if (contributions.Length == 0)
+                {
+                    continue;
+                }
+
+                ImGui.BulletText($"{channel}: {intent.ValueFor(channel):0.###}");
+                foreach (var contribution in contributions)
+                {
+                    ImGui.TextWrapped($"  {contribution.Amount:+0.###;-0.###;0} from {contribution.Source}: {contribution.Reason}");
+                }
+            }
+
+            ImGui.TreePop();
+        }
     }
 
     private string BasePresetSummary()

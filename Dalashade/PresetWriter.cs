@@ -53,13 +53,59 @@ public sealed class PresetWriter
 {
     private sealed record KnownCustomShaderDefinition(string Section, string Technique, string TechniqueEntry, IReadOnlyList<string> Variables);
 
+    private static readonly IReadOnlyList<string> SmartSharpenMaterialIntentShaderVariables =
+    [
+        "Dalashade_MaterialFoliage",
+        "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialSkyCloudFog",
+        "Dalashade_MaterialSkinProtection",
+        "Dalashade_MaterialDebugMode",
+        "Dalashade_MaterialDebugStrength"
+    ];
+
+    private static readonly IReadOnlyList<string> WeatherAtmosphereMaterialIntentShaderVariables =
+    [
+        "Dalashade_MaterialFoliage",
+        "Dalashade_MaterialSandDust",
+        "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialCrystalAether",
+        "Dalashade_MaterialSkyCloudFog",
+        "Dalashade_MaterialDebugMode",
+        "Dalashade_MaterialDebugStrength"
+    ];
+
+    private static readonly IReadOnlyList<string> AtmosphereBloomMaterialIntentShaderVariables =
+    [
+        "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialCrystalAether",
+        "Dalashade_MaterialNeonGlass",
+        "Dalashade_MaterialFireLavaHeat",
+        "Dalashade_MaterialSkyCloudFog",
+        "Dalashade_MaterialDebugMode",
+        "Dalashade_MaterialDebugStrength"
+    ];
+
+    private static readonly IReadOnlyList<string> AdaptiveGradeMaterialIntentShaderVariables =
+    [
+        "Dalashade_MaterialFoliage",
+        "Dalashade_MaterialSandDust",
+        "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialMetalIndustrial",
+        "Dalashade_MaterialCrystalAether",
+        "Dalashade_MaterialSkinProtection",
+        "Dalashade_MaterialVoidDarkness"
+    ];
+
     private static readonly IReadOnlyList<KnownCustomShaderDefinition> KnownCustomShaders =
     [
         new(
             "Dalashade_WeatherAtmosphere.fx",
             "Dalashade_WeatherAtmosphere",
             "Dalashade_WeatherAtmosphere@Dalashade_WeatherAtmosphere.fx",
-            [
+            WithMaterialIntentVariables(
+                WeatherAtmosphereMaterialIntentShaderVariables,
                 "Dalashade_Haze",
                 "Dalashade_Wetness",
                 "Dalashade_Cold",
@@ -72,13 +118,13 @@ public sealed class PresetWriter
                 "Dalashade_NeonGlow",
                 "Dalashade_FoliageDensity",
                 "Dalashade_Readability",
-                "Dalashade_CinematicPermission"
-            ]),
+                "Dalashade_CinematicPermission")),
         new(
             "Dalashade_AdaptiveGrade.fx",
             "Dalashade_AdaptiveGrade",
             "Dalashade_AdaptiveGrade@Dalashade_AdaptiveGrade.fx",
-            [
+            WithMaterialIntentVariables(
+                AdaptiveGradeMaterialIntentShaderVariables,
                 "Dalashade_Readability",
                 "Dalashade_Atmosphere",
                 "Dalashade_HighlightProtection",
@@ -91,13 +137,12 @@ public sealed class PresetWriter
                 "Dalashade_IndustrialHardness",
                 "Dalashade_CosmicMood",
                 "Dalashade_CinematicPermission",
-                "Dalashade_CombatPressure"
-            ]),
+                "Dalashade_CombatPressure")),
         new(
             "Dalashade_SmartSharpen.fx",
             "Dalashade_SmartSharpen",
             "Dalashade_SmartSharpen@Dalashade_SmartSharpen.fx",
-            [
+            WithMaterialIntentVariables(
                 "Dalashade_Readability",
                 "Dalashade_Haze",
                 "Dalashade_Wetness",
@@ -118,13 +163,13 @@ public sealed class PresetWriter
                 "SkyDampenStrength",
                 "HazeDampenStrength",
                 "CombatDampenStrength",
-                "LumaOnlyStrength"
-            ]),
+                "LumaOnlyStrength")),
         new(
             "Dalashade_AtmosphereBloom.fx",
             "Dalashade_AtmosphereBloom",
             "Dalashade_AtmosphereBloom@Dalashade_AtmosphereBloom.fx",
-            [
+            WithMaterialIntentVariables(
+                AtmosphereBloomMaterialIntentShaderVariables,
                 "Dalashade_Atmosphere",
                 "Dalashade_MagicGlow",
                 "Dalashade_NeonGlow",
@@ -134,8 +179,7 @@ public sealed class PresetWriter
                 "Dalashade_Readability",
                 "Dalashade_HighlightProtection",
                 "Dalashade_CombatPressure",
-                "Dalashade_CinematicPermission"
-            ])
+                "Dalashade_CinematicPermission"))
     ];
 
     private readonly ShaderVariableMapper mapper = new();
@@ -143,7 +187,7 @@ public sealed class PresetWriter
     private readonly PresetAnalyzer analyzer = new();
     private readonly SanitizeActionPipeline sanitizeActionPipeline = new();
 
-    public PresetWriteResult WriteGeneratedPreset(Configuration configuration, VisualProfile profile, SceneIntent? sceneIntent = null)
+    public PresetWriteResult WriteGeneratedPreset(Configuration configuration, VisualProfile profile, SceneIntent? sceneIntent = null, MaterialIntent? materialIntent = null)
     {
         try
         {
@@ -185,6 +229,7 @@ public sealed class PresetWriter
             var authorityPolicy = GenerationAuthorityPolicy.From(analysis, configuration.CompatibilityMode);
             var adjustments = mapper.CreateAdjustments(profile, configuration, authorityPolicy);
             sceneIntent ??= SceneIntent.Neutral;
+            materialIntent ??= MaterialIntent.Neutral;
             var activationMap = PresetAnalyzer.ParseTechniqueActivationMap(lines);
             var changes = new List<ChangedShaderVariable>();
             var currentSection = string.Empty;
@@ -208,7 +253,7 @@ public sealed class PresetWriter
                 var generatedCustomShaderVariable = IsGeneratedCustomShaderVariable(injectionResult, currentSection, key);
                 if (!TryGetAdjustment(adjustments, configuration.ShaderMatchingMode, currentSection, key, out var adjust)
                     && !(configuration.EnableDalashadeCustomShaders && SmartSharpenAuthority.TryGetAdjustment(currentSection, key, sceneIntent, smartSharpenAuthority, out adjust))
-                    && !customMapper.TryGetAdjustment(configuration, currentSection, key, sceneIntent, out adjust))
+                    && !customMapper.TryGetAdjustment(configuration, currentSection, key, sceneIntent, materialIntent, out adjust))
                 {
                     continue;
                 }
@@ -345,7 +390,7 @@ public sealed class PresetWriter
                 var key = line[..separatorIndex].Trim();
                 if (!TryGetAdjustment(adjustments, configuration.ShaderMatchingMode, currentSection, key, out var adjust)
                     && !(configuration.EnableDalashadeCustomShaders && SmartSharpenAuthority.TryGetAdjustment(currentSection, key, SceneIntent.Neutral, smartSharpenAuthority, out adjust))
-                    && !customMapper.TryGetAdjustment(configuration, currentSection, key, SceneIntent.Neutral, out adjust))
+                    && !customMapper.TryGetAdjustment(configuration, currentSection, key, SceneIntent.Neutral, MaterialIntent.Neutral, out adjust))
                 {
                     continue;
                 }
@@ -440,6 +485,7 @@ public sealed class PresetWriter
 
         foreach (var shader in KnownCustomShaders)
         {
+            var shaderVariables = VariablesForInjection(configuration, shader);
             if (!ContainsSection(lines, shader.Section))
             {
                 if (lines.Count > 0 && !string.IsNullOrWhiteSpace(lines[^1]))
@@ -448,7 +494,7 @@ public sealed class PresetWriter
                 }
 
                 lines.Add($"[{shader.Section}]");
-                foreach (var variable in shader.Variables)
+                foreach (var variable in shaderVariables)
                 {
                     lines.Add($"{variable}=0.000000");
                     injectedVariables.Add($"{shader.Section}/{variable}");
@@ -462,7 +508,7 @@ public sealed class PresetWriter
             {
                 var insertIndex = FindSectionEnd(lines, shader.Section);
                 var existingVariables = ReadSectionKeys(lines, shader.Section);
-                foreach (var variable in shader.Variables)
+                foreach (var variable in shaderVariables)
                 {
                     if (existingVariables.Contains(variable))
                     {
@@ -495,6 +541,38 @@ public sealed class PresetWriter
             injectedSections.ToArray(),
             injectedVariables.ToArray(),
             injectedTechniques.ToArray());
+    }
+
+    private static IReadOnlyList<string> WithMaterialIntentVariables(params string[] variables)
+    {
+        return WithMaterialIntentVariables(SmartSharpenMaterialIntentShaderVariables, variables);
+    }
+
+    private static IReadOnlyList<string> WithMaterialIntentVariables(IReadOnlyList<string> materialVariables, params string[] variables)
+    {
+        return variables
+            .Concat(materialVariables)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static IReadOnlyList<string> VariablesForInjection(Configuration configuration, KnownCustomShaderDefinition shader)
+    {
+        if (ShouldWriteMaterialIntentVariables(configuration))
+        {
+            return shader.Variables;
+        }
+
+        return shader.Variables
+            .Where(variable => !CustomShaderVariableMapper.IsKnownMaterialIntentVariable(variable))
+            .ToArray();
+    }
+
+    private static bool ShouldWriteMaterialIntentVariables(Configuration configuration)
+    {
+        return configuration.EnableMaterialIntent
+               && configuration.EnableMaterialIntentShaderMapping
+               && configuration.MaterialIntentStrength > 0f;
     }
 
     private static bool ContainsSection(IEnumerable<string> lines, string section)

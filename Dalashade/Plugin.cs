@@ -55,6 +55,7 @@ public sealed class Plugin : IDalamudPlugin
     public IReadOnlyList<AppliedRule> CurrentRules { get; private set; } = Array.Empty<AppliedRule>();
     public MasterStyleDiagnostics CurrentMasterStyleDiagnostics { get; private set; } = MasterStyleDiagnostics.FromUnavailable(new Configuration(), ImageAnalysisResult.Empty, ImageAnalysisResult.Empty, 0, "Master style has not run yet.");
     public TagStackDiagnostics CurrentTagStackDiagnostics { get; private set; } = TagStackDiagnostics.Empty;
+    public MaterialIntent CurrentMaterialIntent { get; private set; } = MaterialIntent.Neutral;
     public PresetWriteResult LastWriteResult { get; private set; } = PresetWriteResult.Skipped("No preset has been generated yet.");
     public ReloadResult LastReloadResult { get; private set; } = ReloadResult.Skipped("Shaders have not been reloaded yet.");
     public ShaderSupportScan LastShaderSupportScan { get; private set; } = ShaderSupportScan.Skipped("Shader support has not been scanned yet.");
@@ -124,8 +125,9 @@ public sealed class Plugin : IDalamudPlugin
         CurrentRules = result.Rules;
         CurrentMasterStyleDiagnostics = result.MasterStyleDiagnostics;
         CurrentTagStackDiagnostics = result.TagStackDiagnostics;
+        var materialIntent = RefreshMaterialIntent();
         ScanPresetCompatibility();
-        LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile, CurrentTagStackDiagnostics.Intent);
+        LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile, CurrentTagStackDiagnostics.Intent, materialIntent);
         ReloadShadersIfNeeded();
         lastProfileKey = CreateProfileKey();
         lastWrite = DateTimeOffset.UtcNow;
@@ -284,6 +286,7 @@ public sealed class Plugin : IDalamudPlugin
         CurrentRules = result.Rules;
         CurrentMasterStyleDiagnostics = result.MasterStyleDiagnostics;
         CurrentTagStackDiagnostics = result.TagStackDiagnostics;
+        var materialIntent = RefreshMaterialIntent();
 
         if (Configuration.SceneLockEnabled)
         {
@@ -302,7 +305,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
-        LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile, CurrentTagStackDiagnostics.Intent);
+        LastWriteResult = presetWriter.WriteGeneratedPreset(Configuration, CurrentProfile, CurrentTagStackDiagnostics.Intent, materialIntent);
         if (LastWriteResult.Success)
         {
             ScanPresetCompatibility();
@@ -341,6 +344,12 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.ReShadeIniPath,
             Configuration.UsePremiumImmerseEffects,
             Configuration.EnableDalashadeCustomShaders,
+            Configuration.EnableMaterialIntent,
+            Configuration.EnableMaterialIntentDiagnostics,
+            Configuration.EnableMaterialIntentShaderMapping,
+            Configuration.MaterialIntentStrength,
+            Configuration.EnableMaterialDebugMasks,
+            Configuration.MaterialDebugMaskMode,
             Configuration.CompatibilityMode,
             Configuration.ShaderMatchingMode,
             Configuration.InactiveShaderWriteMode,
@@ -365,6 +374,15 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.AutoAdjustInCutscenes,
             Configuration.Style,
             Configuration.PerformanceBudget);
+    }
+
+    private MaterialIntent RefreshMaterialIntent()
+    {
+        var rawIntent = Configuration.EnableMaterialIntent
+            ? MaterialIntentBuilder.Build(CurrentTagStackDiagnostics, CurrentImageAnalysis)
+            : MaterialIntent.Neutral;
+        CurrentMaterialIntent = rawIntent.WithStrength(Configuration.MaterialIntentStrength);
+        return rawIntent;
     }
 
     private void InitializePresetFolders()

@@ -87,6 +87,7 @@ public sealed class CompatibilityReportExporter
         AppendLines(builder, "Warnings", report.Warnings);
         AppendLines(builder, "Multiple Authority Warnings", report.MultipleAuthorityWarnings);
         AppendTagStackDiagnostics(builder, tagStackDiagnostics);
+        AppendMaterialIntentDiagnostics(builder, configuration, tagStackDiagnostics, currentImage, writeResult);
         AppendMasterStyleDiagnostics(builder, configuration, masterDiagnostics);
         AppendColorFamilyAdjustments(builder, profile);
         AppendColorFamilyComparison(builder, currentImage, masterStyle, profile);
@@ -170,6 +171,112 @@ public sealed class CompatibilityReportExporter
             foreach (var change in diagnostics.WrittenVariables)
             {
                 builder.AppendLine($"  - `{change.Section}` / `{change.Key}`: {change.OldValue} -> {change.NewValue}");
+            }
+        }
+
+        builder.AppendLine();
+    }
+
+    private static void AppendMaterialIntentDiagnostics(StringBuilder builder, Configuration configuration, TagStackDiagnostics tagStackDiagnostics, ImageAnalysisResult currentImage, PresetWriteResult writeResult)
+    {
+        if (!configuration.EnableMaterialIntentDiagnostics)
+        {
+            return;
+        }
+
+        builder.AppendLine("## Material Intent Diagnostics");
+        builder.AppendLine();
+        if (!configuration.EnableMaterialIntent)
+        {
+            builder.AppendLine("- MaterialIntent is disabled in configuration.");
+            builder.AppendLine("- No MaterialIntent values were calculated for this report.");
+            builder.AppendLine();
+            return;
+        }
+
+        var intent = MaterialIntentBuilder.Build(tagStackDiagnostics, currentImage).WithStrength(configuration.MaterialIntentStrength);
+        var writtenUniforms = writeResult.Changes
+            .Where(change => string.Equals(change.ReasonCategory, CustomShaderVariableMapper.MaterialReasonCategory, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        builder.AppendLine("- MaterialIntent is an inferred material-likelihood diagnostic layer. It uses tags, territory/weather text, gameplay context, screenshot metrics, and existing SceneIntent context; it does not detect true engine material IDs.");
+        builder.AppendLine("- MaterialIntent does not change SceneIntent or VisualProfile. Generated shader variables are written only when MaterialIntent shader mapping is explicitly enabled and matching Dalashade custom shader keys exist.");
+        builder.AppendLine($"- MaterialIntent strength: {configuration.MaterialIntentStrength:0.###}");
+        builder.AppendLine($"- Shader mapping: {(configuration.EnableMaterialIntentShaderMapping ? "enabled" : "disabled")}");
+        builder.AppendLine($"- Debug masks: {(configuration.EnableMaterialDebugMasks ? $"enabled, mode {configuration.MaterialDebugMaskMode}" : "disabled")}");
+        builder.AppendLine("- Safety switch: disable `EnableMaterialIntentShaderMapping` to stop all MaterialIntent uniform writes on the next generation. Disable `EnableMaterialIntent` to return neutral material diagnostics.");
+        if (!configuration.EnableMaterialIntentShaderMapping)
+        {
+            builder.AppendLine("- Diagnostics only, no visual shader mapping. Disabled mapping skips MaterialIntent uniforms instead of writing zeroes.");
+        }
+        else if (configuration.MaterialIntentStrength <= 0f)
+        {
+            builder.AppendLine("- MaterialIntent shader mapping is enabled but strength is 0.0, so MaterialIntent uniforms are skipped.");
+        }
+        else if (writtenUniforms.Length == 0)
+        {
+            builder.AppendLine("- MaterialIntent shader mapping is enabled, but no matching known MaterialIntent uniforms were written. Missing uniforms or missing Dalashade custom shader sections are skipped safely.");
+        }
+        else
+        {
+            builder.AppendLine($"- MaterialIntent uniforms written: {writtenUniforms.Length}. Final material channel values are raw inferred value multiplied by MaterialIntent strength.");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("| Channel | Value | Top positive contributions | Top suppressions |");
+        builder.AppendLine("| --- | --- | --- | --- |");
+
+        foreach (var channel in MaterialIntent.ChannelNames)
+        {
+            var positives = FormatMaterialContributions(intent.Contributions, channel, positive: true);
+            var suppressions = FormatMaterialContributions(intent.Contributions, channel, positive: false);
+            builder.AppendLine($"| {channel} | {intent.ValueFor(channel):0.###} | {positives} | {suppressions} |");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### MaterialIntent Suppression And False-Positive Notes");
+        builder.AppendLine();
+        var suppressedChannels = MaterialIntent.ChannelNames
+            .Select(channel => new
+            {
+                Channel = channel,
+                Value = intent.ValueFor(channel),
+                PositiveCount = intent.Contributions.Count(contribution => string.Equals(contribution.Channel, channel, StringComparison.Ordinal) && contribution.Amount > 0f),
+                NegativeCount = intent.Contributions.Count(contribution => string.Equals(contribution.Channel, channel, StringComparison.Ordinal) && contribution.Amount < 0f)
+            })
+            .Where(item => item.NegativeCount > 0 || item.Value <= 0.05f)
+            .ToArray();
+        if (suppressedChannels.Length == 0)
+        {
+            builder.AppendLine("- No notable suppressions recorded.");
+        }
+        else
+        {
+            foreach (var item in suppressedChannels)
+            {
+                var note = item.Value <= 0.05f && item.PositiveCount == 0
+                    ? "low/no evidence"
+                    : item.NegativeCount > 0
+                        ? "suppression evidence present"
+                        : "low final likelihood";
+                builder.AppendLine($"- {item.Channel}: {item.Value:0.###} ({note}). Review the contribution table above for false-positive checks.");
+            }
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### MaterialIntent Shader Uniform Output");
+        builder.AppendLine();
+        if (writtenUniforms.Length == 0)
+        {
+            builder.AppendLine("- None.");
+        }
+        else
+        {
+            foreach (var change in writtenUniforms)
+            {
+                builder.AppendLine($"- `{change.Section}` / `{change.Key}`: {change.OldValue} -> {change.NewValue} | reason={change.ReasonCategory}");
             }
         }
 
@@ -623,6 +730,19 @@ public sealed class CompatibilityReportExporter
     private static string FormatPlainList(IReadOnlyList<string> values)
     {
         return values.Count == 0 ? "none" : string.Join(", ", values);
+    }
+
+    private static string FormatMaterialContributions(IReadOnlyList<MaterialIntentContribution> contributions, string channel, bool positive)
+    {
+        var selected = contributions
+            .Where(contribution => string.Equals(contribution.Channel, channel, StringComparison.Ordinal)
+                                   && (positive ? contribution.Amount > 0f : contribution.Amount < 0f))
+            .OrderByDescending(contribution => Math.Abs(contribution.Amount))
+            .Take(3)
+            .Select(contribution => $"{EscapeTable(contribution.Source)} {contribution.Amount:+0.##;-0.##;0}: {EscapeTable(contribution.Reason)}")
+            .ToArray();
+
+        return selected.Length == 0 ? "none" : string.Join("<br>", selected);
     }
 
     private static string CategorizeSceneIntentContribution(SceneIntentContribution contribution)

@@ -11,7 +11,11 @@ public sealed record SceneTagRegressionCase(
     string ExpectedBiome,
     IReadOnlyList<string> ExpectedWeatherTags,
     IReadOnlyList<string> ExpectedMoodTags,
-    IReadOnlyList<string> ExpectedSecondaryTags);
+    IReadOnlyList<string> ExpectedSecondaryTags,
+    IReadOnlyList<MaterialIntentExpectation> ExpectedMaterialMinimums,
+    IReadOnlyList<MaterialIntentExpectation> ExpectedMaterialMaximums);
+
+public sealed record MaterialIntentExpectation(string Channel, float Value);
 
 public sealed record SceneTagRegressionFailure(string CaseName, string Message);
 
@@ -52,22 +56,25 @@ public static class SceneTagRegressionHarness
     {
         return new[]
         {
-            Create("Eastern La Noscea / Costa del Sol coastal", "Eastern La Noscea", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "coastal", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "coastal", "seaside", "water", "specular" }, expectedSecondaryTags: new[] { "beach", "seaside", "tropical" }),
-            Create("Rak'tika rainforest gloom night", "The Rak'tika Greatwood", "Umbral Wind", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "jungle", expectedWeatherTags: new[] { "gloom" }, expectedMoodTags: new[] { "rainforest", "lush", "verdant", "humid", "canopyLight", "gloom" }, expectedSecondaryTags: new[] { "rainforest", "lush", "verdant" }),
-            Create("Amh Araeng heat night", "Amh Araeng", "Heat Waves", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "desert", expectedWeatherTags: new[] { "heat" }, expectedMoodTags: new[] { "desert", "badlands", "dry", "heat" }, expectedSecondaryTags: new[] { "badlands", "dry" }),
-            Create("Snow + snow biome + dungeon + combat + low performance", "Snowcloak", "Snow", true, true, false, false, TimeBucket.Day, PerformanceBudget.Low, expectedBiome: "snow", expectedWeatherTags: new[] { "snow" }, expectedMoodTags: new[] { "snow", "cold", "ice" }, expectedSecondaryTags: new[] { "alpine", "ice" }),
+            Create("Eastern La Noscea / Costa del Sol coastal", "Eastern La Noscea", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "coastal", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "coastal", "seaside", "water", "specular" }, expectedSecondaryTags: new[] { "beach", "seaside", "tropical" }, expectedMaterialMinimums: Materials((MaterialIntent.WaterSpecularChannel, 0.55f), (MaterialIntent.SandDustChannel, 0.28f))),
+            Create("Rak'tika rainforest gloom night", "The Rak'tika Greatwood", "Umbral Wind", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "jungle", expectedWeatherTags: new[] { "gloom" }, expectedMoodTags: new[] { "rainforest", "lush", "verdant", "humid", "canopyLight", "gloom" }, expectedSecondaryTags: new[] { "rainforest", "lush", "verdant" }, expectedMaterialMinimums: Materials((MaterialIntent.FoliageChannel, 0.70f))),
+            Create("Amh Araeng heat night", "Amh Araeng", "Heat Waves", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "desert", expectedWeatherTags: new[] { "heat" }, expectedMoodTags: new[] { "desert", "badlands", "dry", "heat" }, expectedSecondaryTags: new[] { "badlands", "dry" }, expectedMaterialMinimums: Materials((MaterialIntent.SandDustChannel, 0.70f))),
+            Create("Snow + snow biome + dungeon + combat + low performance", "Snowcloak", "Snow", true, true, false, false, TimeBucket.Day, PerformanceBudget.Low, expectedBiome: "snow", expectedWeatherTags: new[] { "snow" }, expectedMoodTags: new[] { "snow", "cold", "ice" }, expectedSecondaryTags: new[] { "alpine", "ice" }, expectedMaterialMinimums: Materials((MaterialIntent.SnowIceChannel, 0.70f))),
             Create("Fog + forest + night", "The Black Shroud", "Fog", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "forest", expectedWeatherTags: new[] { "fog" }, expectedMoodTags: new[] { "foliage", "fog", "mist", "haze" }, expectedSecondaryTags: new[] { "lush", "verdant" }),
             Create("Rain + city + night", "Limsa Lominsa", "Rain", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, true, expectedBiome: "coastal", expectedWeatherTags: new[] { "rain" }, expectedMoodTags: new[] { "wet", "specular", "water" }, expectedSecondaryTags: new[] { "seaside" }),
             Create("Desert + dust + day", "Sagolii Desert", "Dust Storms", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "desert", expectedWeatherTags: new[] { "dust" }, expectedMoodTags: new[] { "dust", "dry", "badlands" }, expectedSecondaryTags: new[] { "badlands" }),
             Create("Cave + night + duty", "Cavern", "Clear Skies", true, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "cave", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "dark", "interior" }, expectedSecondaryTags: Array.Empty<string>()),
-            Create("HighTech neon + city + night", "Solution Nine", "Clear Skies", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, true, expectedBiome: "highTech", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "neon", "highTech", "urban" }, expectedSecondaryTags: new[] { "neon", "urban" }),
-            Create("Fae + GPose", "Il Mheg", "Fair Skies", false, false, false, true, TimeBucket.Dusk, PerformanceBudget.High, expectedBiome: "fae", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "fae", "dreamlike", "magical" }, expectedSecondaryTags: new[] { "fae" }),
-            Create("Void + cutscene", "The World of Darkness", "Gloom", false, false, true, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "void", expectedWeatherTags: new[] { "gloom" }, expectedMoodTags: new[] { "haunted", "gloom", "dark" }, expectedSecondaryTags: Array.Empty<string>()),
+            Create("HighTech neon + city + night", "Solution Nine", "Clear Skies", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, true, expectedBiome: "highTech", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "neon", "highTech", "urban" }, expectedSecondaryTags: new[] { "neon", "urban" }, expectedMaterialMinimums: Materials((MaterialIntent.NeonGlassChannel, 0.70f), (MaterialIntent.MetalIndustrialChannel, 0.55f))),
+            Create("Fae + GPose", "Il Mheg", "Fair Skies", false, false, false, true, TimeBucket.Dusk, PerformanceBudget.High, expectedBiome: "fae", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "fae", "dreamlike", "magical" }, expectedSecondaryTags: new[] { "fae" }, expectedMaterialMinimums: Materials((MaterialIntent.CrystalAetherChannel, 0.55f))),
+            Create("Void + cutscene", "The World of Darkness", "Gloom", false, false, true, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "void", expectedWeatherTags: new[] { "gloom" }, expectedMoodTags: new[] { "haunted", "gloom", "dark" }, expectedSecondaryTags: Array.Empty<string>(), expectedMaterialMinimums: Materials((MaterialIntent.VoidDarknessChannel, 0.55f))),
             Create("Jungle + rain", "Yak T'el", "Rain", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "jungle", expectedWeatherTags: new[] { "rain" }, expectedMoodTags: new[] { "rainforest", "lush", "verdant", "wet" }, expectedSecondaryTags: new[] { "rainforest", "lush", "verdant" }),
             Create("Coastal + clear + dawn", "The Ruby Sea", "Clear Skies", false, false, false, false, TimeBucket.Dawn, PerformanceBudget.Medium, expectedBiome: "coastal", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "coastal", "water", "specular" }, expectedSecondaryTags: new[] { "seaside" }),
-            Create("Ultima Thule cosmic", "Ultima Thule", "Fair Skies", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "cosmic", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "cosmic", "alien", "aetherial" }, expectedSecondaryTags: new[] { "alien", "aetherial" }),
+            Create("Ultima Thule cosmic", "Ultima Thule", "Fair Skies", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "cosmic", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "cosmic", "alien", "aetherial" }, expectedSecondaryTags: new[] { "alien", "aetherial" }, expectedMaterialMinimums: Materials((MaterialIntent.CrystalAetherChannel, 0.65f))),
             Create("Mare Lamentorum lunar", "Mare Lamentorum", "Fair Skies", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "lunar", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "lunar", "moonlit", "cold" }, expectedSecondaryTags: new[] { "moonlit", "cosmic" }),
-            Create("Garlemald imperial industrial", "Garlemald", "Clouds", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "imperial", expectedWeatherTags: new[] { "clouds" }, expectedMoodTags: new[] { "imperial", "industrial", "metallic" }, expectedSecondaryTags: new[] { "industrial" })
+            Create("Garlemald imperial industrial", "Garlemald", "Clouds", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "imperial", expectedWeatherTags: new[] { "clouds" }, expectedMoodTags: new[] { "imperial", "industrial", "metallic" }, expectedSecondaryTags: new[] { "industrial" }, expectedMaterialMinimums: Materials((MaterialIntent.SnowIceChannel, 0.25f), (MaterialIntent.MetalIndustrialChannel, 0.70f))),
+            Create("East Shroud night forest material false-positive guard", "East Shroud", "Clear Skies", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "forest", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "foliage" }, expectedSecondaryTags: new[] { "lush", "verdant" }, expectedMaterialMinimums: Materials((MaterialIntent.FoliageChannel, 0.55f), (MaterialIntent.SkyCloudFogChannel, 0.08f)), expectedMaterialMaximums: Materials((MaterialIntent.VoidDarknessChannel, 0.05f))),
+            Create("Allagan hard-surface material", "Azys Lla", "Fair Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "ancient", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "ancient", "ruins", "structured" }, expectedSecondaryTags: new[] { "ruins", "structured" }, expectedMaterialMinimums: Materials((MaterialIntent.MetalIndustrialChannel, 0.20f))),
+            Create("Heritage Found neon material", "Heritage Found", "Clear Skies", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "highTech", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "neon", "highTech", "urban" }, expectedSecondaryTags: new[] { "neon", "urban" }, expectedMaterialMinimums: Materials((MaterialIntent.NeonGlassChannel, 0.70f), (MaterialIntent.MetalIndustrialChannel, 0.55f)))
         };
     }
 
@@ -85,7 +92,9 @@ public static class SceneTagRegressionHarness
         string expectedBiome = "",
         IReadOnlyList<string>? expectedWeatherTags = null,
         IReadOnlyList<string>? expectedMoodTags = null,
-        IReadOnlyList<string>? expectedSecondaryTags = null)
+        IReadOnlyList<string>? expectedSecondaryTags = null,
+        IReadOnlyList<MaterialIntentExpectation>? expectedMaterialMinimums = null,
+        IReadOnlyList<MaterialIntentExpectation>? expectedMaterialMaximums = null)
     {
         var context = new GameContext(
             1,
@@ -129,7 +138,16 @@ public static class SceneTagRegressionHarness
             expectedBiome,
             expectedWeatherTags ?? Array.Empty<string>(),
             expectedMoodTags ?? Array.Empty<string>(),
-            expectedSecondaryTags ?? Array.Empty<string>());
+            expectedSecondaryTags ?? Array.Empty<string>(),
+            expectedMaterialMinimums ?? Array.Empty<MaterialIntentExpectation>(),
+            expectedMaterialMaximums ?? Array.Empty<MaterialIntentExpectation>());
+    }
+
+    private static IReadOnlyList<MaterialIntentExpectation> Materials(params (string Channel, float Value)[] expectations)
+    {
+        return expectations
+            .Select(expectation => new MaterialIntentExpectation(expectation.Channel, expectation.Value))
+            .ToArray();
     }
 
     private static void Validate(SceneTagRegressionCase testCase, ProfileResult result, List<SceneTagRegressionFailure> failures)
@@ -193,6 +211,25 @@ public static class SceneTagRegressionHarness
         if (result.TagStackDiagnostics.ActiveTags.Count == 0)
         {
             failures.Add(new SceneTagRegressionFailure(testCase.Name, "No active scene tags were recorded."));
+        }
+
+        var materialIntent = MaterialIntentBuilder.Build(diagnostics, ImageAnalysisResult.Empty);
+        foreach (var expected in testCase.ExpectedMaterialMinimums)
+        {
+            var actual = materialIntent.ValueFor(expected.Channel);
+            if (actual < expected.Value)
+            {
+                failures.Add(new SceneTagRegressionFailure(testCase.Name, $"Expected material {expected.Channel} >= {expected.Value:0.###}, got {actual:0.###}."));
+            }
+        }
+
+        foreach (var expected in testCase.ExpectedMaterialMaximums)
+        {
+            var actual = materialIntent.ValueFor(expected.Channel);
+            if (actual > expected.Value)
+            {
+                failures.Add(new SceneTagRegressionFailure(testCase.Name, $"Expected material {expected.Channel} <= {expected.Value:0.###}, got {actual:0.###}."));
+            }
         }
     }
 }

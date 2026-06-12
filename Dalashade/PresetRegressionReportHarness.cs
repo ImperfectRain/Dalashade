@@ -52,12 +52,13 @@ public sealed class PresetRegressionReportHarness
 
             var summaries = new List<PresetRegressionSummary>();
             var sceneIntent = CreateRegressionSceneIntent();
+            var materialIntent = CreateRegressionMaterialIntent();
             foreach (var presetPath in presets)
             {
                 var presetConfiguration = CreatePresetConfiguration(configuration, presetPath, generatedDirectory);
                 var analysis = analyzer.Analyze(presetConfiguration);
                 var support = writer.ScanSupportedVariables(presetConfiguration);
-                var writeResult = writer.WriteGeneratedPreset(presetConfiguration, profile, sceneIntent);
+                var writeResult = writer.WriteGeneratedPreset(presetConfiguration, profile, sceneIntent, materialIntent);
                 var customShaderDiagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(presetConfiguration, support, writeResult);
                 TryDelete(presetConfiguration.GeneratedPresetPath);
 
@@ -66,7 +67,7 @@ public sealed class PresetRegressionReportHarness
 
                 var reportName = MakeSafeFileName(Path.GetRelativePath(presetFolder, presetPath));
                 var reportPath = CreateUniqueReportPath(outputDirectory, Path.GetFileNameWithoutExtension(reportName));
-                File.WriteAllText(reportPath, BuildPresetReport(summary, analysis, support, profile, writeResult, sceneIntent, customShaderDiagnostics), Encoding.UTF8);
+                File.WriteAllText(reportPath, BuildPresetReport(summary, analysis, support, profile, writeResult, sceneIntent, materialIntent, customShaderDiagnostics), Encoding.UTF8);
             }
 
             File.WriteAllText(Path.Combine(outputDirectory, "index.md"), BuildIndexReport(configuration, presetFolder, summaries), Encoding.UTF8);
@@ -93,6 +94,13 @@ public sealed class PresetRegressionReportHarness
             GeneratedPresetPath = Path.Combine(generatedDirectory, $"{Guid.NewGuid():N}.ini"),
             UsePremiumImmerseEffects = source.UsePremiumImmerseEffects,
             EnableDalashadeCustomShaders = source.EnableDalashadeCustomShaders || ContainsCustomShaderSection(presetPath),
+            AutoInjectDalashadeCustomShaderSections = source.AutoInjectDalashadeCustomShaderSections,
+            EnableMaterialIntent = source.EnableMaterialIntent,
+            EnableMaterialIntentDiagnostics = source.EnableMaterialIntentDiagnostics,
+            EnableMaterialIntentShaderMapping = source.EnableMaterialIntentShaderMapping,
+            MaterialIntentStrength = source.MaterialIntentStrength,
+            EnableMaterialDebugMasks = source.EnableMaterialDebugMasks,
+            MaterialDebugMaskMode = source.MaterialDebugMaskMode,
             CompatibilityMode = source.CompatibilityMode,
             ShaderMatchingMode = source.ShaderMatchingMode,
             InactiveShaderWriteMode = source.InactiveShaderWriteMode,
@@ -144,6 +152,28 @@ public sealed class PresetRegressionReportHarness
             });
     }
 
+    private static MaterialIntent CreateRegressionMaterialIntent()
+    {
+        return new MaterialIntent(
+            0.62f,
+            0.48f,
+            0.41f,
+            0.36f,
+            0.33f,
+            0.39f,
+            0.44f,
+            0.37f,
+            0.28f,
+            0.52f,
+            0.24f,
+            0.18f,
+            new[]
+            {
+                new MaterialIntentContribution(MaterialIntent.FoliageChannel, "Regression harness", 0.62f, "Synthetic material intent used to verify generated material variable writes."),
+                new MaterialIntentContribution(MaterialIntent.SkyCloudFogChannel, "Regression harness", 0.52f, "Synthetic material intent used to verify generated material variable writes.")
+            });
+    }
+
     private static string BuildPresetReport(
         PresetRegressionSummary summary,
         PresetAnalysisResult analysis,
@@ -151,6 +181,7 @@ public sealed class PresetRegressionReportHarness
         VisualProfile profile,
         PresetWriteResult writeResult,
         SceneIntent sceneIntent,
+        MaterialIntent materialIntent,
         CustomShaderBridgeDiagnostics customShaderDiagnostics)
     {
         var builder = new StringBuilder();
@@ -176,6 +207,7 @@ public sealed class PresetRegressionReportHarness
         AppendAuthorities(builder, analysis.Report.Authorities);
         AppendColorFamilyAdjustments(builder, profile);
         AppendCustomShaderRegression(builder, customShaderDiagnostics, sceneIntent);
+        AppendMaterialIntentRegression(builder, materialIntent, writeResult);
 
         builder.AppendLine("## Scan Messages");
         builder.AppendLine();
@@ -360,6 +392,41 @@ public sealed class PresetRegressionReportHarness
         builder.AppendLine($"- CosmicMood: {sceneIntent.CosmicMood:0.###}");
         builder.AppendLine($"- CombatPressure: {sceneIntent.CombatPressure:0.###}");
         builder.AppendLine($"- CinematicPermission: {sceneIntent.CinematicPermission:0.###}");
+        builder.AppendLine();
+    }
+
+    private static void AppendMaterialIntentRegression(StringBuilder builder, MaterialIntent materialIntent, PresetWriteResult writeResult)
+    {
+        builder.AppendLine("## MaterialIntent regression");
+        builder.AppendLine();
+        builder.AppendLine("- Synthetic MaterialIntent values are used only to verify generated material variable plumbing.");
+        builder.AppendLine("- Missing material uniforms and disabled shader mapping should be visible as zero material variable writes.");
+        builder.AppendLine();
+        foreach (var channel in MaterialIntent.ChannelNames)
+        {
+            builder.AppendLine($"- {channel}: {materialIntent.ValueFor(channel):0.###}");
+        }
+
+        var materialWrites = writeResult.Changes
+            .Where(change => string.Equals(change.ReasonCategory, CustomShaderVariableMapper.MaterialReasonCategory, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        builder.AppendLine();
+        builder.AppendLine("### Generated material variables changed");
+        builder.AppendLine();
+        if (materialWrites.Length == 0)
+        {
+            builder.AppendLine("- None");
+        }
+        else
+        {
+            foreach (var change in materialWrites)
+            {
+                builder.AppendLine($"- {change.Section} / {change.Key}: {change.OldValue} -> {change.NewValue} | activation={PresetAnalyzer.FormatActivationState(change.ActivationState)}");
+            }
+        }
+
         builder.AppendLine();
     }
 

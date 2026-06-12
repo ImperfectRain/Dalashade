@@ -194,6 +194,23 @@ public static class CustomShaderBridgeDiagnosticsBuilder
             messages.Add("Support disabled: enable Dalashade custom shader variables before generation can write SceneIntent values.");
         }
 
+        if (!configuration.EnableMaterialIntent)
+        {
+            messages.Add("MaterialIntent disabled: material shader variables are skipped.");
+        }
+        else if (!configuration.EnableMaterialIntentShaderMapping)
+        {
+            messages.Add("MaterialIntent shader mapping disabled: material shader variables are skipped instead of writing zeroes.");
+        }
+        else if (configuration.MaterialIntentStrength <= 0f)
+        {
+            messages.Add("MaterialIntent strength is 0.0: material shader variables are skipped.");
+        }
+        else
+        {
+            messages.Add("MaterialIntent shader mapping enabled: matching known material uniforms in Dalashade custom shader sections may receive generated values.");
+        }
+
         if (configuration.AutoInjectDalashadeCustomShaderSections)
         {
             messages.Add(injection.Attempted
@@ -245,9 +262,14 @@ public static class CustomShaderBridgeDiagnosticsBuilder
             messages.Add("Variables detected but unchanged: check support toggle, activation state, write mode, or whether current values already match SceneIntent.");
         }
 
-        if (writtenVariables.Count > 0)
+        if (writtenVariables.Any(change => string.Equals(change.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase)))
         {
             messages.Add("Static bridge path active: SceneIntent values were written into generated preset Dalashade custom shader variables.");
+        }
+
+        if (writtenVariables.Any(change => string.Equals(change.ReasonCategory, CustomShaderVariableMapper.MaterialReasonCategory, StringComparison.OrdinalIgnoreCase)))
+        {
+            messages.Add("MaterialIntent variable path active: material values were written into matching generated preset Dalashade custom shader variables.");
         }
 
         if (writtenVariables.Any(change => string.Equals(change.Section, SmartSharpenAuthority.Section, StringComparison.OrdinalIgnoreCase)))
@@ -259,12 +281,14 @@ public static class CustomShaderBridgeDiagnosticsBuilder
     private static bool IsCustomShaderSupportItem(ShaderSupportItem item)
     {
         return string.Equals(item.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(item.ReasonCategory, CustomShaderVariableMapper.MaterialReasonCategory, StringComparison.OrdinalIgnoreCase)
                || string.Equals(item.ReasonCategory, SmartSharpenAuthority.ReasonCategory, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsCustomShaderChange(ChangedShaderVariable change)
     {
         return string.Equals(change.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(change.ReasonCategory, CustomShaderVariableMapper.MaterialReasonCategory, StringComparison.OrdinalIgnoreCase)
                || string.Equals(change.ReasonCategory, SmartSharpenAuthority.ReasonCategory, StringComparison.OrdinalIgnoreCase);
     }
 

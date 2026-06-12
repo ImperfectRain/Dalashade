@@ -42,6 +42,54 @@ uniform float Dalashade_HighlightProtection <
     ui_tooltip = "Scene-driven bright highlight protection. Higher values reduce halo-prone bright edge sharpening.";
 > = 0.0;
 
+uniform float Dalashade_MaterialFoliage <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Foliage";
+    ui_tooltip = "Inferred foliage likelihood. Reduces leaf, grass, and canopy micro-sharpening.";
+> = 0.0;
+
+uniform float Dalashade_MaterialWaterSpecular <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Water/Specular";
+    ui_tooltip = "Inferred water or wet/specular likelihood. Reduces glint and water shimmer sharpening.";
+> = 0.0;
+
+uniform float Dalashade_MaterialSnowIce <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Snow/Ice";
+    ui_tooltip = "Inferred snow or ice likelihood. Reduces bright snow noise and black-on-white halos.";
+> = 0.0;
+
+uniform float Dalashade_MaterialSkyCloudFog <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Sky/Cloud/Fog";
+    ui_tooltip = "Inferred sky, cloud, fog, or atmospheric-gradient likelihood. Excludes smooth gradients from sharpening.";
+> = 0.0;
+
+uniform float Dalashade_MaterialSkinProtection <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Skin Protection";
+    ui_tooltip = "Inferred character/skin protection likelihood. Reduces aggressive sharpening on smooth warm foreground regions.";
+> = 0.0;
+
+uniform int Dalashade_MaterialDebugMode <
+    ui_type = "combo";
+    ui_items = "Off\0Overview\0Foliage dampening\0Water/specular dampening\0Snow/ice dampening\0Sky/fog exclusion\0Skin protection dampening\0Unused\0Unused\0Unused\0Final material dampening\0";
+    ui_label = "Dalashade Material Debug Mode";
+    ui_tooltip = "Shows material-aware influence masks. These masks are inferred likelihoods, not true engine material IDs.";
+> = 0;
+
+uniform float Dalashade_MaterialDebugStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Debug Strength";
+> = 1.0;
+
 uniform float SharpenStrength <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -196,6 +244,11 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float combat = saturate(Dalashade_CombatPressure);
     float highlightProtection = saturate(Dalashade_HighlightProtection);
     float authority = saturate(Dalashade_SharpenAuthority * 0.5);
+    float materialFoliage = saturate(Dalashade_MaterialFoliage);
+    float materialWaterSpecular = saturate(Dalashade_MaterialWaterSpecular);
+    float materialSnowIce = saturate(Dalashade_MaterialSnowIce);
+    float materialSkyCloudFog = saturate(Dalashade_MaterialSkyCloudFog);
+    float materialSkinProtection = saturate(Dalashade_MaterialSkinProtection);
 
     float brightMask = smoothstep(0.62, 0.96, centerLuma);
     float veryBrightMask = smoothstep(0.78, 1.0, centerLuma);
@@ -206,6 +259,19 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float midDepthMask = smoothstep(0.10, 0.55, depth);
     float farDepthMask = smoothstep(0.28, 0.92, depth);
 
+    // MaterialIntent masks are inferred scene likelihoods. They only damp unsafe sharpening and never boost clarity globally.
+    float warmSmoothMask = smoothstep(0.02, 0.22, center.r - center.b)
+        * smoothstep(-0.08, 0.18, center.g - center.b)
+        * (1.0 - smoothstep(0.060, 0.240, colorVariance))
+        * smoothstep(0.16, 0.42, centerLuma)
+        * (1.0 - smoothstep(0.78, 0.98, centerLuma));
+    float materialFoliagePressure = saturate(materialFoliage * FoliageDampenStrength * (0.24 + textureDetailMask * 0.82 + farDepthMask * 0.24));
+    float materialWaterPressure = saturate(materialWaterSpecular * (specularEdgeMask * 0.72 + veryBrightMask * 0.22 + wetness * 0.20) * HighlightDampenStrength);
+    float materialSnowPressure = saturate(materialSnowIce * (brightMask * 0.54 + veryBrightMask * 0.36 + structuralEdgeMask * 0.18) * HaloDampenStrength);
+    float materialSkyPressure = saturate(materialSkyCloudFog * max(skyGradientMask, smoothGradientMask * (0.45 + haze * 0.45)) * SkyDampenStrength);
+    float materialSkinPressure = saturate(materialSkinProtection * warmSmoothMask * (0.50 + readability * 0.12) * AntiCrunchStrength);
+    float materialDampen = saturate(max(max(materialFoliagePressure, materialWaterPressure), max(materialSnowPressure, max(materialSkyPressure, materialSkinPressure))));
+
     float hazePressure = saturate(max(haze, wetness * 0.72) * HazeDampenStrength);
     float foliageTexturePressure = saturate(foliage * FoliageDampenStrength * (0.42 + textureDetailMask * 0.72 + farDepthMask * 0.24));
     float foliageStructurePressure = saturate(foliage * 0.22 * (1.0 - structuralEdgeMask * 0.45));
@@ -215,8 +281,8 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float skyPressure = saturate(skyGradientMask * SkyDampenStrength);
     float secondaryAuthorityPressure = 1.0 - authority;
 
-    float structuralDampen = saturate(hazePressure * 0.36 + highlightPressure * 0.52 + haloPressure * 0.44 + skyPressure + foliageStructurePressure + secondaryAuthorityPressure * 0.24);
-    float textureDampen = saturate(hazePressure * 0.78 + wetness * 0.25 + foliageTexturePressure + depthTexturePressure + highlightPressure + haloPressure * 0.74 + skyPressure + secondaryAuthorityPressure * 0.58);
+    float structuralDampen = saturate(hazePressure * 0.36 + highlightPressure * 0.52 + haloPressure * 0.44 + skyPressure + materialSkyPressure * 0.60 + materialSnowPressure * 0.20 + materialSkinPressure * 0.22 + foliageStructurePressure + secondaryAuthorityPressure * 0.24);
+    float textureDampen = saturate(hazePressure * 0.78 + wetness * 0.25 + foliageTexturePressure + materialFoliagePressure + depthTexturePressure + highlightPressure + haloPressure * 0.74 + skyPressure + materialWaterPressure + materialSnowPressure + materialSkyPressure + materialSkinPressure * 0.78 + secondaryAuthorityPressure * 0.58);
     float dampen = saturate(max(structuralDampen * 0.72, textureDampen));
 
     // Structural clarity uses broader low-frequency luma edges: silhouettes, trunks, rocks, buildings, armor, and readable geometry.
@@ -260,6 +326,37 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
 
     if (ShowDebugMask)
     {
+        // Material debug views show inferred dampening influence. They are not true material-ID visualizations.
+        float materialDebugStrength = saturate(Dalashade_MaterialDebugStrength);
+        if (Dalashade_MaterialDebugMode == 1)
+        {
+            return float4(saturate(materialFoliagePressure + materialWaterPressure) * materialDebugStrength, saturate(materialSnowPressure + materialSkyPressure) * materialDebugStrength, saturate(materialSkinPressure + materialDampen) * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 2)
+        {
+            return float4(materialFoliage * materialDebugStrength, saturate(textureDetailMask + farDepthMask * 0.35) * materialDebugStrength, materialFoliagePressure * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 3)
+        {
+            return float4(materialWaterSpecular * materialDebugStrength, specularEdgeMask * materialDebugStrength, materialWaterPressure * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 4)
+        {
+            return float4(materialSnowIce * materialDebugStrength, brightMask * materialDebugStrength, materialSnowPressure * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 5)
+        {
+            return float4(materialSkyCloudFog * materialDebugStrength, skyGradientMask * materialDebugStrength, materialSkyPressure * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 6)
+        {
+            return float4(materialSkinProtection * materialDebugStrength, warmSmoothMask * materialDebugStrength, materialSkinPressure * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 10)
+        {
+            return float4(materialDampen * materialDebugStrength, textureDampen * materialDebugStrength, structuralDampen * materialDebugStrength, 1.0);
+        }
+
         if (DebugView == 1)
         {
             return float4(structuralEdgeMask, saturate(structuralAmount * 8.0), saturate(structuralDampen), 1.0);

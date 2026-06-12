@@ -14,6 +14,7 @@ Scene context is collected in `Dalashade/GameContext.cs`.
 | Time buckets | `GameContextService.GetTimeBucket()` | Converts Eorzea hour into Dawn, Day, Dusk, or Night. |
 | Scene tags | `SceneClassifier.Classify(GameContext context)` | Converts raw context into weather, area, biome, mood, confidence, and gameplay tags. |
 | Scene intent | `SceneIntentBuilder.Build(...)` in `Dalashade/SceneIntent.cs` | Converts tags, screenshot analysis, target style, and performance budget into stack-aware intent values before profile stack budgets. |
+| Material intent diagnostics | `MaterialIntentBuilder.Build(...)` in `Dalashade/MaterialIntentBuilder.cs` | Converts the existing tag stack, screenshot metrics, and SceneIntent context into report-only inferred material likelihoods. Does not change generated presets. |
 | Visual profile effects | `ProfileEngine.Create()` in `Dalashade/VisualProfile.cs` | Applies context adjustments, scene-intent stack budgets, screenshot analysis, master style, target style, and performance budget. |
 
 ## Tag Taxonomy
@@ -33,6 +34,42 @@ Dalashade keeps tags hierarchical instead of treating every hint as a primary cl
 | Art-direction tags | `TagStackDiagnostics.ArtDirectionTags` | Visual treatment hints such as `sunlit`, `colorful`, `canopyLight`, `haunted`, `luminous`, `highDepth`, `smoky`, or `crisp`. |
 
 Primary biome is the only single-choice bucket. The other buckets are diagnostic and additive, and should be added only when they drive useful intent, profile, shader, or report behavior.
+
+## Material Intent Diagnostics
+
+`MaterialIntent` is implemented as an optional report-only semantic layer. It estimates likely material families from existing data: territory and weather names, scene tags, biome/mood/material/art-direction tags, gameplay-state tags, screenshot metrics, and the current `SceneIntent`. It is conservative confidence inference, not true FFXIV engine material ID detection.
+
+MaterialIntent is controlled by configuration:
+
+| Setting | Default | Current behavior |
+| --- | --- | --- |
+| `EnableMaterialIntent` | `false` | Enables or disables MaterialIntent calculation. Disabled returns neutral values. |
+| `EnableMaterialIntentDiagnostics` | `true` | Shows MaterialIntent values and contribution diagnostics in reports/UI when MaterialIntent is enabled. |
+| `EnableMaterialIntentShaderMapping` | `false` | Allows generated-preset MaterialIntent uniform writes when matching known Dalashade custom shader keys exist. Default is off. |
+| `MaterialIntentStrength` | `0.25` | Scales MaterialIntent diagnostic values from `0.0` to `1.0`; `0.0` is visually equivalent to disabled because no shader mapping exists yet. |
+| `EnableMaterialDebugMasks` | `false` | Allows generated material debug-mask variables when shader mapping is enabled and matching keys exist. |
+| `MaterialDebugMaskMode` | `0` | Integer mode written to `Dalashade_MaterialDebugMode` when debug-mask variables are enabled. |
+
+MaterialIntent currently reports these normalized channels:
+
+| Channel | Meaning |
+| --- | --- |
+| `Foliage` | Likely vegetation, leaves, canopy, grass, or jungle/forest surfaces. |
+| `WaterSpecular` | Likely water, wet, beach, rain, or reflective specular surfaces. |
+| `SandDust` | Likely sand, dry ground, badlands, beach sand, dust, or heat-dust surfaces. |
+| `SnowIce` | Likely snow, ice, cold, alpine, lunar ice, or bright frozen surfaces. |
+| `StoneRuins` | Likely stone, carved ruins, ancient structures, caves, or Allagan/ruin hard surfaces. |
+| `MetalIndustrial` | Likely steel, machinery, magitek, factories, imperial, or high-tech constructed surfaces. |
+| `CrystalAether` | Likely aetherial, crystal, fae, cosmic, lunar, alien, or magical luminous materials. |
+| `NeonGlass` | Likely neon, glass, electrope, high-tech, luminous urban, or clean constructed materials. |
+| `FireLavaHeat` | Likely fire, lava, volcanic, heat, or sun-scorched hot materials. |
+| `SkyCloudFog` | Likely sky, clouds, fog, mist, storm atmosphere, lunar/cosmic sky, or smooth atmospheric gradients. |
+| `SkinProtection` | Likely character/skin protection risk, inferred conservatively from presentation, city/combat context, and warm screenshot color families. |
+| `VoidDarkness` | Likely void, umbral, haunted, abyssal, gothic, or darkness material identity. Night alone is explicitly not enough. |
+
+Every channel records positive and negative contribution diagnostics. Compatibility reports show the final channel value, top positive sources, and top suppressions. These diagnostics do not alter `SceneIntent` or `VisualProfile`.
+
+MaterialIntent shader variable plumbing is zero-impact by default. When `EnableMaterialIntentShaderMapping` is off, Dalashade skips MaterialIntent variables entirely: it does not update existing material keys and generated-preset-only injection does not add material keys. When mapping is on, `EnableMaterialIntent` is on, and `MaterialIntentStrength` is greater than `0.0`, matching known material keys in Dalashade custom shader sections can be written as `MaterialIntent value * MaterialIntentStrength`. Missing uniforms and missing custom shader sections are skipped safely.
 
 ## Current Weather Tags
 
@@ -216,18 +253,22 @@ Diagnostics currently include:
 | Gameplay-state tags | Combat readability, duty readability, cinematic permission, and gameplay restraint. |
 | Art-direction tags | Treatment hints such as sunlit, colorful, canopyLight, haunted, luminous, highDepth, smoky, or crisp. |
 | SceneIntent contributions | Per-intent source, amount, reason, and report grouping by tag category. |
+| MaterialIntent diagnostics | Report-only inferred material likelihood, positive contributions, and suppressions. |
 
 ## Expected Regression Examples
 
-| Case | Expected primary biome | Expected supporting tags | Expected visual direction |
-| --- | --- | --- | --- |
-| Eastern La Noscea / Costa del Sol, clear day | `coastal` | coastal, tropical, seaside, beach, water, specular, clean, sunlit, colorful | Bright, colorful, clean, specular, mild foliage, no haze unless weather adds it. |
-| The Rak'tika Greatwood, Umbral Wind night | `jungle` | rainforest, lush, verdant, humid, canopyLight, gloom, haunted | Lush and deep with canopy-light accent; gloom is dark mood, not gray fog. |
-| Amh Araeng, Heat Waves night | `desert` | desert, badlands, dry, heat, dust | Hot and dry with distance-weighted haze and lower night highlight restraint. |
-| Snowcloak or Coerthas snow | `snow` | snow, alpine, cold, ice, clean, crisp | Cold and crisp with protected highlights. |
-| Solution Nine / Alexandria / Heritage Found | `highTech` | neon, highTech, urban, clean, luminous | Clean high contrast, saturated accents, controlled neon glow. |
-| Ultima Thule / Mare Lamentorum | `cosmic` or `lunar` | alien, aetherial, moonlit, cold, highDepth | Cool, otherworldly, atmospheric, high depth. |
-| Garlemald / Castrum / factory | `imperial` | imperial, industrial, metallic, smoky, structured | Metallic, hard, readable, desaturated, restrained bloom. |
+| Case | Expected primary biome | Expected supporting tags | Expected MaterialIntent | Expected visual direction |
+| --- | --- | --- | --- | --- |
+| Eastern La Noscea / Costa del Sol, clear day | `coastal` | coastal, tropical, seaside, beach, water, specular, clean, sunlit, colorful | WaterSpecular, SandDust | Bright, colorful, clean, specular, mild foliage, no haze unless weather adds it. |
+| The Rak'tika Greatwood, Umbral Wind night | `jungle` | rainforest, lush, verdant, humid, canopyLight, gloom, haunted | Foliage | Lush and deep with canopy-light accent; gloom is dark mood, not gray fog. |
+| East Shroud, clear night | `forest` | foliage, lush, verdant, night | Foliage, SkyCloudFog; not VoidDarkness | Night forest stays natural and atmospheric without becoming void/darkness. |
+| Amh Araeng, Heat Waves night | `desert` | desert, badlands, dry, heat, dust | SandDust | Hot and dry with distance-weighted haze and lower night highlight restraint. |
+| Snowcloak or Coerthas snow | `snow` | snow, alpine, cold, ice, clean, crisp | SnowIce | Cold and crisp with protected highlights. |
+| Solution Nine / Alexandria / Heritage Found | `highTech` | neon, highTech, urban, clean, luminous | NeonGlass, MetalIndustrial | Clean high contrast, saturated accents, controlled neon glow. |
+| Ultima Thule / Elpis / Il Mheg | `cosmic`, `aetherial`, or `fae` | alien, aetherial, fae, dreamlike, magical | CrystalAether | Cool, otherworldly, magical, atmospheric, high depth. |
+| Garlemald / Castrum / factory | `imperial` | imperial, industrial, metallic, smoky, structured | SnowIce where cold; MetalIndustrial | Metallic, hard, readable, desaturated, restrained bloom. |
+| Allagan / Azys Lla | `ancient` | ancient, ruins, structured, aetherial | MetalIndustrial and/or StoneRuins/CrystalAether | Structured hard-surface identity without random organic material assumptions. |
+| Void / gothic / darkness scene | `void` | haunted, gloom, dark, void | VoidDarkness only when explicit support exists | Preserves black depth and avoids treating ordinary night as void. |
 
 ## Planned / Future
 
