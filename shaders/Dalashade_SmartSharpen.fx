@@ -1,4 +1,5 @@
 #include "ReShade.fxh"
+#include "Dalashade_MaterialMasks.fxh"
 
 uniform float Dalashade_Readability <
     ui_type = "slider";
@@ -273,6 +274,28 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float materialSnowIce = saturate(Dalashade_MaterialSnowIce);
     float materialSkyCloudFog = saturate(Dalashade_MaterialSkyCloudFog);
     float materialSkinProtection = saturate(Dalashade_MaterialSkinProtection);
+    Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasks(
+        center,
+        texcoord,
+        materialFoliage,
+        materialWaterSpecular,
+        0.0,
+        materialSnowIce,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        materialSkyCloudFog,
+        materialSkinProtection,
+        0.0);
+    float materialFoliageStrong = materialMasks.FoliageStrong;
+    float materialOrganicGreen = materialMasks.OrganicGreenSurface;
+    float materialFoliagePixel = saturate(materialFoliageStrong + materialOrganicGreen * 0.42);
+    float materialWaterPixel = materialMasks.WaterSpecular;
+    float materialSnowPixel = materialMasks.SnowIce;
+    float materialSkyPixel = materialMasks.SkyCloudFog;
+    float materialSkinPixel = materialMasks.SkinProtection;
 
     float brightMask = smoothstep(0.62, 0.96, centerLuma);
     float veryBrightMask = smoothstep(0.78, 1.0, centerLuma);
@@ -291,11 +314,11 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
         * (1.0 - smoothstep(0.060, 0.240, colorVariance))
         * smoothstep(0.16, 0.42, centerLuma)
         * (1.0 - smoothstep(0.78, 0.98, centerLuma));
-    float materialFoliagePressure = saturate(materialFoliage * FoliageDampenStrength * (0.24 + textureDetailMask * 0.82 + farDepthMask * 0.24));
-    float materialWaterPressure = saturate(materialWaterSpecular * (specularEdgeMask * 0.72 + veryBrightMask * 0.22 + wetness * 0.20) * HighlightDampenStrength);
-    float materialSnowPressure = saturate(materialSnowIce * (brightMask * 0.54 + veryBrightMask * 0.36 + structuralEdgeMask * 0.18) * HaloDampenStrength);
-    float materialSkyPressure = saturate(materialSkyCloudFog * max(skyGradientMask, smoothGradientMask * (0.45 + haze * 0.45)) * SkyDampenStrength);
-    float materialSkinPressure = saturate(materialSkinProtection * warmSmoothMask * (0.50 + readability * 0.12) * AntiCrunchStrength);
+    float materialFoliagePressure = saturate(materialFoliagePixel * FoliageDampenStrength * (0.22 + textureDetailMask * 0.82 + farDepthMask * 0.24));
+    float materialWaterPressure = saturate(materialWaterPixel * (specularEdgeMask * 0.72 + veryBrightMask * 0.22 + wetness * 0.20) * HighlightDampenStrength);
+    float materialSnowPressure = saturate(materialSnowPixel * (brightMask * 0.54 + veryBrightMask * 0.36 + structuralEdgeMask * 0.18) * HaloDampenStrength);
+    float materialSkyPressure = saturate(max(materialSkyPixel, materialSkyCloudFog * skyGradientMask * 0.42) * max(skyGradientMask, smoothGradientMask * (0.45 + haze * 0.45)) * SkyDampenStrength);
+    float materialSkinPressure = saturate(max(materialSkinPixel, materialSkinProtection * warmSmoothMask * 0.35) * (0.50 + readability * 0.12) * AntiCrunchStrength);
     float materialDampen = saturate(max(max(materialFoliagePressure, materialWaterPressure), max(materialSnowPressure, max(materialSkyPressure, materialSkinPressure))));
 
     float hazePressure = saturate(max(haze, wetness * 0.72) * HazeDampenStrength);
@@ -360,23 +383,23 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
         }
         if (Dalashade_MaterialDebugMode == 2)
         {
-            return float4(materialFoliage * materialDebugStrength, saturate(textureDetailMask + farDepthMask * 0.35) * materialDebugStrength, materialFoliagePressure * materialDebugStrength, 1.0);
+            return float4(materialFoliageStrong * materialDebugStrength, materialOrganicGreen * materialDebugStrength, materialFoliagePressure * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 3)
         {
-            return float4(materialWaterSpecular * materialDebugStrength, specularEdgeMask * materialDebugStrength, materialWaterPressure * materialDebugStrength, 1.0);
+            return float4(materialWaterPixel * materialDebugStrength, specularEdgeMask * materialDebugStrength, materialWaterPressure * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 4)
         {
-            return float4(materialSnowIce * materialDebugStrength, brightMask * materialDebugStrength, materialSnowPressure * materialDebugStrength, 1.0);
+            return float4(materialSnowPixel * materialDebugStrength, brightMask * materialDebugStrength, materialSnowPressure * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 5)
         {
-            return float4(materialSkyCloudFog * materialDebugStrength, skyGradientMask * materialDebugStrength, materialSkyPressure * materialDebugStrength, 1.0);
+            return float4(materialSkyPixel * materialDebugStrength, skyGradientMask * materialDebugStrength, materialSkyPressure * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 6)
         {
-            return float4(materialSkinProtection * materialDebugStrength, warmSmoothMask * materialDebugStrength, materialSkinPressure * materialDebugStrength, 1.0);
+            return float4(materialSkinPixel * materialDebugStrength, warmSmoothMask * materialDebugStrength, materialSkinPressure * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 10)
         {

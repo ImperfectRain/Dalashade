@@ -71,10 +71,8 @@ MaterialIntent is controlled by configuration:
 | `EnableMaterialIntentDiagnostics` | `true` | Shows MaterialIntent values and contribution diagnostics in reports/UI when MaterialIntent is enabled. |
 | `EnableMaterialIntentShaderMapping` | `false` | Allows generated-preset MaterialIntent uniform writes when matching known Dalashade custom shader keys exist. Default is off. |
 | `MaterialIntentStrength` | `0.25` | Scales MaterialIntent diagnostic values and generated material channel uniforms from `0.0` to `1.0`. |
-| `EnableMaterialDebugMasks` | `false` | Allows generated material debug-mask variables when shader mapping is enabled and matching keys exist. |
-| `MaterialDebugMaskMode` | `0` | Integer mode written to `Dalashade_MaterialDebugMode` when debug-mask variables are enabled. |
-| `MaterialDebugOpacity` | `0.65` | Opacity written to the optional `Dalashade_MaterialDebug.fx` false-color overlay. |
-| `MaterialDebugOverlayMode` | `1` | Overlay mode written to `Dalashade_MaterialDebug.fx`: full replacement, alpha blend, or additive/tint overlay. |
+
+Material debug mode, overlay mode, opacity, and strength are owned by the relevant ReShade `.fx` shader UI. Dalashade does not write those debug controls during generation.
 
 MaterialIntent currently reports these normalized channels:
 

@@ -42,17 +42,14 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_MaterialWaterSpecular"] = (intent, _) => intent.WaterSpecular,
             ["Dalashade_MaterialSandDust"] = (intent, _) => intent.SandDust,
             ["Dalashade_MaterialSnowIce"] = (intent, _) => intent.SnowIce,
+            ["Dalashade_MaterialStoneRuins"] = (intent, _) => intent.StoneRuins,
             ["Dalashade_MaterialMetalIndustrial"] = (intent, _) => intent.MetalIndustrial,
             ["Dalashade_MaterialCrystalAether"] = (intent, _) => intent.CrystalAether,
             ["Dalashade_MaterialNeonGlass"] = (intent, _) => intent.NeonGlass,
             ["Dalashade_MaterialFireLavaHeat"] = (intent, _) => intent.FireLavaHeat,
             ["Dalashade_MaterialSkyCloudFog"] = (intent, _) => intent.SkyCloudFog,
             ["Dalashade_MaterialSkinProtection"] = (intent, _) => intent.SkinProtection,
-            ["Dalashade_MaterialVoidDarkness"] = (intent, _) => intent.VoidDarkness,
-            ["Dalashade_MaterialDebugMode"] = (_, configuration) => configuration.EnableMaterialDebugMasks ? configuration.MaterialDebugMaskMode : 0f,
-            ["Dalashade_MaterialDebugOpacity"] = (_, configuration) => configuration.MaterialDebugOpacity,
-            ["Dalashade_MaterialDebugOverlayMode"] = (_, configuration) => configuration.MaterialDebugOverlayMode,
-            ["Dalashade_MaterialDebugStrength"] = (_, configuration) => configuration.EnableMaterialDebugMasks ? 1f : 0f
+            ["Dalashade_MaterialVoidDarkness"] = (intent, _) => intent.VoidDarkness
         };
 
     private static readonly HashSet<string> SmartSharpenMaterialVariables =
@@ -61,9 +58,7 @@ public sealed class CustomShaderVariableMapper
         "Dalashade_MaterialWaterSpecular",
         "Dalashade_MaterialSnowIce",
         "Dalashade_MaterialSkyCloudFog",
-        "Dalashade_MaterialSkinProtection",
-        "Dalashade_MaterialDebugMode",
-        "Dalashade_MaterialDebugStrength"
+        "Dalashade_MaterialSkinProtection"
     ];
 
     private static readonly HashSet<string> WeatherAtmosphereMaterialVariables =
@@ -73,9 +68,7 @@ public sealed class CustomShaderVariableMapper
         "Dalashade_MaterialSnowIce",
         "Dalashade_MaterialWaterSpecular",
         "Dalashade_MaterialCrystalAether",
-        "Dalashade_MaterialSkyCloudFog",
-        "Dalashade_MaterialDebugMode",
-        "Dalashade_MaterialDebugStrength"
+        "Dalashade_MaterialSkyCloudFog"
     ];
 
     private static readonly HashSet<string> AtmosphereBloomMaterialVariables =
@@ -84,9 +77,7 @@ public sealed class CustomShaderVariableMapper
         "Dalashade_MaterialCrystalAether",
         "Dalashade_MaterialNeonGlass",
         "Dalashade_MaterialFireLavaHeat",
-        "Dalashade_MaterialSkyCloudFog",
-        "Dalashade_MaterialDebugMode",
-        "Dalashade_MaterialDebugStrength"
+        "Dalashade_MaterialSkyCloudFog"
     ];
 
     private static readonly HashSet<string> AdaptiveGradeMaterialVariables =
@@ -106,17 +97,14 @@ public sealed class CustomShaderVariableMapper
         "Dalashade_MaterialWaterSpecular",
         "Dalashade_MaterialSandDust",
         "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialStoneRuins",
         "Dalashade_MaterialMetalIndustrial",
         "Dalashade_MaterialCrystalAether",
         "Dalashade_MaterialNeonGlass",
         "Dalashade_MaterialFireLavaHeat",
         "Dalashade_MaterialSkyCloudFog",
         "Dalashade_MaterialSkinProtection",
-        "Dalashade_MaterialVoidDarkness",
-        "Dalashade_MaterialDebugMode",
-        "Dalashade_MaterialDebugOpacity",
-        "Dalashade_MaterialDebugOverlayMode",
-        "Dalashade_MaterialDebugStrength"
+        "Dalashade_MaterialVoidDarkness"
     ];
 
     public static IReadOnlyCollection<string> KnownVariableNames => Variables.Keys
@@ -196,22 +184,6 @@ public sealed class CustomShaderVariableMapper
 
     private static float MaterialOutput(string key, float value, Configuration configuration)
     {
-        if (string.Equals(key, "Dalashade_MaterialDebugMode", StringComparison.OrdinalIgnoreCase))
-        {
-            return MathF.Min(13f, MathF.Max(0f, value));
-        }
-
-        if (string.Equals(key, "Dalashade_MaterialDebugOverlayMode", StringComparison.OrdinalIgnoreCase))
-        {
-            return MathF.Min(2f, MathF.Max(0f, value));
-        }
-
-        if (string.Equals(key, "Dalashade_MaterialDebugOpacity", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(key, "Dalashade_MaterialDebugStrength", StringComparison.OrdinalIgnoreCase))
-        {
-            return Clamp01(value);
-        }
-
         return Clamp01(value) * Clamp01(configuration.MaterialIntentStrength);
     }
 

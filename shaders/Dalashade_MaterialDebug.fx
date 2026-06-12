@@ -29,6 +29,12 @@ uniform float Dalashade_MaterialSnowIce <
     ui_label = "Dalashade Material Snow/Ice";
 > = 0.0;
 
+uniform float Dalashade_MaterialStoneRuins <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Stone/Ruins";
+> = 0.0;
+
 uniform float Dalashade_MaterialMetalIndustrial <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -73,9 +79,9 @@ uniform float Dalashade_MaterialVoidDarkness <
 
 uniform int Dalashade_MaterialDebugMode <
     ui_type = "combo";
-    ui_items = "Off/pass-through\0Overview\0Foliage\0Water/specular\0Sand/dust\0Snow/ice\0Sky/fog\0Metal/industrial\0Crystal/aether\0Neon/glass\0Fire/lava/heat\0Skin-protection\0Void/darkness\0Combined confidence\0";
+    ui_items = "Off/pass-through\0Overview\0Foliage strong + organic green\0Water/specular\0Sand/dust\0Snow/ice\0Sky/fog\0Stone/ruins\0Metal/industrial\0Crystal/aether\0Neon/glass\0Fire/lava/heat\0Skin-protection\0Void/darkness\0Combined confidence\0";
     ui_label = "Dalashade Material Debug Mode";
-    ui_tooltip = "False-color material heuristic visualizer. These are inferred screen-space masks, not true engine material IDs.";
+    ui_tooltip = "False-color material heuristic visualizer. Overview is color-coded; individual modes show mask strength. These are not true engine material IDs.";
 > = 0;
 
 uniform float Dalashade_MaterialDebugOpacity <
@@ -124,95 +130,88 @@ float4 Dalashade_MaterialDebugPass(float4 position : SV_Position, float2 texcoor
         return float4(source, 1.0);
     }
 
-    float foliageMask = Dalashade_GetFoliageMask(source, texcoord, Dalashade_MaterialFoliage);
-    float waterSpecularMask = Dalashade_GetWaterSpecularMask(source, texcoord, Dalashade_MaterialWaterSpecular);
-    float sandDustMask = Dalashade_GetSandDustMask(source, texcoord, Dalashade_MaterialSandDust);
-    float snowIceMask = Dalashade_GetSnowIceMask(source, texcoord, Dalashade_MaterialSnowIce);
-    float skyCloudFogMask = Dalashade_GetSkyFogMask(source, texcoord, Dalashade_MaterialSkyCloudFog);
-    float metalIndustrialMask = Dalashade_GetMetalIndustrialMask(source, texcoord, Dalashade_MaterialMetalIndustrial);
-    float crystalAetherMask = Dalashade_GetCrystalAetherMask(source, texcoord, Dalashade_MaterialCrystalAether);
-    float neonGlassMask = Dalashade_GetNeonGlassMask(source, texcoord, Dalashade_MaterialNeonGlass);
-    float fireLavaHeatMask = Dalashade_GetFireLavaHeatMask(source, texcoord, Dalashade_MaterialFireLavaHeat);
-    float skinProtectionMask = Dalashade_GetSkinProtectionMask(source, texcoord, Dalashade_MaterialSkinProtection);
-    float voidDarknessMask = Dalashade_GetVoidDarknessMask(source, texcoord, Dalashade_MaterialVoidDarkness);
+    Dalashade_MaterialMasks masks = Dalashade_GetAllMaterialMasks(
+        source,
+        texcoord,
+        Dalashade_MaterialFoliage,
+        Dalashade_MaterialWaterSpecular,
+        Dalashade_MaterialSandDust,
+        Dalashade_MaterialSnowIce,
+        Dalashade_MaterialStoneRuins,
+        Dalashade_MaterialMetalIndustrial,
+        Dalashade_MaterialCrystalAether,
+        Dalashade_MaterialNeonGlass,
+        Dalashade_MaterialFireLavaHeat,
+        Dalashade_MaterialSkyCloudFog,
+        Dalashade_MaterialSkinProtection,
+        Dalashade_MaterialVoidDarkness);
 
-    float combinedConfidence = saturate(
-        foliageMask + waterSpecularMask + sandDustMask + snowIceMask + skyCloudFogMask +
-        metalIndustrialMask + crystalAetherMask + neonGlassMask + fireLavaHeatMask +
-        skinProtectionMask + voidDarknessMask);
-
-    float confidence = combinedConfidence;
-    float3 debugColor = Dalashade_GetMaterialOverviewColor(
-        foliageMask,
-        waterSpecularMask,
-        sandDustMask,
-        snowIceMask,
-        skyCloudFogMask,
-        metalIndustrialMask,
-        crystalAetherMask,
-        neonGlassMask,
-        fireLavaHeatMask,
-        skinProtectionMask,
-        voidDarknessMask);
+    float confidence = masks.CombinedConfidence;
+    float3 debugColor = Dalashade_GetMaterialOverviewColor(masks);
 
     if (mode == 2)
     {
-        confidence = foliageMask;
-        debugColor = float3(0.08, 0.95, 0.18) * confidence;
+        confidence = saturate(masks.FoliageStrong + masks.OrganicGreenSurface * 0.55);
+        debugColor = masks.FoliageStrong * float3(0.05, 0.95, 0.16) + masks.OrganicGreenSurface * float3(0.45, 0.34, 0.08);
     }
     else if (mode == 3)
     {
-        confidence = waterSpecularMask;
+        confidence = masks.WaterSpecular;
         debugColor = float3(0.00, 0.85, 1.00) * confidence;
     }
     else if (mode == 4)
     {
-        confidence = sandDustMask;
+        confidence = masks.SandDust;
         debugColor = float3(1.00, 0.66, 0.12) * confidence;
     }
     else if (mode == 5)
     {
-        confidence = snowIceMask;
+        confidence = masks.SnowIce;
         debugColor = float3(0.78, 0.92, 1.00) * confidence;
     }
     else if (mode == 6)
     {
-        confidence = skyCloudFogMask;
+        confidence = masks.SkyCloudFog;
         debugColor = float3(0.18, 0.42, 1.00) * confidence;
     }
     else if (mode == 7)
     {
-        confidence = metalIndustrialMask;
-        debugColor = float3(0.45, 0.56, 0.66) * confidence;
+        confidence = masks.StoneRuins;
+        debugColor = float3(0.42, 0.40, 0.34) * confidence;
     }
     else if (mode == 8)
     {
-        confidence = crystalAetherMask;
-        debugColor = float3(0.55, 0.22, 1.00) * confidence;
+        confidence = masks.MetalIndustrial;
+        debugColor = float3(0.45, 0.56, 0.66) * confidence;
     }
     else if (mode == 9)
     {
-        confidence = neonGlassMask;
-        debugColor = float3(1.00, 0.00, 0.85) * confidence;
+        confidence = masks.CrystalAether;
+        debugColor = float3(0.55, 0.22, 1.00) * confidence;
     }
     else if (mode == 10)
     {
-        confidence = fireLavaHeatMask;
-        debugColor = float3(1.00, 0.18, 0.04) * confidence;
+        confidence = masks.NeonGlass;
+        debugColor = float3(1.00, 0.00, 0.85) * confidence;
     }
     else if (mode == 11)
     {
-        confidence = skinProtectionMask;
-        debugColor = float3(1.00, 0.54, 0.42) * confidence;
+        confidence = masks.FireLavaHeat;
+        debugColor = float3(1.00, 0.18, 0.04) * confidence;
     }
     else if (mode == 12)
     {
-        confidence = voidDarknessMask;
-        debugColor = float3(0.38, 0.05, 0.75) * confidence;
+        confidence = masks.SkinProtection;
+        debugColor = float3(1.00, 0.54, 0.42) * confidence;
     }
     else if (mode == 13)
     {
-        confidence = combinedConfidence;
+        confidence = masks.VoidDarkness;
+        debugColor = float3(0.38, 0.05, 0.75) * confidence;
+    }
+    else if (mode == 14)
+    {
+        confidence = masks.CombinedConfidence;
         debugColor = confidence.xxx;
     }
 

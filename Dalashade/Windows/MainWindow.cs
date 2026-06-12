@@ -217,7 +217,7 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Diagnostics: {(configuration.EnableMaterialIntentDiagnostics ? "enabled" : "disabled")}");
         ImGui.TextUnformatted($"Shader mapping: {(configuration.EnableMaterialIntentShaderMapping ? "enabled" : "disabled")}");
         ImGui.TextUnformatted($"Strength: {configuration.MaterialIntentStrength:0.###}");
-        ImGui.TextUnformatted($"Debug overlay: {(configuration.EnableMaterialDebugMasks ? $"enabled, mode {configuration.MaterialDebugMaskMode}, opacity {configuration.MaterialDebugOpacity:0.##}, blend {configuration.MaterialDebugOverlayMode}" : "disabled")}");
+        ImGui.TextUnformatted("Debug overlay controls: owned by each ReShade .fx shader UI");
         ImGui.TextWrapped("Experimental/inferred material likelihood. This is not true engine material ID detection.");
 
         if (!configuration.EnableMaterialIntent)

@@ -130,9 +130,7 @@ public sealed class CompatibilityReportExporter
         var materialDebugTechnique = FindMaterialDebugTechnique(analysis);
         builder.AppendLine($"- Material debug shader listed: {(materialDebugTechnique is null ? "no" : "yes")}");
         builder.AppendLine($"- Material debug technique activation: {(materialDebugTechnique is null ? "absent" : PresetAnalyzer.FormatActivationState(materialDebugTechnique.ActivationState))}");
-        builder.AppendLine($"- Material debug selected mode: {(configuration.EnableMaterialDebugMasks ? configuration.MaterialDebugMaskMode.ToString() : "0 (disabled)")}");
-        builder.AppendLine($"- Material debug overlay mode: {configuration.MaterialDebugOverlayMode}");
-        builder.AppendLine($"- Material debug opacity: {configuration.MaterialDebugOpacity:0.###}");
+        builder.AppendLine("- Material debug controls: shader-owned in ReShade UI; Dalashade does not write debug mode, overlay mode, opacity, or strength.");
         builder.AppendLine("- Manual shader install/activation: Dalashade does not copy `.fx` files into ReShade or enable techniques. Install needed Dalashade `.fx` files in a ReShade shader search folder separately, then enable wanted custom shader techniques in ReShade.");
         builder.AppendLine("- Variable writes require matching Dalashade custom shader section/key lines in generated preset content. Those lines can come from the base preset or from generated-preset-only injection.");
         builder.AppendLine("- Static bridge status:");
@@ -211,7 +209,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("- MaterialIntent does not change SceneIntent or VisualProfile. Generated shader variables are written only when MaterialIntent shader mapping is explicitly enabled and matching Dalashade custom shader keys exist.");
         builder.AppendLine($"- MaterialIntent strength: {configuration.MaterialIntentStrength:0.###}");
         builder.AppendLine($"- Shader mapping: {(configuration.EnableMaterialIntentShaderMapping ? "enabled" : "disabled")}");
-        builder.AppendLine($"- Material debug overlay: {(configuration.EnableMaterialDebugMasks ? $"enabled, mode {configuration.MaterialDebugMaskMode}, overlay {configuration.MaterialDebugOverlayMode}, opacity {configuration.MaterialDebugOpacity:0.###}" : "disabled")}");
+        builder.AppendLine("- Material debug overlay controls: shader-owned in ReShade UI. Reports show MaterialIntent values and written material channel uniforms only.");
         builder.AppendLine("- Safety switch: disable `EnableMaterialIntentShaderMapping` to stop all MaterialIntent uniform writes on the next generation. Disable `EnableMaterialIntent` to return neutral material diagnostics.");
         if (!configuration.EnableMaterialIntentShaderMapping)
         {

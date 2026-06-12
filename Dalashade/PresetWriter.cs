@@ -59,9 +59,7 @@ public sealed class PresetWriter
         "Dalashade_MaterialWaterSpecular",
         "Dalashade_MaterialSnowIce",
         "Dalashade_MaterialSkyCloudFog",
-        "Dalashade_MaterialSkinProtection",
-        "Dalashade_MaterialDebugMode",
-        "Dalashade_MaterialDebugStrength"
+        "Dalashade_MaterialSkinProtection"
     ];
 
     private static readonly IReadOnlyList<string> WeatherAtmosphereMaterialIntentShaderVariables =
@@ -71,9 +69,7 @@ public sealed class PresetWriter
         "Dalashade_MaterialSnowIce",
         "Dalashade_MaterialWaterSpecular",
         "Dalashade_MaterialCrystalAether",
-        "Dalashade_MaterialSkyCloudFog",
-        "Dalashade_MaterialDebugMode",
-        "Dalashade_MaterialDebugStrength"
+        "Dalashade_MaterialSkyCloudFog"
     ];
 
     private static readonly IReadOnlyList<string> AtmosphereBloomMaterialIntentShaderVariables =
@@ -82,9 +78,7 @@ public sealed class PresetWriter
         "Dalashade_MaterialCrystalAether",
         "Dalashade_MaterialNeonGlass",
         "Dalashade_MaterialFireLavaHeat",
-        "Dalashade_MaterialSkyCloudFog",
-        "Dalashade_MaterialDebugMode",
-        "Dalashade_MaterialDebugStrength"
+        "Dalashade_MaterialSkyCloudFog"
     ];
 
     private static readonly IReadOnlyList<string> AdaptiveGradeMaterialIntentShaderVariables =
@@ -104,17 +98,14 @@ public sealed class PresetWriter
         "Dalashade_MaterialWaterSpecular",
         "Dalashade_MaterialSandDust",
         "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialStoneRuins",
         "Dalashade_MaterialMetalIndustrial",
         "Dalashade_MaterialCrystalAether",
         "Dalashade_MaterialNeonGlass",
         "Dalashade_MaterialFireLavaHeat",
         "Dalashade_MaterialSkyCloudFog",
         "Dalashade_MaterialSkinProtection",
-        "Dalashade_MaterialVoidDarkness",
-        "Dalashade_MaterialDebugMode",
-        "Dalashade_MaterialDebugOpacity",
-        "Dalashade_MaterialDebugOverlayMode",
-        "Dalashade_MaterialDebugStrength"
+        "Dalashade_MaterialVoidDarkness"
     ];
 
     private static readonly IReadOnlyList<KnownCustomShaderDefinition> KnownCustomShaders =

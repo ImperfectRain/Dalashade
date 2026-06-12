@@ -1,4 +1,5 @@
 #include "ReShade.fxh"
+#include "Dalashade_MaterialMasks.fxh"
 
 uniform float Dalashade_Atmosphere <
     ui_type = "slider";
@@ -329,11 +330,26 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
         float warmMask = smoothstep(0.03, 0.34, color.r - max(color.g, color.b) * 0.72);
         float coolAetherMask = smoothstep(0.06, 0.42, max(color.b, color.g) - color.r * 0.58);
         float neonColorMask = smoothstep(0.10, 0.55, saturatedAccent) * smoothstep(threshold - 0.22, 1.0, luma);
-        float skyMask = materialSky * smoothstep(0.44, 0.92, luma) * (1.0 - smoothstep(0.20, 0.62, saturatedAccent)) * smoothstep(0.18, 0.90, centerDepth);
-        float waterMask = materialWater * smoothstep(0.68, 0.98, luma) * smoothstep(0.035, 0.22, saturatedAccent + luma * 0.15);
-        float aetherMask = materialCrystal * coolAetherMask * smoothstep(threshold - 0.18, 1.0, luma);
-        float neonMask = materialNeon * neonColorMask;
-        float fireMask = materialFire * warmMask * smoothstep(threshold - 0.16, 1.0, luma) * (1.0 - combat * 0.58);
+        Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasks(
+            color,
+            texcoord,
+            0.0,
+            materialWater,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            materialCrystal,
+            materialNeon,
+            materialFire,
+            materialSky,
+            0.0,
+            0.0);
+        float skyMask = materialMasks.SkyCloudFog;
+        float waterMask = materialMasks.WaterSpecular;
+        float aetherMask = materialMasks.CrystalAether * coolAetherMask * smoothstep(threshold - 0.18, 1.0, luma);
+        float neonMask = materialMasks.NeonGlass * neonColorMask;
+        float fireMask = materialMasks.FireLavaHeat * warmMask * smoothstep(threshold - 0.16, 1.0, luma) * (1.0 - combat * 0.58);
         float eligibility = saturate(Dalashade_AtmosphereBloomLuma(bloom) * 4.0);
         if (Dalashade_MaterialDebugMode == 1)
         {

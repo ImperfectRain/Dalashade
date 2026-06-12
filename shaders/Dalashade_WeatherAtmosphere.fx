@@ -1,4 +1,5 @@
 #include "ReShade.fxh"
+#include "Dalashade_MaterialMasks.fxh"
 
 uniform float Dalashade_Haze <
     ui_type = "slider";
@@ -363,33 +364,48 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         float heatDust = saturate(heatShimmerSoftness * 8.0 + max(heat, materialSandDust) * heatDistance * 0.35);
         float materialDebugStrength = Dalashade_Saturate(Dalashade_MaterialDebugStrength);
         float materialAir = saturate(humidAir + dustAir + snowAir + waterMist + aetherAir + skyFogAir + nightAtmosphere * night * 0.20);
+        Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasks(
+            color,
+            texcoord,
+            materialFoliage,
+            materialWater,
+            materialSandDust,
+            materialSnowIce,
+            0.0,
+            0.0,
+            materialCrystal,
+            0.0,
+            0.0,
+            materialSkyFog,
+            0.0,
+            0.0);
         if (Dalashade_MaterialDebugMode == 1)
         {
             return float4(saturate(dustAir + waterMist) * materialDebugStrength, saturate(humidAir + aetherAir) * materialDebugStrength, saturate(snowAir + skyFogAir) * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 2)
         {
-            return float4(materialFoliage * materialDebugStrength, humidAir * 5.0 * materialDebugStrength, foliageHazeRestraint * materialDebugStrength, 1.0);
+            return float4(materialMasks.FoliageStrong * materialDebugStrength, materialMasks.OrganicGreenSurface * materialDebugStrength, humidAir * 5.0 * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 3)
         {
-            return float4(materialSandDust * materialDebugStrength, dustAir * 4.0 * materialDebugStrength, heatDistance * materialDebugStrength, 1.0);
+            return float4(materialMasks.SandDust * materialDebugStrength, dustAir * 4.0 * materialDebugStrength, heatDistance * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 4)
         {
-            return float4(materialSnowIce * materialDebugStrength, snowAir * 5.0 * materialDebugStrength, highlightRollOff * 5.0 * materialDebugStrength, 1.0);
+            return float4(materialMasks.SnowIce * materialDebugStrength, snowAir * 5.0 * materialDebugStrength, highlightRollOff * 5.0 * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 5)
         {
-            return float4(materialWater * materialDebugStrength, waterMist * 5.0 * materialDebugStrength, rainGlow * materialDebugStrength, 1.0);
+            return float4(materialMasks.WaterSpecular * materialDebugStrength, waterMist * 5.0 * materialDebugStrength, rainGlow * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 6)
         {
-            return float4(materialCrystal * materialDebugStrength, aetherAir * 5.0 * materialDebugStrength, magicGlow * materialDebugStrength, 1.0);
+            return float4(materialMasks.CrystalAether * materialDebugStrength, aetherAir * 5.0 * materialDebugStrength, magicGlow * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 7)
         {
-            return float4(materialSkyFog * materialDebugStrength, skyFogAir * 5.0 * materialDebugStrength, realFogWeather * materialDebugStrength, 1.0);
+            return float4(materialMasks.SkyCloudFog * materialDebugStrength, skyFogAir * 5.0 * materialDebugStrength, realFogWeather * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 8)
         {

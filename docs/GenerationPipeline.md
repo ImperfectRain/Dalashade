@@ -46,7 +46,7 @@ Compatibility report export can build `MaterialIntent` diagnostics from the exis
 - `EnableMaterialIntentShaderMapping` allows generated-preset MaterialIntent uniform writes only when MaterialIntent is enabled, strength is greater than `0.0`, and matching known Dalashade custom shader keys exist.
 - When MaterialIntent shader mapping is disabled, MaterialIntent variables are skipped entirely. Generated-preset-only injection does not add material keys in that state.
 - MaterialIntent does not change `SceneIntent` or `VisualProfile`.
-- `EnableMaterialDebugMasks`, `MaterialDebugMaskMode`, `MaterialDebugOpacity`, and `MaterialDebugOverlayMode` only affect generated debug uniforms after regeneration. The ReShade technique remains manually enabled/disabled by the user.
+- Material debug mode, overlay mode, opacity, and strength are owned by the relevant `.fx` shader UI in ReShade. Dalashade writes scene-level material channel uniforms only.
 
 ## Pipeline Ownership
 

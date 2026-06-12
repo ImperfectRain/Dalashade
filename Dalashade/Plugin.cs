@@ -348,8 +348,6 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.EnableMaterialIntentDiagnostics,
             Configuration.EnableMaterialIntentShaderMapping,
             Configuration.MaterialIntentStrength,
-            Configuration.EnableMaterialDebugMasks,
-            Configuration.MaterialDebugMaskMode,
             Configuration.CompatibilityMode,
             Configuration.ShaderMatchingMode,
             Configuration.InactiveShaderWriteMode,

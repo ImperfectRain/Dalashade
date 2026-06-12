@@ -99,8 +99,6 @@ public sealed class PresetRegressionReportHarness
             EnableMaterialIntentDiagnostics = source.EnableMaterialIntentDiagnostics,
             EnableMaterialIntentShaderMapping = source.EnableMaterialIntentShaderMapping,
             MaterialIntentStrength = source.MaterialIntentStrength,
-            EnableMaterialDebugMasks = source.EnableMaterialDebugMasks,
-            MaterialDebugMaskMode = source.MaterialDebugMaskMode,
             CompatibilityMode = source.CompatibilityMode,
             ShaderMatchingMode = source.ShaderMatchingMode,
             InactiveShaderWriteMode = source.InactiveShaderWriteMode,
