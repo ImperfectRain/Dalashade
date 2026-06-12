@@ -26,6 +26,11 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_FoliageDensity"] = intent => intent.FoliageDensity,
             ["Dalashade_IndustrialHardness"] = intent => intent.IndustrialHardness,
             ["Dalashade_CosmicMood"] = intent => intent.CosmicMood,
+            ["Dalashade_Night"] = intent => intent.Night,
+            ["Dalashade_Moonlight"] = intent => intent.Moonlight,
+            ["Dalashade_ArtificialLight"] = intent => intent.ArtificialLight,
+            ["Dalashade_AmbientDarkness"] = intent => intent.AmbientDarkness,
+            ["Dalashade_NightAtmosphere"] = intent => intent.NightAtmosphere,
             ["Dalashade_CombatPressure"] = intent => intent.CombatPressure,
             ["Dalashade_CinematicPermission"] = intent => intent.CinematicPermission
         };
@@ -45,6 +50,8 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_MaterialSkinProtection"] = (intent, _) => intent.SkinProtection,
             ["Dalashade_MaterialVoidDarkness"] = (intent, _) => intent.VoidDarkness,
             ["Dalashade_MaterialDebugMode"] = (_, configuration) => configuration.EnableMaterialDebugMasks ? configuration.MaterialDebugMaskMode : 0f,
+            ["Dalashade_MaterialDebugOpacity"] = (_, configuration) => configuration.MaterialDebugOpacity,
+            ["Dalashade_MaterialDebugOverlayMode"] = (_, configuration) => configuration.MaterialDebugOverlayMode,
             ["Dalashade_MaterialDebugStrength"] = (_, configuration) => configuration.EnableMaterialDebugMasks ? 1f : 0f
         };
 
@@ -91,6 +98,25 @@ public sealed class CustomShaderVariableMapper
         "Dalashade_MaterialCrystalAether",
         "Dalashade_MaterialSkinProtection",
         "Dalashade_MaterialVoidDarkness"
+    ];
+
+    private static readonly HashSet<string> MaterialDebugVariables =
+    [
+        "Dalashade_MaterialFoliage",
+        "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialSandDust",
+        "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialMetalIndustrial",
+        "Dalashade_MaterialCrystalAether",
+        "Dalashade_MaterialNeonGlass",
+        "Dalashade_MaterialFireLavaHeat",
+        "Dalashade_MaterialSkyCloudFog",
+        "Dalashade_MaterialSkinProtection",
+        "Dalashade_MaterialVoidDarkness",
+        "Dalashade_MaterialDebugMode",
+        "Dalashade_MaterialDebugOpacity",
+        "Dalashade_MaterialDebugOverlayMode",
+        "Dalashade_MaterialDebugStrength"
     ];
 
     public static IReadOnlyCollection<string> KnownVariableNames => Variables.Keys
@@ -172,7 +198,18 @@ public sealed class CustomShaderVariableMapper
     {
         if (string.Equals(key, "Dalashade_MaterialDebugMode", StringComparison.OrdinalIgnoreCase))
         {
-            return MathF.Max(0f, value);
+            return MathF.Min(13f, MathF.Max(0f, value));
+        }
+
+        if (string.Equals(key, "Dalashade_MaterialDebugOverlayMode", StringComparison.OrdinalIgnoreCase))
+        {
+            return MathF.Min(2f, MathF.Max(0f, value));
+        }
+
+        if (string.Equals(key, "Dalashade_MaterialDebugOpacity", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "Dalashade_MaterialDebugStrength", StringComparison.OrdinalIgnoreCase))
+        {
+            return Clamp01(value);
         }
 
         return Clamp01(value) * Clamp01(configuration.MaterialIntentStrength);
@@ -183,7 +220,8 @@ public sealed class CustomShaderVariableMapper
         return (SmartSharpenAuthority.IsSmartSharpenSection(section) && SmartSharpenMaterialVariables.Contains(key))
                || (IsWeatherAtmosphereSection(section) && WeatherAtmosphereMaterialVariables.Contains(key))
                || (IsAtmosphereBloomSection(section) && AtmosphereBloomMaterialVariables.Contains(key))
-               || (IsAdaptiveGradeSection(section) && AdaptiveGradeMaterialVariables.Contains(key));
+               || (IsAdaptiveGradeSection(section) && AdaptiveGradeMaterialVariables.Contains(key))
+               || (IsMaterialDebugSection(section) && MaterialDebugVariables.Contains(key));
     }
 
     private static bool IsWeatherAtmosphereSection(string section)
@@ -202,6 +240,12 @@ public sealed class CustomShaderVariableMapper
     {
         return string.Equals(section, "Dalashade_AdaptiveGrade.fx", StringComparison.OrdinalIgnoreCase)
                || section.Contains("Dalashade_AdaptiveGrade", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsMaterialDebugSection(string section)
+    {
+        return string.Equals(section, "Dalashade_MaterialDebug.fx", StringComparison.OrdinalIgnoreCase)
+               || section.Contains("Dalashade_MaterialDebug", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Format(float value) => value.ToString("0.######", CultureInfo.InvariantCulture);

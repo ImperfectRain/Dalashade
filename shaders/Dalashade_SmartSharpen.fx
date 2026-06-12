@@ -42,6 +42,27 @@ uniform float Dalashade_HighlightProtection <
     ui_tooltip = "Scene-driven bright highlight protection. Higher values reduce halo-prone bright edge sharpening.";
 > = 0.0;
 
+uniform float Dalashade_Night <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Night";
+    ui_tooltip = "Scene-driven nighttime context. Higher values reduce dark-noise sharpening.";
+> = 0.0;
+
+uniform float Dalashade_AmbientDarkness <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Ambient Darkness";
+    ui_tooltip = "Scene-driven unlit baseline darkness. Higher values protect deep shadows from crunch.";
+> = 0.0;
+
+uniform float Dalashade_ArtificialLight <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Artificial Light";
+    ui_tooltip = "Scene-driven local light-pool influence. Higher values preserves lit structural edges.";
+> = 0.0;
+
 uniform float Dalashade_MaterialFoliage <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -243,6 +264,9 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float foliage = saturate(Dalashade_FoliageDensity);
     float combat = saturate(Dalashade_CombatPressure);
     float highlightProtection = saturate(Dalashade_HighlightProtection);
+    float night = saturate(Dalashade_Night);
+    float ambientDarkness = saturate(Dalashade_AmbientDarkness);
+    float artificialLight = saturate(Dalashade_ArtificialLight);
     float authority = saturate(Dalashade_SharpenAuthority * 0.5);
     float materialFoliage = saturate(Dalashade_MaterialFoliage);
     float materialWaterSpecular = saturate(Dalashade_MaterialWaterSpecular);
@@ -255,6 +279,8 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float smoothGradientMask = (1.0 - smoothstep(0.008, 0.050, max(detailLuma, structuralLuma))) * (1.0 - smoothstep(0.030, 0.18, colorVariance));
     float skyGradientMask = smoothstep(0.50, 0.94, centerLuma) * smoothGradientMask;
     float specularEdgeMask = max(brightMask * smoothstep(0.014, 0.080, detailLuma), veryBrightMask * smoothstep(0.018, 0.100, structuralLuma));
+    float deepShadowMask = ambientDarkness * night * (1.0 - smoothstep(0.05, 0.28, centerLuma));
+    float litStructureMask = artificialLight * smoothstep(0.32, 0.82, centerLuma) * structuralEdgeMask * (1.0 - veryBrightMask * 0.42);
     float depth = ReShade::GetLinearizedDepth(texcoord);
     float midDepthMask = smoothstep(0.10, 0.55, depth);
     float farDepthMask = smoothstep(0.28, 0.92, depth);
@@ -281,19 +307,19 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float skyPressure = saturate(skyGradientMask * SkyDampenStrength);
     float secondaryAuthorityPressure = 1.0 - authority;
 
-    float structuralDampen = saturate(hazePressure * 0.36 + highlightPressure * 0.52 + haloPressure * 0.44 + skyPressure + materialSkyPressure * 0.60 + materialSnowPressure * 0.20 + materialSkinPressure * 0.22 + foliageStructurePressure + secondaryAuthorityPressure * 0.24);
-    float textureDampen = saturate(hazePressure * 0.78 + wetness * 0.25 + foliageTexturePressure + materialFoliagePressure + depthTexturePressure + highlightPressure + haloPressure * 0.74 + skyPressure + materialWaterPressure + materialSnowPressure + materialSkyPressure + materialSkinPressure * 0.78 + secondaryAuthorityPressure * 0.58);
+    float structuralDampen = saturate(hazePressure * 0.36 + highlightPressure * 0.52 + haloPressure * 0.44 + skyPressure + materialSkyPressure * 0.60 + materialSnowPressure * 0.20 + materialSkinPressure * 0.22 + foliageStructurePressure + deepShadowMask * 0.46 + secondaryAuthorityPressure * 0.24);
+    float textureDampen = saturate(hazePressure * 0.78 + wetness * 0.25 + foliageTexturePressure + materialFoliagePressure + depthTexturePressure + highlightPressure + haloPressure * 0.74 + skyPressure + materialWaterPressure + materialSnowPressure + materialSkyPressure + materialSkinPressure * 0.78 + deepShadowMask * 0.82 + secondaryAuthorityPressure * 0.58);
     float dampen = saturate(max(structuralDampen * 0.72, textureDampen));
 
     // Structural clarity uses broader low-frequency luma edges: silhouettes, trunks, rocks, buildings, armor, and readable geometry.
     float structuralBoost = (StructuralClarityStrength + EdgeClarityStrength * 0.34) * structuralEdgeMask;
-    structuralBoost *= 0.62 + readability * 0.18 + combat * 0.12;
+    structuralBoost *= 0.62 + readability * 0.18 + combat * 0.12 + litStructureMask * 0.12;
     structuralBoost *= 1.0 - structuralDampen * 0.78;
 
     // Texture detail is a separate, much smaller channel. Foliage, haze, wetness, far depth, and secondary authority suppress it hard.
     float textureBoost = TextureDetailStrength * textureDetailMask;
     textureBoost *= 1.0 - textureDampen * 0.94;
-    textureBoost *= 1.0 - saturate(foliage * 0.62 + farDepthMask * 0.42);
+    textureBoost *= 1.0 - saturate(foliage * 0.62 + farDepthMask * 0.42 + deepShadowMask * 0.56);
 
     float structuralAmount = clamp(SharpenStrength * structuralBoost * authority, 0.0, 0.145);
     float textureAmount = clamp(SharpenStrength * textureBoost * authority, 0.0, 0.052);
@@ -378,7 +404,7 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
             return float4(saturate(foliageTexturePressure), saturate(farDepthMask), saturate(depthTexturePressure), 1.0);
         }
 
-        return float4(saturate(structuralAmount * 8.0), saturate(textureAmount * 16.0), saturate(dampen), 1.0);
+        return float4(saturate(structuralAmount * 8.0 + litStructureMask), saturate(textureAmount * 16.0), saturate(dampen + deepShadowMask), 1.0);
     }
 
     return float4(sharpened, 1.0);

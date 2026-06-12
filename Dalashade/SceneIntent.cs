@@ -18,13 +18,19 @@ public sealed record SceneIntent(
     float FoliageDensity,
     float IndustrialHardness,
     float CosmicMood,
+    float Night,
+    float Moonlight,
+    float ArtificialLight,
+    float AmbientDarkness,
+    float NightAtmosphere,
     float CombatPressure,
     float CinematicPermission,
     IReadOnlyList<SceneIntentContribution> Contributions)
 {
     public static SceneIntent Neutral { get; } = new(
         0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
-        0f, 0f, 0f, 0f, 0f, 0f, 0f,
+        0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
+        0f, 0f, 0f, 0f,
         Array.Empty<SceneIntentContribution>());
 }
 
@@ -46,6 +52,11 @@ public sealed class SceneIntentBuilder
     private float foliageDensity;
     private float industrialHardness;
     private float cosmicMood;
+    private float night;
+    private float moonlight;
+    private float artificialLight;
+    private float ambientDarkness;
+    private float nightAtmosphere;
     private float combatPressure;
     private float cinematicPermission;
 
@@ -78,6 +89,11 @@ public sealed class SceneIntentBuilder
             Clamp01(foliageDensity),
             Clamp01(industrialHardness),
             Clamp01(cosmicMood),
+            Clamp01(night),
+            Clamp01(moonlight),
+            Clamp01(artificialLight),
+            Clamp01(ambientDarkness),
+            Clamp01(nightAtmosphere),
             Clamp01(combatPressure),
             Clamp01(cinematicPermission),
             contributions.ToArray());
@@ -129,9 +145,54 @@ public sealed class SceneIntentBuilder
     {
         if (configuration.AutoAdjustAtNight && tags.IsNight)
         {
-            Add("Night", nameof(SceneIntent.Readability), 0.18f, "Night scenes need mild readability.");
-            Add("Night", nameof(SceneIntent.ShadowProtection), 0.45f, "Night scenes risk crushed shadows.");
+            Add("Night", nameof(SceneIntent.Night), 1.00f, "Night is a global context layer.");
+            Add("Night", nameof(SceneIntent.AmbientDarkness), 0.42f, "Night lowers ambient fill and keeps unlit areas darker.");
+            Add("Night", nameof(SceneIntent.Readability), 0.08f, "Night gets only mild global readability; separation should come from local light hierarchy.");
+            Add("Night", nameof(SceneIntent.ShadowProtection), 0.26f, "Night needs selective dark-detail protection without gray wash.");
             Add("Night", nameof(SceneIntent.Atmosphere), 0.20f, "Night atmosphere should be preserved.");
+
+            if (SupportsOpenSkyNight(tags))
+            {
+                Add("Moonlit night", nameof(SceneIntent.Moonlight), 0.42f, "Open-sky, lunar, snow, coastal, desert, or cosmic nights allow cool moonlit separation.");
+                Add("Moonlit night", nameof(SceneIntent.NightAtmosphere), 0.12f, "Moonlit scenes get subtle atmospheric depth without full-frame haze.");
+                Add("Moonlit night", nameof(SceneIntent.HighlightProtection), 0.08f, "Moonlit and snow-lit highlights need restraint.");
+            }
+
+            if (SupportsArtificialLight(tags))
+            {
+                Add("Lamplit night", nameof(SceneIntent.ArtificialLight), 0.42f, "Settlement, coastal, high-tech, industrial, ancient, or magical nights can emphasize localized artificial light.");
+                Add("Lamplit night", nameof(SceneIntent.HighlightProtection), 0.10f, "Local lamps, windows, neon, and crystals need highlight control before bloom.");
+            }
+
+            if (tags.IsRain || tags.IsFog || tags.IsStorm || tags.IsGloom || tags.IsCloudy || tags.IsOvercast)
+            {
+                Add("Weather night", nameof(SceneIntent.NightAtmosphere), tags.IsFog ? 0.30f : tags.IsStorm ? 0.26f : 0.16f, "Night weather adds atmosphere while preserving dark baseline.");
+            }
+
+            if (tags.BiomeKey is "forest" or "jungle" or "swamp")
+            {
+                Add("Wild canopy night", nameof(SceneIntent.AmbientDarkness), 0.16f, "Forest and jungle nights should preserve dark trunks and background depth.");
+                Add("Wild canopy night", nameof(SceneIntent.FoliageDensity), 0.08f, "Canopy nights increase foliage-aware shader restraint.");
+                Add("Wild canopy night", nameof(SceneIntent.ShadowProtection), -0.08f, "Canopy nights avoid maxing shadow lift.");
+            }
+
+            if (tags.BiomeKey is "highTech" or "imperial")
+            {
+                Add("Industrial night", nameof(SceneIntent.ArtificialLight), 0.18f, "Urban, neon, and industrial nights should let constructed light sources read clearly.");
+                Add("Industrial night", nameof(SceneIntent.AmbientDarkness), 0.08f, "Hard-surface nights keep darker unlit structure.");
+            }
+
+            if (tags.BiomeKey is "snow" or "alpine" or "lunar")
+            {
+                Add("Cold night", nameof(SceneIntent.Moonlight), 0.18f, "Snow, alpine, and lunar nights support stronger cool moonlit separation.");
+                Add("Cold night", nameof(SceneIntent.Cold), 0.08f, "Cold night surfaces need crisp cool identity.");
+            }
+
+            if (tags.BiomeKey is "desert" or "wasteland")
+            {
+                Add("Desert night", nameof(SceneIntent.AmbientDarkness), 0.10f, "Desert nights stay darker than daytime heat scenes.");
+                Add("Desert night", nameof(SceneIntent.Moonlight), 0.12f, "Open desert nights can carry cool sky separation while heat remains a material/weather signal.");
+            }
         }
 
         if (configuration.AutoAdjustAtNight && tags.IsDawnOrDusk)
@@ -400,6 +461,21 @@ public sealed class SceneIntentBuilder
             case nameof(SceneIntent.CosmicMood):
                 cosmicMood += amount;
                 break;
+            case nameof(SceneIntent.Night):
+                night += amount;
+                break;
+            case nameof(SceneIntent.Moonlight):
+                moonlight += amount;
+                break;
+            case nameof(SceneIntent.ArtificialLight):
+                artificialLight += amount;
+                break;
+            case nameof(SceneIntent.AmbientDarkness):
+                ambientDarkness += amount;
+                break;
+            case nameof(SceneIntent.NightAtmosphere):
+                nightAtmosphere += amount;
+                break;
             case nameof(SceneIntent.CombatPressure):
                 combatPressure += amount;
                 break;
@@ -416,6 +492,21 @@ public sealed class SceneIntentBuilder
     private static float Scale01(float value, float range) => Clamp01(value / range);
 
     private static float BiomeStyleScale(SceneTags tags) => 0.55f + (Clamp01(tags.BiomeConfidence) * 0.45f);
+
+    private static bool SupportsOpenSkyNight(SceneTags tags)
+    {
+        return tags.BiomeKey is "coastal" or "tropical" or "desert" or "wasteland" or "snow" or "alpine" or "lunar" or "cosmic" or "steppe"
+               || (tags.IsFieldLike && tags.BiomeKey is not "forest" and not "jungle" and not "swamp" and not "cave")
+               || tags.MoodTags.Contains("moonlit", StringComparer.OrdinalIgnoreCase)
+               || tags.MoodTags.Contains("stars", StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool SupportsArtificialLight(SceneTags tags)
+    {
+        return tags.IsCityLike
+               || tags.BiomeKey is "coastal" or "tropical" or "highTech" or "imperial" or "ancient" or "fae" or "aetherial" or "cosmic" or "lunar" or "volcanic" or "fire"
+               || tags.MoodTags.Any(tag => tag is "neon" or "urban" or "luminous" or "magical" or "aetherial" or "fire" or "warm");
+    }
 }
 
 public sealed record TagStackContribution(
@@ -526,6 +617,7 @@ public sealed record TagStackDiagnostics(
         {
             result.Add($"{mood}Mood");
         }
+        result.AddRange(BuildNightTags(tags));
         if (tags.IsCityLike) result.Add("City");
         if (tags.IsDungeonLike) result.Add("Dungeon");
         if (tags.IsRaidLike) result.Add("Raid");
@@ -557,6 +649,7 @@ public sealed record TagStackDiagnostics(
         if (tags.BiomeKey is "imperial") result.AddRange(new[] { "industrial", "magitek" });
         if (tags.BiomeKey is "ancient") result.AddRange(new[] { "ruins", "stone" });
         result.AddRange(tags.MoodTags.Where(IsSecondaryMoodTag));
+        result.AddRange(BuildNightTags(tags));
         return NormalizeTags(result);
     }
 
@@ -598,8 +691,92 @@ public sealed record TagStackDiagnostics(
         var result = new List<string>();
         result.AddRange(tags.MoodTags.Where(IsArtDirectionTag));
         if (tags.IsNight) result.Add("night");
+        result.AddRange(BuildNightTags(tags));
         if (tags.IsDawnOrDusk) result.Add("goldenHour");
         if (tags.IsGloom) result.Add("haunted");
+        return NormalizeTags(result);
+    }
+
+    private static IReadOnlyList<string> BuildNightTags(SceneTags tags)
+    {
+        if (!tags.IsNight)
+        {
+            return Array.Empty<string>();
+        }
+
+        var result = new List<string>();
+        var openSky = tags.BiomeKey is "coastal" or "tropical" or "desert" or "wasteland" or "snow" or "alpine" or "lunar" or "cosmic" or "steppe"
+                      || (tags.IsFieldLike && tags.BiomeKey is not "forest" and not "jungle" and not "swamp" and not "cave");
+        var canopy = tags.BiomeKey is "forest" or "jungle" or "swamp" || tags.MoodTags.Contains("canopyLight", StringComparer.OrdinalIgnoreCase);
+        var settlement = tags.IsCityLike || tags.BiomeKey is "highTech" or "imperial" || tags.MoodTags.Contains("urban", StringComparer.OrdinalIgnoreCase);
+        var lamplit = settlement
+                      || tags.BiomeKey is "coastal" or "tropical" or "ancient" or "fae" or "aetherial" or "cosmic" or "lunar" or "volcanic" or "fire"
+                      || tags.MoodTags.Any(tag => tag is "neon" or "luminous" or "magical");
+
+        if (openSky)
+        {
+            result.Add("openSkyNight");
+        }
+        else if (!settlement && !tags.IsInteriorLike && !tags.IsDungeonLike && !tags.IsRaidLike)
+        {
+            result.Add("wildNight");
+        }
+        if (openSky || tags.MoodTags.Contains("moonlit", StringComparer.OrdinalIgnoreCase) || tags.BiomeKey is "lunar" or "cosmic" or "snow" or "alpine")
+        {
+            result.Add("moonlitNight");
+        }
+
+        if (lamplit)
+        {
+            result.Add("lamplitNight");
+        }
+
+        if (settlement)
+        {
+            result.Add("settlementNight");
+        }
+
+        if (canopy)
+        {
+            result.Add("canopyNight");
+        }
+
+        if (tags.IsFog || tags.IsOvercast || tags.MoodTags.Contains("mist", StringComparer.OrdinalIgnoreCase))
+        {
+            result.Add("mistyNight");
+        }
+
+        if (tags.IsStorm || tags.IsRain)
+        {
+            result.Add("stormNight");
+        }
+
+        if (tags.BiomeKey is "coastal" or "tropical" || tags.MoodTags.Any(tag => tag is "coastal" or "seaside" or "water" or "specular"))
+        {
+            result.Add("coastalNight");
+        }
+
+        if (tags.BiomeKey is "highTech" or "imperial" || tags.MoodTags.Any(tag => tag is "industrial" or "metallic" or "neon" or "highTech"))
+        {
+            result.Add("industrialNight");
+        }
+
+        if (tags.BiomeKey is "snow" or "alpine" || tags.MoodTags.Any(tag => tag is "snow" or "alpine" or "ice" or "cold"))
+        {
+            result.Add("snowNight");
+            result.Add("coldNight");
+        }
+
+        if (tags.BiomeKey is "desert" or "wasteland" || tags.MoodTags.Any(tag => tag is "desert" or "badlands" or "dry" or "heat"))
+        {
+            result.Add("desertNight");
+        }
+
+        if (tags.BiomeKey is "aetherial" or "fae" or "cosmic" or "lunar" or "highTech" || tags.MoodTags.Any(tag => tag is "aetherial" or "magical" or "crystal" or "luminous" or "neon"))
+        {
+            result.Add("aetherNight");
+        }
+
         return NormalizeTags(result);
     }
 

@@ -141,12 +141,17 @@ public sealed class ProfileEngine
 
         if (configuration.AutoAdjustAtNight && tags.IsNight)
         {
-            exposure *= 1.06f;
-            shadowLift += 0.10f;
-            ao *= 0.90f;
-            blackPoint *= 0.96f;
-            debandStrength *= 1.10f;
-            rules?.Add(new AppliedRule("Night", "Lift the darks and ease off AO so night stays readable.", "exposure x1.06, shadow lift +0.10, AO x0.90"));
+            exposure *= 0.985f;
+            contrast *= 1.035f;
+            midtoneContrast *= 1.025f;
+            shadowLift += 0.035f;
+            ao *= 1.035f;
+            blackPoint *= 0.935f;
+            bloom *= 0.96f;
+            bloomThreshold *= 1.035f;
+            bloomDirt *= 0.78f;
+            debandStrength *= 1.12f;
+            rules?.Add(new AppliedRule("Night baseline", "Night lowers ambient fill and increases lit/unlit separation instead of globally lifting the frame.", "exposure x0.985, contrast x1.035, shadow lift +0.035, AO x1.035"));
         }
 
         if (configuration.AutoAdjustAtNight && tags.IsDawnOrDusk)
@@ -167,6 +172,11 @@ public sealed class ProfileEngine
         {
             ApplyTerritory(tags, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift, rules);
             ApplyBiome(tags, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref highlightRecovery, ref shadowLift, ref temperature, ref bloomRadius, ref bloomThreshold, ref bloomDirt, ref aoRadius, ref debandStrength, ref midtoneContrast, rules);
+        }
+
+        if (configuration.AutoAdjustAtNight && tags.IsNight)
+        {
+            ApplyNightLayer(tags, ref exposure, ref contrast, ref saturation, ref bloom, ref sharpness, ref clarity, ref highlightRecovery, ref shadowLift, ref temperature, ref tint, ref bloomRadius, ref bloomThreshold, ref bloomDirt, ref midtoneContrast, rules);
         }
 
         if (configuration.AutoAdjustInCombat && tags.NeedsCombatClarity)
@@ -646,6 +656,133 @@ public sealed class ProfileEngine
                 rules?.Add(new AppliedRule("Fire/lava biome", "Very hot highlights get restrained so orange scenes keep detail.", "exposure x0.96, bloom x0.88, contrast x1.02"));
                 break;
         }
+    }
+
+    private static void ApplyNightLayer(
+        SceneTags tags,
+        ref float exposure,
+        ref float contrast,
+        ref float saturation,
+        ref float bloom,
+        ref float sharpness,
+        ref float clarity,
+        ref float highlightRecovery,
+        ref float shadowLift,
+        ref float temperature,
+        ref float tint,
+        ref float bloomRadius,
+        ref float bloomThreshold,
+        ref float bloomDirt,
+        ref float midtoneContrast,
+        List<AppliedRule>? rules)
+    {
+        var moonlit = IsOpenSkyNight(tags) || HasMood(tags, "moonlit") || tags.BiomeKey is "lunar" or "cosmic" or "snow" or "alpine";
+        var lamplit = IsLamplitNight(tags);
+        var canopy = tags.BiomeKey is "forest" or "jungle" or "swamp" || HasMood(tags, "canopyLight");
+        var settlement = tags.IsCityLike || tags.BiomeKey is "highTech" or "imperial" || HasMood(tags, "urban");
+        var misty = tags.IsFog || tags.IsOvercast || HasMood(tags, "mist");
+        var storm = tags.IsStorm || tags.IsRain;
+
+        if (moonlit)
+        {
+            temperature -= tags.BiomeKey is "desert" or "wasteland" ? 0.012f : 0.028f;
+            tint += tags.BiomeKey is "cosmic" or "lunar" ? 0.010f : 0.004f;
+            highlightRecovery *= 1.035f;
+            midtoneContrast *= 1.012f;
+            rules?.Add(new AppliedRule("Moonlit night", "Open-sky, snow, lunar, or cosmic night gets cool-neutral separation without a uniform blue wash.", "temperature -0.02, highlight recovery x1.035"));
+        }
+
+        if (lamplit)
+        {
+            bloom *= 1.025f;
+            bloomRadius *= 0.96f;
+            bloomThreshold *= 1.018f;
+            bloomDirt *= 0.82f;
+            highlightRecovery *= 1.025f;
+            rules?.Add(new AppliedRule("Lamplit night", "Likely lamps, windows, neon, fire, or crystals get tighter local light emphasis while full-screen bloom stays restrained.", "bloom x1.025, radius x0.96, threshold x1.018"));
+        }
+
+        if (canopy)
+        {
+            exposure *= 0.988f;
+            shadowLift = MathF.Min(shadowLift, 0.18f);
+            sharpness *= 0.96f;
+            clarity *= 0.985f;
+            saturation *= 1.012f;
+            midtoneContrast *= 1.018f;
+            rules?.Add(new AppliedRule("Canopy night", "Forest and jungle nights preserve dark trunks/background while keeping foliage richness.", "exposure x0.988, shadow lift cap 0.18, sharpness x0.96"));
+        }
+
+        if (settlement)
+        {
+            contrast *= 1.012f;
+            clarity *= 1.012f;
+            bloomDirt *= 0.86f;
+            rules?.Add(new AppliedRule("Settlement/industrial night", "Urban and constructed nights keep hard readable structure around localized lighting.", "contrast x1.012, clarity x1.012, bloom dirt x0.86"));
+        }
+
+        if (tags.BiomeKey is "coastal" or "tropical")
+        {
+            saturation *= 1.010f;
+            bloomThreshold *= 1.018f;
+            highlightRecovery *= 1.020f;
+            temperature += 0.006f;
+            rules?.Add(new AppliedRule("Coastal night", "Coastal night keeps clean color and seaside highlights without turning into darker daytime.", "saturation x1.01, bloom threshold x1.018"));
+        }
+
+        if (tags.BiomeKey is "snow" or "alpine" or "lunar" || HasMood(tags, "snow") || HasMood(tags, "cold"))
+        {
+            exposure *= 0.992f;
+            bloom *= 0.96f;
+            bloomThreshold *= 1.035f;
+            highlightRecovery *= 1.055f;
+            temperature -= 0.018f;
+            rules?.Add(new AppliedRule("Snow/cold night", "Cold nights protect snow and moonlit highlights while keeping shadows separated.", "bloom x0.96, threshold x1.035, highlight recovery x1.055"));
+        }
+
+        if (tags.BiomeKey is "desert" or "wasteland" || HasMood(tags, "heat") || HasMood(tags, "dry"))
+        {
+            exposure *= 0.990f;
+            contrast *= 1.010f;
+            bloom *= 0.95f;
+            bloomDirt *= 0.74f;
+            rules?.Add(new AppliedRule("Desert night", "Dry heat stays atmospheric, but the night profile avoids full-screen warm lift.", "exposure x0.99, bloom x0.95, bloom dirt x0.74"));
+        }
+
+        if (misty || storm)
+        {
+            bloom *= storm ? 0.94f : 0.97f;
+            bloomRadius *= storm ? 0.92f : 0.96f;
+            bloomDirt *= storm ? 0.62f : 0.72f;
+            CapNightShadowLift(ref shadowLift, tags);
+            rules?.Add(new AppliedRule(storm ? "Storm night" : "Misty night", "Night weather keeps atmosphere but avoids flat gray wash and runaway bloom.", storm ? "bloom x0.94, dirt x0.62" : "bloom x0.97, dirt x0.72"));
+        }
+    }
+
+    private static void CapNightShadowLift(ref float shadowLift, SceneTags tags)
+    {
+        if (tags.BiomeKey is "forest" or "jungle" or "swamp" || tags.IsGloom)
+        {
+            shadowLift = MathF.Min(shadowLift, 0.20f);
+        }
+    }
+
+    private static bool IsOpenSkyNight(SceneTags tags)
+    {
+        return tags.BiomeKey is "coastal" or "tropical" or "desert" or "wasteland" or "snow" or "alpine" or "lunar" or "cosmic" or "steppe"
+               || (tags.IsFieldLike && tags.BiomeKey is not "forest" and not "jungle" and not "swamp" and not "cave");
+    }
+
+    private static bool IsLamplitNight(SceneTags tags)
+    {
+        return tags.IsCityLike
+               || tags.BiomeKey is "coastal" or "tropical" or "highTech" or "imperial" or "ancient" or "fae" or "aetherial" or "cosmic" or "lunar" or "volcanic" or "fire"
+               || tags.MoodTags.Any(tag => tag is "neon" or "urban" or "luminous" or "magical" or "aetherial" or "fire");
+    }
+
+    private static bool HasMood(SceneTags tags, string mood)
+    {
+        return tags.MoodTags.Contains(mood, StringComparer.OrdinalIgnoreCase);
     }
 
     private static void ApplyImageAnalysis(ImageAnalysisResult image, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float clarity, ref float shadowLift, ref float highlightRecovery, ref float whitePoint, ref float blackPoint, ref float bloomThreshold, ref float bloomDirt, ref float debandStrength)

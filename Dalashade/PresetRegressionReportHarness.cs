@@ -143,12 +143,18 @@ public sealed class PresetRegressionReportHarness
             0.27f,
             0.16f,
             0.11f,
+            0.82f,
+            0.44f,
+            0.58f,
+            0.50f,
+            0.36f,
             0.52f,
             0.44f,
             new[]
             {
                 new SceneIntentContribution("Regression harness", nameof(SceneIntent.Readability), 0.62f, "Synthetic intent used to verify custom shader variable writes."),
-                new SceneIntentContribution("Regression harness", nameof(SceneIntent.HighlightProtection), 0.71f, "Synthetic intent used to verify custom shader variable writes.")
+                new SceneIntentContribution("Regression harness", nameof(SceneIntent.HighlightProtection), 0.71f, "Synthetic intent used to verify custom shader variable writes."),
+                new SceneIntentContribution("Regression harness", nameof(SceneIntent.Night), 0.82f, "Synthetic night intent used to verify custom shader variable writes.")
             });
     }
 
@@ -390,6 +396,11 @@ public sealed class PresetRegressionReportHarness
         builder.AppendLine($"- FoliageDensity: {sceneIntent.FoliageDensity:0.###}");
         builder.AppendLine($"- IndustrialHardness: {sceneIntent.IndustrialHardness:0.###}");
         builder.AppendLine($"- CosmicMood: {sceneIntent.CosmicMood:0.###}");
+        builder.AppendLine($"- Night: {sceneIntent.Night:0.###}");
+        builder.AppendLine($"- Moonlight: {sceneIntent.Moonlight:0.###}");
+        builder.AppendLine($"- ArtificialLight: {sceneIntent.ArtificialLight:0.###}");
+        builder.AppendLine($"- AmbientDarkness: {sceneIntent.AmbientDarkness:0.###}");
+        builder.AppendLine($"- NightAtmosphere: {sceneIntent.NightAtmosphere:0.###}");
         builder.AppendLine($"- CombatPressure: {sceneIntent.CombatPressure:0.###}");
         builder.AppendLine($"- CinematicPermission: {sceneIntent.CinematicPermission:0.###}");
         builder.AppendLine();

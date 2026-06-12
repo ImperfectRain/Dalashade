@@ -70,6 +70,41 @@ uniform float Dalashade_CinematicPermission <
     ui_tooltip = "Scene-driven permission for stronger cinematic glow outside gameplay-critical moments.";
 > = 0.0;
 
+uniform float Dalashade_Night <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Night";
+    ui_tooltip = "Scene-driven nighttime context. Higher values make bloom more selective.";
+> = 0.0;
+
+uniform float Dalashade_Moonlight <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Moonlight";
+    ui_tooltip = "Scene-driven moonlight influence for subtle cool diffusion.";
+> = 0.0;
+
+uniform float Dalashade_ArtificialLight <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Artificial Light";
+    ui_tooltip = "Scene-driven lamp, window, neon, fire, or crystal light-pool influence.";
+> = 0.0;
+
+uniform float Dalashade_AmbientDarkness <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Ambient Darkness";
+    ui_tooltip = "Scene-driven dark baseline. Higher values reduce full-screen wash.";
+> = 0.0;
+
+uniform float Dalashade_NightAtmosphere <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Night Atmosphere";
+    ui_tooltip = "Scene-driven nighttime air/mist/storm atmosphere.";
+> = 0.0;
+
 uniform float Dalashade_MaterialWaterSpecular <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -179,7 +214,7 @@ float Dalashade_AtmosphereBloomLuma(float3 color)
     return dot(color, float3(0.2126, 0.7152, 0.0722));
 }
 
-float3 Dalashade_AtmosphereBloomSource(float2 uv, float threshold, float highlightProtection, float magicGlow, float neonGlow, float canopyGlow, float wetness, float heat, float materialWater, float materialCrystal, float materialNeon, float materialFire, float materialSky, float combat, float cinematic)
+float3 Dalashade_AtmosphereBloomSource(float2 uv, float threshold, float highlightProtection, float magicGlow, float neonGlow, float canopyGlow, float wetness, float heat, float materialWater, float materialCrystal, float materialNeon, float materialFire, float materialSky, float night, float moonlight, float artificialLight, float ambientDarkness, float nightAtmosphere, float combat, float cinematic)
 {
     float3 color = tex2D(ReShade::BackBuffer, uv).rgb;
     float depth = ReShade::GetLinearizedDepth(uv);
@@ -191,14 +226,16 @@ float3 Dalashade_AtmosphereBloomSource(float2 uv, float threshold, float highlig
     float neonColorMask = smoothstep(0.10, 0.55, saturatedAccent) * smoothstep(threshold - 0.22, 1.0, luma);
     float smoothSkyMask = materialSky * smoothstep(0.44, 0.92, luma) * (1.0 - smoothstep(0.20, 0.62, saturatedAccent)) * smoothstep(0.18, 0.90, depth);
     float accentMask = smoothstep(threshold - 0.10, 1.0, luma) * max(max(magicGlow * 0.44, neonGlow * saturatedAccent * 0.52), canopyGlow * 0.30);
+    float nightLocalLight = artificialLight * smoothstep(threshold - 0.16, 1.0, luma) * (0.42 + saturatedAccent * 0.34 + max(materialCrystal, materialNeon) * 0.24);
+    float moonlitDiffusion = moonlight * nightAtmosphere * smoothstep(0.34, 0.78, luma) * smoothstep(0.22, 0.92, depth) * (1.0 - saturatedAccent * 0.35);
     float wetSpecular = max(wetness, materialWater) * smoothstep(0.68, 0.98, luma) * smoothstep(0.035, 0.22, saturatedAccent + luma * 0.15);
     float aetherSource = materialCrystal * coolAetherMask * smoothstep(threshold - 0.18, 1.0, luma) * (0.45 + saturatedAccent * 0.55);
     float neonSource = materialNeon * neonColorMask;
     float fireSource = materialFire * warmMask * smoothstep(threshold - 0.16, 1.0, luma) * (1.0 - combat * 0.58);
     float heatDistance = max(heat, materialFire * 0.55) * smoothstep(0.26, 0.94, depth) * smoothstep(threshold - 0.14, 1.0, luma) * (1.0 - combat * 0.42);
-    float skySource = smoothSkyMask * (0.14 + cinematic * 0.08) * (1.0 - highlightProtection * 0.46);
-    float source = saturate(sourceMask + accentMask + wetSpecular * 0.22 + aetherSource * 0.36 + neonSource * 0.30 + fireSource * 0.30 + heatDistance * 0.16 + skySource);
-    float restraint = 1.0 - saturate((highlightProtection * 0.70 + materialWater * 0.18 + materialNeon * 0.18 + materialSky * 0.20) * smoothstep(0.76, 1.0, luma));
+    float skySource = smoothSkyMask * (0.14 + cinematic * 0.08 + nightAtmosphere * 0.05) * (1.0 - highlightProtection * 0.46);
+    float source = saturate(sourceMask + accentMask + nightLocalLight * 0.34 + moonlitDiffusion * 0.10 + wetSpecular * 0.22 + aetherSource * 0.36 + neonSource * 0.30 + fireSource * 0.30 + heatDistance * 0.16 + skySource);
+    float restraint = 1.0 - saturate((highlightProtection * 0.70 + ambientDarkness * night * 0.18 + materialWater * 0.18 + materialNeon * 0.18 + materialSky * 0.20) * smoothstep(0.76, 1.0, luma));
     return color * source * restraint;
 }
 
@@ -216,6 +253,11 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
     float highlightProtection = saturate(Dalashade_HighlightProtection);
     float combat = saturate(Dalashade_CombatPressure);
     float cinematic = saturate(Dalashade_CinematicPermission);
+    float night = saturate(Dalashade_Night);
+    float moonlight = saturate(Dalashade_Moonlight);
+    float artificialLight = saturate(Dalashade_ArtificialLight);
+    float ambientDarkness = saturate(Dalashade_AmbientDarkness);
+    float nightAtmosphere = saturate(Dalashade_NightAtmosphere);
     float canopyGlow = foliage * atmosphere * (1.0 - combat * 0.55);
     float materialWater = saturate(Dalashade_MaterialWaterSpecular);
     float materialCrystal = saturate(Dalashade_MaterialCrystalAether);
@@ -223,8 +265,10 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
     float materialFire = saturate(Dalashade_MaterialFireLavaHeat);
     float materialSky = saturate(Dalashade_MaterialSkyCloudFog);
 
-    float threshold = BloomThreshold + highlightProtection * 0.135 + combat * 0.040 + readability * 0.030;
+    float threshold = BloomThreshold + highlightProtection * 0.135 + combat * 0.040 + readability * 0.030 + ambientDarkness * night * 0.035;
     threshold -= max(max(magicGlow, neonGlow), max(materialCrystal, materialNeon) * 0.72) * 0.030;
+    threshold -= artificialLight * 0.018;
+    threshold -= moonlight * nightAtmosphere * 0.010;
     threshold -= max(wetness, materialWater) * 0.018;
     threshold -= max(heat, materialFire) * 0.010;
     threshold += materialSky * highlightProtection * 0.020;
@@ -236,15 +280,15 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
     float2 step2 = texel * radius * 2.0;
 
     // Selective bright-pass source: light emitters, wet highlights, canopy openings, and distant heat glow are favored over full-frame bloom.
-    float3 bloom = Dalashade_AtmosphereBloomSource(texcoord, threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, combat, cinematic) * 0.26;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(step1.x, 0.0), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, combat, cinematic) * 0.12;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(-step1.x, 0.0), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, combat, cinematic) * 0.12;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(0.0, step1.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, combat, cinematic) * 0.12;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(0.0, -step1.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, combat, cinematic) * 0.12;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(step2.x, step2.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, combat, cinematic) * 0.065;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(-step2.x, step2.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, combat, cinematic) * 0.065;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(step2.x, -step2.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, combat, cinematic) * 0.065;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(-step2.x, -step2.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, combat, cinematic) * 0.065;
+    float3 bloom = Dalashade_AtmosphereBloomSource(texcoord, threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, night, moonlight, artificialLight, ambientDarkness, nightAtmosphere, combat, cinematic) * 0.26;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(step1.x, 0.0), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, night, moonlight, artificialLight, ambientDarkness, nightAtmosphere, combat, cinematic) * 0.12;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(-step1.x, 0.0), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, night, moonlight, artificialLight, ambientDarkness, nightAtmosphere, combat, cinematic) * 0.12;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(0.0, step1.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, night, moonlight, artificialLight, ambientDarkness, nightAtmosphere, combat, cinematic) * 0.12;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(0.0, -step1.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, night, moonlight, artificialLight, ambientDarkness, nightAtmosphere, combat, cinematic) * 0.12;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(step2.x, step2.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, night, moonlight, artificialLight, ambientDarkness, nightAtmosphere, combat, cinematic) * 0.065;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(-step2.x, step2.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, night, moonlight, artificialLight, ambientDarkness, nightAtmosphere, combat, cinematic) * 0.065;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(step2.x, -step2.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, night, moonlight, artificialLight, ambientDarkness, nightAtmosphere, combat, cinematic) * 0.065;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(-step2.x, -step2.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow, wetness, heat, materialWater, materialCrystal, materialNeon, materialFire, materialSky, night, moonlight, artificialLight, ambientDarkness, nightAtmosphere, combat, cinematic) * 0.065;
 
     float3 magicTint = float3(0.78, 0.58, 1.0);
     float3 neonTint = float3(0.48, 0.92, 1.0);
@@ -256,14 +300,16 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
     glowTint = lerp(glowTint, canopyTint, canopyGlow * 0.30);
     glowTint = lerp(glowTint, float3(1.0, 0.78, 0.48), max(heat, materialFire) * 0.22);
     glowTint = lerp(glowTint, float3(0.82, 0.92, 1.0), max(wetness, materialWater) * 0.16);
+    glowTint = lerp(glowTint, float3(0.70, 0.82, 1.0), moonlight * 0.18);
+    glowTint = lerp(glowTint, float3(1.0, 0.82, 0.58), artificialLight * 0.16);
 
     float combatDampen = 1.0 - saturate(combat * CombatDampenStrength);
     float cinematicBoost = 1.0 + cinematic * CinematicBoostStrength * (1.0 - combat * 0.65) * (0.86 + max(max(materialCrystal, materialNeon), materialFire) * 0.14);
     float readabilityDampen = 1.0 - readability * 0.22;
     float materialSelective = materialWater * 0.04 + materialCrystal * 0.08 + materialNeon * 0.08 + materialFire * 0.05 + materialSky * 0.03;
-    float intentStrength = 0.40 + atmosphere * 0.20 + magicGlow * 0.22 + neonGlow * 0.22 + canopyGlow * 0.10 + wetness * 0.08 + heat * 0.05 + materialSelective;
+    float intentStrength = 0.40 + atmosphere * 0.20 + magicGlow * 0.22 + neonGlow * 0.22 + canopyGlow * 0.10 + wetness * 0.08 + heat * 0.05 + artificialLight * 0.08 + moonlight * nightAtmosphere * 0.04 + materialSelective;
     float strength = BloomStrength * intentStrength * combatDampen * cinematicBoost;
-    strength *= readabilityDampen * (1.0 - saturate((highlightProtection + materialSky * 0.18 + materialWater * 0.08 + materialNeon * 0.08) * HighlightRestraint * 0.52));
+    strength *= readabilityDampen * (1.0 - saturate((highlightProtection + ambientDarkness * night * 0.20 + materialSky * 0.18 + materialWater * 0.08 + materialNeon * 0.08) * HighlightRestraint * 0.52));
     strength = clamp(strength, 0.0, 0.32);
 
     float luma = Dalashade_AtmosphereBloomLuma(color);

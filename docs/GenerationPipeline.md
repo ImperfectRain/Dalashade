@@ -16,6 +16,7 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
 8. `SceneIntentBuilder.Build(...)` in `Dalashade/SceneIntent.cs` summarizes context, tags, screenshot analysis, target style, and performance budget into stack-aware intent values.
    - Biome intent is confidence-aware.
    - Fog/mist drives haze; gloom drives dark mood with much less haze.
+   - Night is a contextual layer: derived tags such as `moonlitNight`, `lamplitNight`, `canopyNight`, `coastalNight`, `industrialNight`, `snowNight`, and `desertNight` add light-hierarchy intent without replacing biome/weather/material identity.
    - Combat/duty dampen cinematic, bloom, and haze pressure without deleting the zone identity.
 9. `ProfileEngine.CreateWithRules()` in `Dalashade/VisualProfile.cs` creates a `VisualProfile`, applied rules, and tag-stack diagnostics.
 10. If master style is available, `MasterStyleMatcher.Match()` in `Dalashade/MasterStyleMatcher.cs` returns deltas, diagnostics, rules, and color-family adjustments.
@@ -26,6 +27,8 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
     - If `AutoInjectDalashadeCustomShaderSections` is also enabled, known Dalashade custom shader sections and variables can be inserted into the generated preset only.
     - Custom shader variable writes happen when the generated preset content contains matching Dalashade section/key lines, either from the base preset or from generated-preset-only injection.
     - `Dalashade_SmartSharpen.fx` receives extra authority-aware tuning from preset analysis so it behaves as a secondary, foliage-safe pass when other active sharpeners are present.
+    - First-party custom shaders can receive `Night`, `Moonlight`, `ArtificialLight`, `AmbientDarkness`, and `NightAtmosphere` intent values when their sections/keys exist or are injected into the generated preset.
+    - `Dalashade_MaterialDebug.fx` is an optional false-color utility shader. It can receive MaterialIntent debug uniforms, but Dalashade does not add it to `Techniques=` or require it for normal output.
     - Dalashade does not append custom shader entries to `Techniques=`, copy `.fx` files, or require custom shaders for normal operation.
 13. `GenerationAuthorityPolicy.From()` dampens secondary authorities for selected compatibility modes.
 14. The writer edits only matching section/key lines, records `ChangedShaderVariable` entries, and applies `SanitizeActionPipeline` only when allowed by mode.
@@ -43,6 +46,7 @@ Compatibility report export can build `MaterialIntent` diagnostics from the exis
 - `EnableMaterialIntentShaderMapping` allows generated-preset MaterialIntent uniform writes only when MaterialIntent is enabled, strength is greater than `0.0`, and matching known Dalashade custom shader keys exist.
 - When MaterialIntent shader mapping is disabled, MaterialIntent variables are skipped entirely. Generated-preset-only injection does not add material keys in that state.
 - MaterialIntent does not change `SceneIntent` or `VisualProfile`.
+- `EnableMaterialDebugMasks`, `MaterialDebugMaskMode`, `MaterialDebugOpacity`, and `MaterialDebugOverlayMode` only affect generated debug uniforms after regeneration. The ReShade technique remains manually enabled/disabled by the user.
 
 ## Pipeline Ownership
 

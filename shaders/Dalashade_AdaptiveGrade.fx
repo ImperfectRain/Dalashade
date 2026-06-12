@@ -83,6 +83,41 @@ uniform float Dalashade_CombatPressure <
     ui_tooltip = "Scene-driven gameplay pressure. Higher values damp heavy grading.";
 > = 0.0;
 
+uniform float Dalashade_Night <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Night";
+    ui_tooltip = "Scene-driven nighttime context. Higher values favor deeper ambient darkness and stronger light hierarchy.";
+> = 0.0;
+
+uniform float Dalashade_Moonlight <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Moonlight";
+    ui_tooltip = "Scene-driven open-sky/cold/cosmic moonlight influence.";
+> = 0.0;
+
+uniform float Dalashade_ArtificialLight <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Artificial Light";
+    ui_tooltip = "Scene-driven lamp, window, neon, fire, or crystal light-pool influence.";
+> = 0.0;
+
+uniform float Dalashade_AmbientDarkness <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Ambient Darkness";
+    ui_tooltip = "Scene-driven unlit baseline darkness. Higher values preserve deeper shadows.";
+> = 0.0;
+
+uniform float Dalashade_NightAtmosphere <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Night Atmosphere";
+    ui_tooltip = "Scene-driven nighttime air/mist/storm atmosphere without generic gray wash.";
+> = 0.0;
+
 uniform float Dalashade_MaterialFoliage <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -218,6 +253,11 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float industrial = saturate(Dalashade_IndustrialHardness);
     float cosmic = saturate(Dalashade_CosmicMood);
     float cinematic = saturate(Dalashade_CinematicPermission);
+    float night = saturate(Dalashade_Night);
+    float moonlight = saturate(Dalashade_Moonlight);
+    float artificialLight = saturate(Dalashade_ArtificialLight);
+    float ambientDarkness = saturate(Dalashade_AmbientDarkness);
+    float nightAtmosphere = saturate(Dalashade_NightAtmosphere);
     float materialFoliage = saturate(Dalashade_MaterialFoliage);
     float materialSandDust = saturate(Dalashade_MaterialSandDust);
     float materialSnowIce = saturate(Dalashade_MaterialSnowIce);
@@ -233,7 +273,7 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float hardSurfaceIdentity = max(industrial, materialMetalIndustrial);
     float aetherIdentity = max(magicGlow, materialCrystal);
     float authoredIdentity = max(max(foliage, max(heat, cold)), max(max(neonGlow, magicGlow), max(industrial, cosmic)));
-    float gradeStrength = manualStrength * (0.44 + atmosphere * 0.18 + cinematic * 0.18 + authoredIdentity * 0.08) * (0.55 + safety * 0.45);
+    float gradeStrength = manualStrength * (0.44 + atmosphere * 0.18 + cinematic * 0.18 + authoredIdentity * 0.08 + night * 0.06) * (0.55 + safety * 0.45);
 
     float luma = Dalashade_Luma(source);
     float highlightMask = smoothstep(0.62, 0.98, luma);
@@ -248,6 +288,8 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
         - (cosmic * 0.004);
     float contrastAmount = Dalashade_ManualContrast
         + (cinematic * safety * 0.052)
+        + (night * safety * 0.026)
+        + (ambientDarkness * 0.020)
         + (atmosphere * safety * 0.018)
         + (foliageRichness * 0.014)
         + (hardSurfaceIdentity * safety * 0.045)
@@ -257,13 +299,14 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
         + (cinematic * safety * 0.035)
         + (max(aetherIdentity, neonGlow) * safety * 0.025)
         + (foliageRichness * 0.030)
+        + (artificialLight * safety * 0.018)
         + (cosmic * safety * 0.014)
         - (hardSurfaceIdentity * 0.040)
         - (materialSkin * 0.020)
         - (readability * 0.032)
         - (combat * 0.026);
-    float temperature = Dalashade_ManualTemperature + (heatIdentity * 0.074) - (coldIdentity * 0.065) - (cosmic * 0.040) - (hardSurfaceIdentity * 0.018);
-    float tint = Dalashade_ManualTint + (aetherIdentity * 0.030) - (neonGlow * 0.012) + (cosmic * 0.020) - (hardSurfaceIdentity * 0.010);
+    float temperature = Dalashade_ManualTemperature + (heatIdentity * 0.074) - (coldIdentity * 0.065) - (cosmic * 0.040) - (hardSurfaceIdentity * 0.018) - (moonlight * 0.048) + (artificialLight * 0.022);
+    float tint = Dalashade_ManualTint + (aetherIdentity * 0.030) - (neonGlow * 0.012) + (cosmic * 0.020) - (hardSurfaceIdentity * 0.010) + (moonlight * 0.010);
 
     float skinTintGuard = 1.0 - materialSkin * 0.34;
     saturationAmount *= 1.0 - materialSkin * 0.24;
@@ -293,6 +336,15 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     graded = lerp(graded, graded * float3(0.982, 0.995, 1.025), materialMetalIndustrial * coolSignal * 0.040 * safety);
     graded = lerp(graded, graded * float3(0.985, 0.978, 1.035), materialCrystal * max(coolSignal, greenSignal) * 0.034 * safety);
 
+    // Night light hierarchy: unlit regions deepen, moonlit mids cool gently, and artificial light affects bright local pools instead of lifting the frame.
+    float moonlitSurface = moonlight * smoothstep(0.18, 0.66, luma) * (1.0 - highlightMask * 0.34) * safety;
+    float artificialLightPool = artificialLight * smoothstep(0.42, 0.92, luma) * (0.55 + max(max(neonGlow, magicGlow), materialCrystal) * 0.45) * (1.0 - combat * 0.42);
+    float nightDarken = ambientDarkness * shadowMask * (0.052 + night * 0.022 + materialVoid * 0.020) * (1.0 - readability * 0.28);
+    nightDarken *= 1.0 - artificialLightPool * 0.42;
+    graded *= 1.0 - nightDarken;
+    graded = lerp(graded, graded * float3(0.90, 0.96, 1.055), moonlitSurface * 0.20);
+    graded = lerp(graded, graded * float3(1.060, 0.990, 0.900), artificialLightPool * 0.12 * (1.0 - materialSkin * 0.35));
+
     // Cinematic bias is intentionally small and automatically weakens under gameplay pressure.
     float3 cinematicTint = lerp(float3(1.0, 0.985, 0.955), float3(0.955, 0.985, 1.0), coldIdentity);
     cinematicTint = lerp(cinematicTint, float3(1.0, 0.962, 0.912), heatIdentity * 0.60);
@@ -309,12 +361,12 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float rolloff = min((highlightProtection * 0.17 + coldIdentity * 0.060 + heatIdentity * 0.040 + hardSurfaceIdentity * 0.018 + cosmic * 0.020) * highlightMask, 0.25);
     graded = lerp(graded, graded / (1.0 + graded), rolloff * manualStrength);
 
-    float selectiveShadowLift = (0.060 - combat * 0.022) * (1.0 - max(foliage, materialFoliage) * 0.38) * (1.0 - hardSurfaceIdentity * 0.22) * (1.0 - materialVoid * 0.52);
+    float selectiveShadowLift = (0.060 - night * 0.020 - combat * 0.022) * (1.0 - max(foliage, materialFoliage) * 0.38) * (1.0 - hardSurfaceIdentity * 0.22) * (1.0 - materialVoid * 0.52);
     float lift = min(shadowProtection * shadowMask * selectiveShadowLift, 0.072);
     graded += lift * manualStrength * (1.0 - source);
 
     // Preserve black depth in forests, industrial zones, and gloom-heavy scenes by recovering contrast in the deepest shadows.
-    float blackDepth = shadowMask * (max(foliage, materialFoliage) * 0.040 + hardSurfaceIdentity * 0.030 + cosmic * 0.014 + materialVoid * 0.060) * (1.0 - combat * 0.45);
+    float blackDepth = shadowMask * (ambientDarkness * 0.060 + max(foliage, materialFoliage) * 0.040 + hardSurfaceIdentity * 0.030 + cosmic * 0.014 + materialVoid * 0.060) * (1.0 - combat * 0.45);
     graded = lerp(graded, graded * (1.0 - blackDepth), saturate(1.0 - readability * 0.40));
 
     // Skin protection reins in extreme shifts on smooth warm midtones without flattening the whole grade.
@@ -334,7 +386,7 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
 
     if (Dalashade_ShowDebugMask)
     {
-        return float4(saturate(rolloff * 5.0), saturate(lift * 8.0), saturate(cinematicBias * 12.0 + (1.0 - safety) * 0.25), 1.0);
+        return float4(saturate(nightDarken * 8.0 + rolloff * 3.0), saturate(artificialLightPool + lift * 6.0), saturate(moonlitSurface + nightAtmosphere * 0.35 + cinematicBias * 8.0), 1.0);
     }
 
     return float4(result, 1.0);

@@ -102,6 +102,7 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Biome confidence: {diagnostics.BiomeConfidence:P0}");
         ImGui.TextWrapped($"Biome reason: {diagnostics.BiomeReason}");
         ImGui.TextWrapped($"Secondary tags: {FormatTagList(diagnostics.SecondaryTags)}");
+        ImGui.TextWrapped($"Night tags: {FormatTagList(diagnostics.SecondaryTags.Concat(diagnostics.ArtDirectionTags).Where(IsNightTag).Distinct(StringComparer.OrdinalIgnoreCase).ToArray())}");
         ImGui.TextWrapped($"Mood tags: {(diagnostics.MoodTags.Count == 0 ? "none" : string.Join(", ", diagnostics.MoodTags))}");
         ImGui.TextWrapped($"Material tags: {FormatTagList(diagnostics.MaterialTags)}");
         ImGui.TextWrapped($"Area/context tags: {FormatTagList(diagnostics.AreaContextTags)}");
@@ -129,6 +130,11 @@ public sealed class MainWindow : Window, IDisposable
             ImGui.TextUnformatted($"Foliage Density: {diagnostics.Intent.FoliageDensity:0.###}");
             ImGui.TextUnformatted($"Industrial Hardness: {diagnostics.Intent.IndustrialHardness:0.###}");
             ImGui.TextUnformatted($"Cosmic Mood: {diagnostics.Intent.CosmicMood:0.###}");
+            ImGui.TextUnformatted($"Night: {diagnostics.Intent.Night:0.###}");
+            ImGui.TextUnformatted($"Moonlight: {diagnostics.Intent.Moonlight:0.###}");
+            ImGui.TextUnformatted($"Artificial Light: {diagnostics.Intent.ArtificialLight:0.###}");
+            ImGui.TextUnformatted($"Ambient Darkness: {diagnostics.Intent.AmbientDarkness:0.###}");
+            ImGui.TextUnformatted($"Night Atmosphere: {diagnostics.Intent.NightAtmosphere:0.###}");
             ImGui.TextUnformatted($"Combat Pressure: {diagnostics.Intent.CombatPressure:0.###}");
             ImGui.TextUnformatted($"Cinematic Permission: {diagnostics.Intent.CinematicPermission:0.###}");
             ImGui.TreePop();
@@ -177,6 +183,12 @@ public sealed class MainWindow : Window, IDisposable
         return tags.Count == 0 ? "none" : string.Join(", ", tags);
     }
 
+    private static bool IsNightTag(string tag)
+    {
+        return tag.Contains("Night", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(tag, "night", StringComparison.OrdinalIgnoreCase);
+    }
+
     private string MaterialIntentSummary()
     {
         var configuration = plugin.Configuration;
@@ -205,7 +217,7 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Diagnostics: {(configuration.EnableMaterialIntentDiagnostics ? "enabled" : "disabled")}");
         ImGui.TextUnformatted($"Shader mapping: {(configuration.EnableMaterialIntentShaderMapping ? "enabled" : "disabled")}");
         ImGui.TextUnformatted($"Strength: {configuration.MaterialIntentStrength:0.###}");
-        ImGui.TextUnformatted($"Debug masks: {(configuration.EnableMaterialDebugMasks ? $"enabled, mode {configuration.MaterialDebugMaskMode}" : "disabled")}");
+        ImGui.TextUnformatted($"Debug overlay: {(configuration.EnableMaterialDebugMasks ? $"enabled, mode {configuration.MaterialDebugMaskMode}, opacity {configuration.MaterialDebugOpacity:0.##}, blend {configuration.MaterialDebugOverlayMode}" : "disabled")}");
         ImGui.TextWrapped("Experimental/inferred material likelihood. This is not true engine material ID detection.");
 
         if (!configuration.EnableMaterialIntent)

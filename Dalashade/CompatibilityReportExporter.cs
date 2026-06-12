@@ -127,6 +127,12 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- SmartSharpen authority: {diagnostics.SmartSharpenAuthority.Level.ToString().ToLowerInvariant()} ({diagnostics.SmartSharpenAuthority.ShaderValue:0})");
         builder.AppendLine($"- Other active sharpeners: {FormatInlineList(diagnostics.SmartSharpenAuthority.OtherActiveSharpeners)}");
         builder.AppendLine($"- SmartSharpen authority reason: {diagnostics.SmartSharpenAuthority.Reason}");
+        var materialDebugTechnique = FindMaterialDebugTechnique(analysis);
+        builder.AppendLine($"- Material debug shader listed: {(materialDebugTechnique is null ? "no" : "yes")}");
+        builder.AppendLine($"- Material debug technique activation: {(materialDebugTechnique is null ? "absent" : PresetAnalyzer.FormatActivationState(materialDebugTechnique.ActivationState))}");
+        builder.AppendLine($"- Material debug selected mode: {(configuration.EnableMaterialDebugMasks ? configuration.MaterialDebugMaskMode.ToString() : "0 (disabled)")}");
+        builder.AppendLine($"- Material debug overlay mode: {configuration.MaterialDebugOverlayMode}");
+        builder.AppendLine($"- Material debug opacity: {configuration.MaterialDebugOpacity:0.###}");
         builder.AppendLine("- Manual shader install/activation: Dalashade does not copy `.fx` files into ReShade or enable techniques. Install needed Dalashade `.fx` files in a ReShade shader search folder separately, then enable wanted custom shader techniques in ReShade.");
         builder.AppendLine("- Variable writes require matching Dalashade custom shader section/key lines in generated preset content. Those lines can come from the base preset or from generated-preset-only injection.");
         builder.AppendLine("- Static bridge status:");
@@ -205,7 +211,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("- MaterialIntent does not change SceneIntent or VisualProfile. Generated shader variables are written only when MaterialIntent shader mapping is explicitly enabled and matching Dalashade custom shader keys exist.");
         builder.AppendLine($"- MaterialIntent strength: {configuration.MaterialIntentStrength:0.###}");
         builder.AppendLine($"- Shader mapping: {(configuration.EnableMaterialIntentShaderMapping ? "enabled" : "disabled")}");
-        builder.AppendLine($"- Debug masks: {(configuration.EnableMaterialDebugMasks ? $"enabled, mode {configuration.MaterialDebugMaskMode}" : "disabled")}");
+        builder.AppendLine($"- Material debug overlay: {(configuration.EnableMaterialDebugMasks ? $"enabled, mode {configuration.MaterialDebugMaskMode}, overlay {configuration.MaterialDebugOverlayMode}, opacity {configuration.MaterialDebugOpacity:0.###}" : "disabled")}");
         builder.AppendLine("- Safety switch: disable `EnableMaterialIntentShaderMapping` to stop all MaterialIntent uniform writes on the next generation. Disable `EnableMaterialIntent` to return neutral material diagnostics.");
         if (!configuration.EnableMaterialIntentShaderMapping)
         {
@@ -295,6 +301,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Biome confidence: {diagnostics.BiomeConfidence:P0}");
         builder.AppendLine($"- Biome reason: {diagnostics.BiomeReason}");
         builder.AppendLine($"- Secondary tags: {FormatPlainList(diagnostics.SecondaryTags)}");
+        builder.AppendLine($"- Night tags: {FormatPlainList(diagnostics.SecondaryTags.Concat(diagnostics.ArtDirectionTags).Where(IsNightTag).Distinct(StringComparer.OrdinalIgnoreCase).ToArray())}");
         builder.AppendLine($"- Mood tags: {(diagnostics.MoodTags.Count == 0 ? "none" : string.Join(", ", diagnostics.MoodTags))}");
         builder.AppendLine($"- Material tags: {FormatPlainList(diagnostics.MaterialTags)}");
         builder.AppendLine($"- Area/context tags: {FormatPlainList(diagnostics.AreaContextTags)}");
@@ -322,6 +329,11 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Foliage density: {diagnostics.Intent.FoliageDensity:0.###}");
         builder.AppendLine($"- Industrial hardness: {diagnostics.Intent.IndustrialHardness:0.###}");
         builder.AppendLine($"- Cosmic mood: {diagnostics.Intent.CosmicMood:0.###}");
+        builder.AppendLine($"- Night: {diagnostics.Intent.Night:0.###}");
+        builder.AppendLine($"- Moonlight: {diagnostics.Intent.Moonlight:0.###}");
+        builder.AppendLine($"- Artificial light: {diagnostics.Intent.ArtificialLight:0.###}");
+        builder.AppendLine($"- Ambient darkness: {diagnostics.Intent.AmbientDarkness:0.###}");
+        builder.AppendLine($"- Night atmosphere: {diagnostics.Intent.NightAtmosphere:0.###}");
         builder.AppendLine($"- Combat pressure: {diagnostics.Intent.CombatPressure:0.###}");
         builder.AppendLine($"- Cinematic permission: {diagnostics.Intent.CinematicPermission:0.###}");
         builder.AppendLine();
@@ -730,6 +742,20 @@ public sealed class CompatibilityReportExporter
     private static string FormatPlainList(IReadOnlyList<string> values)
     {
         return values.Count == 0 ? "none" : string.Join(", ", values);
+    }
+
+    private static bool IsNightTag(string tag)
+    {
+        return tag.Contains("Night", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(tag, "night", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static PresetTechnique? FindMaterialDebugTechnique(PresetAnalysisResult analysis)
+    {
+        return analysis.Techniques
+            .FirstOrDefault(technique => technique.TechniqueName.Contains("Dalashade_MaterialDebug", StringComparison.OrdinalIgnoreCase)
+                                         || technique.ShaderFile.Contains("Dalashade_MaterialDebug", StringComparison.OrdinalIgnoreCase)
+                                         || technique.Section.Contains("Dalashade_MaterialDebug", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string FormatMaterialContributions(IReadOnlyList<MaterialIntentContribution> contributions, string channel, bool positive)

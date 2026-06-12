@@ -107,6 +107,8 @@ public class Configuration : IPluginConfiguration
     public float MaterialIntentStrength { get; set; } = 0.25f;
     public bool EnableMaterialDebugMasks { get; set; } = false;
     public int MaterialDebugMaskMode { get; set; } = 0;
+    public float MaterialDebugOpacity { get; set; } = 0.65f;
+    public int MaterialDebugOverlayMode { get; set; } = 1;
     public PresetCompatibilityMode CompatibilityMode { get; set; } = PresetCompatibilityMode.AdaptiveBalanced;
     public ShaderMatchingMode ShaderMatchingMode { get; set; } = ShaderMatchingMode.StrictSections;
     public InactiveShaderWriteMode InactiveShaderWriteMode { get; set; } = InactiveShaderWriteMode.SupportedInactiveSections;

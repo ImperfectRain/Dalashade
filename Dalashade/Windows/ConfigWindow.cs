@@ -146,18 +146,27 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawCheckbox("Show MaterialIntent diagnostics in reports/UI", configuration.EnableMaterialIntentDiagnostics, value => configuration.EnableMaterialIntentDiagnostics = value);
         DrawCheckbox("Allow MaterialIntent shader variable writes", configuration.EnableMaterialIntentShaderMapping, value => configuration.EnableMaterialIntentShaderMapping = value);
         DrawFloatSlider("MaterialIntent strength", configuration.MaterialIntentStrength, 0f, 1f, value => configuration.MaterialIntentStrength = value);
-        DrawCheckbox("Enable material debug mask variables", configuration.EnableMaterialDebugMasks, value => configuration.EnableMaterialDebugMasks = value);
+        DrawCheckbox("Material Debug Overlay: shows inferred shader-side material heuristic influence, not real engine material IDs", configuration.EnableMaterialDebugMasks, value => configuration.EnableMaterialDebugMasks = value);
 
         var debugMode = configuration.MaterialDebugMaskMode;
-        if (ImGui.SliderInt("Material debug mask mode", ref debugMode, 0, 12))
+        if (ImGui.SliderInt("Material debug overlay mode", ref debugMode, 0, 13))
         {
             configuration.MaterialDebugMaskMode = debugMode;
             configuration.Save();
         }
 
+        DrawFloatSlider("Material debug opacity", configuration.MaterialDebugOpacity, 0f, 1f, value => configuration.MaterialDebugOpacity = value);
+
+        var overlayMode = configuration.MaterialDebugOverlayMode;
+        if (ImGui.Combo("Material debug blend mode", ref overlayMode, "Full debug replacement\0Alpha blend over image\0Additive tint overlay\0"))
+        {
+            configuration.MaterialDebugOverlayMode = overlayMode;
+            configuration.Save();
+        }
+
         ImGui.TextWrapped("Experimental/inferred: MaterialIntent estimates likely scene material families from tags and screenshot metrics. It is not true FFXIV engine material ID detection.");
         ImGui.TextWrapped("Shader mapping writes MaterialIntent variables only into matching known Dalashade custom shader sections when enabled. Missing uniforms are skipped safely.");
-        ImGui.TextWrapped("Current first-party shaders do not consume these material uniforms yet, so normal visuals remain unchanged. Config changes affect generated presets only after regeneration. No live ReShade control is implemented.");
+        ImGui.TextWrapped("The optional Dalashade_MaterialDebug shader must be installed and enabled manually in ReShade. Config changes affect generated presets only after regeneration. No live ReShade control is implemented.");
     }
 
     private string CompatibilitySummary()

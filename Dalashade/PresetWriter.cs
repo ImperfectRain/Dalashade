@@ -98,6 +98,25 @@ public sealed class PresetWriter
         "Dalashade_MaterialVoidDarkness"
     ];
 
+    private static readonly IReadOnlyList<string> MaterialDebugShaderVariables =
+    [
+        "Dalashade_MaterialFoliage",
+        "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialSandDust",
+        "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialMetalIndustrial",
+        "Dalashade_MaterialCrystalAether",
+        "Dalashade_MaterialNeonGlass",
+        "Dalashade_MaterialFireLavaHeat",
+        "Dalashade_MaterialSkyCloudFog",
+        "Dalashade_MaterialSkinProtection",
+        "Dalashade_MaterialVoidDarkness",
+        "Dalashade_MaterialDebugMode",
+        "Dalashade_MaterialDebugOpacity",
+        "Dalashade_MaterialDebugOverlayMode",
+        "Dalashade_MaterialDebugStrength"
+    ];
+
     private static readonly IReadOnlyList<KnownCustomShaderDefinition> KnownCustomShaders =
     [
         new(
@@ -118,6 +137,11 @@ public sealed class PresetWriter
                 "Dalashade_NeonGlow",
                 "Dalashade_FoliageDensity",
                 "Dalashade_Readability",
+                "Dalashade_Night",
+                "Dalashade_Moonlight",
+                "Dalashade_ArtificialLight",
+                "Dalashade_AmbientDarkness",
+                "Dalashade_NightAtmosphere",
                 "Dalashade_CinematicPermission")),
         new(
             "Dalashade_AdaptiveGrade.fx",
@@ -136,6 +160,11 @@ public sealed class PresetWriter
                 "Dalashade_FoliageDensity",
                 "Dalashade_IndustrialHardness",
                 "Dalashade_CosmicMood",
+                "Dalashade_Night",
+                "Dalashade_Moonlight",
+                "Dalashade_ArtificialLight",
+                "Dalashade_AmbientDarkness",
+                "Dalashade_NightAtmosphere",
                 "Dalashade_CinematicPermission",
                 "Dalashade_CombatPressure")),
         new(
@@ -149,6 +178,9 @@ public sealed class PresetWriter
                 "Dalashade_FoliageDensity",
                 "Dalashade_CombatPressure",
                 "Dalashade_HighlightProtection",
+                "Dalashade_Night",
+                "Dalashade_AmbientDarkness",
+                "Dalashade_ArtificialLight",
                 "Dalashade_SharpenAuthority",
                 "SharpenStrength",
                 "EdgeClarityStrength",
@@ -178,8 +210,18 @@ public sealed class PresetWriter
                 "Dalashade_Heat",
                 "Dalashade_Readability",
                 "Dalashade_HighlightProtection",
+                "Dalashade_Night",
+                "Dalashade_Moonlight",
+                "Dalashade_ArtificialLight",
+                "Dalashade_AmbientDarkness",
+                "Dalashade_NightAtmosphere",
                 "Dalashade_CombatPressure",
-                "Dalashade_CinematicPermission"))
+                "Dalashade_CinematicPermission")),
+        new(
+            "Dalashade_MaterialDebug.fx",
+            "Dalashade_MaterialDebug",
+            "Dalashade_MaterialDebug@Dalashade_MaterialDebug.fx",
+            MaterialDebugShaderVariables)
     ];
 
     private readonly ShaderVariableMapper mapper = new();
@@ -486,6 +528,11 @@ public sealed class PresetWriter
         foreach (var shader in KnownCustomShaders)
         {
             var shaderVariables = VariablesForInjection(configuration, shader);
+            if (shaderVariables.Count == 0)
+            {
+                continue;
+            }
+
             if (!ContainsSection(lines, shader.Section))
             {
                 if (lines.Count > 0 && !string.IsNullOrWhiteSpace(lines[^1]))

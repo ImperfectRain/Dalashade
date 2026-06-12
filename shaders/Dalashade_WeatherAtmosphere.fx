@@ -85,6 +85,41 @@ uniform float Dalashade_CinematicPermission <
     ui_tooltip = "Scene-driven permission for stronger atmosphere outside gameplay-critical moments.";
 > = 0.0;
 
+uniform float Dalashade_Night <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Night";
+    ui_tooltip = "Scene-driven nighttime context. Higher values darken ambient air and preserve unlit depth.";
+> = 0.0;
+
+uniform float Dalashade_Moonlight <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Moonlight";
+    ui_tooltip = "Scene-driven open-sky/cold/cosmic moonlight influence.";
+> = 0.0;
+
+uniform float Dalashade_ArtificialLight <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Artificial Light";
+    ui_tooltip = "Scene-driven lamp, window, neon, fire, or crystal light-pool influence.";
+> = 0.0;
+
+uniform float Dalashade_AmbientDarkness <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Ambient Darkness";
+    ui_tooltip = "Scene-driven unlit baseline darkness.";
+> = 0.0;
+
+uniform float Dalashade_NightAtmosphere <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Night Atmosphere";
+    ui_tooltip = "Scene-driven nighttime weather/air mood without generic haze.";
+> = 0.0;
+
 uniform float Dalashade_MaterialFoliage <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -214,6 +249,11 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float neonGlow = Dalashade_Saturate(Dalashade_NeonGlow);
     float foliage = Dalashade_Saturate(Dalashade_FoliageDensity);
     float cinematic = Dalashade_Saturate(Dalashade_CinematicPermission);
+    float night = Dalashade_Saturate(Dalashade_Night);
+    float moonlight = Dalashade_Saturate(Dalashade_Moonlight);
+    float artificialLight = Dalashade_Saturate(Dalashade_ArtificialLight);
+    float ambientDarkness = Dalashade_Saturate(Dalashade_AmbientDarkness);
+    float nightAtmosphere = Dalashade_Saturate(Dalashade_NightAtmosphere);
     float manualStrength = Dalashade_Saturate(Dalashade_ManualStrength);
     float manualMood = Dalashade_Saturate(Dalashade_ManualMood);
     float manualGlow = Dalashade_Saturate(Dalashade_ManualGlowBoost);
@@ -235,12 +275,12 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
 
     // Atmospheric perspective: fog/mist and dust thicken with distance; foreground gameplay space stays mostly untouched.
     float realFogWeather = saturate(max(haze, materialSkyFog * haze));
-    float waterMist = materialWater * max(wetness, haze * 0.34) * smoothstep(0.18, 0.92, depth);
+    float waterMist = materialWater * max(wetness, haze * 0.34 + nightAtmosphere * night * 0.12) * smoothstep(0.18, 0.92, depth);
     float dustAir = max(heat, materialSandDust) * (0.42 + haze * 0.18) * smoothstep(0.22, 0.98, depth);
     float snowAir = max(cold, materialSnowIce) * (0.34 + haze * 0.18) * smoothstep(0.10, 0.92, depth);
     float aetherAir = materialCrystal * max(magicGlow, atmosphere * 0.45) * smoothstep(0.18, 0.96, depth);
-    float skyFogAir = materialSkyFog * realFogWeather * smoothstep(0.12, 0.94, depth);
-    float humidAir = max(foliage, materialFoliage) * atmosphere * (0.20 + wetness * 0.16 + haze * 0.10) * smoothstep(0.12, 0.78, depth);
+    float skyFogAir = materialSkyFog * max(realFogWeather, nightAtmosphere * moonlight * 0.20) * smoothstep(0.12, 0.94, depth);
+    float humidAir = max(foliage, materialFoliage) * atmosphere * (0.20 + wetness * 0.16 + haze * 0.10 + nightAtmosphere * night * 0.08) * smoothstep(0.12, 0.78, depth);
     float weatherAmount = max(max(realFogWeather, wetness * 0.62 + waterMist * 0.28), max(max(cold, materialSnowIce) * 0.58, max(heat, materialSandDust) * 0.68));
     float dustSoftness = max(heat, materialSandDust) * (0.50 + haze * 0.28);
     float fogLike = saturate(realFogWeather * (1.0 - max(heat, materialSandDust) * 0.28));
@@ -249,7 +289,8 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float foliageHazeRestraint = 1.0 - max(foliage, materialFoliage) * atmosphere * 0.50;
     float depthHaze = distanceWeight * weatherAmount * foliageHazeRestraint;
     depthHaze += dustAir * 0.035 + snowAir * 0.026 + waterMist * 0.020 + aetherAir * 0.026 + skyFogAir * 0.035 + humidAir * 0.012;
-    depthHaze *= (0.15 + atmosphere * 0.16 + fogLike * 0.07 + dustSoftness * 0.08) * gameplayDampen * cinematicBoost;
+    depthHaze *= (0.15 + atmosphere * 0.16 + fogLike * 0.07 + dustSoftness * 0.08 + nightAtmosphere * 0.035) * gameplayDampen * cinematicBoost;
+    depthHaze *= 1.0 - ambientDarkness * night * (0.22 + max(foliage, materialFoliage) * 0.20);
     depthHaze = min(depthHaze, lerp(0.22, 0.32, saturate(fogLike + max(heat, materialSandDust) * 0.45 + materialSkyFog * haze * 0.30)));
 
     float3 hazeTint = float3(0.63, 0.68, 0.72);
@@ -257,14 +298,19 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(1.00, 0.76, 0.50), max(heat, materialSandDust) * 0.42);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.70, 0.82, 0.68), humidAir * 0.80);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.62, 0.70, 0.92), materialCrystal * magicGlow * 0.32);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.50, 0.60, 0.82), moonlight * night * 0.22);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.54, 0.57, 0.66), manualMood * 0.40);
 
     float3 result = Dalashade_SafeLerp(color, hazeTint, depthHaze * manualStrength);
 
     // Wet air scattering: rain/wetness softens bright wet highlights without lifting the entire scene.
     float rainGlow = max(wetness * 0.54, specularMask * max(wetness, waterMist) * 0.78);
+    float nightLocalGlow = artificialLight * smoothstep(0.48, 0.96, luma) * (0.35 + max(magicGlow, neonGlow) * 0.45 + materialCrystal * 0.20);
+    float moonAirGlow = moonlight * nightAtmosphere * smoothstep(0.30, 0.88, luma) * distant * 0.22;
     float glowIntent = max(max(rainGlow, haze * 0.32), max(magicGlow * 0.40, neonGlow * 0.35));
     glowIntent = max(glowIntent, materialCrystal * magicGlow * 0.34);
+    glowIntent = max(glowIntent, nightLocalGlow);
+    glowIntent = max(glowIntent, moonAirGlow);
     glowIntent = max(glowIntent, manualGlow * 0.45);
     glowIntent *= gameplayDampen;
     float glowAmount = min((brightMask * 0.70 + specularMask * 0.55) * glowIntent * (0.085 + atmosphere * 0.075), 0.18);
@@ -275,13 +321,16 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     // Dense rainforest canopies get local green-gold sky light on bright openings, while haze and shadow lift are restrained.
     float canopyOpenings = smoothstep(0.50, 0.90, luma) * (1.0 - shadowMask * 0.70);
     float canopyLight = max(foliage, materialFoliage) * atmosphere * gameplayDampen * canopyOpenings;
-    canopyLight *= 0.032 + max(magicGlow, cinematic) * 0.016;
+    canopyLight *= 0.032 + max(magicGlow, cinematic) * 0.016 + moonlight * night * 0.012;
     float3 canopyTint = float3(0.60, 0.86, 0.48);
     result = Dalashade_SoftLighten(result, canopyTint, min(canopyLight * manualStrength, 0.055));
 
     // Gloom/storm mood darkens and cools the scene; it is not fog, so it preserves black depth.
     float stormMood = Dalashade_Saturate(manualMood + wetness * max(haze, atmosphere) * 0.82);
-    float moodDarken = stormMood * (0.045 + haze * 0.035) * (1.0 - combat * 0.52);
+    float nightDarken = ambientDarkness * night * shadowMask * (0.030 + max(foliage, materialFoliage) * 0.020 + materialSkyFog * 0.010) * (1.0 - readability * 0.30);
+    result *= 1.0 - nightDarken;
+
+    float moodDarken = stormMood * (0.045 + haze * 0.035 + nightAtmosphere * 0.014) * (1.0 - combat * 0.52);
     result *= 1.0 - moodDarken;
     result = Dalashade_SafeLerp(result, result * float3(0.90, 0.93, 1.0), stormMood * 0.10 * manualStrength);
 
@@ -295,7 +344,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     result = lerp(result, result / (1.0 + result), min(highlightRollOff * manualStrength, 0.27));
 
     // Shadow lift stays selective; foliage-heavy and gloomy scenes keep trunks/background dark instead of milky.
-    float shadowLift = shadowProtection * shadowMask * 0.032 * (1.0 - combat * 0.35) * (1.0 - max(foliage, materialFoliage) * 0.46);
+    float shadowLift = shadowProtection * shadowMask * (0.032 - night * 0.010) * (1.0 - combat * 0.35) * (1.0 - max(foliage, materialFoliage) * 0.46) * (1.0 - ambientDarkness * 0.36);
     result += shadowLift * manualStrength;
 
     // Heat/dust softness is distance-weighted so night desert scenes get air thickness, not a full-screen lift.
@@ -313,7 +362,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         float foliageDampen = saturate(foliage * atmosphere * 0.85);
         float heatDust = saturate(heatShimmerSoftness * 8.0 + max(heat, materialSandDust) * heatDistance * 0.35);
         float materialDebugStrength = Dalashade_Saturate(Dalashade_MaterialDebugStrength);
-        float materialAir = saturate(humidAir + dustAir + snowAir + waterMist + aetherAir + skyFogAir);
+        float materialAir = saturate(humidAir + dustAir + snowAir + waterMist + aetherAir + skyFogAir + nightAtmosphere * night * 0.20);
         if (Dalashade_MaterialDebugMode == 1)
         {
             return float4(saturate(dustAir + waterMist) * materialDebugStrength, saturate(humidAir + aetherAir) * materialDebugStrength, saturate(snowAir + skyFogAir) * materialDebugStrength, 1.0);
@@ -370,7 +419,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
 
         // Composite red: depth haze, green: weather/canopy light, blue: protection/readability pressure.
         float debugProtection = saturate(max(highlightRollOff, shadowLift * 3.0) + combat * 0.18);
-        return float4(saturate(depthHaze * 3.2), saturate(glowAmount * 5.0 + canopyLight * 8.0), debugProtection, 1.0);
+        return float4(saturate(depthHaze * 3.2 + nightDarken * 4.0), saturate(glowAmount * 5.0 + canopyLight * 8.0 + artificialLight * 0.20), saturate(debugProtection + moonlight * 0.20 + nightAtmosphere * 0.16), 1.0);
     }
 
     return float4(result, 1.0);

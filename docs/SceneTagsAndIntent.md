@@ -35,6 +35,30 @@ Dalashade keeps tags hierarchical instead of treating every hint as a primary cl
 
 Primary biome is the only single-choice bucket. The other buckets are diagnostic and additive, and should be added only when they drive useful intent, profile, shader, or report behavior.
 
+## Nighttime Layer
+
+Night is implemented as a contextual layer, not a replacement biome or generic night preset. When `AutoAdjustAtNight` is enabled, Dalashade keeps the primary biome/weather/material identity and adds derived night tags only where combinations justify them.
+
+Night sub-tags include:
+
+| Tag | Typical trigger | Visual meaning |
+| --- | --- | --- |
+| `moonlitNight` | Open-sky, coastal, desert, snow, lunar, cosmic, or explicit moonlit night | Cool-neutral surface separation and protected moonlit highlights without making the whole scene blue. |
+| `lamplitNight` | City, high-tech, imperial, coastal, ancient, fae/aetherial, fire, neon, luminous, or magical night | Local lamps, windows, fire, neon, crystals, or settlement light pools can read more clearly. |
+| `wildNight` | Night without open-sky settlement cues | Darker wilderness baseline with less global lift. |
+| `settlementNight` | City, high-tech, imperial, or urban night | Darker overall scene with readable constructed light sources. |
+| `mistyNight` | Fog, mist, or overcast night | Atmospheric air with restrained bloom and no gray soup. |
+| `stormNight` | Rain or storm night | Wet highlights and storm mood, with highlight readability preserved. |
+| `aetherNight` | Aetherial, fae, cosmic, lunar, high-tech, magical, luminous, or neon night | Selective magical/neon glow without full-screen bloom fog. |
+| `openSkyNight` | Field/open-sky biomes such as coast, desert, snow, lunar, cosmic, steppe | Moon/sky separation can contribute. |
+| `canopyNight` | Forest, jungle, swamp, or canopy-light night | Deep trunks/backgrounds, foliage-aware softness, and subtle canopy light. |
+| `coastalNight` | Coastal/tropical/water/specular night | Clean seaside light pooling and protected water/specular highlights. |
+| `industrialNight` | Imperial, high-tech, industrial, metallic, neon night | Harder structure and localized artificial light. |
+| `snowNight` / `coldNight` | Snow, alpine, ice, cold, lunar night | Crisp cool identity with protected snow/moon highlights. |
+| `desertNight` | Desert, wasteland, dry, heat night | Darker open desert with heat identity but no full-frame warm lift. |
+
+The matching `SceneIntent` channels are `Night`, `Moonlight`, `ArtificialLight`, `AmbientDarkness`, and `NightAtmosphere`. These are additive diagnostics and shader inputs. `Readability` gets only a mild night contribution; nighttime readability should come mainly from light hierarchy, local structure, and protected highlights instead of broad midtone lifting.
+
 ## Material Intent Diagnostics
 
 `MaterialIntent` is implemented as an optional report-only semantic layer. It estimates likely material families from existing data: territory and weather names, scene tags, biome/mood/material/art-direction tags, gameplay-state tags, screenshot metrics, and the current `SceneIntent`. It is conservative confidence inference, not true FFXIV engine material ID detection.
@@ -46,9 +70,11 @@ MaterialIntent is controlled by configuration:
 | `EnableMaterialIntent` | `false` | Enables or disables MaterialIntent calculation. Disabled returns neutral values. |
 | `EnableMaterialIntentDiagnostics` | `true` | Shows MaterialIntent values and contribution diagnostics in reports/UI when MaterialIntent is enabled. |
 | `EnableMaterialIntentShaderMapping` | `false` | Allows generated-preset MaterialIntent uniform writes when matching known Dalashade custom shader keys exist. Default is off. |
-| `MaterialIntentStrength` | `0.25` | Scales MaterialIntent diagnostic values from `0.0` to `1.0`; `0.0` is visually equivalent to disabled because no shader mapping exists yet. |
+| `MaterialIntentStrength` | `0.25` | Scales MaterialIntent diagnostic values and generated material channel uniforms from `0.0` to `1.0`. |
 | `EnableMaterialDebugMasks` | `false` | Allows generated material debug-mask variables when shader mapping is enabled and matching keys exist. |
 | `MaterialDebugMaskMode` | `0` | Integer mode written to `Dalashade_MaterialDebugMode` when debug-mask variables are enabled. |
+| `MaterialDebugOpacity` | `0.65` | Opacity written to the optional `Dalashade_MaterialDebug.fx` false-color overlay. |
+| `MaterialDebugOverlayMode` | `1` | Overlay mode written to `Dalashade_MaterialDebug.fx`: full replacement, alpha blend, or additive/tint overlay. |
 
 MaterialIntent currently reports these normalized channels:
 
@@ -219,6 +245,11 @@ All intent values are normalized from `0` to `1`.
 | `FoliageDensity` | Forest, jungle, or swamp density. |
 | `IndustrialHardness` | Imperial, factory, ruin, or hard-surface structural pressure. |
 | `CosmicMood` | Lunar and cosmic scene mood. |
+| `Night` | Whether nighttime logic is active. |
+| `Moonlight` | Open-sky, snow, lunar, cosmic, or moonlit separation pressure. |
+| `ArtificialLight` | Local lamp, window, neon, fire, crystal, or settlement light pressure. |
+| `AmbientDarkness` | Unlit nighttime baseline darkness and black-depth preservation. |
+| `NightAtmosphere` | Night weather/air pressure such as mist, storm, coastal air, moonlit depth, or canopy humidity. |
 | `CombatPressure` | How much combat should dominate visual safety. |
 | `CinematicPermission` | How much cinematic treatment is allowed. |
 
@@ -261,7 +292,7 @@ Diagnostics currently include:
 | --- | --- | --- | --- | --- |
 | Eastern La Noscea / Costa del Sol, clear day | `coastal` | coastal, tropical, seaside, beach, water, specular, clean, sunlit, colorful | WaterSpecular, SandDust | Bright, colorful, clean, specular, mild foliage, no haze unless weather adds it. |
 | The Rak'tika Greatwood, Umbral Wind night | `jungle` | rainforest, lush, verdant, humid, canopyLight, gloom, haunted | Foliage | Lush and deep with canopy-light accent; gloom is dark mood, not gray fog. |
-| East Shroud, clear night | `forest` | foliage, lush, verdant, night | Foliage, SkyCloudFog; not VoidDarkness | Night forest stays natural and atmospheric without becoming void/darkness. |
+| East Shroud, clear night | `forest` | foliage, lush, verdant, night, wildNight, canopyNight | Foliage, SkyCloudFog; not VoidDarkness | Night forest stays natural and atmospheric without becoming void/darkness. |
 | Amh Araeng, Heat Waves night | `desert` | desert, badlands, dry, heat, dust | SandDust | Hot and dry with distance-weighted haze and lower night highlight restraint. |
 | Snowcloak or Coerthas snow | `snow` | snow, alpine, cold, ice, clean, crisp | SnowIce | Cold and crisp with protected highlights. |
 | Solution Nine / Alexandria / Heritage Found | `highTech` | neon, highTech, urban, clean, luminous | NeonGlass, MetalIndustrial | Clean high contrast, saturated accents, controlled neon glow. |
