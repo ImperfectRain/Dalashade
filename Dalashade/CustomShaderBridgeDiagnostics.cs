@@ -205,21 +205,26 @@ public static class CustomShaderBridgeDiagnosticsBuilder
 
         if (sections.Count == 0 && !injection.SectionInjected)
         {
-            messages.Add("Section missing: the base preset does not contain a Dalashade custom shader section.");
+            messages.Add("Base preset custom shader section: none found.");
         }
         else if (sections.Count == 0 && injection.SectionInjected)
         {
-            messages.Add("Base preset section missing, but Dalashade injected a known custom shader section into the generated preset only.");
+            messages.Add("Base preset custom shader section: none found. Generated preset injection supplied known section(s) and variable key(s).");
         }
 
         if (sections.Any(section => section.ActivationState == TechniqueActivationState.Inactive))
         {
-            messages.Add("Technique not active: at least one Dalashade custom shader section is inactive in Techniques=.");
+            messages.Add("Base preset technique inactive: at least one Dalashade custom shader section exists in the base preset and base preset Techniques= does not list it.");
         }
 
         if (sections.Any(section => section.ActivationState == TechniqueActivationState.Unknown))
         {
-            messages.Add("Technique state unknown: Techniques= is missing or could not confirm activation.");
+            messages.Add("Base preset technique unknown: Techniques= is missing or does not confirm Dalashade custom shader activation.");
+        }
+
+        if (injection.Attempted)
+        {
+            messages.Add("Technique activation remains manual: install the .fx file and enable the desired Dalashade shader in ReShade.");
         }
 
         if (sections.Count > 0 && variables.Count == 0 && !injection.VariablesInjected)

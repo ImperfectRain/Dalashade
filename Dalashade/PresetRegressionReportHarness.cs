@@ -164,9 +164,9 @@ public sealed class PresetRegressionReportHarness
         builder.AppendLine($"Clamped variable count: {summary.ClampedVariableCount}");
         builder.AppendLine($"Warning count: {summary.WarningCount}");
         builder.AppendLine($"Sanitize action count: {summary.SanitizeActionCount}");
-        builder.AppendLine($"Custom shader sections detected: {summary.CustomShaderSectionCount}");
-        builder.AppendLine($"Custom shader variables detected: {summary.CustomShaderVariableCount}");
-        builder.AppendLine($"Custom shader variables changed: {summary.CustomShaderChangedVariableCount}");
+        builder.AppendLine($"Base preset custom shader sections detected: {summary.CustomShaderSectionCount}");
+        builder.AppendLine($"Base preset custom shader variables detected: {summary.CustomShaderVariableCount}");
+        builder.AppendLine($"Generated preset custom shader variables changed: {summary.CustomShaderChangedVariableCount}");
         builder.AppendLine();
 
         AppendTechniqueGroup(builder, "Active controlled effects", analysis.Report.ActiveSupportedEffects);
@@ -279,10 +279,10 @@ public sealed class PresetRegressionReportHarness
         builder.AppendLine("## Custom shader regression");
         builder.AppendLine();
         builder.AppendLine($"- Custom shader support enabled for simulation: {(diagnostics.SupportEnabled ? "yes" : "no")}");
-        builder.AppendLine($"- Custom shader sections detected: {diagnostics.Sections.Count}");
-        builder.AppendLine($"- Custom shader variables detected: {diagnostics.KnownVariables.Count}");
-        builder.AppendLine($"- Custom shader variables changed: {diagnostics.WrittenVariables.Count}");
-        builder.AppendLine($"- Static bridge path proven: {(diagnostics.ValuesWritten ? "yes" : "no")}");
+        builder.AppendLine($"- Base preset custom shader sections detected: {diagnostics.Sections.Count}");
+        builder.AppendLine($"- Base preset custom shader variables detected: {diagnostics.KnownVariables.Count}");
+        builder.AppendLine($"- Generated preset custom shader variables changed: {diagnostics.WrittenVariables.Count}");
+        builder.AppendLine($"- SceneIntent values written into generated preset: {(diagnostics.ValuesWritten ? "yes" : "no")}");
         builder.AppendLine();
 
         builder.AppendLine("### Static bridge status");
@@ -293,7 +293,7 @@ public sealed class PresetRegressionReportHarness
         }
 
         builder.AppendLine();
-        builder.AppendLine("### Custom shader sections");
+        builder.AppendLine("### Base preset custom shader sections");
         builder.AppendLine();
         if (diagnostics.Sections.Count == 0)
         {
@@ -308,7 +308,7 @@ public sealed class PresetRegressionReportHarness
         }
 
         builder.AppendLine();
-        builder.AppendLine("### Custom shader variables detected");
+        builder.AppendLine("### Base preset custom shader variables detected");
         builder.AppendLine();
         if (diagnostics.KnownVariables.Count == 0)
         {
@@ -323,7 +323,7 @@ public sealed class PresetRegressionReportHarness
         }
 
         builder.AppendLine();
-        builder.AppendLine("### Custom shader variables changed");
+        builder.AppendLine("### Generated preset custom shader variables changed");
         builder.AppendLine();
         if (diagnostics.WrittenVariables.Count == 0)
         {

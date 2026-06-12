@@ -114,17 +114,17 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Custom shader support: {(diagnostics.SupportEnabled ? "enabled" : "disabled")}");
         builder.AppendLine($"- Auto-inject known sections into generated preset: {(diagnostics.AutoInjectionEnabled ? "enabled" : "disabled")}");
         builder.AppendLine($"- Generated preset only injection: {(diagnostics.GeneratedPresetOnlyInjection ? "yes" : "no")}");
-        builder.AppendLine($"- Section injected: {(diagnostics.SectionInjected ? "yes" : "no")}");
-        builder.AppendLine($"- Variables injected: {(diagnostics.VariablesInjected ? "yes" : "no")}");
-        builder.AppendLine("- Technique auto-injection: disabled; users must enable wanted custom shader techniques in ReShade.");
-        builder.AppendLine($"- Injected sections: {FormatInlineList(writeResult.CustomShaderInjection.Sections)}");
-        builder.AppendLine($"- Injected variables: {FormatInlineList(writeResult.CustomShaderInjection.Variables)}");
-        builder.AppendLine($"- Injected techniques: {FormatInlineList(writeResult.CustomShaderInjection.Techniques)}");
-        builder.AppendLine($"- Base preset contains Dalashade custom shader section: {(diagnostics.SectionFound ? "yes" : "no")}");
-        builder.AppendLine($"- Known custom variables found: {(diagnostics.KnownVariablesFound ? "yes" : "no")}");
+        builder.AppendLine($"- Generated-preset-only sections injected: {(diagnostics.SectionInjected ? "yes" : "no")}");
+        builder.AppendLine($"- Generated-preset-only variables injected: {(diagnostics.VariablesInjected ? "yes" : "no")}");
+        builder.AppendLine("- Technique activation: manual; generated-preset injection does not append custom shaders to `Techniques=`.");
+        builder.AppendLine($"- Generated-preset injected sections: {FormatInlineList(writeResult.CustomShaderInjection.Sections)}");
+        builder.AppendLine($"- Generated-preset injected variables: {FormatInlineList(writeResult.CustomShaderInjection.Variables)}");
+        builder.AppendLine($"- Generated-preset injected techniques: {FormatInlineList(writeResult.CustomShaderInjection.Techniques)}");
+        builder.AppendLine($"- Base preset custom shader section present: {(diagnostics.SectionFound ? "yes" : "no")}");
+        builder.AppendLine($"- Base preset known custom variables found: {(diagnostics.KnownVariablesFound ? "yes" : "no")}");
         builder.AppendLine($"- SceneIntent values written into generated preset: {(diagnostics.ValuesWritten ? "yes" : "no")}");
         builder.AppendLine($"- Variables detected but unchanged: {(diagnostics.VariablesDetectedButUnchanged ? "yes" : "no")}");
-        builder.AppendLine("- Manual shader install: Dalashade does not copy `.fx` files into ReShade. Install needed Dalashade `.fx` files in a ReShade shader search folder separately, then enable wanted custom shader techniques in ReShade.");
+        builder.AppendLine("- Manual shader install/activation: Dalashade does not copy `.fx` files into ReShade or enable techniques. Install needed Dalashade `.fx` files in a ReShade shader search folder separately, then enable wanted custom shader techniques in ReShade.");
         builder.AppendLine("- Variable writes require matching Dalashade custom shader section/key lines in generated preset content. Those lines can come from the base preset or from generated-preset-only injection.");
         builder.AppendLine("- Static bridge status:");
         foreach (var message in diagnostics.StatusMessages)

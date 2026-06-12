@@ -69,14 +69,14 @@ The UI and compatibility report distinguish two separate states:
 | Technique injected | Currently expected to be `no`. Auto-injection adds sections and variables only; users must enable wanted techniques in ReShade. |
 | Generated preset only | Injection happened in the generated output path; the base preset was not modified. |
 | Base preset contains a Dalashade custom shader section | The selected base preset has a section such as `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, `[Dalashade_SmartSharpen.fx]`, or `[Dalashade_AtmosphereBloom.fx]`, so Dalashade can inspect it for supported `Dalashade_*` keys. |
-| Technique active/inactive/unknown | Dalashade checks whether the section appears active in `Techniques=`. If `Techniques=` is missing, activation is reported as unknown. |
+| Base preset technique active/inactive/unknown | Dalashade checks whether base preset sections appear active in `Techniques=`. Generated-preset-only injection does not imply the technique is active. |
 | Known custom variables found | Matching `Dalashade_*` keys were found in a Dalashade custom shader section. |
 | Variables detected but unchanged | Keys exist, but generation did not write values. Common causes are disabled custom shader support, inactive/unknown technique state, write-mode settings, or values already matching SceneIntent. |
 | Variables written | `SceneIntent` values were written into matching `Dalashade_*` keys during generation. |
 
 This is not the same as shader file installation. ReShade must still be able to find the actual `.fx` file through its own shader search paths. If the section exists but ReShade cannot compile or enable the effect, check ReShade's shader path and install the relevant file from `shaders/` manually.
 
-Technique auto-injection is disabled. Dalashade can inject known sections and variables into the generated preset, but it does not append Dalashade custom shader entries to `Techniques=`. Users must install the relevant `.fx` files and enable wanted techniques in ReShade manually.
+Technique auto-injection is disabled. Dalashade can inject known sections and variables into the generated preset, but it does not append Dalashade custom shader entries to `Techniques=`. Base preset technique inactive/unknown means only that the base preset did not confirm activation. Users must install the relevant `.fx` files and enable wanted techniques in ReShade manually.
 
 ## Recommended ReShade Order
 
