@@ -26,7 +26,7 @@ Scene context is collected in `Dalashade/GameContext.cs`.
 | `fog` | Weather name contains `fog` or `mist`. |
 | `clouds` | Weather name contains `cloud`. |
 | `overcast` | Weather name contains `overcast`. |
-| `gloom` | Weather name contains `gloom`, `umbral`, or `darkness`. |
+| `gloom` | Weather name contains `gloom`, `umbral`, or `darkness`. Gloom is treated as a dark mood signal rather than full fog. |
 | `snow` | Weather name contains `snow` or `blizzard`. |
 | `storm` | Weather name contains `storm`, `thunder`, or `gales`. |
 | `dust` | Weather name contains `dust`, `sandstorm`, `sand storm`, or `dust storm`. |
@@ -54,10 +54,10 @@ Biome tags are inferred in `SceneClassifier.InferBiome` from territory, weather,
 | `snow` | Snow, ice, frost, glacier, Coerthas, Snowcloak, Western Highlands. Snow weather overrides terrain biome to keep active snow scenes protected. Garlemald is primarily imperial but adds cold/alpine/snow mood context. |
 | `alpine` | Mountain, alpine, peak, summit. |
 | `forest` | Forest, Shroud, woods, Gridania, sylph. |
-| `jungle` | Jungle, rainforest, Rak'tika, Yak T'el, Kozama'uka. Adds rainforest/foliage/humid mood tags. |
+| `jungle` | Jungle, rainforest, Rak'tika, Yak T'el, Kozama'uka. Adds rainforest/foliage/humid mood tags. Jungle nights damp excessive haze and shadow lift so foliage keeps dark depth instead of turning gray. |
 | `swamp` | Swamp, marsh, bog, fen. |
 | `steppe` | Azim Steppe, steppe, grassland. |
-| `desert` | Desert, Thanalan, Sagolii, Amh Araeng, Shaaloani, badlands. Adds dry/heat/badlands mood tags. |
+| `desert` | Desert, Thanalan, Sagolii, Amh Araeng, Shaaloani, badlands. Adds dry/heat/badlands mood tags. Heat remains strong at night, but nighttime heat has less highlight-protection pressure than daytime glare. |
 | `wasteland` | Wasteland, wastes. |
 | `cave` | Cave, cavern, mine, tunnel, subterrane. |
 | `void` | Void, darkness, abyss, Ascian. |
@@ -71,10 +71,10 @@ Biome tags are inferred in `SceneClassifier.InferBiome` from territory, weather,
 | `highTech` | Solution Nine, Heritage Found, Alexandria, Living Memory, neon, electrope. Adds neon/electrope/urban mood tags. |
 | `underwater` | Underwater, ocean floor. |
 | `volcanic` | Volcano, lava, ember. |
-| `coastal` | Ruby Sea, ocean, beach, sea, Limsa, Mist, coast, isle. Adds water/specular mood tags. |
-| `tropical` | Island, tropical, Tuliyollal. |
+| `coastal` | Ruby Sea, La Noscea, ocean, beach, sea, Limsa, Mist, coast, isle. Adds water/specular/seaside mood tags and mild foliage pressure for coastal field zones. |
+| `tropical` | Island, tropical, Tuliyollal. Adds warm/coastal mood context and mild foliage pressure. |
 | `fire` | Fire, flame, inferno. |
-| `overcast` | Fallback when fog/cloud/gloom mood is present but no stronger biome matched. |
+| `overcast` | Fallback when fog/cloud/overcast mood is present but no stronger biome matched. Gloom alone does not create this haze fallback. |
 | `neutral` | Fallback when no specific biome matched. |
 
 Biome and territory tags affect the visual profile in `ProfileEngine.ApplyTerritory` and `ProfileEngine.ApplyBiome`.
@@ -97,6 +97,9 @@ Conflict handling currently works as follows:
 | Conflict | Current behavior |
 | --- | --- |
 | Snow weather plus snow biome | Snow weather supplies the main cold/highlight intent; snow biome contribution is dampened so cold scenes do not double-stack. |
+| Gloom versus fog | Fog/mist adds strong haze. Gloom adds dark atmosphere and moderate shadow protection with much less global haze. |
+| Jungle/rainforest night | Jungle nights keep strong foliage identity while reducing gray veil and excessive shadow lift. |
+| Night heat | Heat stays high, while highlight protection and haze are slightly lower than daytime heat so desert nights stay hot without full-screen lift. |
 | Combat plus cinematic/mood tags | Combat adds strong readability and combat pressure, then subtracts cinematic permission, atmosphere, haze, and stylized glow pressure. |
 | Duty outside combat | Duty adds mild readability and lightly constrains atmosphere/cinematic permission without flattening the scene. |
 | GPose/cutscene | GPose and cutscenes add cinematic permission and atmosphere when not in combat. |

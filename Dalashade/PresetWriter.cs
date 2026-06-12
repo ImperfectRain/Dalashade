@@ -70,6 +70,7 @@ public sealed class PresetWriter
                 "Dalashade_Atmosphere",
                 "Dalashade_MagicGlow",
                 "Dalashade_NeonGlow",
+                "Dalashade_FoliageDensity",
                 "Dalashade_Readability",
                 "Dalashade_CinematicPermission"
             ]),
@@ -86,6 +87,7 @@ public sealed class PresetWriter
                 "Dalashade_Heat",
                 "Dalashade_MagicGlow",
                 "Dalashade_NeonGlow",
+                "Dalashade_FoliageDensity",
                 "Dalashade_CinematicPermission",
                 "Dalashade_CombatPressure"
             ]),
@@ -109,6 +111,7 @@ public sealed class PresetWriter
                 "Dalashade_Atmosphere",
                 "Dalashade_MagicGlow",
                 "Dalashade_NeonGlow",
+                "Dalashade_FoliageDensity",
                 "Dalashade_HighlightProtection",
                 "Dalashade_CombatPressure",
                 "Dalashade_CinematicPermission"

@@ -49,6 +49,13 @@ uniform float Dalashade_NeonGlow <
     ui_label = "Dalashade Neon Glow";
 > = 0.0;
 
+uniform float Dalashade_FoliageDensity <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Foliage Density";
+    ui_tooltip = "Scene-driven foliage density. Higher values preserve richer greens and restrain gray shadow lift.";
+> = 0.0;
+
 uniform float Dalashade_CinematicPermission <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -144,9 +151,11 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float heat = saturate(Dalashade_Heat);
     float magicGlow = saturate(Dalashade_MagicGlow);
     float neonGlow = saturate(Dalashade_NeonGlow);
+    float foliage = saturate(Dalashade_FoliageDensity);
     float cinematic = saturate(Dalashade_CinematicPermission);
     float manualStrength = saturate(Dalashade_ManualStrength);
     float safety = 1.0 - saturate(readability * 0.42 + combat * 0.58);
+    float foliageRichness = foliage * atmosphere * safety;
     float gradeStrength = manualStrength * (0.42 + atmosphere * 0.20 + cinematic * 0.20) * (0.55 + safety * 0.45);
 
     float luma = Dalashade_Luma(source);
@@ -161,10 +170,12 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float contrastAmount = Dalashade_ManualContrast
         + (cinematic * safety * 0.052)
         + (atmosphere * safety * 0.018)
+        + (foliageRichness * 0.014)
         - (readability * 0.026);
     float saturationAmount = Dalashade_ManualSaturation
         + (cinematic * safety * 0.035)
         + (max(magicGlow, neonGlow) * safety * 0.025)
+        + (foliageRichness * 0.030)
         - (readability * 0.032)
         - (combat * 0.026);
     float temperature = Dalashade_ManualTemperature + (heat * 0.070) - (cold * 0.065);
@@ -185,6 +196,7 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float3 cinematicTint = lerp(float3(1.0, 0.985, 0.955), float3(0.955, 0.985, 1.0), cold);
     cinematicTint = lerp(cinematicTint, float3(1.0, 0.962, 0.912), heat * 0.65);
     cinematicTint = lerp(cinematicTint, float3(0.95, 0.98, 1.04), neonGlow * 0.30);
+    cinematicTint = lerp(cinematicTint, float3(0.965, 1.020, 0.950), foliageRichness * 0.28);
     float cinematicBias = cinematic * safety * (0.025 + atmosphere * 0.015);
     graded = lerp(graded, graded * cinematicTint, cinematicBias);
 
@@ -192,7 +204,7 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float rolloff = min((highlightProtection * 0.15 + cold * 0.05 + heat * 0.035) * highlightMask, 0.20);
     graded = lerp(graded, graded / (1.0 + graded), rolloff * manualStrength);
 
-    float lift = min(shadowProtection * shadowMask * (0.060 - combat * 0.022), 0.075);
+    float lift = min(shadowProtection * shadowMask * (0.060 - combat * 0.022) * (1.0 - foliage * 0.30), 0.075);
     graded += lift * manualStrength * (1.0 - source);
 
     // Guardrails prevent the grade from crushing or blowing out relative to the input.

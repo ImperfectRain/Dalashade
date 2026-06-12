@@ -342,10 +342,10 @@ public sealed class ProfileEngine
             contrast *= 1.02f;
             bloom *= 0.92f;
             bloomDirt *= 0.72f;
-            exposure *= 1.01f;
+            exposure *= 0.995f;
             bloomThreshold *= 1.03f;
-            debandStrength *= 1.08f;
-            rules?.Add(new AppliedRule("Gloom weather", $"Weather is {context.WeatherName}; treat gloom as a dark mood rather than generic fog.", "contrast x1.02, bloom x0.92, deband x1.08"));
+            debandStrength *= 1.04f;
+            rules?.Add(new AppliedRule("Gloom weather", $"Weather is {context.WeatherName}; treat gloom as a dark mood rather than generic fog.", "contrast x1.02, exposure x0.995, bloom x0.92"));
         }
 
         if (tags.IsRain)
@@ -375,16 +375,17 @@ public sealed class ProfileEngine
 
         if (tags.IsDustStorm || tags.IsHeatWave)
         {
-            exposure *= 0.98f;
+            var nightHeat = tags.IsNight && tags.IsHeatWave && !tags.IsDustStorm;
+            exposure *= nightHeat ? 0.99f : 0.98f;
             contrast *= 1.02f;
             bloom *= 0.88f;
             bloomRadius *= 0.90f;
-            bloomThreshold *= 1.06f;
+            bloomThreshold *= nightHeat ? 1.03f : 1.06f;
             bloomDirt *= 0.58f;
-            highlightRecovery *= 1.10f;
+            highlightRecovery *= nightHeat ? 1.05f : 1.10f;
             sharpness *= 0.96f;
             temperature += 0.035f;
-            rules?.Add(new AppliedRule(tags.IsDustStorm ? "Dust/sand weather" : "Heat weather", $"Weather is {context.WeatherName}; control glare and avoid sharpening haze too hard.", "bloom x0.88, bloom dirt x0.58, warmth +0.035"));
+            rules?.Add(new AppliedRule(tags.IsDustStorm ? "Dust/sand weather" : "Heat weather", $"Weather is {context.WeatherName}; control glare and avoid sharpening haze too hard.", nightHeat ? "night heat: bloom x0.88, highlight recovery x1.05, warmth +0.035" : "bloom x0.88, bloom dirt x0.58, warmth +0.035"));
         }
 
         if (tags.IsSnow)
@@ -487,9 +488,12 @@ public sealed class ProfileEngine
                 ao *= 0.95f;
                 aoRadius *= 0.88f;
                 sharpness *= 0.94f;
-                saturation *= 1.015f;
-                shadowLift += 0.035f;
-                rules?.Add(new AppliedRule("Jungle/rainforest biome", "Dense foliage gets shadow readability and softer depth without dulling greens.", "AO radius x0.88, sharpen x0.94, saturation x1.015"));
+                saturation *= tags.IsNight ? 1.025f : 1.015f;
+                midtoneContrast *= tags.IsNight ? 1.015f : 1.0f;
+                bloom *= tags.IsNight && !tags.NeedsCombatClarity ? 1.01f : 1.0f;
+                bloomDirt *= 0.78f;
+                shadowLift += tags.IsNight ? 0.018f : 0.035f;
+                rules?.Add(new AppliedRule("Jungle/rainforest biome", "Dense foliage gets selective shadow readability, richer greens, and softer depth without gray wash.", tags.IsNight ? "AO radius x0.88, shadow lift +0.018, saturation x1.025, midtone contrast x1.015" : "AO radius x0.88, sharpen x0.94, saturation x1.015"));
                 break;
             case "swamp":
                 ao *= 0.92f;
@@ -606,7 +610,8 @@ public sealed class ProfileEngine
                 bloomRadius *= 0.95f;
                 bloomDirt *= 0.82f;
                 saturation *= 1.02f;
-                rules?.Add(new AppliedRule("Coastal biome", "Water and beach scenes keep color while protecting specular bloom.", "bloom x0.96, saturation x1.02"));
+                sharpness *= 0.99f;
+                rules?.Add(new AppliedRule("Coastal biome", "Water, beach, and La Noscea field scenes keep color while protecting specular bloom.", "bloom x0.96, saturation x1.02, sharpen x0.99"));
                 break;
             case "tropical":
                 bloom *= 0.97f;

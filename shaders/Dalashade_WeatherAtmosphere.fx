@@ -71,6 +71,13 @@ uniform float Dalashade_NeonGlow <
     ui_label = "Dalashade Neon Glow";
 > = 0.0;
 
+uniform float Dalashade_FoliageDensity <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Foliage Density";
+    ui_tooltip = "Scene-driven foliage density. Higher values restrain veil haze and add subtle canopy light.";
+> = 0.0;
+
 uniform float Dalashade_CinematicPermission <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -143,6 +150,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float readability = Dalashade_Saturate(Dalashade_Readability);
     float magicGlow = Dalashade_Saturate(Dalashade_MagicGlow);
     float neonGlow = Dalashade_Saturate(Dalashade_NeonGlow);
+    float foliage = Dalashade_Saturate(Dalashade_FoliageDensity);
     float cinematic = Dalashade_Saturate(Dalashade_CinematicPermission);
     float manualStrength = Dalashade_Saturate(Dalashade_ManualStrength);
     float manualMood = Dalashade_Saturate(Dalashade_ManualMood);
@@ -157,12 +165,14 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float gameplayDampen = 1.0 - saturate(combat * 0.62 + readability * 0.18);
     float cinematicBoost = 1.0 + cinematic * 0.12;
 
-    // Depth haze is stronger than v1, but bounded and mostly pushed into distance.
+    // Depth haze is bounded and mostly pushed into distance. Foliage-heavy scenes avoid gray veil.
     float weatherAmount = max(max(haze, wetness * 0.62), max(cold * 0.58, heat * 0.68));
     float dustSoftness = heat * (0.45 + haze * 0.35);
-    float depthHaze = (distant * 0.78 + midDistance * 0.22) * weatherAmount;
+    float distanceWeight = lerp(distant * 0.78 + midDistance * 0.22, distant * 0.94 + midDistance * 0.06, heat);
+    float foliageHazeRestraint = 1.0 - foliage * atmosphere * 0.32;
+    float depthHaze = distanceWeight * weatherAmount * foliageHazeRestraint;
     depthHaze *= (0.16 + atmosphere * 0.18 + dustSoftness * 0.06) * gameplayDampen * cinematicBoost;
-    depthHaze = min(depthHaze, 0.31);
+    depthHaze = min(depthHaze, 0.28);
 
     float3 hazeTint = float3(0.63, 0.68, 0.72);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.78, 0.87, 1.00), cold * 0.42);
@@ -181,6 +191,12 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     glowTint = Dalashade_SafeLerp(glowTint, float3(1.0, 0.82, 0.55), heat * 0.30);
     result = Dalashade_SoftLighten(result, glowTint, glowAmount * manualStrength);
 
+    // Dense rainforest canopies get a tiny green-gold sky-light response on bright openings, not a full-frame wash.
+    float canopyLight = foliage * atmosphere * gameplayDampen * smoothstep(0.46, 0.88, luma);
+    canopyLight *= 0.026 + max(magicGlow, cinematic) * 0.014;
+    float3 canopyTint = float3(0.60, 0.86, 0.48);
+    result = Dalashade_SoftLighten(result, canopyTint, min(canopyLight * manualStrength, 0.055));
+
     // Storm mood gently darkens and cools wet haze; combat dampens it instead of making fights darker.
     float stormMood = Dalashade_Saturate(manualMood + wetness * max(haze, atmosphere) * 0.82);
     float moodDarken = stormMood * (0.045 + haze * 0.035) * (1.0 - combat * 0.52);
@@ -194,11 +210,11 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     result = lerp(result, result / (1.0 + result), min(highlightRollOff * manualStrength, 0.24));
 
     // Shadow lift stays modest and is reduced in combat to avoid muddy encounters.
-    float shadowLift = shadowProtection * shadowMask * 0.045 * (1.0 - combat * 0.35);
+    float shadowLift = shadowProtection * shadowMask * 0.034 * (1.0 - combat * 0.35) * (1.0 - foliage * 0.34);
     result += shadowLift * manualStrength;
 
-    // Heat/dust softness slightly desaturates distant haze rather than blurring the image.
-    float heatShimmerSoftness = heat * (distant * 0.75 + haze * 0.25) * 0.045 * gameplayDampen;
+    // Heat/dust softness is distance-weighted so night desert scenes do not get a full-screen lift.
+    float heatShimmerSoftness = heat * distant * distant * (0.040 + haze * 0.020) * gameplayDampen;
     float warmLuma = dot(result, float3(0.26, 0.67, 0.07));
     result = Dalashade_SafeLerp(result, float3(warmLuma, warmLuma, warmLuma), heatShimmerSoftness * manualStrength);
 
@@ -209,9 +225,9 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
 
     if (Dalashade_ShowDebugMask)
     {
-        // Red: depth haze, green: glow, blue: protection/readability pressure.
+        // Red: depth haze, green: glow/canopy light, blue: protection/readability pressure.
         float debugProtection = saturate(max(highlightRollOff, shadowLift * 3.0) + combat * 0.18);
-        return float4(saturate(depthHaze * 3.2), saturate(glowAmount * 5.0), debugProtection, 1.0);
+        return float4(saturate(depthHaze * 3.2), saturate(glowAmount * 5.0 + canopyLight * 8.0), debugProtection, 1.0);
     }
 
     return float4(result, 1.0);

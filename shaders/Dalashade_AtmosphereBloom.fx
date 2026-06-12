@@ -21,6 +21,13 @@ uniform float Dalashade_NeonGlow <
     ui_tooltip = "Scene-driven neon or high-tech glow pressure.";
 > = 0.0;
 
+uniform float Dalashade_FoliageDensity <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Foliage Density";
+    ui_tooltip = "Scene-driven foliage density. Higher values allow subtle canopy/sky-light bloom.";
+> = 0.0;
+
 uniform float Dalashade_HighlightProtection <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -103,12 +110,12 @@ float Dalashade_AtmosphereBloomLuma(float3 color)
     return dot(color, float3(0.2126, 0.7152, 0.0722));
 }
 
-float3 Dalashade_AtmosphereBloomSource(float2 uv, float threshold, float highlightProtection, float magicGlow, float neonGlow)
+float3 Dalashade_AtmosphereBloomSource(float2 uv, float threshold, float highlightProtection, float magicGlow, float neonGlow, float canopyGlow)
 {
     float3 color = tex2D(ReShade::BackBuffer, uv).rgb;
     float luma = Dalashade_AtmosphereBloomLuma(color);
     float sourceMask = smoothstep(threshold, 1.0, luma);
-    float accentMask = smoothstep(threshold - 0.08, 1.0, luma) * max(magicGlow * 0.42, neonGlow * 0.36);
+    float accentMask = smoothstep(threshold - 0.08, 1.0, luma) * max(max(magicGlow * 0.42, neonGlow * 0.36), canopyGlow * 0.28);
     float restraint = 1.0 - saturate(highlightProtection * smoothstep(0.78, 1.0, luma) * 0.65);
     return color * saturate(sourceMask + accentMask) * restraint;
 }
@@ -120,9 +127,11 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
     float atmosphere = saturate(Dalashade_Atmosphere);
     float magicGlow = saturate(Dalashade_MagicGlow);
     float neonGlow = saturate(Dalashade_NeonGlow);
+    float foliage = saturate(Dalashade_FoliageDensity);
     float highlightProtection = saturate(Dalashade_HighlightProtection);
     float combat = saturate(Dalashade_CombatPressure);
     float cinematic = saturate(Dalashade_CinematicPermission);
+    float canopyGlow = foliage * atmosphere * (1.0 - combat * 0.55);
 
     float threshold = BloomThreshold + highlightProtection * 0.105 + combat * 0.035;
     threshold -= max(magicGlow, neonGlow) * 0.035;
@@ -133,25 +142,27 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
     float2 step1 = texel * radius;
     float2 step2 = texel * radius * 2.0;
 
-    float3 bloom = Dalashade_AtmosphereBloomSource(texcoord, threshold, highlightProtection, magicGlow, neonGlow) * 0.26;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(step1.x, 0.0), threshold, highlightProtection, magicGlow, neonGlow) * 0.12;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(-step1.x, 0.0), threshold, highlightProtection, magicGlow, neonGlow) * 0.12;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(0.0, step1.y), threshold, highlightProtection, magicGlow, neonGlow) * 0.12;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(0.0, -step1.y), threshold, highlightProtection, magicGlow, neonGlow) * 0.12;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(step2.x, step2.y), threshold, highlightProtection, magicGlow, neonGlow) * 0.065;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(-step2.x, step2.y), threshold, highlightProtection, magicGlow, neonGlow) * 0.065;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(step2.x, -step2.y), threshold, highlightProtection, magicGlow, neonGlow) * 0.065;
-    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(-step2.x, -step2.y), threshold, highlightProtection, magicGlow, neonGlow) * 0.065;
+    float3 bloom = Dalashade_AtmosphereBloomSource(texcoord, threshold, highlightProtection, magicGlow, neonGlow, canopyGlow) * 0.26;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(step1.x, 0.0), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow) * 0.12;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(-step1.x, 0.0), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow) * 0.12;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(0.0, step1.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow) * 0.12;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(0.0, -step1.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow) * 0.12;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(step2.x, step2.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow) * 0.065;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(-step2.x, step2.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow) * 0.065;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(step2.x, -step2.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow) * 0.065;
+    bloom += Dalashade_AtmosphereBloomSource(texcoord + float2(-step2.x, -step2.y), threshold, highlightProtection, magicGlow, neonGlow, canopyGlow) * 0.065;
 
     float3 magicTint = float3(0.78, 0.58, 1.0);
     float3 neonTint = float3(0.48, 0.92, 1.0);
     float3 warmAtmosphereTint = float3(1.0, 0.90, 0.74);
+    float3 canopyTint = float3(0.68, 0.92, 0.54);
     float3 glowTint = lerp(warmAtmosphereTint, magicTint, magicGlow * MagicGlowStrength);
     glowTint = lerp(glowTint, neonTint, neonGlow * NeonGlowStrength);
+    glowTint = lerp(glowTint, canopyTint, canopyGlow * 0.30);
 
     float combatDampen = 1.0 - saturate(combat * CombatDampenStrength);
     float cinematicBoost = 1.0 + cinematic * CinematicBoostStrength * (1.0 - combat * 0.65);
-    float intentStrength = 0.42 + atmosphere * 0.22 + magicGlow * 0.20 + neonGlow * 0.18;
+    float intentStrength = 0.42 + atmosphere * 0.22 + magicGlow * 0.20 + neonGlow * 0.18 + canopyGlow * 0.08;
     float strength = BloomStrength * intentStrength * combatDampen * cinematicBoost;
     strength *= 1.0 - saturate(highlightProtection * HighlightRestraint * 0.45);
     strength = clamp(strength, 0.0, 0.32);
@@ -168,7 +179,7 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
     if (ShowDebugMask)
     {
         float sourceMask = saturate(Dalashade_AtmosphereBloomLuma(bloom) * 4.0);
-        float accentMask = saturate(max(magicGlow, neonGlow));
+        float accentMask = saturate(max(max(magicGlow, neonGlow), canopyGlow));
         float restraintMask = saturate(combat * 0.55 + highlightProtection * 0.45);
         return float4(sourceMask, accentMask, restraintMask, 1.0);
     }

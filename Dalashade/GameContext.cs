@@ -148,7 +148,7 @@ public static class SceneClassifier
         new("jungle", 0.96f, "Matched jungle/rainforest territory keywords.", new[] { "rainforest", "foliage", "humid" }, new[] { "rak'tika", "raktika", "greatwood", "yak t'el", "yak tel", "kozama'uka", "kozamauka", "jungle", "rainforest" }),
         new("snow", 0.95f, "Matched snow, ice, Coerthas, or Snowcloak keywords.", new[] { "cold", "alpine" }, new[] { "coerthas", "snowcloak", "snow", "ice", "frost", "glacier", "western highlands" }),
         new("desert", 0.95f, "Matched desert and dry-region territory keywords.", new[] { "dry", "heat", "badlands" }, new[] { "thanalan", "sagolii", "amh araeng", "shaaloani", "desert", "badlands" }),
-        new("coastal", 0.95f, "Matched sea, coast, beach, Limsa, Mist, or Ruby Sea keywords.", new[] { "water", "specular" }, new[] { "ruby sea", "limsa", "mist", "ocean", "beach", "sea", "coast", "coastal", "isle" }),
+        new("coastal", 0.95f, "Matched sea, coast, beach, La Noscea, Limsa, Mist, or Ruby Sea keywords.", new[] { "water", "specular", "seaside", "tropical", "foliage" }, new[] { "ruby sea", "la noscea", "eastern la noscea", "western la noscea", "lower la noscea", "middle la noscea", "outer la noscea", "upper la noscea", "costa del sol", "bloodshore", "raincatcher", "wineport", "summerford", "isles of umbra", "limsa", "mist", "ocean", "beach", "sea", "coast", "coastal", "isle" }),
         new("lightFlooded", 0.94f, "Matched light-flooded First keywords.", new[] { "highKey", "magic" }, new[] { "the empty", "lightwarden", "sin eater", "light flooded", "light-flooded" }),
         new("volcanic", 0.92f, "Matched volcanic/lava territory keywords.", new[] { "heat", "fire" }, new[] { "volcano", "lava", "ember", "embers" }),
         new("underwater", 0.92f, "Matched underwater or ocean-floor keywords.", new[] { "water", "haze" }, new[] { "underwater", "ocean floor", "oceanfloor" }),
@@ -188,7 +188,7 @@ public static class SceneClassifier
         var isField = !context.InDuty && !isCity && !isInterior;
         var needsCombatClarity = context.InCombat;
         var needsDutyReadability = context.InDuty && !context.InCombat;
-        var biome = InferBiome(territory, weather, content, isSnow, isFog, isCloudy || isOvercast || isGloom);
+        var biome = InferBiome(territory, weather, content, isSnow, isFog, isCloudy || isOvercast);
         var moodTags = BuildMoodTags(biome, isRain, isFog, isCloudy, isOvercast, isGloom, isSnow, isStorm, isDustStorm, isHeatWave);
 
         return new SceneTags(
@@ -243,7 +243,7 @@ public static class SceneClassifier
         }
 
         return isFog || isCloudMood
-            ? new BiomeMatch("overcast", 0.55f, "No territory biome matched; fog/cloud/gloom weather supplied an overcast mood fallback.", new[] { "overcast", "haze" })
+            ? new BiomeMatch("overcast", 0.55f, "No territory biome matched; fog/cloud/overcast weather supplied an overcast mood fallback.", new[] { "overcast", "haze" })
             : new BiomeMatch("neutral", 0.25f, "No specific territory, content, or weather biome keyword matched.", Array.Empty<string>());
     }
 

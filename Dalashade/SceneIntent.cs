@@ -162,9 +162,9 @@ public sealed class SceneIntentBuilder
 
         if (tags.IsGloom)
         {
-            Add("Gloom weather", nameof(SceneIntent.Haze), 0.35f, "Gloom is a dark haze/mood signal.");
-            Add("Gloom weather", nameof(SceneIntent.ShadowProtection), 0.35f, "Gloom risks crushed darks.");
-            Add("Gloom weather", nameof(SceneIntent.Atmosphere), 0.25f, "Gloom atmosphere should be preserved.");
+            Add("Gloom weather", nameof(SceneIntent.Haze), 0.16f, "Gloom is a dark mood signal, not full fog.");
+            Add("Gloom weather", nameof(SceneIntent.ShadowProtection), 0.24f, "Gloom needs some dark-detail protection without flattening blacks.");
+            Add("Gloom weather", nameof(SceneIntent.Atmosphere), 0.22f, "Gloom atmosphere should be preserved.");
         }
 
         if (tags.IsRain)
@@ -190,8 +190,8 @@ public sealed class SceneIntentBuilder
         if (tags.IsDustStorm || tags.IsHeatWave)
         {
             Add(tags.IsDustStorm ? "Dust weather" : "Heat weather", nameof(SceneIntent.Heat), 0.65f, "Dust and heat are hot-scene signals.");
-            Add(tags.IsDustStorm ? "Dust weather" : "Heat weather", nameof(SceneIntent.Haze), 0.45f, "Dust and heat add glare/haze.");
-            Add(tags.IsDustStorm ? "Dust weather" : "Heat weather", nameof(SceneIntent.HighlightProtection), 0.45f, "Dust and heat need glare control.");
+            Add(tags.IsDustStorm ? "Dust weather" : "Heat weather", nameof(SceneIntent.Haze), tags.IsNight && tags.IsHeatWave && !tags.IsDustStorm ? 0.34f : 0.45f, "Dust and heat add distance-biased glare/haze.");
+            Add(tags.IsDustStorm ? "Dust weather" : "Heat weather", nameof(SceneIntent.HighlightProtection), tags.IsNight && tags.IsHeatWave && !tags.IsDustStorm ? 0.32f : 0.45f, "Night heat needs less highlight restraint than daytime glare.");
         }
     }
 
@@ -207,9 +207,14 @@ public sealed class SceneIntentBuilder
             case "forest":
             case "jungle":
             case "swamp":
-                Add("Biome", nameof(SceneIntent.FoliageDensity), 0.70f, "Dense foliage changes depth and sharpness needs.");
-                Add("Biome", nameof(SceneIntent.ShadowProtection), 0.25f, "Foliage-heavy scenes risk dense shadows.");
-                Add("Biome", nameof(SceneIntent.Atmosphere), 0.08f, "Dense foliage can keep mild environmental atmosphere.");
+                Add("Biome", nameof(SceneIntent.FoliageDensity), tags.BiomeKey == "jungle" ? 0.76f : 0.70f, "Dense foliage changes depth and sharpness needs.");
+                Add("Biome", nameof(SceneIntent.ShadowProtection), tags.IsNight && tags.BiomeKey == "jungle" ? 0.14f : 0.25f, "Foliage-heavy scenes need selective dark-detail protection.");
+                Add("Biome", nameof(SceneIntent.Atmosphere), tags.IsNight && tags.BiomeKey == "jungle" ? 0.06f : 0.08f, "Dense foliage can keep mild environmental atmosphere.");
+                if (tags.IsNight && tags.BiomeKey == "jungle")
+                {
+                    Add("Jungle night", nameof(SceneIntent.Haze), -0.10f, "Jungle night should keep background depth instead of adding a gray veil.");
+                    Add("Jungle night", nameof(SceneIntent.ShadowProtection), -0.16f, "Jungle night preserves dark trunks and background depth.");
+                }
                 break;
             case "desert":
             case "wasteland":
@@ -260,6 +265,10 @@ public sealed class SceneIntentBuilder
             case "tropical":
             case "underwater":
                 Add("Biome", nameof(SceneIntent.HighlightProtection), 0.30f, "Water and bright surfaces need specular control.");
+                if (tags.BiomeKey is "coastal" or "tropical")
+                {
+                    Add("Biome", nameof(SceneIntent.FoliageDensity), tags.BiomeKey == "tropical" ? 0.28f : 0.18f, "Coastal and tropical field zones can carry mild foliage density.");
+                }
                 break;
             case "volcanic":
             case "fire":
