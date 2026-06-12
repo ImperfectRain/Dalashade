@@ -16,6 +16,24 @@ Scene context is collected in `Dalashade/GameContext.cs`.
 | Scene intent | `SceneIntentBuilder.Build(...)` in `Dalashade/SceneIntent.cs` | Converts tags, screenshot analysis, target style, and performance budget into stack-aware intent values before profile stack budgets. |
 | Visual profile effects | `ProfileEngine.Create()` in `Dalashade/VisualProfile.cs` | Applies context adjustments, scene-intent stack budgets, screenshot analysis, master style, target style, and performance budget. |
 
+## Tag Taxonomy
+
+Dalashade keeps tags hierarchical instead of treating every hint as a primary classification.
+
+| Category | Implementation | Purpose |
+| --- | --- | --- |
+| Primary biome | `SceneTags.BiomeKey` | One main environment identity such as `coastal`, `jungle`, `desert`, `snow`, `highTech`, `cosmic`, or `imperial`. |
+| Secondary tags | `TagStackDiagnostics.SecondaryTags` | Supporting biome/context identity such as `seaside`, `rainforest`, `badlands`, `moonlit`, `neon`, or `industrial`. |
+| Weather tags | `ActiveWeatherTags` | Runtime weather state such as `clear`, `fog`, `gloom`, `rain`, `snow`, `dust`, or `heat`. |
+| Time-of-day tags | `ActiveTags` and art-direction tags | `Night` and `DawnDusk` alter readability, warmth, and highlight pressure. |
+| Mood tags | `SceneTags.MoodTags` | Raw secondary hints from territory and weather, used to build material and art-direction buckets. |
+| Material tags | `TagStackDiagnostics.MaterialTags` | Surface/material risk such as `water`, `specular`, `foliage`, `dry`, `dust`, `ice`, `metallic`, `stone`, or `crystal`. |
+| Area/context tags | `TagStackDiagnostics.AreaContextTags` | Structural context such as `field`, `city`, `interior`, `dungeon`, or `raid`. |
+| Gameplay-state tags | `TagStackDiagnostics.GameplayStateTags` | Safety modifiers such as `combatReadable`, `dutyReadable`, `gameplayRestrained`, and `cinematicAllowed`. |
+| Art-direction tags | `TagStackDiagnostics.ArtDirectionTags` | Visual treatment hints such as `sunlit`, `colorful`, `canopyLight`, `haunted`, `luminous`, `highDepth`, `smoky`, or `crisp`. |
+
+Primary biome is the only single-choice bucket. The other buckets are diagnostic and additive, and should be added only when they drive useful intent, profile, shader, or report behavior.
+
 ## Current Weather Tags
 
 `SceneClassifier.Classify` emits separate weather signals instead of one broad fog bucket.
@@ -26,7 +44,7 @@ Scene context is collected in `Dalashade/GameContext.cs`.
 | `fog` | Weather name contains `fog` or `mist`. |
 | `clouds` | Weather name contains `cloud`. |
 | `overcast` | Weather name contains `overcast`. |
-| `gloom` | Weather name contains `gloom`, `umbral`, or `darkness`. Gloom is treated as a dark mood signal rather than full fog. |
+| `gloom` | Weather name contains `gloom`, `umbral`, or `darkness`. Gloom is kept as a haunted/dark mood signal rather than full fog. |
 | `snow` | Weather name contains `snow` or `blizzard`. |
 | `storm` | Weather name contains `storm`, `thunder`, or `gales`. |
 | `dust` | Weather name contains `dust`, `sandstorm`, `sand storm`, or `dust storm`. |
@@ -51,33 +69,61 @@ Biome tags are inferred in `SceneClassifier.InferBiome` from territory, weather,
 
 | Tag | Current trigger examples |
 | --- | --- |
-| `snow` | Snow, ice, frost, glacier, Coerthas, Snowcloak, Western Highlands. Snow weather overrides terrain biome to keep active snow scenes protected. Garlemald is primarily imperial but adds cold/alpine/snow mood context. |
+| `snow` | Snow, ice, frost, glacier, Coerthas, Snowcloak, Western Highlands. Snow weather overrides terrain biome to keep active snow scenes protected. Adds cold/ice/clean/crisp context. Garlemald is primarily imperial but adds cold/alpine/snow mood context. |
 | `alpine` | Mountain, alpine, peak, summit. |
 | `forest` | Forest, Shroud, woods, Gridania, sylph. |
-| `jungle` | Jungle, rainforest, Rak'tika, Yak T'el, Kozama'uka. Adds rainforest/foliage/humid mood tags. Jungle nights damp excessive haze and shadow lift so foliage keeps dark depth instead of turning gray. |
+| `jungle` | Jungle, rainforest, Rak'tika, Yak T'el, Kozama'uka. Adds rainforest/foliage/lush/verdant/humid/canopyLight tags. Jungle nights damp excessive haze and shadow lift so foliage keeps dark depth instead of turning gray. |
 | `swamp` | Swamp, marsh, bog, fen. |
 | `steppe` | Azim Steppe, steppe, grassland. |
-| `desert` | Desert, Thanalan, Sagolii, Amh Araeng, Shaaloani, badlands. Adds dry/heat/badlands mood tags. Heat remains strong at night, but nighttime heat has less highlight-protection pressure than daytime glare. |
+| `desert` | Desert, Thanalan, Sagolii, Amh Araeng, Shaaloani, badlands. Adds desert/badlands/dry/heat/dust/sunScorched tags. Heat remains strong at night, but nighttime heat has less highlight-protection pressure than daytime glare. |
 | `wasteland` | Wasteland, wastes. |
 | `cave` | Cave, cavern, mine, tunnel, subterrane. |
 | `void` | Void, darkness, abyss, Ascian. |
 | `aetherial` | Aether, crystal, Lakeland, Crystarium, Elpis. |
-| `fae` | Il Mheg, fae, pixie, Voeburt, dream. Adds dreamlike/magic/pastel mood tags. |
+| `fae` | Il Mheg, fae, pixie, Voeburt, dream. Adds fae/dreamlike/colorful/magical/pastel tags. |
 | `lightFlooded` | The Empty, Lightwarden, sin eater, light-flooded. |
-| `lunar` | Mare Lamentorum, Bestways Burrow, moon, lunar. Adds lunar/cold/cosmic mood tags. |
-| `cosmic` | Ultima Thule, Omphalos, cosmic, star, space. Adds cosmic/stars mood tags. |
-| `ancient` | Ancient, Amaurot, Allagan, Azys Lla, ruin. |
-| `imperial` | Garlemald, Castrum, imperial, magitek, factory, steel, ceruleum, Magna Glacies, Tower of Babil. Adds industrial/steel/cold mood tags; Garlemald also adds alpine/snow mood tags. |
-| `highTech` | Solution Nine, Heritage Found, Alexandria, Living Memory, neon, electrope. Adds neon/electrope/urban mood tags. |
+| `lunar` | Mare Lamentorum, Bestways Burrow, moon, lunar. Adds lunar/moonlit/cold/cosmic/cool/highDepth tags. |
+| `cosmic` | Ultima Thule, Omphalos, cosmic, star, space. Adds cosmic/alien/aetherial/stars/cool/highDepth tags. |
+| `ancient` | Ancient, Amaurot, Allagan, Azys Lla, ruin. Adds ancient/ruins/structured/stone/aetherial context. |
+| `imperial` | Garlemald, Castrum, imperial, magitek, factory, steel, ceruleum, Magna Glacies, Tower of Babil. Adds imperial/industrial/metallic/smoky/structured/cold tags; Garlemald also adds alpine/snow mood context. |
+| `highTech` | Solution Nine, Heritage Found, Alexandria, Living Memory, neon, electrope. Adds neon/highTech/electrope/urban/clean/luminous tags. |
 | `underwater` | Underwater, ocean floor. |
 | `volcanic` | Volcano, lava, ember. |
-| `coastal` | Ruby Sea, La Noscea, ocean, beach, sea, Limsa, Mist, coast, isle. Adds water/specular/seaside mood tags and mild foliage pressure for coastal field zones. |
-| `tropical` | Island, tropical, Tuliyollal. Adds warm/coastal mood context and mild foliage pressure. |
+| `coastal` | Ruby Sea, La Noscea, Costa del Sol, Bloodshore, Raincatcher, ocean, beach, sea, Limsa, Mist, coast, isle. Adds coastal/tropical/seaside/beach/water/specular/clean/sunlit/colorful tags and mild foliage pressure for coastal field zones. |
+| `tropical` | Island, tropical, Tuliyollal. Adds tropical/coastal/warm/sunlit/colorful/foliage context and mild foliage pressure. |
 | `fire` | Fire, flame, inferno. |
 | `overcast` | Fallback when fog/cloud/overcast mood is present but no stronger biome matched. Gloom alone does not create this haze fallback. |
 | `neutral` | Fallback when no specific biome matched. |
 
 Biome and territory tags affect the visual profile in `ProfileEngine.ApplyTerritory` and `ProfileEngine.ApplyBiome`.
+
+## Tag Audit And Merge Guidance
+
+| Tag family | Trigger | Visual implication | Overlap handling |
+| --- | --- | --- | --- |
+| `coastal` / `tropical` / `seaside` / `beach` | La Noscea, Costa del Sol, Ruby Sea, Limsa/Mist, coast/sea/beach keywords | Bright, colorful, clean, sunlit, specular, mild foliage, stronger highlight restraint before bloom | Keep `coastal`/`tropical` as primary biomes; keep `seaside`, `beach`, `water`, and `specular` as secondary/material tags. |
+| `jungle` / `rainforest` / `lush` / `verdant` / `canopyLight` | Rak'tika, Yak T'el, Kozama'uka, jungle/rainforest keywords | High foliage density, richer greens, humid depth, subtle canopy light, preserved dark trunks/background | Keep `jungle` primary; `rainforest`, `lush`, `verdant`, and `canopyLight` remain secondary/art-direction tags. |
+| `desert` / `badlands` / `dry` / `heat` / `dust` | Thanalan, Amh Araeng, Shaaloani, Sagolii, desert/badlands, heat/dust weather | Warm dry contrast, depth-weighted haze, daytime glare protection, lighter night highlight protection | Keep `desert` primary; `heat` can come from biome or weather; `dust` is material/weather pressure. |
+| `snow` / `alpine` / `cold` / `ice` | Snow weather, Coerthas, Snowcloak, ice/frost keywords | Cool, clean, crisp, strong highlight protection without gray snow | Snow weather overrides terrain biome; snow-biome contribution is dampened when weather already supplied snow. |
+| `neon` / `highTech` / `urban` | Solution Nine, Alexandria, Heritage Found, neon/electrope keywords | Clean contrast, saturated accents, controlled glow, no muddy warmth | Keep `highTech` primary; `neon`/`urban` are secondary/art tags. |
+| `cosmic` / `lunar` / `alien` / `moonlit` | Ultima Thule, Mare Lamentorum, moon/star/space keywords | Cool atmosphere, subtle glow, high depth, clean contrast | Keep `cosmic` and `lunar` as separate primary biomes because lunar also carries cold/moonlit identity. |
+| `imperial` / `industrial` / `metallic` / `smoky` | Garlemald, Castrum, magitek, factory, steel, ceruleum | Metallic, structured, harder clarity, lower saturation, restrained bloom | Keep `imperial` primary; `industrial`, `metallic`, and `smoky` are material/art tags. |
+| `gloom` / `haunted` / `dark` | Gloom, Umbral, darkness, void keywords | Moody and dark with depth preservation | Do not merge with fog; gloom does not create fog/mist haze by itself. |
+| `fog` / `mist` / `haze` | Fog or mist weather, overcast fallback | True atmospheric veil and haze pressure | Keep separate from gloom; only fog/mist should create strong haze. |
+| `city` / `settlement` / `field` / `dungeon` / `raid` | Sanctuary, duty, content, and world category | Cities stay readable and grounded; dungeons/raids prioritize clarity | These are area/context tags, not biomes. |
+| `combatReadable` / `gameplayRestrained` / `cinematicAllowed` | Combat, duty, cutscene, GPose | Combat/duty dampen bloom/haze/cinematic pressure; GPose/cutscene allow more style | Gameplay-state tags always modify biome/weather instead of replacing them. |
+
+## Art Direction Principles
+
+- Protect highlights before increasing bloom, especially in snow, coast, desert, neon, and aetherial scenes.
+- Avoid gray haze unless weather specifically calls for fog, mist, overcast, dust, or heat shimmer.
+- Use saturation selectively by biome: coast and jungle can be richer; imperial and some ruins can be more restrained.
+- Preserve shadow depth in forests, ruins, haunted scenes, and jungle nights instead of lifting the whole frame.
+- Use bloom for light sources, sky openings, water/specular sparkle, neon, and aetherial accents, not as a full-screen wash.
+- Use warmth for sunlit coast and desert, coolness for snow, night, lunar, and cosmic scenes.
+- Prioritize readability in combat, dungeons, and raids; damp cinematic bloom/haze before reducing all identity.
+- Avoid excessive sharpening in foliage, rain, haze, wet highlights, and distant detail.
+- Let high-confidence mappings push a stronger look; low-confidence or fallback mappings stay conservative.
 
 ## Gameplay, Combat, Cutscene, And GPose
 
@@ -141,6 +187,8 @@ All intent values are normalized from `0` to `1`.
 
 Current stack budgets protect bloom, AO, shadow lift, bloom dirt, and saturation from repeated context reductions/additions. Snow weather also dampens snow-biome handling so snow does not apply full-strength twice.
 
+Biome intent contributions are confidence-aware. High-confidence territory mappings such as Eastern La Noscea, Rak'tika, Amh Araeng, Solution Nine, Ultima Thule, or Garlemald can push stronger art direction; low-confidence fallback mappings keep smaller changes.
+
 Intent contribution diagnostics are stored as `SceneIntentContribution` records so the UI/report can show which tags or systems contributed to each value.
 
 Diagnostics are exposed through:
@@ -159,8 +207,25 @@ Diagnostics currently include:
 | Biome key | Primary inferred biome. |
 | Biome confidence | Relative confidence of the biome keyword match, or lower confidence for fallback tags. |
 | Biome reason | The classifier reason and matched keyword when available. |
+| Secondary tags | Supporting biome tags such as seaside, rainforest, badlands, moonlit, neon, or industrial. |
 | Mood tags | Secondary mood/context hints such as neon, industrial, dreamlike, rainforest, cold, coastal, or cosmic. |
-| SceneIntent contributions | Per-intent source, amount, and reason. |
+| Material tags | Surface/material hints such as water, specular, foliage, dry, dust, ice, metallic, stone, or crystal. |
+| Area/context tags | Field, city, interior, dungeon, and raid context. |
+| Gameplay-state tags | Combat readability, duty readability, cinematic permission, and gameplay restraint. |
+| Art-direction tags | Treatment hints such as sunlit, colorful, canopyLight, haunted, luminous, highDepth, smoky, or crisp. |
+| SceneIntent contributions | Per-intent source, amount, reason, and report grouping by tag category. |
+
+## Expected Regression Examples
+
+| Case | Expected primary biome | Expected supporting tags | Expected visual direction |
+| --- | --- | --- | --- |
+| Eastern La Noscea / Costa del Sol, clear day | `coastal` | coastal, tropical, seaside, beach, water, specular, clean, sunlit, colorful | Bright, colorful, clean, specular, mild foliage, no haze unless weather adds it. |
+| The Rak'tika Greatwood, Umbral Wind night | `jungle` | rainforest, lush, verdant, humid, canopyLight, gloom, haunted | Lush and deep with canopy-light accent; gloom is dark mood, not gray fog. |
+| Amh Araeng, Heat Waves night | `desert` | desert, badlands, dry, heat, dust | Hot and dry with distance-weighted haze and lower night highlight restraint. |
+| Snowcloak or Coerthas snow | `snow` | snow, alpine, cold, ice, clean, crisp | Cold and crisp with protected highlights. |
+| Solution Nine / Alexandria / Heritage Found | `highTech` | neon, highTech, urban, clean, luminous | Clean high contrast, saturated accents, controlled neon glow. |
+| Ultima Thule / Mare Lamentorum | `cosmic` or `lunar` | alien, aetherial, moonlit, cold, highDepth | Cool, otherworldly, atmospheric, high depth. |
+| Garlemald / Castrum / factory | `imperial` | imperial, industrial, metallic, smoky, structured | Metallic, hard, readable, desaturated, restrained bloom. |
 
 ## Planned / Future
 

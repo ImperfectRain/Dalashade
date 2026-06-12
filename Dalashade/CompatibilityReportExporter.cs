@@ -185,7 +185,12 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Biome key: {diagnostics.BiomeKey}");
         builder.AppendLine($"- Biome confidence: {diagnostics.BiomeConfidence:P0}");
         builder.AppendLine($"- Biome reason: {diagnostics.BiomeReason}");
+        builder.AppendLine($"- Secondary tags: {FormatPlainList(diagnostics.SecondaryTags)}");
         builder.AppendLine($"- Mood tags: {(diagnostics.MoodTags.Count == 0 ? "none" : string.Join(", ", diagnostics.MoodTags))}");
+        builder.AppendLine($"- Material tags: {FormatPlainList(diagnostics.MaterialTags)}");
+        builder.AppendLine($"- Area/context tags: {FormatPlainList(diagnostics.AreaContextTags)}");
+        builder.AppendLine($"- Gameplay-state tags: {FormatPlainList(diagnostics.GameplayStateTags)}");
+        builder.AppendLine($"- Art-direction tags: {FormatPlainList(diagnostics.ArtDirectionTags)}");
         builder.AppendLine($"- Area key: {diagnostics.AreaKey}");
         builder.AppendLine($"- Combat: {diagnostics.InCombat}");
         builder.AppendLine($"- Duty: {diagnostics.InDuty}");
@@ -219,9 +224,13 @@ public sealed class CompatibilityReportExporter
         }
         else
         {
-            foreach (var contribution in diagnostics.IntentContributions)
+            foreach (var group in diagnostics.IntentContributions.GroupBy(CategorizeSceneIntentContribution).OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
             {
-                builder.AppendLine($"- {contribution.Intent}: {contribution.Amount:+0.###;-0.###;0} from {contribution.Source} - {contribution.Reason}");
+                builder.AppendLine($"- {group.Key}");
+                foreach (var contribution in group)
+                {
+                    builder.AppendLine($"  - {contribution.Intent}: {contribution.Amount:+0.###;-0.###;0} from {contribution.Source} - {contribution.Reason}");
+                }
             }
         }
 
@@ -607,6 +616,60 @@ public sealed class CompatibilityReportExporter
         }
 
         return string.Join(", ", values.Select(value => $"`{value}`"));
+    }
+
+    private static string FormatPlainList(IReadOnlyList<string> values)
+    {
+        return values.Count == 0 ? "none" : string.Join(", ", values);
+    }
+
+    private static string CategorizeSceneIntentContribution(SceneIntentContribution contribution)
+    {
+        var source = contribution.Source;
+        if (source.Contains("weather", StringComparison.OrdinalIgnoreCase) || source is "Rain" or "Storm")
+        {
+            return "weather tags";
+        }
+
+        if (source.Contains("Biome", StringComparison.OrdinalIgnoreCase)
+            || source.Contains("mood", StringComparison.OrdinalIgnoreCase)
+            || source.Contains("Jungle", StringComparison.OrdinalIgnoreCase)
+            || source.Contains("Art direction", StringComparison.OrdinalIgnoreCase))
+        {
+            return "biome, material, and art-direction tags";
+        }
+
+        if (source.Contains("Night", StringComparison.OrdinalIgnoreCase) || source.Contains("Dawn", StringComparison.OrdinalIgnoreCase))
+        {
+            return "time-of-day tags";
+        }
+
+        if (source.Contains("Combat", StringComparison.OrdinalIgnoreCase)
+            || source.Contains("Duty", StringComparison.OrdinalIgnoreCase)
+            || source.Contains("Raid", StringComparison.OrdinalIgnoreCase)
+            || source.Contains("Dungeon", StringComparison.OrdinalIgnoreCase)
+            || source.Contains("GPose", StringComparison.OrdinalIgnoreCase)
+            || source.Contains("Cutscene", StringComparison.OrdinalIgnoreCase))
+        {
+            return "area and gameplay-state tags";
+        }
+
+        if (source.Contains("Screenshot", StringComparison.OrdinalIgnoreCase))
+        {
+            return "screenshot analysis";
+        }
+
+        if (source.Contains("Performance", StringComparison.OrdinalIgnoreCase))
+        {
+            return "performance budget";
+        }
+
+        if (source.Contains("style", StringComparison.OrdinalIgnoreCase))
+        {
+            return "target style";
+        }
+
+        return "baseline";
     }
 
     private static string EscapeTable(string value)

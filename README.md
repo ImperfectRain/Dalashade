@@ -143,7 +143,9 @@ This still does not disable techniques or broadly sanitize every color shader. T
 
 ## Biome Hints
 
-Dalashade still avoids a giant zone table, but it now infers mild biome tags from territory names, content names, and weather. Snow, forest, desert, cave, void, aetherial, coastal, and fire/lava scenes get small protective nudges. They are intentionally generic; the goal is sane behavior in new zones, not hand-authored perfection.
+Dalashade still avoids a giant zone table, but it now infers a primary biome plus supporting tags from territory names, content names, and weather. Strong matches such as La Noscea/coastal, Rak'tika/rainforest, Amh Araeng/desert, Coerthas/snow, Solution Nine/neon, Ultima Thule/cosmic, Mare Lamentorum/lunar, and Garlemald/industrial get clearer visual identity. Lower-confidence matches stay conservative.
+
+The tag system is meant to give each environment its own direction without making every zone look the same: coast stays bright and clean, jungle stays lush and deep, desert stays warm and dry, snow stays crisp, high-tech zones keep controlled neon, and combat/dungeons still prioritize readability.
 
 ## Building
 

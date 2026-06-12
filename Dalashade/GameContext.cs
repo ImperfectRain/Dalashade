@@ -140,28 +140,28 @@ public static class SceneClassifier
     // use curated XIV names first and generic keyword fallbacks for future zones.
     private static readonly BiomeKeywordRule[] BiomeRules =
     {
-        new("highTech", 0.98f, "Matched Dawntrail high-tech/neon territory keywords.", new[] { "neon", "electrope", "urban" }, new[] { "solution nine", "heritage found", "alexandria", "neon", "electrope", "living memory" }),
-        new("cosmic", 0.98f, "Matched cosmic/space territory keywords.", new[] { "cosmic", "stars" }, new[] { "ultima thule", "cosmic", "star", "stars", "space", "omphalos" }),
-        new("lunar", 0.98f, "Matched lunar territory keywords.", new[] { "lunar", "cold", "cosmic" }, new[] { "mare lamentorum", "moon", "lunar", "bestways burrow" }),
-        new("fae", 0.98f, "Matched fae/dreamlike territory keywords.", new[] { "dreamlike", "magic", "pastel" }, new[] { "il mheg", "voeburt", "fae", "pixie", "dream" }),
-        new("imperial", 0.96f, "Matched Garlean, Castrum, magitek, or factory keywords.", new[] { "industrial", "steel", "cold" }, new[] { "garlemald", "castrum", "imperial", "magitek", "factory", "steel", "ceruleum", "magna glacies", "tower of babil" }),
-        new("jungle", 0.96f, "Matched jungle/rainforest territory keywords.", new[] { "rainforest", "foliage", "humid" }, new[] { "rak'tika", "raktika", "greatwood", "yak t'el", "yak tel", "kozama'uka", "kozamauka", "jungle", "rainforest" }),
-        new("snow", 0.95f, "Matched snow, ice, Coerthas, or Snowcloak keywords.", new[] { "cold", "alpine" }, new[] { "coerthas", "snowcloak", "snow", "ice", "frost", "glacier", "western highlands" }),
-        new("desert", 0.95f, "Matched desert and dry-region territory keywords.", new[] { "dry", "heat", "badlands" }, new[] { "thanalan", "sagolii", "amh araeng", "shaaloani", "desert", "badlands" }),
-        new("coastal", 0.95f, "Matched sea, coast, beach, La Noscea, Limsa, Mist, or Ruby Sea keywords.", new[] { "water", "specular", "seaside", "tropical", "foliage" }, new[] { "ruby sea", "la noscea", "eastern la noscea", "western la noscea", "lower la noscea", "middle la noscea", "outer la noscea", "upper la noscea", "costa del sol", "bloodshore", "raincatcher", "wineport", "summerford", "isles of umbra", "limsa", "mist", "ocean", "beach", "sea", "coast", "coastal", "isle" }),
-        new("lightFlooded", 0.94f, "Matched light-flooded First keywords.", new[] { "highKey", "magic" }, new[] { "the empty", "lightwarden", "sin eater", "light flooded", "light-flooded" }),
-        new("volcanic", 0.92f, "Matched volcanic/lava territory keywords.", new[] { "heat", "fire" }, new[] { "volcano", "lava", "ember", "embers" }),
-        new("underwater", 0.92f, "Matched underwater or ocean-floor keywords.", new[] { "water", "haze" }, new[] { "underwater", "ocean floor", "oceanfloor" }),
-        new("ancient", 0.90f, "Matched ancient, ruin, Amaurot, Allagan, or Azys Lla keywords.", new[] { "ruins", "structured" }, new[] { "amaurot", "allagan", "azys lla", "ruin", "ruins", "ancient" }),
-        new("aetherial", 0.88f, "Matched aetherial, crystal, Elpis, Lakeland, or Crystarium keywords.", new[] { "magic", "crystal" }, new[] { "elpis", "aether", "crystal", "lakeland", "crystarium" }),
-        new("alpine", 0.84f, "Matched mountain/alpine keywords.", new[] { "cold", "highAltitude" }, new[] { "mountain", "alpine", "peak", "summit" }),
-        new("forest", 0.82f, "Matched forest, Shroud, Gridania, or woods keywords.", new[] { "foliage" }, new[] { "forest", "shroud", "woods", "wood", "gridania", "sylph" }),
-        new("swamp", 0.82f, "Matched swamp/marsh keywords.", new[] { "wet", "foliage" }, new[] { "swamp", "marsh", "bog", "fen" }),
+        new("highTech", 0.98f, "Matched Dawntrail high-tech/neon territory keywords.", new[] { "neon", "highTech", "electrope", "urban", "clean", "luminous" }, new[] { "solution nine", "heritage found", "alexandria", "neon", "electrope", "living memory" }),
+        new("cosmic", 0.98f, "Matched cosmic/space territory keywords.", new[] { "cosmic", "alien", "aetherial", "stars", "cool", "highDepth" }, new[] { "ultima thule", "cosmic", "star", "stars", "space", "omphalos" }),
+        new("lunar", 0.98f, "Matched lunar territory keywords.", new[] { "lunar", "moonlit", "cold", "cosmic", "cool", "highDepth" }, new[] { "mare lamentorum", "moon", "lunar", "bestways burrow" }),
+        new("fae", 0.98f, "Matched fae/dreamlike territory keywords.", new[] { "fae", "dreamlike", "colorful", "magical", "pastel" }, new[] { "il mheg", "voeburt", "fae", "pixie", "dream" }),
+        new("imperial", 0.96f, "Matched Garlean, Castrum, magitek, or factory keywords.", new[] { "imperial", "industrial", "metallic", "smoky", "structured", "cold" }, new[] { "garlemald", "castrum", "imperial", "magitek", "factory", "steel", "ceruleum", "magna glacies", "tower of babil" }),
+        new("jungle", 0.96f, "Matched jungle/rainforest territory keywords.", new[] { "rainforest", "foliage", "lush", "verdant", "humid", "canopyLight" }, new[] { "rak'tika", "raktika", "greatwood", "yak t'el", "yak tel", "kozama'uka", "kozamauka", "jungle", "rainforest" }),
+        new("snow", 0.95f, "Matched snow, ice, Coerthas, or Snowcloak keywords.", new[] { "snow", "alpine", "cold", "ice", "clean", "crisp" }, new[] { "coerthas", "snowcloak", "snow", "ice", "frost", "glacier", "western highlands" }),
+        new("desert", 0.95f, "Matched desert and dry-region territory keywords.", new[] { "desert", "badlands", "dry", "heat", "dust", "sunScorched" }, new[] { "thanalan", "sagolii", "amh araeng", "shaaloani", "desert", "badlands" }),
+        new("coastal", 0.95f, "Matched sea, coast, beach, La Noscea, Limsa, Mist, or Ruby Sea keywords.", new[] { "coastal", "tropical", "seaside", "beach", "water", "specular", "clean", "sunlit", "colorful", "foliage" }, new[] { "ruby sea", "la noscea", "eastern la noscea", "western la noscea", "lower la noscea", "middle la noscea", "outer la noscea", "upper la noscea", "costa del sol", "bloodshore", "raincatcher", "wineport", "summerford", "isles of umbra", "limsa", "mist", "ocean", "beach", "sea", "coast", "coastal", "isle" }),
+        new("lightFlooded", 0.94f, "Matched light-flooded First keywords.", new[] { "highKey", "magic", "aetherial", "clean" }, new[] { "the empty", "lightwarden", "sin eater", "light flooded", "light-flooded" }),
+        new("volcanic", 0.92f, "Matched volcanic/lava territory keywords.", new[] { "heat", "fire", "smoky", "highContrast" }, new[] { "volcano", "lava", "ember", "embers" }),
+        new("underwater", 0.92f, "Matched underwater or ocean-floor keywords.", new[] { "water", "haze", "cool", "depth" }, new[] { "underwater", "ocean floor", "oceanfloor" }),
+        new("ancient", 0.90f, "Matched ancient, ruin, Amaurot, Allagan, or Azys Lla keywords.", new[] { "ancient", "ruins", "structured", "stone", "aetherial" }, new[] { "amaurot", "allagan", "azys lla", "ruin", "ruins", "ancient" }),
+        new("aetherial", 0.88f, "Matched aetherial, crystal, Elpis, Lakeland, or Crystarium keywords.", new[] { "aetherial", "magic", "crystal", "clean", "luminous" }, new[] { "elpis", "aether", "crystal", "lakeland", "crystarium" }),
+        new("alpine", 0.84f, "Matched mountain/alpine keywords.", new[] { "alpine", "cold", "highAltitude", "crisp" }, new[] { "mountain", "alpine", "peak", "summit" }),
+        new("forest", 0.82f, "Matched forest, Shroud, Gridania, or woods keywords.", new[] { "foliage", "lush", "verdant" }, new[] { "forest", "shroud", "woods", "wood", "gridania", "sylph" }),
+        new("swamp", 0.82f, "Matched swamp/marsh keywords.", new[] { "wet", "foliage", "humid", "lush" }, new[] { "swamp", "marsh", "bog", "fen" }),
         new("steppe", 0.82f, "Matched steppe/grassland keywords.", new[] { "open", "grassland" }, new[] { "azim steppe", "steppe", "grassland", "grasslands" }),
         new("wasteland", 0.80f, "Matched wasteland/wastes keywords.", new[] { "dry", "badlands" }, new[] { "badlands", "wasteland", "wastes" }),
         new("cave", 0.80f, "Matched cave/cavern/mine keywords.", new[] { "dark", "interior" }, new[] { "cave", "cavern", "mine", "tunnel", "subterrane" }),
-        new("void", 0.80f, "Matched void/darkness/abyss keywords.", new[] { "dark", "magic" }, new[] { "void", "darkness", "abyss", "ascian" }),
-        new("tropical", 0.78f, "Matched island/tropical/Tuliyollal keywords.", new[] { "warm", "coastal" }, new[] { "island", "tropical", "tuliyollal" }),
+        new("void", 0.80f, "Matched void/darkness/abyss keywords.", new[] { "dark", "haunted", "gloom", "magic" }, new[] { "void", "darkness", "abyss", "ascian" }),
+        new("tropical", 0.78f, "Matched island/tropical/Tuliyollal keywords.", new[] { "tropical", "coastal", "warm", "sunlit", "colorful", "foliage" }, new[] { "island", "tropical", "tuliyollal" }),
         new("fire", 0.78f, "Matched fire/flame/inferno keywords.", new[] { "heat", "fire" }, new[] { "fire", "flame", "inferno" })
     };
 
@@ -223,7 +223,7 @@ public static class SceneClassifier
         var text = NormalizeSearchText($"{territory} {weather} {content}");
         if (isSnow)
         {
-            return new BiomeMatch("snow", 1.0f, "Snow or blizzard weather overrides terrain biome to avoid missing active snow scenes.", new[] { "cold", "weatherOverride" });
+            return new BiomeMatch("snow", 1.0f, "Snow or blizzard weather overrides terrain biome to avoid missing active snow scenes.", new[] { "snow", "cold", "ice", "clean", "weatherOverride" });
         }
 
         foreach (var rule in BiomeRules)
@@ -243,18 +243,18 @@ public static class SceneClassifier
         }
 
         return isFog || isCloudMood
-            ? new BiomeMatch("overcast", 0.55f, "No territory biome matched; fog/cloud/overcast weather supplied an overcast mood fallback.", new[] { "overcast", "haze" })
+            ? new BiomeMatch("overcast", 0.55f, "No territory biome matched; fog/cloud/overcast weather supplied an overcast mood fallback.", new[] { "overcast", "haze", "softLight" })
             : new BiomeMatch("neutral", 0.25f, "No specific territory, content, or weather biome keyword matched.", Array.Empty<string>());
     }
 
     private static IReadOnlyList<string> BuildMoodTags(BiomeMatch biome, bool isRain, bool isFog, bool isCloudy, bool isOvercast, bool isGloom, bool isSnow, bool isStorm, bool isDustStorm, bool isHeatWave)
     {
         var moods = new List<string>(biome.MoodTags);
-        if (isRain) moods.Add("wet");
-        if (isFog) moods.Add("haze");
+        if (isRain) moods.AddRange(new[] { "wet", "specular" });
+        if (isFog) moods.AddRange(new[] { "fog", "mist", "haze" });
         if (isCloudy) moods.Add("clouds");
         if (isOvercast) moods.Add("overcast");
-        if (isGloom) moods.Add("dark");
+        if (isGloom) moods.AddRange(new[] { "gloom", "haunted", "dark" });
         if (isSnow) moods.Add("cold");
         if (isStorm) moods.Add("storm");
         if (isDustStorm) moods.Add("dust");

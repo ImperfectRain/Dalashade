@@ -202,78 +202,90 @@ public sealed class SceneIntentBuilder
             return;
         }
 
+        var styleScale = BiomeStyleScale(tags);
+
         switch (tags.BiomeKey)
         {
             case "forest":
             case "jungle":
             case "swamp":
-                Add("Biome", nameof(SceneIntent.FoliageDensity), tags.BiomeKey == "jungle" ? 0.76f : 0.70f, "Dense foliage changes depth and sharpness needs.");
-                Add("Biome", nameof(SceneIntent.ShadowProtection), tags.IsNight && tags.BiomeKey == "jungle" ? 0.14f : 0.25f, "Foliage-heavy scenes need selective dark-detail protection.");
-                Add("Biome", nameof(SceneIntent.Atmosphere), tags.IsNight && tags.BiomeKey == "jungle" ? 0.06f : 0.08f, "Dense foliage can keep mild environmental atmosphere.");
+                Add("Biome", nameof(SceneIntent.FoliageDensity), (tags.BiomeKey == "jungle" ? 0.76f : 0.70f) * styleScale, "Dense foliage changes depth and sharpness needs.");
+                Add("Biome", nameof(SceneIntent.ShadowProtection), (tags.IsNight && tags.BiomeKey == "jungle" ? 0.14f : 0.25f) * styleScale, "Foliage-heavy scenes need selective dark-detail protection.");
+                Add("Biome", nameof(SceneIntent.Atmosphere), (tags.IsNight && tags.BiomeKey == "jungle" ? 0.06f : 0.08f) * styleScale, "Dense foliage can keep mild environmental atmosphere.");
+                if (tags.MoodTags.Contains("canopyLight", StringComparer.OrdinalIgnoreCase))
+                {
+                    Add("Art direction", nameof(SceneIntent.MagicGlow), 0.08f * styleScale, "Canopy-light tags allow subtle sky openings without global wash.");
+                }
                 if (tags.IsNight && tags.BiomeKey == "jungle")
                 {
-                    Add("Jungle night", nameof(SceneIntent.Haze), -0.10f, "Jungle night should keep background depth instead of adding a gray veil.");
-                    Add("Jungle night", nameof(SceneIntent.ShadowProtection), -0.16f, "Jungle night preserves dark trunks and background depth.");
+                    Add("Jungle night", nameof(SceneIntent.Haze), -0.10f * styleScale, "Jungle night should keep background depth instead of adding a gray veil.");
+                    Add("Jungle night", nameof(SceneIntent.ShadowProtection), -0.16f * styleScale, "Jungle night preserves dark trunks and background depth.");
                 }
                 break;
             case "desert":
             case "wasteland":
-                Add("Biome", nameof(SceneIntent.Heat), 0.45f, "Desert and wasteland biomes are hot-scene signals.");
-                Add("Biome", nameof(SceneIntent.HighlightProtection), 0.35f, "Dry bright biomes need glare control.");
+                Add("Biome", nameof(SceneIntent.Heat), 0.48f * styleScale, "Desert and wasteland biomes are hot-scene signals.");
+                Add("Biome", nameof(SceneIntent.HighlightProtection), (tags.IsNight ? 0.24f : 0.38f) * styleScale, "Dry bright biomes need glare control, with less restraint at night.");
+                Add("Biome", nameof(SceneIntent.Haze), (tags.IsNight ? 0.06f : 0.10f) * styleScale, "Dry terrain adds light dust atmosphere without acting like fog.");
                 break;
             case "snow":
             case "alpine":
-                Add("Biome", nameof(SceneIntent.Cold), tags.IsSnow ? 0.18f : 0.45f, tags.IsSnow ? "Snow weather already supplied the main cold signal." : "Snow/alpine biome adds cold pressure.");
-                Add("Biome", nameof(SceneIntent.HighlightProtection), tags.IsSnow ? 0.12f : 0.30f, tags.IsSnow ? "Snow biome highlight contribution is dampened." : "Snow/alpine biome needs highlight protection.");
+                Add("Biome", nameof(SceneIntent.Cold), (tags.IsSnow ? 0.18f : 0.45f) * styleScale, tags.IsSnow ? "Snow weather already supplied the main cold signal." : "Snow/alpine biome adds cold pressure.");
+                Add("Biome", nameof(SceneIntent.HighlightProtection), (tags.IsSnow ? 0.12f : 0.34f) * styleScale, tags.IsSnow ? "Snow biome highlight contribution is dampened." : "Snow/alpine biome needs highlight protection.");
                 break;
             case "cave":
             case "void":
-                Add("Biome", nameof(SceneIntent.ShadowProtection), 0.55f, "Dark biomes need shadow protection.");
-                Add("Biome", nameof(SceneIntent.Atmosphere), 0.20f, "Dark biomes should retain mood.");
+                Add("Biome", nameof(SceneIntent.ShadowProtection), 0.42f * styleScale, "Dark biomes need some shadow detail without washing out depth.");
+                Add("Biome", nameof(SceneIntent.Atmosphere), 0.20f * styleScale, "Dark biomes should retain mood.");
                 break;
             case "aetherial":
             case "fae":
             case "lightFlooded":
-                Add("Biome", nameof(SceneIntent.MagicGlow), 0.55f, "Magical biomes should preserve stylized glow.");
-                Add("Biome", nameof(SceneIntent.HighlightProtection), 0.20f, "Magical glow needs highlight control.");
+                Add("Biome", nameof(SceneIntent.MagicGlow), 0.55f * styleScale, "Magical biomes should preserve stylized glow.");
+                Add("Biome", nameof(SceneIntent.HighlightProtection), 0.22f * styleScale, "Magical glow needs highlight control.");
                 if (tags.MoodTags.Contains("dreamlike", StringComparer.OrdinalIgnoreCase))
                 {
-                    Add("Fae mood", nameof(SceneIntent.Atmosphere), 0.10f, "Dreamlike fae zones keep a little more atmosphere.");
+                    Add("Fae mood", nameof(SceneIntent.Atmosphere), 0.10f * styleScale, "Dreamlike fae zones keep a little more atmosphere.");
                 }
                 break;
             case "cosmic":
             case "lunar":
-                Add("Biome", nameof(SceneIntent.MagicGlow), 0.35f, "Cosmic/lunar spaces preserve some magical glow.");
-                Add("Biome", nameof(SceneIntent.CosmicMood), 0.70f, "Cosmic/lunar spaces get their own mood channel.");
-                Add("Biome", nameof(SceneIntent.HighlightProtection), 0.20f, "Cosmic highlights need control.");
+                Add("Biome", nameof(SceneIntent.MagicGlow), 0.38f * styleScale, "Cosmic/lunar spaces preserve some magical glow.");
+                Add("Biome", nameof(SceneIntent.CosmicMood), 0.74f * styleScale, "Cosmic/lunar spaces get their own mood channel.");
+                Add("Biome", nameof(SceneIntent.Cold), (tags.BiomeKey == "lunar" ? 0.24f : 0.10f) * styleScale, "Cosmic and lunar scenes bias cooler.");
+                Add("Biome", nameof(SceneIntent.HighlightProtection), 0.20f * styleScale, "Cosmic highlights need control.");
+                Add("Biome", nameof(SceneIntent.Atmosphere), 0.10f * styleScale, "Otherworldly zones can keep controlled depth atmosphere.");
                 break;
             case "highTech":
-                Add("Biome", nameof(SceneIntent.NeonGlow), 0.75f, "High-tech zones should preserve neon accents.");
-                Add("Biome", nameof(SceneIntent.HighlightProtection), 0.35f, "Neon and glossy surfaces need highlight protection.");
-                Add("Neon mood", nameof(SceneIntent.Atmosphere), 0.06f, "High-tech neon spaces keep a controlled ambient glow.");
+                Add("Biome", nameof(SceneIntent.NeonGlow), 0.78f * styleScale, "High-tech zones should preserve neon accents.");
+                Add("Biome", nameof(SceneIntent.HighlightProtection), 0.38f * styleScale, "Neon and glossy surfaces need highlight protection.");
+                Add("Neon mood", nameof(SceneIntent.Atmosphere), 0.06f * styleScale, "High-tech neon spaces keep a controlled ambient glow.");
                 break;
             case "imperial":
-                Add("Biome", nameof(SceneIntent.IndustrialHardness), 0.65f, "Imperial spaces have hard industrial contrast.");
-                Add("Biome", nameof(SceneIntent.Readability), 0.12f, "Industrial spaces benefit from clarity.");
-                Add("Industrial mood", nameof(SceneIntent.Atmosphere), -0.04f, "Industrial spaces favor structure over haze.");
+                Add("Biome", nameof(SceneIntent.IndustrialHardness), 0.68f * styleScale, "Imperial spaces have hard industrial contrast.");
+                Add("Biome", nameof(SceneIntent.Readability), 0.12f * styleScale, "Industrial spaces benefit from clarity.");
+                Add("Industrial mood", nameof(SceneIntent.Atmosphere), -0.04f * styleScale, "Industrial spaces favor structure over haze.");
                 break;
             case "ancient":
-                Add("Biome", nameof(SceneIntent.IndustrialHardness), 0.25f, "Ancient/ruin spaces need structural clarity.");
-                Add("Biome", nameof(SceneIntent.Readability), 0.12f, "Ruins benefit from readable structure.");
+                Add("Biome", nameof(SceneIntent.IndustrialHardness), 0.28f * styleScale, "Ancient/ruin spaces need structural clarity.");
+                Add("Biome", nameof(SceneIntent.Readability), 0.12f * styleScale, "Ruins benefit from readable structure.");
+                Add("Biome", nameof(SceneIntent.Atmosphere), 0.04f * styleScale, "Ruins can keep light age and depth atmosphere.");
                 break;
             case "coastal":
             case "tropical":
             case "underwater":
-                Add("Biome", nameof(SceneIntent.HighlightProtection), 0.30f, "Water and bright surfaces need specular control.");
+                Add("Biome", nameof(SceneIntent.HighlightProtection), (tags.IsNight ? 0.24f : 0.38f) * styleScale, "Water and bright surfaces need specular control.");
                 if (tags.BiomeKey is "coastal" or "tropical")
                 {
-                    Add("Biome", nameof(SceneIntent.FoliageDensity), tags.BiomeKey == "tropical" ? 0.28f : 0.18f, "Coastal and tropical field zones can carry mild foliage density.");
+                    Add("Biome", nameof(SceneIntent.FoliageDensity), (tags.BiomeKey == "tropical" ? 0.30f : 0.20f) * styleScale, "Coastal and tropical field zones can carry mild foliage density.");
+                    Add("Biome", nameof(SceneIntent.Heat), (tags.IsNight ? 0.04f : 0.10f) * styleScale, "Sunlit coastal and tropical scenes can lean gently warm without becoming dusty.");
+                    Add("Biome", nameof(SceneIntent.Atmosphere), 0.06f * styleScale, "Coastal scenes keep clean open-air atmosphere without haze.");
                 }
                 break;
             case "volcanic":
             case "fire":
-                Add("Biome", nameof(SceneIntent.Heat), 0.55f, "Fire and volcanic biomes are hot-scene signals.");
-                Add("Biome", nameof(SceneIntent.HighlightProtection), 0.35f, "Hot highlights need control.");
+                Add("Biome", nameof(SceneIntent.Heat), 0.55f * styleScale, "Fire and volcanic biomes are hot-scene signals.");
+                Add("Biome", nameof(SceneIntent.HighlightProtection), 0.35f * styleScale, "Hot highlights need control.");
                 break;
         }
     }
@@ -402,6 +414,8 @@ public sealed class SceneIntentBuilder
     private static float Clamp01(float value) => MathF.Min(1f, MathF.Max(0f, value));
 
     private static float Scale01(float value, float range) => Clamp01(value / range);
+
+    private static float BiomeStyleScale(SceneTags tags) => 0.55f + (Clamp01(tags.BiomeConfidence) * 0.45f);
 }
 
 public sealed record TagStackContribution(
@@ -420,7 +434,12 @@ public sealed record TagStackDiagnostics(
     string WeatherName,
     IReadOnlyList<string> ActiveTags,
     IReadOnlyList<string> ActiveWeatherTags,
+    IReadOnlyList<string> SecondaryTags,
     IReadOnlyList<string> MoodTags,
+    IReadOnlyList<string> MaterialTags,
+    IReadOnlyList<string> AreaContextTags,
+    IReadOnlyList<string> GameplayStateTags,
+    IReadOnlyList<string> ArtDirectionTags,
     string WeatherKey,
     string BiomeKey,
     float BiomeConfidence,
@@ -439,6 +458,11 @@ public sealed record TagStackDiagnostics(
         "Unknown",
         null,
         "Unknown",
+        Array.Empty<string>(),
+        Array.Empty<string>(),
+        Array.Empty<string>(),
+        Array.Empty<string>(),
+        Array.Empty<string>(),
         Array.Empty<string>(),
         Array.Empty<string>(),
         Array.Empty<string>(),
@@ -464,7 +488,12 @@ public sealed record TagStackDiagnostics(
             context.WeatherName,
             BuildActiveTags(context, tags),
             BuildActiveWeatherTags(tags),
+            BuildSecondaryTags(tags),
             tags.MoodTags,
+            BuildMaterialTags(tags),
+            BuildAreaContextTags(tags),
+            BuildGameplayStateTags(context, tags),
+            BuildArtDirectionTags(tags),
             tags.WeatherKey,
             tags.BiomeKey,
             tags.BiomeConfidence,
@@ -514,6 +543,66 @@ public sealed record TagStackDiagnostics(
         return result.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
+    private static IReadOnlyList<string> BuildSecondaryTags(SceneTags tags)
+    {
+        var result = new List<string>();
+        if (tags.BiomeKey is "coastal") result.AddRange(new[] { "seaside", "beach", "tropical" });
+        if (tags.BiomeKey is "tropical") result.AddRange(new[] { "coastal", "seaside", "lush" });
+        if (tags.BiomeKey is "jungle") result.AddRange(new[] { "rainforest", "lush", "verdant" });
+        if (tags.BiomeKey is "desert") result.AddRange(new[] { "badlands", "dry" });
+        if (tags.BiomeKey is "snow") result.AddRange(new[] { "alpine", "ice" });
+        if (tags.BiomeKey is "lunar") result.AddRange(new[] { "moonlit", "cosmic" });
+        if (tags.BiomeKey is "cosmic") result.AddRange(new[] { "alien", "aetherial" });
+        if (tags.BiomeKey is "highTech") result.AddRange(new[] { "neon", "urban" });
+        if (tags.BiomeKey is "imperial") result.AddRange(new[] { "industrial", "magitek" });
+        if (tags.BiomeKey is "ancient") result.AddRange(new[] { "ruins", "stone" });
+        result.AddRange(tags.MoodTags.Where(IsSecondaryMoodTag));
+        return NormalizeTags(result);
+    }
+
+    private static IReadOnlyList<string> BuildMaterialTags(SceneTags tags)
+    {
+        var result = new List<string>();
+        result.AddRange(tags.MoodTags.Where(IsMaterialTag));
+        if (tags.IsRain) result.AddRange(new[] { "wet", "specular" });
+        if (tags.IsDustStorm) result.Add("dust");
+        if (tags.IsSnow) result.AddRange(new[] { "snow", "ice" });
+        return NormalizeTags(result);
+    }
+
+    private static IReadOnlyList<string> BuildAreaContextTags(SceneTags tags)
+    {
+        var result = new List<string> { tags.AreaKey };
+        if (tags.IsCityLike) result.Add("city");
+        if (tags.IsFieldLike) result.Add("field");
+        if (tags.IsInteriorLike) result.Add("interior");
+        if (tags.IsDungeonLike) result.Add("dungeon");
+        if (tags.IsRaidLike) result.Add("raid");
+        return NormalizeTags(result);
+    }
+
+    private static IReadOnlyList<string> BuildGameplayStateTags(GameContext context, SceneTags tags)
+    {
+        var result = new List<string>();
+        if (tags.NeedsCombatClarity) result.Add("combatReadable");
+        if (tags.NeedsDutyReadability) result.Add("dutyReadable");
+        if (tags.NeedsGameplayClarity) result.Add("gameplayRestrained");
+        if (tags.CinematicAllowed) result.Add("cinematicAllowed");
+        if (context.InCutscene) result.Add("cutscene");
+        if (context.InGpose) result.Add("gpose");
+        return NormalizeTags(result);
+    }
+
+    private static IReadOnlyList<string> BuildArtDirectionTags(SceneTags tags)
+    {
+        var result = new List<string>();
+        result.AddRange(tags.MoodTags.Where(IsArtDirectionTag));
+        if (tags.IsNight) result.Add("night");
+        if (tags.IsDawnOrDusk) result.Add("goldenHour");
+        if (tags.IsGloom) result.Add("haunted");
+        return NormalizeTags(result);
+    }
+
     private static IReadOnlyList<string> BuildActiveWeatherTags(SceneTags tags)
     {
         var result = new List<string>();
@@ -528,5 +617,29 @@ public sealed record TagStackDiagnostics(
         if (tags.IsHeatWave) result.Add("heat");
         if (tags.IsClear) result.Add("clear");
         return result;
+    }
+
+    private static bool IsSecondaryMoodTag(string tag)
+    {
+        return tag is "coastal" or "tropical" or "seaside" or "beach" or "rainforest" or "lush" or "verdant" or "desert" or "badlands" or "alpine" or "lunar" or "cosmic" or "alien" or "aetherial" or "fae" or "ancient" or "ruins" or "highTech" or "neon" or "urban" or "imperial" or "industrial" or "moonlit";
+    }
+
+    private static bool IsMaterialTag(string tag)
+    {
+        return tag is "water" or "specular" or "wet" or "dry" or "dust" or "snow" or "ice" or "cold" or "metallic" or "steel" or "stone" or "crystal" or "foliage" or "fire" or "heat";
+    }
+
+    private static bool IsArtDirectionTag(string tag)
+    {
+        return tag is "clean" or "sunlit" or "colorful" or "canopyLight" or "humid" or "dreamlike" or "magical" or "pastel" or "haunted" or "gloom" or "dark" or "smoky" or "luminous" or "highDepth" or "structured" or "warm" or "cool" or "crisp" or "highKey" or "highContrast" or "softLight" or "sunScorched";
+    }
+
+    private static IReadOnlyList<string> NormalizeTags(IEnumerable<string> tags)
+    {
+        return tags
+            .Where(tag => !string.IsNullOrWhiteSpace(tag) && tag != "unknown")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 }

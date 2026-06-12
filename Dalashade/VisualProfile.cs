@@ -455,6 +455,8 @@ public sealed class ProfileEngine
 
     private static void ApplyBiome(SceneTags tags, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float clarity, ref float highlightRecovery, ref float shadowLift, ref float temperature, ref float bloomRadius, ref float bloomThreshold, ref float bloomDirt, ref float aoRadius, ref float debandStrength, ref float midtoneContrast, List<AppliedRule>? rules)
     {
+        var styleScale = BiomeStyleScale(tags);
+
         switch (tags.BiomeKey)
         {
             case "snow":
@@ -468,31 +470,32 @@ public sealed class ProfileEngine
                 }
                 else
                 {
-                    exposure *= 0.985f;
-                    bloom *= 0.90f;
-                    bloomRadius *= 0.90f;
-                    bloomThreshold *= 1.07f;
-                    bloomDirt *= 0.66f;
-                    saturation *= 0.985f;
+                    exposure *= StyleMultiplier(0.985f, styleScale);
+                    bloom *= StyleMultiplier(0.90f, styleScale);
+                    bloomRadius *= StyleMultiplier(0.90f, styleScale);
+                    bloomThreshold *= StyleMultiplier(1.07f, styleScale);
+                    bloomDirt *= StyleMultiplier(0.66f, styleScale);
+                    saturation *= StyleMultiplier(0.985f, styleScale);
                     rules?.Add(new AppliedRule("Snow/ice biome", "Protect bright whites and keep snowy zones from blooming into mush.", "exposure x0.985, bloom x0.90, saturation x0.985"));
                 }
                 break;
             case "forest":
-                ao *= 0.94f;
-                aoRadius *= 0.90f;
-                sharpness *= 0.96f;
-                shadowLift += 0.025f;
+                ao *= StyleMultiplier(0.94f, styleScale);
+                aoRadius *= StyleMultiplier(0.90f, styleScale);
+                sharpness *= StyleMultiplier(0.96f, styleScale);
+                saturation *= StyleMultiplier(1.012f, styleScale);
+                shadowLift += 0.025f * styleScale;
                 rules?.Add(new AppliedRule("Forest biome", "Foliage-heavy scenes get softer depth and a touch more shadow readability.", "AO x0.94, sharpen x0.96, shadow lift +0.025"));
                 break;
             case "jungle":
-                ao *= 0.95f;
-                aoRadius *= 0.88f;
-                sharpness *= 0.94f;
-                saturation *= tags.IsNight ? 1.025f : 1.015f;
-                midtoneContrast *= tags.IsNight ? 1.015f : 1.0f;
-                bloom *= tags.IsNight && !tags.NeedsCombatClarity ? 1.01f : 1.0f;
-                bloomDirt *= 0.78f;
-                shadowLift += tags.IsNight ? 0.018f : 0.035f;
+                ao *= StyleMultiplier(0.95f, styleScale);
+                aoRadius *= StyleMultiplier(0.88f, styleScale);
+                sharpness *= StyleMultiplier(0.94f, styleScale);
+                saturation *= StyleMultiplier(tags.IsNight ? 1.035f : 1.024f, styleScale);
+                midtoneContrast *= StyleMultiplier(tags.IsNight ? 1.018f : 1.006f, styleScale);
+                bloom *= StyleMultiplier(tags.IsNight && !tags.NeedsCombatClarity ? 1.018f : 1.006f, styleScale);
+                bloomDirt *= StyleMultiplier(0.78f, styleScale);
+                shadowLift += (tags.IsNight ? 0.018f : 0.035f) * styleScale;
                 rules?.Add(new AppliedRule("Jungle/rainforest biome", "Dense foliage gets selective shadow readability, richer greens, and softer depth without gray wash.", tags.IsNight ? "AO radius x0.88, shadow lift +0.018, saturation x1.025, midtone contrast x1.015" : "AO radius x0.88, sharpen x0.94, saturation x1.015"));
                 break;
             case "swamp":
@@ -503,12 +506,12 @@ public sealed class ProfileEngine
                 rules?.Add(new AppliedRule("Swamp/marsh biome", "Dense wet shadows get readability without adding extra bloom dirt.", "AO x0.92, AO radius x0.88, shadow lift +0.035"));
                 break;
             case "desert":
-                exposure *= 0.96f;
-                bloom *= 0.90f;
-                bloomRadius *= 0.92f;
-                bloomDirt *= 0.76f;
-                contrast *= 1.03f;
-                temperature += 0.025f;
+                exposure *= StyleMultiplier(tags.IsNight ? 0.985f : 0.96f, styleScale);
+                bloom *= StyleMultiplier(0.90f, styleScale);
+                bloomRadius *= StyleMultiplier(0.92f, styleScale);
+                bloomDirt *= StyleMultiplier(0.76f, styleScale);
+                contrast *= StyleMultiplier(1.035f, styleScale);
+                temperature += (tags.IsNight ? 0.014f : 0.032f) * styleScale;
                 rules?.Add(new AppliedRule("Desert biome", "Hot bright zones keep shape by easing exposure/bloom and adding a little contrast.", "exposure x0.96, bloom x0.90, warmth +0.025"));
                 break;
             case "wasteland":
@@ -560,8 +563,7 @@ public sealed class ProfileEngine
             case "fae":
                 bloom *= tags.NeedsCombatClarity ? 0.94f : 1.04f;
                 bloomRadius *= tags.NeedsCombatClarity ? 0.94f : 1.03f;
-                saturation *= 1.02f;
-                saturation *= 1.005f;
+                saturation *= StyleMultiplier(1.032f, styleScale);
                 rules?.Add(new AppliedRule("Fae/dreamlike biome", "Dreamlike zones can keep color and mild glow unless combat is active.", tags.NeedsCombatClarity ? "combat dampened bloom x0.94" : "bloom x1.04, saturation x1.02"));
                 break;
             case "lightFlooded":
@@ -575,11 +577,12 @@ public sealed class ProfileEngine
                 break;
             case "cosmic":
             case "lunar":
-                bloom *= 0.96f;
-                bloomRadius *= 0.95f;
-                bloomDirt *= 0.76f;
-                clarity *= 1.02f;
-                temperature -= tags.BiomeKey == "lunar" ? 0.015f : 0f;
+                bloom *= StyleMultiplier(0.96f, styleScale);
+                bloomRadius *= StyleMultiplier(0.95f, styleScale);
+                bloomDirt *= StyleMultiplier(0.76f, styleScale);
+                clarity *= StyleMultiplier(1.025f, styleScale);
+                midtoneContrast *= StyleMultiplier(1.015f, styleScale);
+                temperature -= tags.BiomeKey == "lunar" ? 0.020f * styleScale : 0.010f * styleScale;
                 rules?.Add(new AppliedRule(tags.BiomeKey == "lunar" ? "Lunar biome" : "Cosmic biome", "Space-like zones keep clean glow without letting bloom dirt take over.", "bloom x0.96, bloom dirt x0.76, clarity x1.02"));
                 break;
             case "ancient":
@@ -589,35 +592,40 @@ public sealed class ProfileEngine
                 rules?.Add(new AppliedRule("Ancient/ruin biome", "Ancient stone and Allagan spaces get clearer structure with controlled dirt bloom.", "contrast x1.015, clarity x1.025"));
                 break;
             case "imperial":
-                saturation *= 0.975f;
-                clarity *= 1.04f;
-                bloom *= 0.94f;
-                bloomDirt *= 0.76f;
-                temperature -= 0.018f;
+                saturation *= StyleMultiplier(0.965f, styleScale);
+                clarity *= StyleMultiplier(1.045f, styleScale);
+                bloom *= StyleMultiplier(0.94f, styleScale);
+                bloomDirt *= StyleMultiplier(0.72f, styleScale);
+                temperature -= 0.022f * styleScale;
                 rules?.Add(new AppliedRule("Imperial/industrial biome", "Steel and magitek scenes get cooler clarity and restrained bloom.", "saturation x0.975, clarity x1.04, warmth -0.018"));
                 break;
             case "highTech":
-                bloom *= 0.96f;
-                bloomRadius *= 0.94f;
-                bloomDirt *= 0.62f;
-                bloomThreshold *= 1.04f;
-                saturation *= 1.015f;
-                clarity *= 1.02f;
+                bloom *= StyleMultiplier(0.96f, styleScale);
+                bloomRadius *= StyleMultiplier(0.94f, styleScale);
+                bloomDirt *= StyleMultiplier(0.62f, styleScale);
+                bloomThreshold *= StyleMultiplier(1.045f, styleScale);
+                saturation *= StyleMultiplier(1.026f, styleScale);
+                clarity *= StyleMultiplier(1.028f, styleScale);
+                contrast *= StyleMultiplier(1.018f, styleScale);
                 rules?.Add(new AppliedRule("High-tech/neon biome", "Neon zones preserve accent color while controlling bloom dirt and highlights.", "bloom dirt x0.62, saturation x1.015, clarity x1.02"));
                 break;
             case "coastal":
-                bloom *= 0.96f;
-                bloomRadius *= 0.95f;
-                bloomDirt *= 0.82f;
-                saturation *= 1.02f;
-                sharpness *= 0.99f;
-                rules?.Add(new AppliedRule("Coastal biome", "Water, beach, and La Noscea field scenes keep color while protecting specular bloom.", "bloom x0.96, saturation x1.02, sharpen x0.99"));
+                exposure *= StyleMultiplier(tags.IsNight ? 1.005f : 1.018f, styleScale);
+                bloom *= StyleMultiplier(0.97f, styleScale);
+                bloomRadius *= StyleMultiplier(0.96f, styleScale);
+                bloomThreshold *= StyleMultiplier(1.025f, styleScale);
+                bloomDirt *= StyleMultiplier(0.78f, styleScale);
+                saturation *= StyleMultiplier(1.035f, styleScale);
+                sharpness *= StyleMultiplier(0.99f, styleScale);
+                temperature += (tags.IsNight ? 0.006f : 0.018f) * styleScale;
+                rules?.Add(new AppliedRule("Coastal biome", "Water, beach, and La Noscea field scenes keep bright color while protecting specular bloom.", "exposure x1.018, bloom threshold x1.025, saturation x1.035"));
                 break;
             case "tropical":
-                bloom *= 0.97f;
-                bloomDirt *= 0.80f;
-                saturation *= 1.025f;
-                sharpness *= 0.98f;
+                bloom *= StyleMultiplier(0.97f, styleScale);
+                bloomDirt *= StyleMultiplier(0.80f, styleScale);
+                saturation *= StyleMultiplier(1.038f, styleScale);
+                sharpness *= StyleMultiplier(0.98f, styleScale);
+                temperature += 0.020f * styleScale;
                 rules?.Add(new AppliedRule("Tropical/island biome", "Island scenes preserve color while avoiding over-sharpened water and foliage.", "saturation x1.025, bloom dirt x0.80"));
                 break;
             case "underwater":
@@ -911,6 +919,10 @@ public sealed class ProfileEngine
     private static float Lerp(float start, float end, float amount) => start + ((end - start) * amount);
 
     private static float Scale01(float value, float range) => Clamp(value / range, 0f, 1f);
+
+    private static float BiomeStyleScale(SceneTags tags) => 0.55f + (Clamp(tags.BiomeConfidence, 0f, 1f) * 0.45f);
+
+    private static float StyleMultiplier(float target, float scale) => 1f + ((target - 1f) * scale);
 }
 
 public sealed record ProfileResult(VisualProfile Profile, IReadOnlyList<AppliedRule> Rules, MasterStyleDiagnostics MasterStyleDiagnostics, TagStackDiagnostics TagStackDiagnostics);

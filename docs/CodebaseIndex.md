@@ -34,6 +34,7 @@ This map lists implemented files and their current responsibilities. Do not inve
 | Keybind capture | `Dalashade/Keybind.cs` | `Keybind`, `KeybindCapture` | Reload hotkey config/capture/format | Yes | Windows virtual key behavior. |
 | Base preset library | `Dalashade/BasePresetLibrary.cs` | `BasePresetLibrary`, `BasePresetLibraryItem` | Scans top-level `.ini` files in the Base folder | Yes | Dropdown selection sets `Configuration.BasePresetPath`. |
 | Regression reports | `Dalashade/PresetRegressionReportHarness.cs` | `PresetRegressionReportHarness`, `PresetRegressionSummary` | Scans a test folder and creates markdown regression reports | Yes | Does not require ReShade running. |
+| Scene tag regression checks | `Dalashade/SceneTagRegressionHarness.cs` | `SceneTagRegressionHarness`, `SceneTagRegressionCase` | Verifies representative territory/weather/tag outputs and final profile clamps | Yes | Covers key FFXIV zone families for tag-system edits. |
 | Plugin manifest | `Dalashade/Dalashade.json` | JSON manifest | Plugin metadata inside build output | Only for release tasks | Keep version/release text aligned. |
 | Custom repo manifest | `repo.json` | JSON manifest | Dalamud custom repository metadata/download links | Only for release tasks | Verify URLs and zip names before changing. |
 | Release zips | `releases/` | Zip files | Published plugin artifacts | Only for release tasks | Do not alter during normal code tasks. |

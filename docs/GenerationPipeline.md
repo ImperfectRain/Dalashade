@@ -9,9 +9,14 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
 3. `Plugin.GenerateNow()` resolves the effective base preset path, refreshes context, screenshot analysis, and master style state.
 4. `GameContextService.Refresh()` in `Dalashade/GameContext.cs` reads territory, weather, time, combat, duty, GPose, and cutscene state.
 5. `SceneClassifier.Classify()` converts `GameContext` into `SceneTags`.
+   - Classification is hierarchical: one primary biome, supporting mood/material/art-direction tags, weather tags, area/context tags, and gameplay-state modifiers.
+   - Territory keyword confidence is preserved so strong XIV zone-family matches can push clearer art direction while fallback matches stay conservative.
 6. If enabled, `ImageAnalysisService.Refresh()` in `Dalashade/ImageAnalysis.cs` analyzes the latest screenshot.
 7. If enabled, `MasterStyleService.Refresh()` in `Dalashade/MasterStyle.cs` analyzes selected master style images.
 8. `SceneIntentBuilder.Build(...)` in `Dalashade/SceneIntent.cs` summarizes context, tags, screenshot analysis, target style, and performance budget into stack-aware intent values.
+   - Biome intent is confidence-aware.
+   - Fog/mist drives haze; gloom drives dark mood with much less haze.
+   - Combat/duty dampen cinematic, bloom, and haze pressure without deleting the zone identity.
 9. `ProfileEngine.CreateWithRules()` in `Dalashade/VisualProfile.cs` creates a `VisualProfile`, applied rules, and tag-stack diagnostics.
 10. If master style is available, `MasterStyleMatcher.Match()` in `Dalashade/MasterStyleMatcher.cs` returns deltas, diagnostics, rules, and color-family adjustments.
 11. `Plugin.ScanPresetCompatibility()` runs `PresetWriter.ScanSupportedVariables()` and `PresetAnalyzer.Analyze()`.

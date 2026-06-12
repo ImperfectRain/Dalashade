@@ -100,7 +100,12 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Biome key: {diagnostics.BiomeKey}");
         ImGui.TextUnformatted($"Biome confidence: {diagnostics.BiomeConfidence:P0}");
         ImGui.TextWrapped($"Biome reason: {diagnostics.BiomeReason}");
+        ImGui.TextWrapped($"Secondary tags: {FormatTagList(diagnostics.SecondaryTags)}");
         ImGui.TextWrapped($"Mood tags: {(diagnostics.MoodTags.Count == 0 ? "none" : string.Join(", ", diagnostics.MoodTags))}");
+        ImGui.TextWrapped($"Material tags: {FormatTagList(diagnostics.MaterialTags)}");
+        ImGui.TextWrapped($"Area/context tags: {FormatTagList(diagnostics.AreaContextTags)}");
+        ImGui.TextWrapped($"Gameplay-state tags: {FormatTagList(diagnostics.GameplayStateTags)}");
+        ImGui.TextWrapped($"Art-direction tags: {FormatTagList(diagnostics.ArtDirectionTags)}");
         ImGui.TextUnformatted($"Area key: {diagnostics.AreaKey}");
         ImGui.TextUnformatted($"Combat: {diagnostics.InCombat}");
         ImGui.TextUnformatted($"Duty: {diagnostics.InDuty}");
@@ -164,6 +169,11 @@ public sealed class MainWindow : Window, IDisposable
 
             ImGui.TreePop();
         }
+    }
+
+    private static string FormatTagList(IReadOnlyList<string> tags)
+    {
+        return tags.Count == 0 ? "none" : string.Join(", ", tags);
     }
 
     private string BasePresetSummary()

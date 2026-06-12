@@ -89,7 +89,9 @@ Implemented report paths:
 | Compatibility report | `CompatibilityReportExporter.Export(...)` |
 | Regression reports | `PresetRegressionReportHarness.Run(...)` |
 
-Compatibility reports include preset risk, authorities, role policies, shader support, changed variables, sanitize actions, master diagnostics, and mapping validation.
+Compatibility reports include preset risk, authorities, role policies, shader support, changed variables, sanitize actions, master diagnostics, scene-tag diagnostics, and mapping validation.
+
+Scene-tag diagnostics include the primary biome, confidence, matched keyword/reason, active weather tags, secondary tags, material tags, area/context tags, gameplay-state tags, art-direction tags, and `SceneIntent` contributions grouped by tag category. Use these sections first when a generated preset has the wrong environmental identity.
 
 Regression reports scan a folder of `.ini` presets and write timestamped markdown summaries. They do not require ReShade to be running and should not overwrite user presets.
 
@@ -104,7 +106,7 @@ The main window includes sections for:
 | Changed Variables | Written shader variable changes. |
 | Sanitize Actions | Gameplay sanitize changes. |
 | Applied Rules | Profile generation rules. |
-| Scene Tags | Weather, biome, area, intent values, and stack-budget contributions. |
+| Scene Tags | Weather, primary biome, secondary/material/art-direction tags, area/gameplay context, intent values, and stack-budget contributions. |
 | Screenshot Analysis | Current screenshot stats. |
 | Master Style | Master style diagnostics. |
 | Regression Reports | Last regression run status. |
@@ -116,6 +118,7 @@ The main window includes sections for:
 | --- | --- |
 | Image turns black and white | Color grade variables, ReGrade+ Colorista changes, LUT strength, and compatibility mode. |
 | Preset too dark | Exposure, black point, white point, contrast, shadow lift, master style tonal deltas. |
+| Zone has the wrong identity | Scene Tags primary biome, biome reason, confidence, secondary/material/art-direction tags, and SceneIntent contribution groups. |
 | No visible change | Changed variable count, active ReShade preset, reload diagnostics, and supported shader scan. |
 | Too many variables changed | Shader matching mode, inactive shader write mode, and multiple authorities. |
 | ReShade reload did not happen | `ReShade.ini` path, reload key sync, configured hotkey, and diagnostics. |
