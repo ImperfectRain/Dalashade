@@ -13,8 +13,8 @@ public static class MaterialIntentBuilder
 
     public static MaterialIntent Build(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, MaterialProfile profile)
     {
-        var state = new State(diagnostics);
-        AddMaterialProfile(state, profile);
+        var state = new State(diagnostics, profile);
+        AddMaterialProfilePriors(state, profile);
         AddFoliage(state);
         AddWaterSpecular(state);
         AddSandDust(state);
@@ -32,14 +32,23 @@ public static class MaterialIntentBuilder
         return state.ToIntent();
     }
 
-    private static void AddMaterialProfile(State state, MaterialProfile profile)
+    private static void AddMaterialProfilePriors(State state, MaterialProfile profile)
     {
         foreach (var channel in MaterialIntent.ChannelNames)
         {
             var value = profile.ValueFor(channel);
             if (value > 0f)
             {
-                state.Add(channel, value, "MaterialProfile", $"Profile family '{profile.Family}' contributed material plausibility prior.");
+                state.AddProfilePrior(channel, value, "MaterialProfile prior", $"Profile family '{profile.Family}' set scene plausibility before non-profile evidence.");
+            }
+
+            var suppressions = profile.Contributions
+                .Where(contribution => string.Equals(contribution.Channel, channel, StringComparison.Ordinal) && contribution.Amount < 0f)
+                .OrderBy(contribution => contribution.Amount)
+                .Take(2);
+            foreach (var suppression in suppressions)
+            {
+                state.AddProfilePrior(channel, suppression.Amount, "MaterialProfile suppression", suppression.Reason);
             }
         }
     }
@@ -284,6 +293,17 @@ public static class MaterialIntentBuilder
             state.Add(MaterialIntent.SkyCloudFogChannel, 0.08f, "screenshot analysis", "Low-contrast, unclipped image analysis weakly suggests sky, cloud, fog, or atmospheric gradients.");
         }
 
+        if (TryGetRegion(imageAnalysis, ImageAnalysisRegion.UpperThird, out var upper))
+        {
+            var upperSkyColor = RegionFamilyConfidence(upper, ColorFamily.Blue)
+                                + RegionFamilyConfidence(upper, ColorFamily.Cyan)
+                                + MathF.Max(0f, upper.BrightTendency - 0.20f);
+            if (upper.SmoothTendency > 0.45f && upperSkyColor > 0.24f)
+            {
+                state.Add(MaterialIntent.SkyCloudFogChannel, MathF.Min(0.08f, upperSkyColor * 0.04f), "screenshot region", "Smooth upper blue, cyan, or bright region weakly supports sky/cloud plausibility.");
+            }
+        }
+
         if (state.HasAny("interior", "dungeon", "cave"))
         {
             state.Add(MaterialIntent.SkyCloudFogChannel, -0.18f, "area suppression", "Interior, dungeon, or cave context reduces likely visible sky/cloud material.");
@@ -310,6 +330,15 @@ public static class MaterialIntentBuilder
             if (skinLike > 0.20f && imageAnalysis.AverageLuminance is > 0.18f and < 0.82f)
             {
                 state.Add(MaterialIntent.SkinProtectionChannel, skinLike * 0.14f, "screenshot analysis", "Moderate warm color-family confidence weakly suggests skin-tone protection risk.");
+            }
+        }
+
+        if (TryGetRegion(imageAnalysis, ImageAnalysisRegion.Center, out var center))
+        {
+            var warmCenter = RegionFamilyConfidence(center, ColorFamily.Orange) + (RegionFamilyConfidence(center, ColorFamily.Red) * 0.45f);
+            if (warmCenter > 0.18f && center.AverageLuminance is > 0.18f and < 0.82f && center.SmoothTendency > 0.25f)
+            {
+                state.Add(MaterialIntent.SkinProtectionChannel, MathF.Min(0.06f, warmCenter * 0.05f), "screenshot region", "Smooth warm center-region color weakly supports skin/character protection.");
             }
         }
 
@@ -403,6 +432,22 @@ public static class MaterialIntentBuilder
         }
     }
 
+    private static bool TryGetRegion(ImageAnalysisResult imageAnalysis, ImageAnalysisRegion region, out ImageRegionStats stats)
+    {
+        if (imageAnalysis.Available && imageAnalysis.Regions.TryGetValue(region, out stats!))
+        {
+            return true;
+        }
+
+        stats = ImageRegionStats.Empty(region);
+        return false;
+    }
+
+    private static float RegionFamilyConfidence(ImageRegionStats stats, ColorFamily family)
+    {
+        return stats.ColorFamilies.TryGetValue(family, out var familyStats) ? familyStats.Confidence : 0f;
+    }
+
 
     private static float FamilyConfidence(ImageAnalysisResult imageAnalysis, ColorFamily family)
     {
@@ -411,15 +456,18 @@ public static class MaterialIntentBuilder
 
     private sealed class State
     {
-        private readonly Dictionary<string, float> values = MaterialIntent.ChannelNames.ToDictionary(channel => channel, _ => 0f, StringComparer.Ordinal);
+        private readonly Dictionary<string, float> positiveEvidence = MaterialIntent.ChannelNames.ToDictionary(channel => channel, _ => 0f, StringComparer.Ordinal);
+        private readonly Dictionary<string, float> suppressionEvidence = MaterialIntent.ChannelNames.ToDictionary(channel => channel, _ => 0f, StringComparer.Ordinal);
         private readonly List<MaterialIntentContribution> contributions = [];
         private readonly HashSet<string> tags;
         private readonly string searchableText;
         private readonly TagStackDiagnostics diagnostics;
+        private readonly MaterialProfile profile;
 
-        public State(TagStackDiagnostics diagnostics)
+        public State(TagStackDiagnostics diagnostics, MaterialProfile profile)
         {
             this.diagnostics = diagnostics;
+            this.profile = profile;
             tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             AddTags(diagnostics.ActiveTags);
             AddTags(diagnostics.ActiveWeatherTags);
@@ -446,9 +494,22 @@ public static class MaterialIntentBuilder
 
         public SceneIntent SceneIntent => diagnostics.Intent;
 
+        public void AddProfilePrior(string channel, float amount, string source, string reason)
+        {
+            contributions.Add(new MaterialIntentContribution(channel, source, amount, reason));
+        }
+
         public void Add(string channel, float amount, string source, string reason)
         {
-            values[channel] = Clamp01(values[channel] + amount);
+            if (amount >= 0f)
+            {
+                positiveEvidence[channel] += amount;
+            }
+            else
+            {
+                suppressionEvidence[channel] += -amount;
+            }
+
             contributions.Add(new MaterialIntentContribution(channel, source, amount, reason));
         }
 
@@ -481,7 +542,23 @@ public static class MaterialIntentBuilder
             }
         }
 
-        private float Value(string channel) => values.TryGetValue(channel, out var value) ? Clamp01(value) : 0f;
+        private float Value(string channel)
+        {
+            var positive = positiveEvidence.TryGetValue(channel, out var positiveValue) ? positiveValue : 0f;
+            var suppression = suppressionEvidence.TryGetValue(channel, out var suppressionValue) ? suppressionValue : 0f;
+            var profilePrior = Clamp01(profile.ValueFor(channel));
+            var nonProfileEvidence = Clamp01(positive - (suppression * 0.55f));
+            var explicitEvidence = positive >= 0.70f;
+            var weakProfile = profilePrior < 0.10f;
+            var profileCap = explicitEvidence
+                ? 1.0f
+                : weakProfile
+                    ? 0.42f
+                    : MathF.Min(0.92f, 0.48f + (profilePrior * 0.62f));
+            var blended = (nonProfileEvidence * 0.76f) + (profilePrior * 0.24f);
+            var suppressed = blended - (MathF.Max(0f, suppression - 0.18f) * 0.18f);
+            return Clamp01(MathF.Min(profileCap, suppressed));
+        }
     }
 
     private static float Clamp01(float value) => MathF.Min(1f, MathF.Max(0f, value));

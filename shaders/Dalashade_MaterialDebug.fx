@@ -121,6 +121,13 @@ uniform float Dalashade_DepthAssistConfidenceFloor <
     ui_tooltip = "Minimum depth confidence when depth assist is enabled. Keep low unless depth is verified.";
 > = 0.0;
 
+uniform float Dalashade_DepthConfidenceFloor <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Depth Confidence Floor";
+    ui_tooltip = "Alias for generated presets that use the shorter depth-confidence name.";
+> = 0.0;
+
 float3 Dalashade_ApplyDebugOverlay(float3 source, float3 debugColor, float confidence)
 {
     float opacity = saturate(Dalashade_MaterialDebugOpacity) * saturate(Dalashade_MaterialDebugStrength);
@@ -154,7 +161,7 @@ float4 Dalashade_MaterialDebugPass(float4 position : SV_Position, float2 texcoor
         texcoord,
         Dalashade_EnableDepthAssist ? 1.0 : 0.0,
         Dalashade_DepthAssistStrength,
-        Dalashade_DepthAssistConfidenceFloor);
+        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
     Dalashade_RawMaterialCandidates raw = Dalashade_GetRawMaterialCandidates(signals);
     Dalashade_GatedMaterialCandidates gated = Dalashade_GetGatedMaterialCandidates(
         raw,

@@ -98,7 +98,7 @@ Material diagnostics are split into plugin-side scene plausibility and shader-si
 | Report item | Meaning |
 | --- | --- |
 | MaterialProfile family and tags | Scene-level material plausibility such as jungle canopy, coastal waterline, snowfield, neon urban, aetherial landscape, dungeon interior, or raid arena. |
-| MaterialIntent values | Optional inferred material likelihood channels. These are not true engine material IDs and do not affect visuals unless MaterialIntent shader mapping is enabled. |
+| MaterialIntent values | Optional inferred material likelihood channels. Reports separate profile prior, non-profile evidence, final value, and suppressions. These are not true engine material IDs and do not affect visuals unless MaterialIntent shader mapping is enabled. |
 | MaterialIntent shader uniform output | Which first-party Dalashade shader sections received material channel values in the generated preset. |
 | MaterialMasks v2 notes | Debug vocabulary for `RawCandidate`, `SceneGatedCandidate`, `FinalMask`, optional depth assist, and likely failure sources. |
 | First-party custom shader status | Whether WeatherAtmosphere, AdaptiveGrade, AtmosphereBloom, SmartSharpen, and MaterialDebug appear active, inactive, unknown, or absent in preset analysis. |

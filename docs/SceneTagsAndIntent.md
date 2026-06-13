@@ -78,7 +78,7 @@ Starter profile families include:
 | `aetherial/cosmic` | `aetherialLandscape`, `openSkyField` | Crystal/aether and sky/space atmosphere, suppressed mundane sand/metal unless tags support them. |
 | Interior/duty overlays | `dungeonInterior`, `raidArena` | Suppressed generic sky/cloud/fog and conservative cinematic material assumptions for gameplay. |
 
-`MaterialIntent` consumes MaterialProfile priors plus the older tag, territory, screenshot, and SceneIntent evidence. It outputs the same normalized channels and remains optional, conservative, and diagnosable.
+`MaterialIntent` consumes MaterialProfile priors plus the older tag, territory, screenshot, and SceneIntent evidence. MaterialProfile acts as a plausibility prior/gate instead of a raw additive contribution: reports show the profile prior separately from non-profile evidence, and final values are blended and capped so repeated descriptions of the same scene do not max a channel by stacking. It outputs the same normalized channels and remains optional, conservative, and diagnosable.
 
 MaterialIntent is controlled by configuration:
 
@@ -108,7 +108,7 @@ MaterialIntent currently reports these normalized channels:
 | `SkinProtection` | Likely character/skin protection risk, inferred conservatively from presentation, city/combat context, and warm screenshot color families. |
 | `VoidDarkness` | Likely void, umbral, haunted, abyssal, gothic, or darkness material identity. Night alone is explicitly not enough. |
 
-Every channel records positive and negative contribution diagnostics. Compatibility reports show the final channel value, top positive sources, and top suppressions. These diagnostics do not alter `SceneIntent` or `VisualProfile`.
+Every channel records positive and negative contribution diagnostics. Compatibility reports show profile prior, non-profile evidence, final channel value, and suppressions. These diagnostics do not alter `SceneIntent` or `VisualProfile`.
 
 MaterialIntent shader variable plumbing is zero-impact by default. When `EnableMaterialIntentShaderMapping` is off, Dalashade skips MaterialIntent variables entirely: it does not update existing material keys and generated-preset-only injection does not add material keys. When mapping is on, `EnableMaterialIntent` is on, and `MaterialIntentStrength` is greater than `0.0`, matching known material keys in Dalashade custom shader sections can be written as `MaterialIntent value * MaterialIntentStrength`. Missing uniforms and missing custom shader sections are skipped safely.
 
@@ -121,6 +121,8 @@ Shader-side material masks use separate debug vocabulary:
 | `FinalMask` | Shader-specific result after conflict suppression, optional depth assistance, and local dampening. |
 
 MaterialProfile and MaterialIntent provide scene gates. They do not decide that a specific pixel is foliage, sky, water, snow, or skin by themselves.
+
+Screenshot analysis includes weak region-aware hints for MaterialProfile/MaterialIntent. Upper-third smooth blue/cyan/bright regions can support sky/cloud plausibility; lower-third blue/cyan can support water only when water/coastal tags already exist; lower warm regions can support sand only with desert/coastal context; lower or middle bright cold regions can support snow only with cold/snow tags; and middle-region green can support foliage only in field/forest/jungle contexts. These hints are intentionally weak and do not affect `SceneIntent` or `VisualProfile`.
 
 `shaders/Dalashade_MaterialMasks.fxh` implements the current MaterialMasks v2 shader-side layer. It computes raw visual candidates, scales them by scene material plausibility, resolves conflicts, and exposes final masks to first-party shaders. Depth assist exists as an optional shader-owned helper for sky/water/snow/foreground separation, but it is disabled by default and is never required for mask output.
 

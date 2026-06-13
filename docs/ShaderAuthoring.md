@@ -55,7 +55,7 @@ Material flow is layered:
 
 1. SceneTags describe biome, weather, mood, area, gameplay, material, and art-direction context.
 2. MaterialProfile turns those tags plus territory/weather text, screenshot metrics, and SceneIntent values into scene plausibility priors such as `jungleCanopy`, `coastalWaterline`, `snowfield`, `desertOpen`, `neonUrban`, `aetherialLandscape`, `dungeonInterior`, or `raidArena`.
-3. MaterialIntent consumes those priors and outputs normalized scene-level material channels.
+3. MaterialIntent consumes those priors and outputs normalized scene-level material channels. MaterialProfile is treated as a plausibility prior/gate instead of a direct additive boost; reports separate profile prior, non-profile evidence, final value, and suppressions.
 4. Shader-side MaterialMasks still decide pixel-level influence. Debug docs use `RawCandidate` for local pixel evidence, `SceneGatedCandidate` for local evidence scaled by scene plausibility, and `FinalMask` for the shader-specific result after conflicts and depth/smoothness checks.
 
 MaterialProfile and MaterialIntent are plausibility gates, not true engine material IDs. A high scene-level value should make matching pixels eligible; it should not tint or alter the whole frame by itself.
@@ -353,7 +353,7 @@ Manual testing controls:
 | `Dalashade_MaterialDebugStrength` | Scales material debug-mask visibility. Debug masks show inferred influence, not true engine material IDs. |
 | `Dalashade_EnableDepthAssist` | Optional material-mask helper. Default `false`; depth is never required for SmartSharpen material dampening. |
 | `Dalashade_DepthAssistStrength` | Default `0.0`. Allows valid depth to help sky/fog, water, snow, and foreground protection separation. |
-| `Dalashade_DepthAssistConfidenceFloor` | Default `0.0`. Minimum confidence only when depth assist is enabled and depth has been verified. |
+| `Dalashade_DepthAssistConfidenceFloor` / `Dalashade_DepthConfidenceFloor` | Default `0.0`. Minimum confidence only when depth assist is enabled and depth has been verified. The shorter name is an alias for generated presets and future shader revisions. |
 
 The shader uses two channels. Structural clarity uses broad, lower-frequency luma edges for silhouettes and readable geometry. Texture detail is separate and much smaller, then strongly dampened by foliage, haze, wetness, far depth, bright edges, sky/smooth gradients, deep night shadows, and secondary sharpen authority. Artificial-light intent can preserve modest structural clarity on lit subjects, but it does not increase micro-texture sharpening. MaterialIntent only adds additional dampening: foliage reduces leaf/grass/canopy crunch, water/specular reduces glint shimmer, snow/ice reduces bright snow noise and haloing, sky/cloud/fog excludes smooth gradients, and skin protection reduces aggressive smoothing-region sharpening. If Marty Sharpen or another non-Dalashade sharpener is active, generated SmartSharpen values default to secondary authority: lower overall strength, much lower texture detail, higher anti-crunch, and stronger foliage/far-depth/halo dampening. Do not use this shader as an anti-aliasing replacement.
 
@@ -455,7 +455,7 @@ SceneIntent values are normalized `0.0` to `1.0`. `Dalashade_SharpenAuthority` i
 
 `Dalashade_MaterialDebug.fx` consumes only MaterialIntent/debug uniforms and uses `Dalashade_MaterialMasks.fxh` for screen-space heuristic masks. Mode `0` is pass-through, so normal output is unchanged when the debug mode is disabled.
 
-The depth-assist controls `Dalashade_EnableDepthAssist`, `Dalashade_DepthAssistStrength`, and `Dalashade_DepthAssistConfidenceFloor` are shader-owned. Generated-preset section injection can include them with zero-impact defaults, but Dalashade does not enable depth assist or append any debug technique to `Techniques=`.
+The depth-assist controls `Dalashade_EnableDepthAssist`, `Dalashade_DepthAssistStrength`, `Dalashade_DepthAssistConfidenceFloor`, and the alias `Dalashade_DepthConfidenceFloor` are shader-owned. Generated-preset section injection can include them with zero-impact defaults, but Dalashade does not enable depth assist or append any debug technique to `Techniques=`.
 
 ## Example Preset Section
 

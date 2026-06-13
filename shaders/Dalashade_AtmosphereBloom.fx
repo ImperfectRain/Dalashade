@@ -171,6 +171,13 @@ uniform float Dalashade_DepthAssistConfidenceFloor <
     ui_label = "Depth Assist Confidence Floor";
 > = 0.0;
 
+uniform float Dalashade_DepthConfidenceFloor <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Depth Confidence Floor";
+    ui_tooltip = "Alias for generated presets that use the shorter depth-confidence name.";
+> = 0.0;
+
 uniform float BloomStrength <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -364,7 +371,7 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
             0.0,
             Dalashade_EnableDepthAssist ? 1.0 : 0.0,
             Dalashade_DepthAssistStrength,
-            Dalashade_DepthAssistConfidenceFloor);
+            max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
         float skyMask = materialMasks.SkyCloudFog;
         float waterMask = materialMasks.WaterSpecular;
         float aetherMask = materialMasks.CrystalAether * coolAetherMask * smoothstep(threshold - 0.18, 1.0, luma);

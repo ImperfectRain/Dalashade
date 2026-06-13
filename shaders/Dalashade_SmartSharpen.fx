@@ -129,6 +129,13 @@ uniform float Dalashade_DepthAssistConfidenceFloor <
     ui_label = "Depth Assist Confidence Floor";
 > = 0.0;
 
+uniform float Dalashade_DepthConfidenceFloor <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Depth Confidence Floor";
+    ui_tooltip = "Alias for generated presets that use the shorter depth-confidence name.";
+> = 0.0;
+
 uniform float SharpenStrength <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -308,7 +315,7 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
         0.0,
         Dalashade_EnableDepthAssist ? 1.0 : 0.0,
         Dalashade_DepthAssistStrength,
-        Dalashade_DepthAssistConfidenceFloor);
+        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
     float materialFoliageStrong = materialMasks.FoliageStrong;
     float materialOrganicGreen = materialMasks.OrganicGreenSurface;
     float materialFoliagePixel = saturate(materialFoliageStrong + materialOrganicGreen * 0.42);

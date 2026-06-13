@@ -49,12 +49,13 @@ Compatibility report export can build `MaterialProfile` and `MaterialIntent` dia
 
 - MaterialProfile is the scene plausibility stage. It chooses a broad family such as `jungle/rainforest`, `coastal/tropical`, `snow/cold`, `desert/badlands`, `neon/high-tech`, or `aetherial/cosmic`, adds profile tags such as `forestCanopy`, `coastalWaterline`, `snowfield`, `desertOpen`, `neonUrban`, `aetherialLandscape`, `dungeonInterior`, or `raidArena`, then records material priors and suppressions.
 - MaterialIntent is inferred material likelihood, not true engine material ID detection.
-- MaterialIntent consumes MaterialProfile priors plus older tag, territory, screenshot, and SceneIntent evidence. It still outputs the same normalized material channels.
+- MaterialIntent consumes MaterialProfile priors plus older tag, territory, screenshot, and SceneIntent evidence. MaterialProfile shapes plausibility and caps rather than stacking directly, so reports separate profile prior, non-profile evidence, final value, and suppressions.
 - `EnableMaterialIntent` controls whether MaterialIntent is calculated; disabled returns neutral values.
 - `EnableMaterialIntentDiagnostics` controls whether reports/UI show the diagnostics.
 - `EnableMaterialIntentShaderMapping` allows generated-preset MaterialIntent uniform writes only when MaterialIntent is enabled, strength is greater than `0.0`, and matching known Dalashade custom shader keys exist.
 - When MaterialIntent shader mapping is disabled, MaterialIntent variables are skipped entirely. Generated-preset-only injection does not add material keys in that state.
 - MaterialProfile and MaterialIntent do not change `SceneIntent` or `VisualProfile`.
+- Screenshot region hints are weak and material-only: upper-third smooth blue/bright regions can support sky, lower blue/cyan can support water with water/coastal tags, lower warm regions can support sand with desert/coastal tags, lower/mid bright cold regions can support snow with snow/cold tags, and middle green can support foliage with field/forest/jungle context.
 - Material debug mode, overlay mode, opacity, and strength are owned by the relevant `.fx` shader UI in ReShade. Dalashade writes scene-level material channel uniforms only.
 - Reports use the terms `RawCandidate`, `SceneGatedCandidate`, and `FinalMask` for shader-side mask tuning. Plugin-side MaterialProfile and MaterialIntent provide scene gates; the `.fx` masks still decide pixel-level material influence.
 - Compatibility reports also list first-party custom shader activation state, sections receiving MaterialIntent uniforms, injected shader-owned depth controls, and likely failure sources for material calibration: scene plausibility, MaterialIntent gating, raw pixel heuristic, final conflict suppression, optional depth assist, or production shader behavior.

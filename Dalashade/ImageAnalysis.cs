@@ -48,6 +48,27 @@ public sealed record ColorFamilyStats(ColorFamily Family, float Hue, float Satur
     }
 }
 
+public enum ImageAnalysisRegion
+{
+    UpperThird,
+    MiddleThird,
+    LowerThird,
+    Center
+}
+
+public sealed record ImageRegionStats(
+    ImageAnalysisRegion Region,
+    float AverageLuminance,
+    float Contrast,
+    float AverageSaturation,
+    float BrightTendency,
+    float DarkTendency,
+    float SmoothTendency,
+    IReadOnlyDictionary<ColorFamily, ColorFamilyStats> ColorFamilies)
+{
+    public static ImageRegionStats Empty(ImageAnalysisRegion region) => new(region, 0f, 0f, 0f, 0f, 0f, 0f, ColorFamilyStats.EmptyMap);
+}
+
 public sealed record ImageAnalysisResult(
     bool Available,
     string SourcePath,
@@ -67,9 +88,13 @@ public sealed record ImageAnalysisResult(
     TonalColorBias ShadowColor,
     TonalColorBias MidtoneColor,
     TonalColorBias HighlightColor,
-    IReadOnlyDictionary<ColorFamily, ColorFamilyStats> ColorFamilies)
+    IReadOnlyDictionary<ColorFamily, ColorFamilyStats> ColorFamilies,
+    IReadOnlyDictionary<ImageAnalysisRegion, ImageRegionStats> Regions)
 {
-    public static ImageAnalysisResult Empty { get; } = new(false, string.Empty, DateTimeOffset.MinValue, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, TonalColorBias.Empty, TonalColorBias.Empty, TonalColorBias.Empty, ColorFamilyStats.EmptyMap);
+    public static IReadOnlyDictionary<ImageAnalysisRegion, ImageRegionStats> EmptyRegionMap { get; } = Enum.GetValues<ImageAnalysisRegion>()
+        .ToDictionary(region => region, ImageRegionStats.Empty);
+
+    public static ImageAnalysisResult Empty { get; } = new(false, string.Empty, DateTimeOffset.MinValue, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, TonalColorBias.Empty, TonalColorBias.Empty, TonalColorBias.Empty, ColorFamilyStats.EmptyMap, EmptyRegionMap);
 
     public float ShadowFloor => LuminanceP05;
     public float MidtoneLevel => LuminanceP50;
@@ -86,7 +111,7 @@ public sealed record ImageAnalysisResult(
             }
 
             return FormattableString.Invariant(
-                $"l{AverageLuminance:0.00}:c{Contrast:0.00}:s{AverageSaturation:0.00}:sh{ShadowClipping:0.00}:hi{HighlightClipping:0.00}:p05{LuminanceP05:0.00}:p50{LuminanceP50:0.00}:p95{LuminanceP95:0.00}:w{Warmth:0.00}:g{GreenBias:0.00}:sc{ShadowColor.Hue:0.00}/{ShadowColor.Saturation:0.00}:mc{MidtoneColor.Hue:0.00}/{MidtoneColor.Saturation:0.00}:hc{HighlightColor.Hue:0.00}/{HighlightColor.Saturation:0.00}:cf{ColorFamilyMetricsKey(ColorFamilies)}");
+                $"l{AverageLuminance:0.00}:c{Contrast:0.00}:s{AverageSaturation:0.00}:sh{ShadowClipping:0.00}:hi{HighlightClipping:0.00}:p05{LuminanceP05:0.00}:p50{LuminanceP50:0.00}:p95{LuminanceP95:0.00}:w{Warmth:0.00}:g{GreenBias:0.00}:sc{ShadowColor.Hue:0.00}/{ShadowColor.Saturation:0.00}:mc{MidtoneColor.Hue:0.00}/{MidtoneColor.Saturation:0.00}:hc{HighlightColor.Hue:0.00}/{HighlightColor.Saturation:0.00}:cf{ColorFamilyMetricsKey(ColorFamilies)}:rg{RegionMetricsKey(Regions)}");
         }
     }
 
@@ -121,6 +146,17 @@ public sealed record ImageAnalysisResult(
             {
                 var stats = families.TryGetValue(family, out var value) ? value : ColorFamilyStats.Empty(family);
                 return FormattableString.Invariant($"{family.ToString()[0]}{stats.Hue:0.00}/{stats.Saturation:0.00}/{stats.Luminance:0.00}/{stats.Confidence:0.00}");
+            }));
+    }
+
+    private static string RegionMetricsKey(IReadOnlyDictionary<ImageAnalysisRegion, ImageRegionStats> regions)
+    {
+        return string.Join(
+            ";",
+            Enum.GetValues<ImageAnalysisRegion>().Select(region =>
+            {
+                var stats = regions.TryGetValue(region, out var value) ? value : ImageRegionStats.Empty(region);
+                return FormattableString.Invariant($"{region.ToString()[0]}{stats.AverageLuminance:0.00}/{stats.AverageSaturation:0.00}/{stats.SmoothTendency:0.00}");
             }));
     }
 }
@@ -223,6 +259,8 @@ public sealed class ImageAnalysisService
         double highlightWeight = 0;
         var luminanceSamples = new List<WeightedLuminanceSample>();
         var colorSamples = new List<WeightedColorSample>();
+        var regionAccumulators = Enum.GetValues<ImageAnalysisRegion>()
+            .ToDictionary(region => region, _ => new RegionAccumulator());
 
         for (var y = 0; y < image.Height; y += stepY)
         {
@@ -252,7 +290,12 @@ public sealed class ImageAnalysisService
                 greenBiasSum += tint * weight;
                 weightSum += weight;
                 luminanceSamples.Add(new WeightedLuminanceSample(luminance, weight));
-                colorSamples.Add(new WeightedColorSample(luminance, weight, GetHue01(r, g, b, max, min), saturation, warmth, tint));
+                var hue = GetHue01(r, g, b, max, min);
+                colorSamples.Add(new WeightedColorSample(luminance, weight, hue, saturation, warmth, tint));
+                foreach (var region in RegionsForSample(x, y, image.Width, image.Height))
+                {
+                    regionAccumulators[region].Add(new WeightedColorSample(luminance, weight, hue, saturation, warmth, tint));
+                }
 
                 if (luminance < 0.035f)
                 {
@@ -299,10 +342,34 @@ public sealed class ImageAnalysisService
             shadowColor,
             midtoneColor,
             highlightColor,
-            colorFamilies);
+            colorFamilies,
+            regionAccumulators.ToDictionary(pair => pair.Key, pair => pair.Value.ToStats(pair.Key)));
     }
 
-    private static IReadOnlyDictionary<ColorFamily, ColorFamilyStats> AnalyzeColorFamilies(IReadOnlyList<WeightedColorSample> samples, float totalWeight)
+    private static IEnumerable<ImageAnalysisRegion> RegionsForSample(int x, int y, int width, int height)
+    {
+        var nx = width <= 1 ? 0.5f : x / (float)(width - 1);
+        var ny = height <= 1 ? 0.5f : y / (float)(height - 1);
+        if (ny < 0.333f)
+        {
+            yield return ImageAnalysisRegion.UpperThird;
+        }
+        else if (ny < 0.667f)
+        {
+            yield return ImageAnalysisRegion.MiddleThird;
+        }
+        else
+        {
+            yield return ImageAnalysisRegion.LowerThird;
+        }
+
+        if (nx is >= 0.28f and <= 0.72f && ny is >= 0.24f and <= 0.78f)
+        {
+            yield return ImageAnalysisRegion.Center;
+        }
+    }
+
+    internal static IReadOnlyDictionary<ColorFamily, ColorFamilyStats> AnalyzeColorFamilies(IReadOnlyList<WeightedColorSample> samples, float totalWeight)
     {
         if (samples.Count == 0 || totalWeight <= 0f)
         {
@@ -508,6 +575,59 @@ internal sealed class ColorFamilyAccumulator
             (float)(luminanceSum / weightSum),
             coverage,
             confidence);
+    }
+}
+
+internal sealed class RegionAccumulator
+{
+    private readonly List<WeightedLuminanceSample> luminanceSamples = [];
+    private readonly List<WeightedColorSample> colorSamples = [];
+    private double weightSum;
+    private double luminanceSum;
+    private double luminanceSquaredSum;
+    private double saturationSum;
+    private double brightWeight;
+    private double darkWeight;
+
+    public void Add(WeightedColorSample sample)
+    {
+        weightSum += sample.Weight;
+        luminanceSum += sample.Luminance * sample.Weight;
+        luminanceSquaredSum += sample.Luminance * sample.Luminance * sample.Weight;
+        saturationSum += sample.Saturation * sample.Weight;
+        if (sample.Luminance > 0.72f)
+        {
+            brightWeight += sample.Weight;
+        }
+        else if (sample.Luminance < 0.18f)
+        {
+            darkWeight += sample.Weight;
+        }
+
+        luminanceSamples.Add(new WeightedLuminanceSample(sample.Luminance, sample.Weight));
+        colorSamples.Add(sample);
+    }
+
+    public ImageRegionStats ToStats(ImageAnalysisRegion region)
+    {
+        if (weightSum <= 0)
+        {
+            return ImageRegionStats.Empty(region);
+        }
+
+        var averageLuminance = (float)(luminanceSum / weightSum);
+        var variance = Math.Max(0, (luminanceSquaredSum / weightSum) - (averageLuminance * averageLuminance));
+        var contrast = (float)Math.Sqrt(variance);
+        var averageSaturation = (float)(saturationSum / weightSum);
+        return new ImageRegionStats(
+            region,
+            averageLuminance,
+            contrast,
+            averageSaturation,
+            (float)(brightWeight / weightSum),
+            (float)(darkWeight / weightSum),
+            MathF.Max(0f, 1f - (contrast / 0.22f)),
+            ImageAnalysisService.AnalyzeColorFamilies(colorSamples, (float)weightSum));
     }
 }
 

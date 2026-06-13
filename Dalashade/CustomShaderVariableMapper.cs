@@ -111,7 +111,8 @@ public sealed class CustomShaderVariableMapper
     [
         "Dalashade_EnableDepthAssist",
         "Dalashade_DepthAssistStrength",
-        "Dalashade_DepthAssistConfidenceFloor"
+        "Dalashade_DepthAssistConfidenceFloor",
+        "Dalashade_DepthConfidenceFloor"
     ];
 
     public static IReadOnlyCollection<string> KnownVariableNames => Variables.Keys

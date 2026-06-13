@@ -246,14 +246,15 @@ public sealed class CompatibilityReportExporter
         }
 
         builder.AppendLine();
-        builder.AppendLine("| Channel | Value | Top positive contributions | Top suppressions |");
-        builder.AppendLine("| --- | --- | --- | --- |");
+        builder.AppendLine("| Channel | Profile prior | Non-profile evidence | Final value | Top suppressions |");
+        builder.AppendLine("| --- | --- | --- | --- | --- |");
 
         foreach (var channel in MaterialIntent.ChannelNames)
         {
-            var positives = FormatMaterialContributions(intent.Contributions, channel, positive: true);
+            var profilePrior = profile.ValueFor(channel);
+            var evidence = FormatMaterialNonProfileEvidence(intent.Contributions, channel);
             var suppressions = FormatMaterialContributions(intent.Contributions, channel, positive: false);
-            builder.AppendLine($"| {channel} | {intent.ValueFor(channel):0.###} | {positives} | {suppressions} |");
+            builder.AppendLine($"| {channel} | {profilePrior:0.###} | {evidence} | {intent.ValueFor(channel):0.###} | {suppressions} |");
         }
 
         builder.AppendLine();
@@ -850,6 +851,20 @@ public sealed class CompatibilityReportExporter
             .OrderByDescending(contribution => Math.Abs(contribution.Amount))
             .Take(3)
             .Select(contribution => $"{EscapeTable(contribution.Source)} {contribution.Amount:+0.##;-0.##;0}: {EscapeTable(contribution.Reason)}")
+            .ToArray();
+
+        return selected.Length == 0 ? "none" : string.Join("<br>", selected);
+    }
+
+    private static string FormatMaterialNonProfileEvidence(IReadOnlyList<MaterialIntentContribution> contributions, string channel)
+    {
+        var selected = contributions
+            .Where(contribution => string.Equals(contribution.Channel, channel, StringComparison.Ordinal)
+                                   && contribution.Amount > 0f
+                                   && !contribution.Source.StartsWith("MaterialProfile", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(contribution => Math.Abs(contribution.Amount))
+            .Take(3)
+            .Select(contribution => $"{EscapeTable(contribution.Source)} +{contribution.Amount:0.##}: {EscapeTable(contribution.Reason)}")
             .ToArray();
 
         return selected.Length == 0 ? "none" : string.Join("<br>", selected);
