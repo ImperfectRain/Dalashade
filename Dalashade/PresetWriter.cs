@@ -57,6 +57,8 @@ public sealed class PresetWriter
     [
         "Dalashade_MaterialFoliage",
         "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialWaterPlane",
+        "Dalashade_MaterialSpecularGlint",
         "Dalashade_MaterialSnowIce",
         "Dalashade_MaterialSkyCloudFog",
         "Dalashade_MaterialSkinProtection"
@@ -68,6 +70,8 @@ public sealed class PresetWriter
         "Dalashade_MaterialSandDust",
         "Dalashade_MaterialSnowIce",
         "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialWaterPlane",
+        "Dalashade_MaterialSpecularGlint",
         "Dalashade_MaterialCrystalAether",
         "Dalashade_MaterialSkyCloudFog"
     ];
@@ -75,6 +79,8 @@ public sealed class PresetWriter
     private static readonly IReadOnlyList<string> AtmosphereBloomMaterialIntentShaderVariables =
     [
         "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialWaterPlane",
+        "Dalashade_MaterialSpecularGlint",
         "Dalashade_MaterialCrystalAether",
         "Dalashade_MaterialNeonGlass",
         "Dalashade_MaterialFireLavaHeat",
@@ -96,6 +102,8 @@ public sealed class PresetWriter
     [
         "Dalashade_MaterialFoliage",
         "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialWaterPlane",
+        "Dalashade_MaterialSpecularGlint",
         "Dalashade_MaterialSandDust",
         "Dalashade_MaterialSnowIce",
         "Dalashade_MaterialStoneRuins",

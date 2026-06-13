@@ -6,16 +6,6 @@
 // smoothness, screen position, scene-level MaterialIntent gates, and optional
 // depth assistance. They are not true FFXIV material IDs.
 
-struct Dalashade_DepthAssist
-{
-    float Enabled;
-    float Strength;
-    float Confidence;
-    float FarDepthConfidence;
-    float InvalidDepthConfidence;
-    float NearDepthConfidence;
-};
-
 struct Dalashade_MaterialSignals
 {
     float3 Color;
@@ -31,7 +21,12 @@ struct Dalashade_MaterialSignals
     float UpperScreen;
     float LowerScreen;
     float CenterScreen;
-    Dalashade_DepthAssist DepthAssist;
+    float DepthAssistEnabled;
+    float DepthAssistStrength;
+    float DepthConfidence;
+    float DepthFarConfidence;
+    float DepthInvalidConfidence;
+    float DepthNearConfidence;
 };
 
 struct Dalashade_RawMaterialCandidates
@@ -40,6 +35,8 @@ struct Dalashade_RawMaterialCandidates
     float OrganicGreenSurface;
     float HardSurfaceGreenReject;
     float SurfaceHardTexture;
+    float WaterPlane;
+    float SpecularGlint;
     float WaterSpecular;
     float SandDust;
     float SnowIce;
@@ -63,6 +60,8 @@ struct Dalashade_GatedMaterialCandidates
 {
     float FoliageStrong;
     float OrganicGreenSurface;
+    float WaterPlane;
+    float SpecularGlint;
     float WaterSpecular;
     float SandDust;
     float SnowIce;
@@ -80,6 +79,8 @@ struct Dalashade_FinalMaterialMasks
 {
     float FoliageStrong;
     float OrganicGreenSurface;
+    float WaterPlane;
+    float SpecularGlint;
     float WaterSpecular;
     float SandDust;
     float SnowIce;
@@ -185,22 +186,6 @@ float Dalashade_GetDepthFactor(float2 uv)
     return saturate(ReShade::GetLinearizedDepth(uv));
 }
 
-Dalashade_DepthAssist Dalashade_GetDepthAssist(float depth, float enableDepthAssist, float strength, float confidenceFloor)
-{
-    Dalashade_DepthAssist assist;
-    assist.Enabled = saturate(enableDepthAssist);
-    assist.Strength = saturate(strength) * assist.Enabled;
-
-    // ReShade depth can be unavailable, inverted, flat, or disabled. Treat it as
-    // optional evidence only; disabled or unreliable depth never collapses masks.
-    float validDepth = step(0.00001, depth) * step(depth, 0.99999);
-    assist.Confidence = assist.Strength * max(saturate(confidenceFloor), validDepth);
-    assist.FarDepthConfidence = assist.Confidence * smoothstep(0.42, 0.96, depth);
-    assist.NearDepthConfidence = assist.Confidence * (1.0 - smoothstep(0.08, 0.55, depth));
-    assist.InvalidDepthConfidence = assist.Strength * (1.0 - validDepth);
-    return assist;
-}
-
 Dalashade_MaterialSignals Dalashade_GetMaterialSignals(float3 color, float2 uv, float enableDepthAssist, float depthAssistStrength, float depthAssistConfidenceFloor)
 {
     Dalashade_MaterialSignals signals;
@@ -217,7 +202,16 @@ Dalashade_MaterialSignals Dalashade_GetMaterialSignals(float3 color, float2 uv, 
     signals.UpperScreen = 1.0 - smoothstep(0.12, 0.72, uv.y);
     signals.LowerScreen = smoothstep(0.42, 0.96, uv.y);
     signals.CenterScreen = (1.0 - smoothstep(0.20, 0.54, abs(uv.x - 0.5))) * (1.0 - smoothstep(0.16, 0.52, abs(uv.y - 0.5)));
-    signals.DepthAssist = Dalashade_GetDepthAssist(signals.Depth, enableDepthAssist, depthAssistStrength, depthAssistConfidenceFloor);
+    signals.DepthAssistEnabled = saturate(enableDepthAssist);
+    signals.DepthAssistStrength = saturate(depthAssistStrength) * signals.DepthAssistEnabled;
+
+    // ReShade depth can be unavailable, inverted, flat, or disabled. Treat it as
+    // optional evidence only; disabled or unreliable depth never collapses masks.
+    float validDepth = step(0.00001, signals.Depth) * step(signals.Depth, 0.99999);
+    signals.DepthConfidence = signals.DepthAssistStrength * max(saturate(depthAssistConfidenceFloor), validDepth);
+    signals.DepthFarConfidence = signals.DepthConfidence * smoothstep(0.42, 0.96, signals.Depth);
+    signals.DepthNearConfidence = signals.DepthConfidence * (1.0 - smoothstep(0.08, 0.55, signals.Depth));
+    signals.DepthInvalidConfidence = signals.DepthAssistStrength * (1.0 - validDepth);
     return signals;
 }
 
@@ -243,7 +237,7 @@ Dalashade_RawMaterialCandidates Dalashade_GetRawMaterialCandidates(Dalashade_Mat
     float edgeTexture = max(s.Edge, s.Detail);
     float leafTone = Dalashade_RangeMask(s.Luma, 0.07, 0.78) * smoothstep(0.16, 0.54, s.Saturation);
     float fineOrganicTexture = smoothstep(0.045, 0.26, edgeTexture) * saturate(1.0 - s.Smoothness * smoothstep(0.46, 0.88, s.Luma));
-    float smoothSkyLike = s.Smoothness * smoothstep(0.30, 0.96, s.Luma) * saturate(0.30 + s.UpperScreen * 0.55 + s.DepthAssist.FarDepthConfidence * 0.35 + s.DepthAssist.InvalidDepthConfidence * 0.25);
+    float smoothSkyLike = s.Smoothness * smoothstep(0.30, 0.96, s.Luma) * saturate(0.30 + s.UpperScreen * 0.55 + s.DepthFarConfidence * 0.35 + s.DepthInvalidConfidence * 0.25);
     raw.FoliageStrong = saturate(green * leafTone * fineOrganicTexture * (1.0 - smoothSkyLike * 0.82));
 
     float organicTone = Dalashade_RangeMask(s.Luma, 0.05, 0.72) * smoothstep(0.08, 0.38, s.Saturation);
@@ -256,45 +250,98 @@ Dalashade_RawMaterialCandidates Dalashade_GetRawMaterialCandidates(Dalashade_Mat
     float warmDawnDusk = warmSkyHue * smoothstep(0.34, 0.91, s.Luma) * smoothstep(0.08, 0.46, s.Saturation) * smoothstep(0.38, 0.88, s.Smoothness);
     float grayAtmosphere = saturate(1.0 - s.Saturation) * smoothstep(0.16, 0.88, s.Luma) * smoothstep(0.52, 0.96, s.Smoothness);
     float darkNightSky = smoothstep(0.70, 1.0, s.Smoothness) * saturate(1.0 - smoothstep(0.13, 0.38, s.Luma)) * saturate(0.25 + s.UpperScreen * 0.75);
-    raw.SmoothAtmosphere = s.Smoothness * saturate(0.24 + s.UpperScreen * 0.36 + s.FarDepth * 0.18 + s.DepthAssist.FarDepthConfidence * 0.28 + s.DepthAssist.InvalidDepthConfidence * 0.18);
-    raw.SkyOpen = saturate(max(clearBlueSky, warmDawnDusk) * saturate(0.48 + s.UpperScreen * 0.34 + s.DepthAssist.FarDepthConfidence * 0.20 + s.DepthAssist.InvalidDepthConfidence * 0.12));
-    raw.CloudBright = saturate(brightCloud * saturate(0.42 + s.UpperScreen * 0.32 + s.DepthAssist.FarDepthConfidence * 0.18 + s.DepthAssist.InvalidDepthConfidence * 0.12));
+    raw.SmoothAtmosphere = s.Smoothness * saturate(0.24 + s.UpperScreen * 0.36 + s.FarDepth * 0.18 + s.DepthFarConfidence * 0.28 + s.DepthInvalidConfidence * 0.18);
+    raw.SkyOpen = saturate(max(clearBlueSky, warmDawnDusk) * saturate(0.48 + s.UpperScreen * 0.34 + s.DepthFarConfidence * 0.20 + s.DepthInvalidConfidence * 0.12));
+    raw.CloudBright = saturate(brightCloud * saturate(0.42 + s.UpperScreen * 0.32 + s.DepthFarConfidence * 0.18 + s.DepthInvalidConfidence * 0.12));
     raw.FogAtmosphere = saturate(max(grayAtmosphere, raw.SmoothAtmosphere * 0.62) * (1.0 - raw.SurfaceHardTexture * 0.48));
     raw.NightSky = darkNightSky;
     raw.SkyGapThroughCanopy = saturate(raw.SmoothAtmosphere * s.UpperScreen * max(raw.SkyOpen, raw.CloudBright) * (1.0 - raw.FoliageStrong * 0.58));
     raw.SkyCloudFog = saturate(max(max(raw.SkyOpen, raw.CloudBright), max(raw.FogAtmosphere, max(raw.NightSky, raw.SkyGapThroughCanopy))) * (1.0 - raw.FoliageStrong * 0.58) * (1.0 - raw.HardSurfaceGreenReject * 0.45));
 
-    float glint = smoothstep(0.62, 0.96, s.Luma) * saturate(s.Edge * 1.3 + s.Saturation * 0.55);
-    float lowerWaterPrior = 0.35 + s.LowerScreen * 0.42 + (1.0 - s.UpperScreen) * 0.18;
-    raw.WaterSpecular = saturate((blueCyan * s.Saturation * 0.50 + glint * 0.65) * lowerWaterPrior * (1.0 - raw.SkyCloudFog * (0.44 + s.UpperScreen * 0.32 + s.DepthAssist.FarDepthConfidence * 0.18)));
-
-    float sandTone = smoothstep(0.24, 0.74, s.Luma) * saturate(1.0 - smoothstep(0.82, 1.0, s.Luma)) * smoothstep(0.08, 0.34, s.Saturation);
     float fireReject = fireHue * smoothstep(0.55, 1.0, s.Saturation) * smoothstep(0.55, 1.0, s.Luma);
     float skinReject = skinHue * Dalashade_RangeMask(s.Luma, 0.25, 0.72) * smoothstep(0.10, 0.36, s.Saturation) * s.Smoothness;
+
+    float lowerWaterPrior = 0.35 + s.LowerScreen * 0.42 + (1.0 - s.UpperScreen) * 0.18;
+    float broadWaterSurface = saturate(s.Smoothness * 0.74 + (1.0 - smoothstep(0.11, 0.38, edgeTexture)) * 0.26);
+    float waterTone = blueCyan * smoothstep(0.08, 0.58, s.Saturation) * Dalashade_RangeMask(s.Luma, 0.06, 0.88);
+    float warmSurfaceReject = max(warmBeige * smoothstep(0.08, 0.44, s.Saturation), skinReject);
+    raw.WaterPlane = saturate(waterTone * broadWaterSurface * lowerWaterPrior
+        * (1.0 - raw.SkyCloudFog * (0.58 + s.UpperScreen * 0.28 + s.DepthFarConfidence * 0.18))
+        * (1.0 - raw.SurfaceHardTexture * 0.42)
+        * (1.0 - warmSurfaceReject * 0.58));
+
+    float glintStructure = smoothstep(0.70, 0.98, s.Luma) * smoothstep(0.035, 0.22, edgeTexture) * (1.0 - s.Smoothness * 0.50);
+    float glintHue = saturate(max(blueCyan, saturate(1.0 - s.Saturation) * 0.45) + max(s.Color.r, max(s.Color.g, s.Color.b)) * 0.10);
+    raw.SpecularGlint = saturate(glintStructure * glintHue
+        * (1.0 - raw.SkyCloudFog * (0.36 + s.UpperScreen * 0.30))
+        * (1.0 - skinReject * 0.48)
+        * (1.0 - fireReject * 0.30));
+    raw.WaterSpecular = saturate(max(raw.WaterPlane, raw.SpecularGlint * 0.88));
+
+    float sandTone = smoothstep(0.24, 0.74, s.Luma) * saturate(1.0 - smoothstep(0.82, 1.0, s.Luma)) * smoothstep(0.08, 0.34, s.Saturation);
     raw.SandDust = saturate(warmBeige * sandTone * (0.58 + s.LowerScreen * 0.34 + s.CenterScreen * 0.08) * (1.0 - raw.SkyCloudFog * 0.70) * (1.0 - fireReject * 0.82) * (1.0 - skinReject * 0.62) * (0.72 + 0.28 * edgeTexture));
 
     float brightColdSurface = smoothstep(0.48, 0.93, s.Luma) * saturate(1.0 - smoothstep(0.42, 0.78, s.Saturation)) * coldBright;
     float surfaceTexture = smoothstep(0.035, 0.24, edgeTexture);
-    float cloudReject = raw.CloudBright * (0.56 + s.UpperScreen * 0.26 + s.DepthAssist.FarDepthConfidence * 0.18);
-    raw.SnowIce = saturate(brightColdSurface * (0.34 + 0.66 * surfaceTexture) * (0.55 + s.LowerScreen * 0.32 + s.CenterScreen * 0.12 + s.DepthAssist.NearDepthConfidence * 0.08) * (1.0 - cloudReject * 0.72));
+    float cloudReject = raw.CloudBright * (0.56 + s.UpperScreen * 0.26 + s.DepthFarConfidence * 0.18);
+    raw.SnowIce = saturate(brightColdSurface * (0.34 + 0.66 * surfaceTexture) * (0.55 + s.LowerScreen * 0.32 + s.CenterScreen * 0.12 + s.DepthNearConfidence * 0.08) * (1.0 - cloudReject * 0.72));
 
     float neutralStone = saturate(1.0 - s.Saturation * 0.86) * Dalashade_RangeMask(s.Luma, 0.10, 0.74);
     raw.StoneRuins = saturate(neutralStone * raw.SurfaceHardTexture * (1.0 - raw.SkyCloudFog * 0.82) * (1.0 - raw.SnowIce * 0.24));
 
     float coolNeutral = max(Dalashade_HueMask(s.Hue, 0.58, 0.16), saturate(1.0 - s.Saturation));
-    raw.MetalIndustrial = saturate(coolNeutral * saturate(1.0 - s.Saturation * 0.55) * raw.SurfaceHardTexture * Dalashade_RangeMask(s.Luma, 0.12, 0.80) * (1.0 - raw.WaterSpecular * 0.36));
+    raw.MetalIndustrial = saturate(coolNeutral * saturate(1.0 - s.Saturation * 0.55) * raw.SurfaceHardTexture * Dalashade_RangeMask(s.Luma, 0.12, 0.80) * (1.0 - raw.WaterPlane * 0.36));
 
     float aetherHue = max(max(Dalashade_HueMask(s.Hue, 0.52, 0.09), Dalashade_HueMask(s.Hue, 0.68, 0.11)), Dalashade_HueMask(s.Hue, 0.82, 0.11));
-    raw.CrystalAether = saturate(aetherHue * smoothstep(0.34, 0.92, s.Luma) * smoothstep(0.28, 0.85, s.Saturation) * (0.62 + 0.38 * edgeTexture) * (1.0 - raw.WaterSpecular * 0.38));
+    raw.CrystalAether = saturate(aetherHue * smoothstep(0.34, 0.92, s.Luma) * smoothstep(0.28, 0.85, s.Saturation) * (0.62 + 0.38 * edgeTexture) * (1.0 - raw.WaterPlane * 0.38));
 
     float neonHue = max(max(Dalashade_HueMask(s.Hue, 0.50, 0.07), Dalashade_HueMask(s.Hue, 0.83, 0.08)), Dalashade_HueMask(s.Hue, 0.16, 0.06));
     raw.NeonGlass = saturate(neonHue * smoothstep(0.48, 0.95, s.Luma) * smoothstep(0.45, 0.95, s.Saturation) * smoothstep(0.08, 0.38, edgeTexture));
 
     raw.FireLavaHeat = saturate(fireHue * smoothstep(0.42, 0.95, s.Luma) * smoothstep(0.38, 0.95, s.Saturation) * (0.75 + 0.25 * edgeTexture) * (1.0 - skinReject * 0.40));
-    raw.SkinProtection = saturate(skinHue * Dalashade_RangeMask(s.Luma, 0.22, 0.78) * Dalashade_RangeMask(s.Saturation, 0.08, 0.46) * s.Smoothness * saturate(0.35 + s.CenterScreen * 0.35 + s.DepthAssist.NearDepthConfidence * 0.30));
+    raw.SkinProtection = saturate(skinHue * Dalashade_RangeMask(s.Luma, 0.22, 0.78) * Dalashade_RangeMask(s.Saturation, 0.08, 0.46) * s.Smoothness * saturate(0.35 + s.CenterScreen * 0.35 + s.DepthNearConfidence * 0.30));
     raw.VoidDarkness = saturate(max(Dalashade_HueMask(s.Hue, 0.70, 0.12), Dalashade_HueMask(s.Hue, 0.82, 0.12)) * saturate(1.0 - smoothstep(0.18, 0.52, s.Luma)) * smoothstep(0.18, 0.75, s.Saturation) * (0.65 + 0.35 * s.Smoothness));
 
     return raw;
+}
+
+Dalashade_GatedMaterialCandidates Dalashade_GetGatedMaterialCandidatesWithWaterSplit(
+    Dalashade_RawMaterialCandidates raw,
+    float sceneFoliage,
+    float sceneWaterSpecular,
+    float sceneWaterPlane,
+    float sceneSpecularGlint,
+    float sceneSandDust,
+    float sceneSnowIce,
+    float sceneStoneRuins,
+    float sceneMetalIndustrial,
+    float sceneCrystalAether,
+    float sceneNeonGlass,
+    float sceneFireLavaHeat,
+    float sceneSkyCloudFog,
+    float sceneSkinProtection,
+    float sceneVoidDarkness)
+{
+    Dalashade_GatedMaterialCandidates gated;
+    float waterPlaneGate = saturate(max(sceneWaterSpecular, sceneWaterPlane));
+    float specularGlintGate = saturate(max(sceneWaterSpecular, sceneSpecularGlint));
+    float combinedWaterGate = saturate(max(sceneWaterSpecular, max(sceneWaterPlane, sceneSpecularGlint)));
+    gated.FoliageStrong = raw.FoliageStrong * saturate(sceneFoliage);
+    gated.OrganicGreenSurface = raw.OrganicGreenSurface * saturate(sceneFoliage);
+    gated.WaterPlane = raw.WaterPlane * waterPlaneGate;
+    gated.SpecularGlint = raw.SpecularGlint * specularGlintGate;
+    gated.WaterSpecular = raw.WaterSpecular * combinedWaterGate;
+    gated.SandDust = raw.SandDust * saturate(sceneSandDust);
+    gated.SnowIce = raw.SnowIce * saturate(sceneSnowIce);
+    gated.StoneRuins = raw.StoneRuins * saturate(sceneStoneRuins);
+    gated.MetalIndustrial = raw.MetalIndustrial * saturate(sceneMetalIndustrial);
+    gated.CrystalAether = raw.CrystalAether * saturate(sceneCrystalAether);
+    gated.NeonGlass = raw.NeonGlass * saturate(sceneNeonGlass);
+    gated.FireLavaHeat = raw.FireLavaHeat * saturate(sceneFireLavaHeat);
+    gated.SkyCloudFog = raw.SkyCloudFog * saturate(sceneSkyCloudFog);
+    gated.SkinProtection = raw.SkinProtection * saturate(sceneSkinProtection);
+    gated.VoidDarkness = raw.VoidDarkness * saturate(sceneVoidDarkness);
+    return gated;
 }
 
 Dalashade_GatedMaterialCandidates Dalashade_GetGatedMaterialCandidates(
@@ -312,21 +359,22 @@ Dalashade_GatedMaterialCandidates Dalashade_GetGatedMaterialCandidates(
     float sceneSkinProtection,
     float sceneVoidDarkness)
 {
-    Dalashade_GatedMaterialCandidates gated;
-    gated.FoliageStrong = raw.FoliageStrong * saturate(sceneFoliage);
-    gated.OrganicGreenSurface = raw.OrganicGreenSurface * saturate(sceneFoliage);
-    gated.WaterSpecular = raw.WaterSpecular * saturate(sceneWaterSpecular);
-    gated.SandDust = raw.SandDust * saturate(sceneSandDust);
-    gated.SnowIce = raw.SnowIce * saturate(sceneSnowIce);
-    gated.StoneRuins = raw.StoneRuins * saturate(sceneStoneRuins);
-    gated.MetalIndustrial = raw.MetalIndustrial * saturate(sceneMetalIndustrial);
-    gated.CrystalAether = raw.CrystalAether * saturate(sceneCrystalAether);
-    gated.NeonGlass = raw.NeonGlass * saturate(sceneNeonGlass);
-    gated.FireLavaHeat = raw.FireLavaHeat * saturate(sceneFireLavaHeat);
-    gated.SkyCloudFog = raw.SkyCloudFog * saturate(sceneSkyCloudFog);
-    gated.SkinProtection = raw.SkinProtection * saturate(sceneSkinProtection);
-    gated.VoidDarkness = raw.VoidDarkness * saturate(sceneVoidDarkness);
-    return gated;
+    return Dalashade_GetGatedMaterialCandidatesWithWaterSplit(
+        raw,
+        sceneFoliage,
+        sceneWaterSpecular,
+        sceneWaterSpecular,
+        sceneWaterSpecular,
+        sceneSandDust,
+        sceneSnowIce,
+        sceneStoneRuins,
+        sceneMetalIndustrial,
+        sceneCrystalAether,
+        sceneNeonGlass,
+        sceneFireLavaHeat,
+        sceneSkyCloudFog,
+        sceneSkinProtection,
+        sceneVoidDarkness);
 }
 
 Dalashade_FinalMaterialMasks Dalashade_ResolveFinalMaterialMasks(Dalashade_MaterialSignals s, Dalashade_RawMaterialCandidates raw, Dalashade_GatedMaterialCandidates gated)
@@ -334,6 +382,8 @@ Dalashade_FinalMaterialMasks Dalashade_ResolveFinalMaterialMasks(Dalashade_Mater
     Dalashade_FinalMaterialMasks masks;
     masks.FoliageStrong = gated.FoliageStrong;
     masks.OrganicGreenSurface = gated.OrganicGreenSurface;
+    masks.WaterPlane = gated.WaterPlane;
+    masks.SpecularGlint = gated.SpecularGlint;
     masks.WaterSpecular = gated.WaterSpecular;
     masks.SandDust = gated.SandDust;
     masks.SnowIce = gated.SnowIce;
@@ -346,19 +396,21 @@ Dalashade_FinalMaterialMasks Dalashade_ResolveFinalMaterialMasks(Dalashade_Mater
     masks.SkinProtection = gated.SkinProtection;
     masks.VoidDarkness = gated.VoidDarkness;
 
-    float depthSkyBoost = 1.0 + s.DepthAssist.FarDepthConfidence * raw.SmoothAtmosphere * 0.24 + s.DepthAssist.InvalidDepthConfidence * raw.SmoothAtmosphere * s.UpperScreen * 0.16;
+    float depthSkyBoost = 1.0 + s.DepthFarConfidence * raw.SmoothAtmosphere * 0.24 + s.DepthInvalidConfidence * raw.SmoothAtmosphere * s.UpperScreen * 0.16;
     masks.SkyCloudFog *= depthSkyBoost;
-    masks.SkyCloudFog *= saturate(1.0 - masks.FoliageStrong * 0.72 - masks.StoneRuins * 0.55 - masks.MetalIndustrial * 0.35 - masks.WaterSpecular * 0.45);
+    masks.SkyCloudFog *= saturate(1.0 - masks.FoliageStrong * 0.72 - masks.StoneRuins * 0.55 - masks.MetalIndustrial * 0.35 - masks.WaterPlane * 0.45 - masks.SpecularGlint * 0.18);
     masks.FoliageStrong *= saturate(1.0 - masks.SkyCloudFog * 0.85 - masks.StoneRuins * 0.42 - raw.HardSurfaceGreenReject * 0.38);
     masks.OrganicGreenSurface *= saturate(1.0 - masks.SkyCloudFog * 0.68);
-    masks.WaterSpecular *= saturate(1.0 - masks.SkyCloudFog * (0.48 + s.UpperScreen * 0.22 + s.DepthAssist.FarDepthConfidence * 0.18));
+    masks.WaterPlane *= saturate(1.0 - masks.SkyCloudFog * (0.58 + s.UpperScreen * 0.26 + s.DepthFarConfidence * 0.20));
+    masks.SpecularGlint *= saturate(1.0 - masks.SkyCloudFog * (0.34 + s.UpperScreen * 0.20));
     masks.SandDust *= saturate(1.0 - masks.FireLavaHeat * 0.65 - masks.SkinProtection * 0.45 - masks.SkyCloudFog * 0.60);
-    masks.SnowIce *= saturate(1.0 - masks.SkyCloudFog * (0.50 + s.UpperScreen * 0.25 + s.DepthAssist.FarDepthConfidence * 0.15));
-    masks.CrystalAether *= saturate(1.0 - masks.WaterSpecular * 0.35 - masks.NeonGlass * 0.30);
+    masks.SnowIce *= saturate(1.0 - masks.SkyCloudFog * (0.50 + s.UpperScreen * 0.25 + s.DepthFarConfidence * 0.15));
+    masks.WaterSpecular = saturate(max(masks.WaterPlane, masks.SpecularGlint * 0.88));
+    masks.CrystalAether *= saturate(1.0 - masks.WaterPlane * 0.35 - masks.SpecularGlint * 0.16 - masks.NeonGlass * 0.30);
     masks.VoidDarkness *= saturate(1.0 - masks.SkyCloudFog * 0.24);
 
     masks.CombinedConfidence = saturate(
-        masks.FoliageStrong + masks.OrganicGreenSurface * 0.45 + masks.WaterSpecular + masks.SandDust + masks.SnowIce +
+        masks.FoliageStrong + masks.OrganicGreenSurface * 0.45 + masks.WaterPlane + masks.SpecularGlint * 0.55 + masks.SandDust + masks.SnowIce +
         masks.StoneRuins + masks.MetalIndustrial + masks.CrystalAether + masks.NeonGlass +
         masks.FireLavaHeat + masks.SkyCloudFog + masks.SkinProtection + masks.VoidDarkness);
 
@@ -390,6 +442,48 @@ Dalashade_FinalMaterialMasks Dalashade_GetAllMaterialMasksWithDepthAssist(
         raw,
         sceneFoliage,
         sceneWaterSpecular,
+        sceneSandDust,
+        sceneSnowIce,
+        sceneStoneRuins,
+        sceneMetalIndustrial,
+        sceneCrystalAether,
+        sceneNeonGlass,
+        sceneFireLavaHeat,
+        sceneSkyCloudFog,
+        sceneSkinProtection,
+        sceneVoidDarkness);
+    return Dalashade_ResolveFinalMaterialMasks(signals, raw, gated);
+}
+
+Dalashade_FinalMaterialMasks Dalashade_GetAllMaterialMasksWithWaterSplitDepthAssist(
+    float3 color,
+    float2 uv,
+    float sceneFoliage,
+    float sceneWaterSpecular,
+    float sceneWaterPlane,
+    float sceneSpecularGlint,
+    float sceneSandDust,
+    float sceneSnowIce,
+    float sceneStoneRuins,
+    float sceneMetalIndustrial,
+    float sceneCrystalAether,
+    float sceneNeonGlass,
+    float sceneFireLavaHeat,
+    float sceneSkyCloudFog,
+    float sceneSkinProtection,
+    float sceneVoidDarkness,
+    float enableDepthAssist,
+    float depthAssistStrength,
+    float depthAssistConfidenceFloor)
+{
+    Dalashade_MaterialSignals signals = Dalashade_GetMaterialSignals(color, uv, enableDepthAssist, depthAssistStrength, depthAssistConfidenceFloor);
+    Dalashade_RawMaterialCandidates raw = Dalashade_GetRawMaterialCandidates(signals);
+    Dalashade_GatedMaterialCandidates gated = Dalashade_GetGatedMaterialCandidatesWithWaterSplit(
+        raw,
+        sceneFoliage,
+        sceneWaterSpecular,
+        sceneWaterPlane,
+        sceneSpecularGlint,
         sceneSandDust,
         sceneSnowIce,
         sceneStoneRuins,
@@ -457,6 +551,21 @@ float Dalashade_GetRawSkyCloudFog(Dalashade_MaterialSignals s, float foliageStro
 float Dalashade_GetWaterSpecularMask(float3 color, float2 uv, float sceneWaterSpecular)
 {
     return Dalashade_GetAllMaterialMasks(color, uv, 0.0, sceneWaterSpecular, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0).WaterSpecular;
+}
+
+float Dalashade_GetWaterPlaneMask(float3 color, float2 uv, float sceneWaterSpecular)
+{
+    return Dalashade_GetAllMaterialMasks(color, uv, 0.0, sceneWaterSpecular, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0).WaterPlane;
+}
+
+float Dalashade_GetSpecularGlintMask(float3 color, float2 uv, float sceneWaterSpecular)
+{
+    return Dalashade_GetAllMaterialMasks(color, uv, 0.0, sceneWaterSpecular, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0).SpecularGlint;
+}
+
+float Dalashade_GetWaterSpecularCombinedMask(float3 color, float2 uv, float sceneWaterSpecular)
+{
+    return Dalashade_GetWaterSpecularMask(color, uv, sceneWaterSpecular);
 }
 
 float Dalashade_GetSandDustMask(float3 color, float2 uv, float sceneSandDust)
@@ -530,7 +639,8 @@ float3 Dalashade_GetMaterialOverviewColor(Dalashade_FinalMaterialMasks masks)
     float3 color = float3(0.0, 0.0, 0.0);
     color += masks.FoliageStrong * float3(0.05, 0.95, 0.16);
     color += masks.OrganicGreenSurface * float3(0.28, 0.48, 0.12);
-    color += masks.WaterSpecular * float3(0.00, 0.85, 1.00);
+    color += masks.WaterPlane * float3(0.00, 0.85, 1.00);
+    color += masks.SpecularGlint * float3(0.62, 0.86, 1.00);
     color += masks.SandDust * float3(1.00, 0.66, 0.12);
     color += masks.SnowIce * float3(0.78, 0.92, 1.00);
     color += masks.SkyCloudFog * float3(0.18, 0.42, 1.00);

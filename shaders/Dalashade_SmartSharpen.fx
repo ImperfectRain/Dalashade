@@ -78,6 +78,20 @@ uniform float Dalashade_MaterialWaterSpecular <
     ui_tooltip = "Inferred water or wet/specular likelihood. Reduces glint and water shimmer sharpening.";
 > = 0.0;
 
+uniform float Dalashade_MaterialWaterPlane <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Water Plane";
+    ui_tooltip = "Optional split water-surface likelihood. Broad water surfaces reduce shimmer without treating every bright edge as water.";
+> = 0.0;
+
+uniform float Dalashade_MaterialSpecularGlint <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Specular Glint";
+    ui_tooltip = "Optional split thin-glint likelihood. Protects bright rails, nails, water sparkles, and highlight lines from haloing.";
+> = 0.0;
+
 uniform float Dalashade_MaterialSnowIce <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -101,7 +115,7 @@ uniform float Dalashade_MaterialSkinProtection <
 
 uniform int Dalashade_MaterialDebugMode <
     ui_type = "combo";
-    ui_items = "Off\0Overview\0Foliage dampening\0Water/specular dampening\0Snow/ice dampening\0Sky/fog exclusion\0Skin protection dampening\0Unused\0Unused\0Unused\0Final material dampening\0";
+    ui_items = "Off\0Overview\0Foliage dampening\0Water/specular dampening\0Snow/ice dampening\0Sky/fog exclusion\0Skin protection dampening\0Water plane dampening\0Specular glint dampening\0Unused\0Final material dampening\0";
     ui_label = "Dalashade Material Debug Mode";
     ui_tooltip = "Shows material-aware influence masks. These masks are inferred likelihoods, not true engine material IDs.";
 > = 0;
@@ -295,14 +309,18 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float authority = saturate(Dalashade_SharpenAuthority * 0.5);
     float materialFoliage = saturate(Dalashade_MaterialFoliage);
     float materialWaterSpecular = saturate(Dalashade_MaterialWaterSpecular);
+    float materialWaterPlaneScene = saturate(Dalashade_MaterialWaterPlane);
+    float materialSpecularGlintScene = saturate(Dalashade_MaterialSpecularGlint);
     float materialSnowIce = saturate(Dalashade_MaterialSnowIce);
     float materialSkyCloudFog = saturate(Dalashade_MaterialSkyCloudFog);
     float materialSkinProtection = saturate(Dalashade_MaterialSkinProtection);
-    Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasksWithDepthAssist(
+    Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasksWithWaterSplitDepthAssist(
         center,
         texcoord,
         materialFoliage,
         materialWaterSpecular,
+        materialWaterPlaneScene,
+        materialSpecularGlintScene,
         0.0,
         materialSnowIce,
         0.0,
@@ -319,6 +337,8 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float materialFoliageStrong = materialMasks.FoliageStrong;
     float materialOrganicGreen = materialMasks.OrganicGreenSurface;
     float materialFoliagePixel = saturate(materialFoliageStrong + materialOrganicGreen * 0.42);
+    float materialWaterPlanePixel = materialMasks.WaterPlane;
+    float materialSpecularGlintPixel = materialMasks.SpecularGlint;
     float materialWaterPixel = materialMasks.WaterSpecular;
     float materialSnowPixel = materialMasks.SnowIce;
     float materialSkyPixel = materialMasks.SkyCloudFog;
@@ -342,11 +362,12 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
         * smoothstep(0.16, 0.42, centerLuma)
         * (1.0 - smoothstep(0.78, 0.98, centerLuma));
     float materialFoliagePressure = saturate(materialFoliagePixel * FoliageDampenStrength * (0.22 + textureDetailMask * 0.82 + farDepthMask * 0.24));
-    float materialWaterPressure = saturate(materialWaterPixel * (specularEdgeMask * 0.72 + veryBrightMask * 0.22 + wetness * 0.20) * HighlightDampenStrength);
+    float materialWaterPressure = saturate(materialWaterPlanePixel * (0.28 + wetness * 0.28 + farDepthMask * 0.18) * HighlightDampenStrength);
+    float materialGlintPressure = saturate(materialSpecularGlintPixel * (specularEdgeMask * 0.78 + veryBrightMask * 0.28) * HaloDampenStrength);
     float materialSnowPressure = saturate(materialSnowPixel * (brightMask * 0.54 + veryBrightMask * 0.36 + structuralEdgeMask * 0.18) * HaloDampenStrength);
     float materialSkyPressure = saturate(max(materialSkyPixel, materialSkyCloudFog * skyGradientMask * 0.42) * max(skyGradientMask, smoothGradientMask * (0.45 + haze * 0.45)) * SkyDampenStrength);
     float materialSkinPressure = saturate(max(materialSkinPixel, materialSkinProtection * warmSmoothMask * 0.35) * (0.50 + readability * 0.12) * AntiCrunchStrength);
-    float materialDampen = saturate(max(max(materialFoliagePressure, materialWaterPressure), max(materialSnowPressure, max(materialSkyPressure, materialSkinPressure))));
+    float materialDampen = saturate(max(max(materialFoliagePressure, max(materialWaterPressure, materialGlintPressure)), max(materialSnowPressure, max(materialSkyPressure, materialSkinPressure))));
 
     float hazePressure = saturate(max(haze, wetness * 0.72) * HazeDampenStrength);
     float foliageTexturePressure = saturate(foliage * FoliageDampenStrength * (0.42 + textureDetailMask * 0.72 + farDepthMask * 0.24));
@@ -358,7 +379,7 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float secondaryAuthorityPressure = 1.0 - authority;
 
     float structuralDampen = saturate(hazePressure * 0.36 + highlightPressure * 0.52 + haloPressure * 0.44 + skyPressure + materialSkyPressure * 0.60 + materialSnowPressure * 0.20 + materialSkinPressure * 0.22 + foliageStructurePressure + deepShadowMask * 0.46 + secondaryAuthorityPressure * 0.24);
-    float textureDampen = saturate(hazePressure * 0.78 + wetness * 0.25 + foliageTexturePressure + materialFoliagePressure + depthTexturePressure + highlightPressure + haloPressure * 0.74 + skyPressure + materialWaterPressure + materialSnowPressure + materialSkyPressure + materialSkinPressure * 0.78 + deepShadowMask * 0.82 + secondaryAuthorityPressure * 0.58);
+    float textureDampen = saturate(hazePressure * 0.78 + wetness * 0.25 + foliageTexturePressure + materialFoliagePressure + depthTexturePressure + highlightPressure + haloPressure * 0.74 + skyPressure + materialWaterPressure + materialGlintPressure + materialSnowPressure + materialSkyPressure + materialSkinPressure * 0.78 + deepShadowMask * 0.82 + secondaryAuthorityPressure * 0.58);
     float dampen = saturate(max(structuralDampen * 0.72, textureDampen));
 
     // Structural clarity uses broader low-frequency luma edges: silhouettes, trunks, rocks, buildings, armor, and readable geometry.
@@ -414,7 +435,7 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
         }
         if (Dalashade_MaterialDebugMode == 3)
         {
-            return float4(materialWaterPixel * materialDebugStrength, specularEdgeMask * materialDebugStrength, materialWaterPressure * materialDebugStrength, 1.0);
+            return float4(materialWaterPlanePixel * materialDebugStrength, materialSpecularGlintPixel * materialDebugStrength, saturate(materialWaterPressure + materialGlintPressure) * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 4)
         {
@@ -427,6 +448,14 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
         if (Dalashade_MaterialDebugMode == 6)
         {
             return float4(materialSkinPixel * materialDebugStrength, warmSmoothMask * materialDebugStrength, materialSkinPressure * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 7)
+        {
+            return float4(materialWaterPlanePixel * materialDebugStrength, farDepthMask * materialDebugStrength, materialWaterPressure * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 8)
+        {
+            return float4(materialSpecularGlintPixel * materialDebugStrength, specularEdgeMask * materialDebugStrength, materialGlintPressure * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 10)
         {

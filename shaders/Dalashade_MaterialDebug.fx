@@ -17,6 +17,20 @@ uniform float Dalashade_MaterialWaterSpecular <
     ui_label = "Dalashade Material Water/Specular";
 > = 0.0;
 
+uniform float Dalashade_MaterialWaterPlane <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Water Plane";
+    ui_tooltip = "Optional split water-plane plausibility. If left at 0, the combined Water/Specular value still gates water-plane masks.";
+> = 0.0;
+
+uniform float Dalashade_MaterialSpecularGlint <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Specular Glint";
+    ui_tooltip = "Optional split glint plausibility. If left at 0, the combined Water/Specular value still gates glint masks.";
+> = 0.0;
+
 uniform float Dalashade_MaterialSandDust <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -79,7 +93,7 @@ uniform float Dalashade_MaterialVoidDarkness <
 
 uniform int Dalashade_MaterialDebugMode <
     ui_type = "combo";
-    ui_items = "Off/pass-through\0Overview final masks\0Combined confidence\0Raw sky/fog\0Gated sky/fog\0Final sky/fog\0Raw foliage strong\0Organic green surface\0Final foliage influence\0Raw water/specular\0Gated water/specular\0Final water/specular\0Raw snow/ice\0Gated snow/ice\0Final snow/ice\0Raw sand/dust\0Gated sand/dust\0Final sand/dust\0Depth confidence\0Depth-assisted sky/fog\0Stone/ruins\0Metal/industrial\0Crystal/aether\0Neon/glass\0Fire/lava/heat\0Skin-protection\0Void/darkness\0";
+    ui_items = "Off/pass-through\0Overview final masks\0Combined confidence\0Raw sky/fog\0Gated sky/fog\0Final sky/fog\0Raw foliage strong\0Organic green surface\0Final foliage influence\0Raw water/specular combined\0Gated water/specular combined\0Final water/specular combined\0Raw snow/ice\0Gated snow/ice\0Final snow/ice\0Raw sand/dust\0Gated sand/dust\0Final sand/dust\0Depth confidence\0Depth-assisted sky/fog\0Stone/ruins\0Metal/industrial\0Crystal/aether\0Neon/glass\0Fire/lava/heat\0Skin-protection\0Void/darkness\0Raw water plane\0Gated water plane\0Final water plane\0Raw specular glint\0Gated specular glint\0Final specular glint\0";
     ui_label = "Dalashade Material Debug Mode";
     ui_tooltip = "False-color material heuristic visualizer. Raw modes show pixel evidence, gated modes show scene-scaled evidence, and final modes show conflict-resolved masks. These are not true engine material IDs.";
 > = 0;
@@ -163,10 +177,12 @@ float4 Dalashade_MaterialDebugPass(float4 position : SV_Position, float2 texcoor
         Dalashade_DepthAssistStrength,
         max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
     Dalashade_RawMaterialCandidates raw = Dalashade_GetRawMaterialCandidates(signals);
-    Dalashade_GatedMaterialCandidates gated = Dalashade_GetGatedMaterialCandidates(
+    Dalashade_GatedMaterialCandidates gated = Dalashade_GetGatedMaterialCandidatesWithWaterSplit(
         raw,
         Dalashade_MaterialFoliage,
         Dalashade_MaterialWaterSpecular,
+        Dalashade_MaterialWaterPlane,
+        Dalashade_MaterialSpecularGlint,
         Dalashade_MaterialSandDust,
         Dalashade_MaterialSnowIce,
         Dalashade_MaterialStoneRuins,
@@ -180,10 +196,12 @@ float4 Dalashade_MaterialDebugPass(float4 position : SV_Position, float2 texcoor
     Dalashade_MaterialMasks masks = Dalashade_ResolveFinalMaterialMasks(signals, raw, gated);
     Dalashade_MaterialSignals noDepthSignals = Dalashade_GetMaterialSignals(source, texcoord);
     Dalashade_RawMaterialCandidates noDepthRaw = Dalashade_GetRawMaterialCandidates(noDepthSignals);
-    Dalashade_GatedMaterialCandidates noDepthGated = Dalashade_GetGatedMaterialCandidates(
+    Dalashade_GatedMaterialCandidates noDepthGated = Dalashade_GetGatedMaterialCandidatesWithWaterSplit(
         noDepthRaw,
         Dalashade_MaterialFoliage,
         Dalashade_MaterialWaterSpecular,
+        Dalashade_MaterialWaterPlane,
+        Dalashade_MaterialSpecularGlint,
         Dalashade_MaterialSandDust,
         Dalashade_MaterialSnowIce,
         Dalashade_MaterialStoneRuins,
@@ -281,8 +299,8 @@ float4 Dalashade_MaterialDebugPass(float4 position : SV_Position, float2 texcoor
     }
     else if (mode == 18)
     {
-        confidence = saturate(signals.DepthAssist.Confidence + signals.DepthAssist.InvalidDepthConfidence);
-        debugColor = float3(signals.DepthAssist.NearDepthConfidence, signals.DepthAssist.FarDepthConfidence, signals.DepthAssist.InvalidDepthConfidence);
+        confidence = saturate(signals.DepthConfidence + signals.DepthInvalidConfidence);
+        debugColor = float3(signals.DepthNearConfidence, signals.DepthFarConfidence, signals.DepthInvalidConfidence);
     }
     else if (mode == 19)
     {
@@ -324,6 +342,36 @@ float4 Dalashade_MaterialDebugPass(float4 position : SV_Position, float2 texcoor
     {
         confidence = masks.VoidDarkness;
         debugColor = float3(0.38, 0.05, 0.75) * confidence;
+    }
+    else if (mode == 27)
+    {
+        confidence = raw.WaterPlane;
+        debugColor = float3(0.00, 0.85, 1.00) * confidence;
+    }
+    else if (mode == 28)
+    {
+        confidence = gated.WaterPlane;
+        debugColor = float3(0.00, 0.85, 1.00) * confidence;
+    }
+    else if (mode == 29)
+    {
+        confidence = masks.WaterPlane;
+        debugColor = float3(0.00, 0.85, 1.00) * confidence;
+    }
+    else if (mode == 30)
+    {
+        confidence = raw.SpecularGlint;
+        debugColor = float3(0.62, 0.86, 1.00) * confidence;
+    }
+    else if (mode == 31)
+    {
+        confidence = gated.SpecularGlint;
+        debugColor = float3(0.62, 0.86, 1.00) * confidence;
+    }
+    else if (mode == 32)
+    {
+        confidence = masks.SpecularGlint;
+        debugColor = float3(0.62, 0.86, 1.00) * confidence;
     }
 
     return float4(Dalashade_ApplyDebugOverlay(source, saturate(debugColor), confidence), 1.0);

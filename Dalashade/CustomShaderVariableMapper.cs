@@ -40,6 +40,8 @@ public sealed class CustomShaderVariableMapper
         {
             ["Dalashade_MaterialFoliage"] = (intent, _) => intent.Foliage,
             ["Dalashade_MaterialWaterSpecular"] = (intent, _) => intent.WaterSpecular,
+            ["Dalashade_MaterialWaterPlane"] = (intent, _) => intent.WaterSpecular,
+            ["Dalashade_MaterialSpecularGlint"] = (intent, _) => intent.WaterSpecular,
             ["Dalashade_MaterialSandDust"] = (intent, _) => intent.SandDust,
             ["Dalashade_MaterialSnowIce"] = (intent, _) => intent.SnowIce,
             ["Dalashade_MaterialStoneRuins"] = (intent, _) => intent.StoneRuins,
@@ -56,6 +58,8 @@ public sealed class CustomShaderVariableMapper
     [
         "Dalashade_MaterialFoliage",
         "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialWaterPlane",
+        "Dalashade_MaterialSpecularGlint",
         "Dalashade_MaterialSnowIce",
         "Dalashade_MaterialSkyCloudFog",
         "Dalashade_MaterialSkinProtection"
@@ -67,6 +71,8 @@ public sealed class CustomShaderVariableMapper
         "Dalashade_MaterialSandDust",
         "Dalashade_MaterialSnowIce",
         "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialWaterPlane",
+        "Dalashade_MaterialSpecularGlint",
         "Dalashade_MaterialCrystalAether",
         "Dalashade_MaterialSkyCloudFog"
     ];
@@ -74,6 +80,8 @@ public sealed class CustomShaderVariableMapper
     private static readonly HashSet<string> AtmosphereBloomMaterialVariables =
     [
         "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialWaterPlane",
+        "Dalashade_MaterialSpecularGlint",
         "Dalashade_MaterialCrystalAether",
         "Dalashade_MaterialNeonGlass",
         "Dalashade_MaterialFireLavaHeat",
@@ -95,6 +103,8 @@ public sealed class CustomShaderVariableMapper
     [
         "Dalashade_MaterialFoliage",
         "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialWaterPlane",
+        "Dalashade_MaterialSpecularGlint",
         "Dalashade_MaterialSandDust",
         "Dalashade_MaterialSnowIce",
         "Dalashade_MaterialStoneRuins",

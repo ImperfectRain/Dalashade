@@ -65,7 +65,9 @@ Initial MaterialIntent uniforms reserved for first-party Dalashade shaders:
 | Uniform | Meaning |
 | --- | --- |
 | `Dalashade_MaterialFoliage` | Effective foliage likelihood. |
-| `Dalashade_MaterialWaterSpecular` | Effective water/wet/specular likelihood. |
+| `Dalashade_MaterialWaterSpecular` | Effective water/wet/specular likelihood. Backward-compatible combined channel. |
+| `Dalashade_MaterialWaterPlane` | Optional split alias written from WaterSpecular for broad water-surface masks. |
+| `Dalashade_MaterialSpecularGlint` | Optional split alias written from WaterSpecular for thin reflective/glint masks. |
 | `Dalashade_MaterialSandDust` | Effective sand/dust likelihood. |
 | `Dalashade_MaterialSnowIce` | Effective snow/ice likelihood. |
 | `Dalashade_MaterialStoneRuins` | Effective stone/ruins likelihood. |
@@ -87,15 +89,15 @@ Custom shader variables are grouped by ownership:
 | MaterialIntent channel uniforms | `Dalashade_MaterialFoliage`, `Dalashade_MaterialSkyCloudFog`, `Dalashade_MaterialWaterSpecular` | Yes, only when MaterialIntent, MaterialIntent shader mapping, custom shader support, and matching section-scoped keys are all enabled. |
 | Shader-owned controls | `Dalashade_EnableDepthAssist`, `Dalashade_DepthAssistStrength`, `Dalashade_DepthAssistConfidenceFloor`, `Dalashade_DepthConfidenceFloor`, shader debug mode/opacity/strength controls | No active writes. These may be known or injected with default values, but users control them in ReShade. |
 
-The generated WeatherAtmosphere section includes the weather shader intent variables Dalashade currently knows how to write: `Dalashade_Haze`, `Dalashade_Wetness`, `Dalashade_Cold`, `Dalashade_Heat`, `Dalashade_HighlightProtection`, `Dalashade_ShadowProtection`, `Dalashade_CombatPressure`, `Dalashade_Atmosphere`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_FoliageDensity`, `Dalashade_Readability`, `Dalashade_Night`, `Dalashade_Moonlight`, `Dalashade_ArtificialLight`, `Dalashade_AmbientDarkness`, `Dalashade_NightAtmosphere`, and `Dalashade_CinematicPermission`. When MaterialIntent shader mapping is enabled, WeatherAtmosphere may also receive `Dalashade_MaterialFoliage`, `Dalashade_MaterialSandDust`, `Dalashade_MaterialSnowIce`, `Dalashade_MaterialWaterSpecular`, `Dalashade_MaterialCrystalAether`, and `Dalashade_MaterialSkyCloudFog`.
+The generated WeatherAtmosphere section includes the weather shader intent variables Dalashade currently knows how to write: `Dalashade_Haze`, `Dalashade_Wetness`, `Dalashade_Cold`, `Dalashade_Heat`, `Dalashade_HighlightProtection`, `Dalashade_ShadowProtection`, `Dalashade_CombatPressure`, `Dalashade_Atmosphere`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_FoliageDensity`, `Dalashade_Readability`, `Dalashade_Night`, `Dalashade_Moonlight`, `Dalashade_ArtificialLight`, `Dalashade_AmbientDarkness`, `Dalashade_NightAtmosphere`, and `Dalashade_CinematicPermission`. When MaterialIntent shader mapping is enabled, WeatherAtmosphere may also receive `Dalashade_MaterialFoliage`, `Dalashade_MaterialSandDust`, `Dalashade_MaterialSnowIce`, `Dalashade_MaterialWaterSpecular`, `Dalashade_MaterialWaterPlane`, `Dalashade_MaterialSpecularGlint`, `Dalashade_MaterialCrystalAether`, and `Dalashade_MaterialSkyCloudFog`.
 
 The generated AdaptiveGrade section includes the grade shader intent variables Dalashade currently knows how to write: `Dalashade_Readability`, `Dalashade_Atmosphere`, `Dalashade_HighlightProtection`, `Dalashade_ShadowProtection`, `Dalashade_Cold`, `Dalashade_Heat`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_FoliageDensity`, `Dalashade_IndustrialHardness`, `Dalashade_CosmicMood`, `Dalashade_Night`, `Dalashade_Moonlight`, `Dalashade_ArtificialLight`, `Dalashade_AmbientDarkness`, `Dalashade_NightAtmosphere`, `Dalashade_CinematicPermission`, and `Dalashade_CombatPressure`. When MaterialIntent shader mapping is enabled, AdaptiveGrade may also receive `Dalashade_MaterialFoliage`, `Dalashade_MaterialSandDust`, `Dalashade_MaterialSnowIce`, `Dalashade_MaterialMetalIndustrial`, `Dalashade_MaterialCrystalAether`, `Dalashade_MaterialSkinProtection`, and `Dalashade_MaterialVoidDarkness`.
 
-The generated SmartSharpen section includes the clarity shader intent variables Dalashade currently knows how to write: `Dalashade_Readability`, `Dalashade_Haze`, `Dalashade_Wetness`, `Dalashade_FoliageDensity`, `Dalashade_CombatPressure`, `Dalashade_HighlightProtection`, `Dalashade_Night`, `Dalashade_AmbientDarkness`, `Dalashade_ArtificialLight`, and `Dalashade_SharpenAuthority`. It can also write SmartSharpen tuning sliders such as `SharpenStrength`, `StructuralClarityStrength`, `TextureDetailStrength`, and dampening controls when those keys exist or are injected. When MaterialIntent shader mapping is enabled, SmartSharpen may also receive `Dalashade_MaterialFoliage`, `Dalashade_MaterialWaterSpecular`, `Dalashade_MaterialSnowIce`, `Dalashade_MaterialSkyCloudFog`, and `Dalashade_MaterialSkinProtection`.
+The generated SmartSharpen section includes the clarity shader intent variables Dalashade currently knows how to write: `Dalashade_Readability`, `Dalashade_Haze`, `Dalashade_Wetness`, `Dalashade_FoliageDensity`, `Dalashade_CombatPressure`, `Dalashade_HighlightProtection`, `Dalashade_Night`, `Dalashade_AmbientDarkness`, `Dalashade_ArtificialLight`, and `Dalashade_SharpenAuthority`. It can also write SmartSharpen tuning sliders such as `SharpenStrength`, `StructuralClarityStrength`, `TextureDetailStrength`, and dampening controls when those keys exist or are injected. When MaterialIntent shader mapping is enabled, SmartSharpen may also receive `Dalashade_MaterialFoliage`, `Dalashade_MaterialWaterSpecular`, `Dalashade_MaterialWaterPlane`, `Dalashade_MaterialSpecularGlint`, `Dalashade_MaterialSnowIce`, `Dalashade_MaterialSkyCloudFog`, and `Dalashade_MaterialSkinProtection`.
 
-The generated AtmosphereBloom section includes the bloom shader intent variables Dalashade currently knows how to write: `Dalashade_Atmosphere`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_FoliageDensity`, `Dalashade_Wetness`, `Dalashade_Heat`, `Dalashade_Readability`, `Dalashade_HighlightProtection`, `Dalashade_Night`, `Dalashade_Moonlight`, `Dalashade_ArtificialLight`, `Dalashade_AmbientDarkness`, `Dalashade_NightAtmosphere`, `Dalashade_CombatPressure`, and `Dalashade_CinematicPermission`. When MaterialIntent shader mapping is enabled, AtmosphereBloom may also receive `Dalashade_MaterialWaterSpecular`, `Dalashade_MaterialCrystalAether`, `Dalashade_MaterialNeonGlass`, `Dalashade_MaterialFireLavaHeat`, and `Dalashade_MaterialSkyCloudFog`.
+The generated AtmosphereBloom section includes the bloom shader intent variables Dalashade currently knows how to write: `Dalashade_Atmosphere`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_FoliageDensity`, `Dalashade_Wetness`, `Dalashade_Heat`, `Dalashade_Readability`, `Dalashade_HighlightProtection`, `Dalashade_Night`, `Dalashade_Moonlight`, `Dalashade_ArtificialLight`, `Dalashade_AmbientDarkness`, `Dalashade_NightAtmosphere`, `Dalashade_CombatPressure`, and `Dalashade_CinematicPermission`. When MaterialIntent shader mapping is enabled, AtmosphereBloom may also receive `Dalashade_MaterialWaterSpecular`, `Dalashade_MaterialWaterPlane`, `Dalashade_MaterialSpecularGlint`, `Dalashade_MaterialCrystalAether`, `Dalashade_MaterialNeonGlass`, `Dalashade_MaterialFireLavaHeat`, and `Dalashade_MaterialSkyCloudFog`.
 
-The generated MaterialDebug section contains MaterialIntent channel variables only. It may receive `Dalashade_MaterialFoliage`, `Dalashade_MaterialWaterSpecular`, `Dalashade_MaterialSandDust`, `Dalashade_MaterialSnowIce`, `Dalashade_MaterialStoneRuins`, `Dalashade_MaterialMetalIndustrial`, `Dalashade_MaterialCrystalAether`, `Dalashade_MaterialNeonGlass`, `Dalashade_MaterialFireLavaHeat`, `Dalashade_MaterialSkyCloudFog`, `Dalashade_MaterialSkinProtection`, and `Dalashade_MaterialVoidDarkness` when MaterialIntent shader mapping is enabled. Debug mode, overlay mode, opacity, and strength stay in the `.fx` UI.
+The generated MaterialDebug section contains MaterialIntent channel variables only. It may receive `Dalashade_MaterialFoliage`, `Dalashade_MaterialWaterSpecular`, `Dalashade_MaterialWaterPlane`, `Dalashade_MaterialSpecularGlint`, `Dalashade_MaterialSandDust`, `Dalashade_MaterialSnowIce`, `Dalashade_MaterialStoneRuins`, `Dalashade_MaterialMetalIndustrial`, `Dalashade_MaterialCrystalAether`, `Dalashade_MaterialNeonGlass`, `Dalashade_MaterialFireLavaHeat`, `Dalashade_MaterialSkyCloudFog`, `Dalashade_MaterialSkinProtection`, and `Dalashade_MaterialVoidDarkness` when MaterialIntent shader mapping is enabled. Debug mode, overlay mode, opacity, and strength stay in the `.fx` UI.
 
 Dalashade also does not currently install or copy custom shader files into a ReShade shader directory, and generated-preset injection does not enable techniques automatically. For manual testing, place the needed files from `shaders/` somewhere ReShade scans for shaders, then enable wanted techniques in ReShade.
 
@@ -198,7 +200,9 @@ Dalashade-driven controls:
 | `Dalashade_MaterialFoliage` | Supports humid canopy air in forest/jungle scenes without raising gray veil. |
 | `Dalashade_MaterialSandDust` | Supports warm distance haze and heat/dust air while keeping foreground clear. |
 | `Dalashade_MaterialSnowIce` | Supports cold air, snow/blizzard atmosphere, and white highlight protection. |
-| `Dalashade_MaterialWaterSpecular` | Supports coastal mist or wet-air diffusion only when wetness/fog/haze also supports it. |
+| `Dalashade_MaterialWaterSpecular` | Backward-compatible combined water/wet/specular likelihood. |
+| `Dalashade_MaterialWaterPlane` | Supports coastal mist or water-plane atmosphere only when wetness/fog/haze also supports it. |
+| `Dalashade_MaterialSpecularGlint` | Supports small wet highlight response; it should not create broad mist by itself. |
 | `Dalashade_MaterialCrystalAether` | Supports subtle cosmic/aetherial depth veil and cool magical air. |
 | `Dalashade_MaterialSkyCloudFog` | Strengthens actual fog/mist/sky depth behavior without turning gloom into fog by itself. |
 
@@ -212,7 +216,7 @@ Manual testing controls:
 | `Manual Storm/Dark Mood` | Tests storm darkening and cool mood response. |
 | `Show Debug Mask` | Shows red depth haze, green glow, and blue protection/readability pressure. |
 | `Debug View` | Selects composite, depth haze, highlight protection, weather glow, foliage dampening, or heat/dust masks. |
-| `Dalashade_MaterialDebugMode` | Material-aware debug override: `0` off, `1` overview, `2` foliage humidity, `3` sand/dust depth, `4` snow/ice air, `5` water/wet mist, `6` crystal/aether veil, `7` sky/fog depth, `8` final air influence. |
+| `Dalashade_MaterialDebugMode` | Material-aware debug override: `0` off, `1` overview, `2` foliage humidity, `3` sand/dust depth, `4` snow/ice air, `5` water/wet mist, `6` crystal/aether veil, `7` sky/fog depth, `8` final air influence, `9` water plane air, `10` specular glint response. |
 | `Dalashade_MaterialDebugStrength` | Scales material debug-mask visibility. Debug masks show inferred influence, not true engine material IDs. |
 
 The shader intentionally does not blur the whole frame or disable any ReShade techniques. It shapes color, haze, glow, highlight rolloff, and mild softness through bounded masks. Heat haze and depth haze are weighted toward distance so hot desert nights avoid full-screen lift. Foliage-heavy atmospheric scenes reduce veil haze and get a small canopy-light response instead of gray wash. Night inputs make air darker and more local: moonlight can tint distant/open-sky air, artificial light can affect bright local pools, and ambient darkness suppresses gray haze in unlit areas. MaterialIntent adds selective air identity: foliage contributes humid canopy air, sand/dust contributes distance haze, snow/ice contributes cold air and white protection, water/specular contributes wet/coastal mist only with weather support, crystal/aether contributes subtle depth veil, and sky/cloud/fog reinforces real fog/mist/sky depth. Gloom remains mood/darkness; it does not become fog unless fog, mist, haze, or sky/fog signals are present. Combat-heavy scenes should visibly reduce the heaviest atmosphere while retaining light weather identity.
@@ -290,7 +294,9 @@ Dalashade-driven controls:
 | `Dalashade_ArtificialLight` | Emphasizes localized lamps, windows, neon, fire, and crystals. |
 | `Dalashade_AmbientDarkness` | Restrains broad wash and protects dark baseline. |
 | `Dalashade_NightAtmosphere` | Allows limited weather/moonlit diffusion without global bloom. |
-| `Dalashade_MaterialWaterSpecular` | Adds restrained wet/specular glow while raising restraint against sparkle blowout when MaterialIntent mapping is enabled. |
+| `Dalashade_MaterialWaterSpecular` | Backward-compatible combined water/wet/specular likelihood. |
+| `Dalashade_MaterialWaterPlane` | Adds restrained broad water/coastal shimmer eligibility when MaterialIntent mapping is enabled. |
+| `Dalashade_MaterialSpecularGlint` | Adds tight reflective highlight/glint bloom eligibility when MaterialIntent mapping is enabled. |
 | `Dalashade_MaterialCrystalAether` | Adds color-selective aether glow instead of generic full-screen bloom when MaterialIntent mapping is enabled. |
 | `Dalashade_MaterialNeonGlass` | Adds small-radius colored neon/glass bloom with strong highlight control when MaterialIntent mapping is enabled. |
 | `Dalashade_MaterialFireLavaHeat` | Adds warm source glow and distant heat eligibility while respecting combat dampening when MaterialIntent mapping is enabled. |
@@ -309,7 +315,7 @@ Manual testing controls:
 | `CombatDampenStrength` | Default `0.72`. Reduces bloom under combat pressure. |
 | `CinematicBoostStrength` | Default `0.34`. Adds limited bloom when cinematic permission is high. |
 | `ShowDebugMask` | Shows red bloom source, green magic/neon intent, and blue combat/highlight restraint. |
-| `Dalashade_MaterialDebugMode` | Material-aware debug override: `0` off, `1` overview, `2` water/specular, `3` crystal/aether, `4` neon/glass, `5` fire/heat, `6` sky/fog, `7` final bloom eligibility. |
+| `Dalashade_MaterialDebugMode` | Material-aware debug override: `0` off, `1` overview, `2` water/specular, `3` crystal/aether, `4` neon/glass, `5` fire/heat, `6` sky/fog, `7` final bloom eligibility, `8` water plane, `9` specular glint. |
 | `Dalashade_MaterialDebugStrength` | Scales material debug-mask visibility. Debug masks show inferred influence, not true engine material IDs. |
 
 The shader uses a single-pass fixed sample ring rather than a large multi-pass blur. It is meant for cheap scene-aware glow, not large full-screen bloom. Bright coastal scenes should keep clean specular sparkle without nuclear sand/sky bloom; jungle scenes should get subtle canopy openings; rain should pick up small wet highlights; neon and magic should tint local luminous sources; combat and readability pressure should cut strength quickly. At night, bloom becomes more selective: ambient darkness raises restraint, artificial light lowers eligibility only around bright local pools, and moonlight adds only subtle atmospheric diffusion. MaterialIntent only makes bloom eligibility more selective: water/specular softens glints, crystal/aether and neon/glass require color/luma cues, fire/heat favors warm sources, and sky/fog gets extra wash restraint.
@@ -333,7 +339,9 @@ Dalashade-driven controls:
 | `Dalashade_ArtificialLight` | Allows modest structural clarity on lit silhouettes and architecture without boosting texture detail. |
 | `Dalashade_SharpenAuthority` | `0` passive, `1` secondary when another sharpener is active, `2` primary when SmartSharpen is the main sharpen pass. |
 | `Dalashade_MaterialFoliage` | Further reduces leaf, grass, and canopy micro-sharpening when MaterialIntent mapping is enabled. |
-| `Dalashade_MaterialWaterSpecular` | Reduces glint, wet highlight, and water shimmer sharpening when MaterialIntent mapping is enabled. |
+| `Dalashade_MaterialWaterSpecular` | Backward-compatible combined water/wet/specular likelihood. |
+| `Dalashade_MaterialWaterPlane` | Reduces broad water-surface shimmer sharpening when MaterialIntent mapping is enabled. |
+| `Dalashade_MaterialSpecularGlint` | Protects thin reflective highlights from sharpening halos when MaterialIntent mapping is enabled. |
 | `Dalashade_MaterialSnowIce` | Reduces snow noise and black-on-white haloing when MaterialIntent mapping is enabled. |
 | `Dalashade_MaterialSkyCloudFog` | Excludes smooth sky, fog, cloud, and atmospheric gradients from sharpening when MaterialIntent mapping is enabled. |
 | `Dalashade_MaterialSkinProtection` | Reduces aggressive sharpening on likely smooth warm foreground skin-tone regions when MaterialIntent mapping is enabled. |
@@ -357,7 +365,7 @@ Manual testing controls:
 | `CombatDampenStrength` | Default `0.66`. Reduces sharpening under combat pressure. |
 | `LumaOnlyStrength` | Default `0.80`. Uses luma-safe reconstruction to avoid color ringing and chroma halos. |
 | `ShowDebugMask` / `DebugView` | Shows composite, structural edge, texture detail, final sharpen, dampening, or foliage/far-depth suppression masks. |
-| `Dalashade_MaterialDebugMode` | Material-aware debug override: `0` off, `1` overview, `2` foliage, `3` water/specular, `4` snow/ice, `5` sky/fog, `6` skin protection, `10` final material dampening. |
+| `Dalashade_MaterialDebugMode` | Material-aware debug override: `0` off, `1` overview, `2` foliage, `3` water/specular, `4` snow/ice, `5` sky/fog, `6` skin protection, `7` water plane, `8` specular glint, `10` final material dampening. |
 | `Dalashade_MaterialDebugStrength` | Scales material debug-mask visibility. Debug masks show inferred influence, not true engine material IDs. |
 | `Dalashade_EnableDepthAssist` | Optional material-mask helper. Default `false`; depth is never required for SmartSharpen material dampening. |
 | `Dalashade_DepthAssistStrength` | Default `0.0`. Allows valid depth to help sky/fog, water, snow, and foreground protection separation. |

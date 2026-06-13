@@ -149,6 +149,20 @@ uniform float Dalashade_MaterialWaterSpecular <
     ui_tooltip = "Inferred water or wet/specular likelihood. Supports coastal mist or wet-air diffusion only when weather supports it.";
 > = 0.0;
 
+uniform float Dalashade_MaterialWaterPlane <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Water Plane";
+    ui_tooltip = "Optional split water-surface likelihood for coastal humidity and water-plane atmosphere.";
+> = 0.0;
+
+uniform float Dalashade_MaterialSpecularGlint <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Specular Glint";
+    ui_tooltip = "Optional split thin-glint likelihood for small wet highlight response.";
+> = 0.0;
+
 uniform float Dalashade_MaterialCrystalAether <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -165,7 +179,7 @@ uniform float Dalashade_MaterialSkyCloudFog <
 
 uniform int Dalashade_MaterialDebugMode <
     ui_type = "combo";
-    ui_items = "Off\0Overview\0Foliage humidity\0Sand/dust depth\0Snow/ice air\0Water/wet mist\0Crystal/aether veil\0Sky/fog depth\0Final air influence\0";
+    ui_items = "Off\0Overview\0Foliage humidity\0Sand/dust depth\0Snow/ice air\0Water/wet mist\0Crystal/aether veil\0Sky/fog depth\0Final air influence\0Water plane air\0Specular glint response\0";
     ui_label = "Dalashade Material Debug Mode";
     ui_tooltip = "Shows material-aware air influence masks. These masks are inferred likelihoods, not true engine material IDs.";
 > = 0;
@@ -286,6 +300,9 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float materialSandDust = Dalashade_Saturate(Dalashade_MaterialSandDust);
     float materialSnowIce = Dalashade_Saturate(Dalashade_MaterialSnowIce);
     float materialWater = Dalashade_Saturate(Dalashade_MaterialWaterSpecular);
+    float materialWaterPlane = Dalashade_Saturate(max(materialWater, Dalashade_MaterialWaterPlane));
+    float materialSpecularGlint = Dalashade_Saturate(max(materialWater, Dalashade_MaterialSpecularGlint));
+    float materialWaterGate = Dalashade_Saturate(max(materialWaterPlane, materialSpecularGlint));
     float materialCrystal = Dalashade_Saturate(Dalashade_MaterialCrystalAether);
     float materialSkyFog = Dalashade_Saturate(Dalashade_MaterialSkyCloudFog);
 
@@ -300,7 +317,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
 
     // Atmospheric perspective: fog/mist and dust thicken with distance; foreground gameplay space stays mostly untouched.
     float realFogWeather = saturate(max(haze, materialSkyFog * haze));
-    float waterMist = materialWater * max(wetness, haze * 0.34 + nightAtmosphere * night * 0.12) * smoothstep(0.18, 0.92, depth);
+    float waterMist = materialWaterPlane * max(wetness, haze * 0.34 + nightAtmosphere * night * 0.12) * smoothstep(0.18, 0.92, depth);
     float dustAir = max(heat, materialSandDust) * (0.42 + haze * 0.18) * smoothstep(0.22, 0.98, depth);
     float snowAir = max(cold, materialSnowIce) * (0.34 + haze * 0.18) * smoothstep(0.10, 0.92, depth);
     float aetherAir = materialCrystal * max(magicGlow, atmosphere * 0.45) * smoothstep(0.18, 0.96, depth);
@@ -329,7 +346,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float3 result = Dalashade_SafeLerp(color, hazeTint, depthHaze * manualStrength);
 
     // Wet air scattering: rain/wetness softens bright wet highlights without lifting the entire scene.
-    float rainGlow = max(wetness * 0.54, specularMask * max(wetness, waterMist) * 0.78);
+    float rainGlow = max(wetness * 0.54, specularMask * max(wetness, max(waterMist, materialSpecularGlint * 0.35)) * 0.78);
     float nightLocalGlow = artificialLight * smoothstep(0.48, 0.96, luma) * (0.35 + max(magicGlow, neonGlow) * 0.45 + materialCrystal * 0.20);
     float moonAirGlow = moonlight * nightAtmosphere * smoothstep(0.30, 0.88, luma) * distant * 0.22;
     float glowIntent = max(max(rainGlow, haze * 0.32), max(magicGlow * 0.40, neonGlow * 0.35));
@@ -361,7 +378,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
 
     // Highlight shoulder: bright sand, clouds, snow, and specular water roll off before bloom/grade can clip them.
     float snowHighlightGuard = max(cold, materialSnowIce) * max(highlightProtection, brightMask);
-    float coastalGlareGuard = highlightProtection * brightMask * (1.0 - wetness * 0.25) * (0.035 + atmosphere * 0.025 + materialWater * 0.010);
+    float coastalGlareGuard = highlightProtection * brightMask * (1.0 - wetness * 0.25) * (0.035 + atmosphere * 0.025 + materialWaterGate * 0.010);
     float highlightRollOff = highlightProtection * brightMask * (0.09 + max(cold, materialSnowIce) * 0.11 + max(heat, materialSandDust) * 0.055);
     highlightRollOff = max(highlightRollOff, snowHighlightGuard * specularMask * 0.10);
     highlightRollOff = max(highlightRollOff, materialSnowIce * brightMask * 0.055);
@@ -388,11 +405,13 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         float heatDust = saturate(heatShimmerSoftness * 8.0 + max(heat, materialSandDust) * heatDistance * 0.35);
         float materialDebugStrength = Dalashade_Saturate(Dalashade_MaterialDebugStrength);
         float materialAir = saturate(humidAir + dustAir + snowAir + waterMist + aetherAir + skyFogAir + nightAtmosphere * night * 0.20);
-        Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasksWithDepthAssist(
+        Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasksWithWaterSplitDepthAssist(
             color,
             texcoord,
             materialFoliage,
             materialWater,
+            Dalashade_Saturate(Dalashade_MaterialWaterPlane),
+            Dalashade_Saturate(Dalashade_MaterialSpecularGlint),
             materialSandDust,
             materialSnowIce,
             0.0,
@@ -424,7 +443,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         }
         if (Dalashade_MaterialDebugMode == 5)
         {
-            return float4(materialMasks.WaterSpecular * materialDebugStrength, waterMist * 5.0 * materialDebugStrength, rainGlow * materialDebugStrength, 1.0);
+            return float4(materialMasks.WaterPlane * materialDebugStrength, waterMist * 5.0 * materialDebugStrength, materialMasks.SpecularGlint * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 6)
         {
@@ -437,6 +456,14 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         if (Dalashade_MaterialDebugMode == 8)
         {
             return float4(materialAir * materialDebugStrength, saturate(depthHaze * 4.0) * materialDebugStrength, saturate(highlightRollOff * 5.0) * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 9)
+        {
+            return float4(materialMasks.WaterPlane * materialDebugStrength, waterMist * 5.0 * materialDebugStrength, materialWaterGate * materialDebugStrength, 1.0);
+        }
+        if (Dalashade_MaterialDebugMode == 10)
+        {
+            return float4(materialMasks.SpecularGlint * materialDebugStrength, specularMask * materialDebugStrength, rainGlow * materialDebugStrength, 1.0);
         }
 
         if (Dalashade_DebugView == 1)

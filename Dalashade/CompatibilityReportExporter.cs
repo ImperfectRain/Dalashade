@@ -133,6 +133,7 @@ public sealed class CompatibilityReportExporter
         var materialDebugTechnique = FindMaterialDebugTechnique(analysis);
         builder.AppendLine($"- Material debug shader listed: {(materialDebugTechnique is null ? "no" : "yes")}");
         builder.AppendLine($"- Material debug technique activation: {(materialDebugTechnique is null ? "absent" : PresetAnalyzer.FormatActivationState(materialDebugTechnique.ActivationState))}");
+        builder.AppendLine("- Split water/specular debug support: available when `Dalashade_MaterialDebug.fx` and `Dalashade_MaterialMasks.fxh` are installed. `WaterPlane` and `SpecularGlint` are shader-side heuristic masks derived from the existing WaterSpecular scene likelihood.");
         builder.AppendLine("- Material debug controls: shader-owned in ReShade UI; Dalashade does not write debug mode, overlay mode, opacity, or strength.");
         builder.AppendLine($"- First-party custom shader status: {FormatFirstPartyCustomShaderStatus(analysis)}");
         builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, and shader-owned controls are recognized/injected but not actively written by Dalashade.");
@@ -310,6 +311,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("### MaterialMasks V2 Calibration Notes");
         builder.AppendLine();
         builder.AppendLine("- Shader-side mask vocabulary: `RawCandidate` is local pixel evidence, `SceneGatedCandidate` is raw evidence scaled by MaterialProfile/MaterialIntent plausibility, and `FinalMask` is the conflict-resolved mask used by a production shader.");
+        builder.AppendLine("- Water/specular split: `WaterPlane` is broad likely water surface, `SpecularGlint` is thin reflective highlight evidence, and `WaterSpecular` remains the combined backward-compatible mask/uniform family.");
         builder.AppendLine("- Depth assist: optional, shader-owned, and disabled by default. It can improve sky/water/snow/foreground separation only when the ReShade depth buffer is valid; color, texture, smoothness, screen-region, and scene gates still work without depth.");
         builder.AppendLine("- Depth confidence means usable signal confidence for material-mask heuristics, not guaranteed correct FFXIV engine depth. DLSS/upscaling, dynamic resolution, depth-buffer restrictions, or UI/depth mismatches can make depth unreliable.");
         builder.AppendLine($"- Sections receiving MaterialIntent uniforms: {FormatMaterialUniformSections(writtenUniforms)}");
