@@ -318,6 +318,51 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
         0.0,
         0.0,
         0.0);
+    Dalashade_MaterialResolve sharedMaterial = Dalashade_ResolveMaterials(
+        color,
+        texcoord,
+        Dalashade_MaterialFoliage,
+        0.0,
+        Dalashade_MaterialWaterPlane,
+        Dalashade_MaterialSpecularGlint,
+        Dalashade_MaterialSandDust,
+        Dalashade_MaterialSnowIce,
+        Dalashade_MaterialStoneRuins,
+        Dalashade_MaterialMetalIndustrial,
+        Dalashade_MaterialCrystalAether,
+        Dalashade_MaterialNeonGlass,
+        Dalashade_MaterialFireLavaHeat,
+        Dalashade_MaterialSkyCloudFog,
+        Dalashade_MaterialSkinProtection,
+        Dalashade_MaterialVoidDarkness,
+        0.0,
+        0.0,
+        0.0);
+    Dalashade_WaterResolve sharedWater = Dalashade_ResolveWater(
+        color,
+        texcoord,
+        Dalashade_MaterialWaterPlane,
+        Dalashade_MaterialWaterPlane,
+        Dalashade_MaterialWaterPlane,
+        Dalashade_MaterialWaterPlane,
+        Dalashade_IntentWetness,
+        Dalashade_MaterialWaterPlane,
+        Dalashade_MaterialSpecularGlint,
+        Dalashade_MaterialSandDust,
+        Dalashade_MaterialSkyCloudFog,
+        Dalashade_MaterialSkinProtection,
+        0.0,
+        0.0,
+        0.0);
+    Dalashade_SafetyResolve sharedSafety = Dalashade_ResolveSafety(
+        color,
+        texcoord,
+        sharedMaterial,
+        sharedWater,
+        Dalashade_IntentHighlightProtection,
+        0.0,
+        0.0,
+        0.0);
 
     float skyReject = saturate(material.SkyCloudFog * Dalashade_GISkyReject);
     float skinProtect = saturate(material.SkinProtection * Dalashade_GISkinProtect);
@@ -451,8 +496,8 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
         else if (mode == 4)
         {
             float materialInfluenceMask = materialInfluence;
-            debugColor = lerp(materialInfluenceMask.xxx, Dalashade_GetMaterialOverviewColor(material), 0.72);
-            debugMask = material.CombinedConfidence;
+            debugColor = lerp(materialInfluenceMask.xxx, Dalashade_GetMaterialDebugColor(sharedMaterial), 0.72);
+            debugMask = saturate(max(material.CombinedConfidence, max(sharedMaterial.ReceiverConfidence, sharedMaterial.LightSourceConfidence)));
         }
         else if (mode == 5)
         {
@@ -492,8 +537,8 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
         }
         else if (mode == 11)
         {
-            debugColor = float3(safetyClampMask, positiveGIAllowance * 4.0, negativeAOAllowance * 4.0);
-            debugMask = saturate(max(safetyClampMask, max(positiveGIAllowance * 4.0, negativeAOAllowance * 4.0)));
+            debugColor = saturate(float3(max(safetyClampMask, sharedSafety.HighlightProtect), positiveGIAllowance * 4.0, negativeAOAllowance * 4.0));
+            debugMask = saturate(max(max(safetyClampMask, sharedSafety.HighlightProtect), max(positiveGIAllowance * 4.0, negativeAOAllowance * 4.0)));
         }
         else if (mode == 12)
         {

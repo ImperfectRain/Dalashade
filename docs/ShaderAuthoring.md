@@ -501,7 +501,7 @@ The shader uses two channels. Structural clarity uses broad, lower-frequency lum
 
 The overlay visualizes shader-side material heuristic influence. It is not true FFXIV engine material-ID detection, so false positives are expected. Scene-level MaterialProfile/MaterialIntent priors gate each pixel mask; high scene-level foliage, water, snow, or aether values do not tint the whole screen unless individual pixels also match the local color/luma/saturation/edge/depth heuristics.
 
-The shared mask include separates raw candidates, scene-level gates, and final conflict-resolved masks. `SkyCloudFog` uses smoothness, upper-screen prior, color families, clouds/overcast, warm dawn/dusk sky, night sky, canopy gaps, and optional depth; depth can help but is not required. `Foliage` separates strong leaves/grass/canopy from weak `OrganicGreenSurface` influence so mossy rocks or green-lit bark can damp sharpening slightly without appearing as full foliage in the master overlay.
+The shared mask include separates raw candidates, scene-level gates, and final conflict-resolved masks. `Dalashade_ResolveMaterials`, `Dalashade_ResolveWater`, and `Dalashade_ResolveSafety` are the first-party shader contract: production shaders should start from these shared material, water, and safety resolver outputs, then apply role-specific gates rather than reinventing base sky, water, skin, sand, foliage, or specular detection. `SkyCloudFog` uses smoothness, upper-screen prior, color families, clouds/overcast, warm dawn/dusk sky, night sky, canopy gaps, and optional depth; depth can help but is not required. `Foliage` separates strong leaves/grass/canopy from weak `OrganicGreenSurface` influence so mossy rocks or green-lit bark can damp sharpening slightly without appearing as full foliage in the master overlay.
 
 Depth assist is shader-owned and disabled by default through `Dalashade_EnableDepthAssist=false` and `Dalashade_DepthAssistStrength=0.0`. When enabled, valid depth can boost sky/fog confidence in smooth far or missing-depth regions, suppress upper-screen water false positives, help separate snow fields from clouds, and help foreground skin protection. Depth is only supporting evidence: if depth is unavailable, flat, inverted, or unreliable, masks still run from color, smoothness, texture, screen region, and scene profile gates. DLSS, FSR, dynamic resolution, ReShade depth-buffer restrictions, or UI/depth mismatches can make depth unreliable. Depth confidence means "usable signal confidence" for the heuristic, not guaranteed correct FFXIV engine depth.
 
@@ -553,6 +553,9 @@ Depth assist is shader-owned and disabled by default through `Dalashade_EnableDe
 | `43` | Sky source vs sky reject | blue source, red reject |
 | `44` | Sand/skin rejection | orange sand, pink skin |
 | `45` | Water coherence | cyan |
+| `46` | Shared safety overview | blue sky reject, peach skin reject, yellow highlight protect, cyan water AO reject, green foliage noise reject |
+| `47` | Shared receiver confidence | green |
+| `48` | Shared light source confidence | warm orange |
 
 Overlay mode `0` replaces the image with the debug mask, `1` alpha-blends over the game image, and `2` applies an additive/tint overlay. `Dalashade_MaterialDebugOpacity` controls visibility, and `Dalashade_MaterialDebugStrength` can disable the overlay without changing the selected mode.
 
