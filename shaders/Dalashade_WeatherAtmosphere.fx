@@ -163,6 +163,38 @@ uniform float Dalashade_MaterialSpecularGlint <
     ui_tooltip = "Optional split thin-glint likelihood for small wet highlight response.";
 > = 0.0;
 
+uniform float Dalashade_WaterContext <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Water Context";
+    ui_tooltip = "Scene-level water plausibility for coastal or shoreline air. This is not a pixel reflection mask.";
+> = 0.0;
+
+uniform float Dalashade_CoastalContext <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Coastal Context";
+    ui_tooltip = "Scene-level coastal plausibility for subtle sea-air depth.";
+> = 0.0;
+
+uniform float Dalashade_OpenOceanContext <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Open Ocean Context";
+> = 0.0;
+
+uniform float Dalashade_ShallowWaterContext <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Shallow Water Context";
+> = 0.0;
+
+uniform float Dalashade_WetSurfaceContext <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Wet Surface Context";
+> = 0.0;
+
 uniform float Dalashade_MaterialCrystalAether <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -307,6 +339,60 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float materialSkyFog = Dalashade_Saturate(Dalashade_MaterialSkyCloudFog);
 
     float luma = dot(color, float3(0.2126, 0.7152, 0.0722));
+    Dalashade_MaterialResolve material = Dalashade_ResolveMaterials(
+        color,
+        texcoord,
+        materialFoliage,
+        materialWater,
+        Dalashade_MaterialWaterPlane,
+        Dalashade_MaterialSpecularGlint,
+        materialSandDust,
+        materialSnowIce,
+        0.0,
+        0.0,
+        materialCrystal,
+        0.0,
+        0.0,
+        materialSkyFog,
+        0.0,
+        0.0,
+        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
+        Dalashade_DepthAssistStrength,
+        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
+    Dalashade_WaterResolve water = Dalashade_ResolveWater(
+        color,
+        texcoord,
+        Dalashade_WaterContext,
+        Dalashade_CoastalContext,
+        Dalashade_OpenOceanContext,
+        Dalashade_ShallowWaterContext,
+        Dalashade_WetSurfaceContext,
+        material.WaterPlane,
+        material.SpecularGlint,
+        material.SandDust,
+        material.SkyCloudFog,
+        material.SkinProtection,
+        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
+        Dalashade_DepthAssistStrength,
+        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
+    Dalashade_SafetyResolve safety = Dalashade_ResolveSafety(
+        color,
+        texcoord,
+        material,
+        water,
+        highlightProtection,
+        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
+        Dalashade_DepthAssistStrength,
+        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
+    materialFoliage = max(materialFoliage, material.Foliage);
+    materialSandDust = max(materialSandDust, material.SandDust);
+    materialSnowIce = max(materialSnowIce, material.SnowIce);
+    materialWaterPlane = max(materialWaterPlane, max(water.WetShoreline * 0.55, max(Dalashade_WaterContext, Dalashade_CoastalContext) * 0.45));
+    materialSpecularGlint = max(materialSpecularGlint, material.SpecularGlint);
+    materialWaterGate = Dalashade_Saturate(max(materialWaterPlane, materialSpecularGlint));
+    materialCrystal = max(materialCrystal, material.CrystalAether);
+    materialSkyFog = max(materialSkyFog, max(material.SkyCloudFog, safety.SkyReject));
+
     float brightMask = smoothstep(0.54, 0.96, luma);
     float specularMask = smoothstep(0.72, 1.0, luma);
     float shadowMask = 1.0 - smoothstep(0.08, 0.35, luma);
@@ -405,53 +491,33 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         float heatDust = saturate(heatShimmerSoftness * 8.0 + max(heat, materialSandDust) * heatDistance * 0.35);
         float materialDebugStrength = Dalashade_Saturate(Dalashade_MaterialDebugStrength);
         float materialAir = saturate(humidAir + dustAir + snowAir + waterMist + aetherAir + skyFogAir + nightAtmosphere * night * 0.20);
-        Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasksWithWaterSplitDepthAssist(
-            color,
-            texcoord,
-            materialFoliage,
-            materialWater,
-            Dalashade_Saturate(Dalashade_MaterialWaterPlane),
-            Dalashade_Saturate(Dalashade_MaterialSpecularGlint),
-            materialSandDust,
-            materialSnowIce,
-            0.0,
-            0.0,
-            materialCrystal,
-            0.0,
-            0.0,
-            materialSkyFog,
-            0.0,
-            0.0,
-            Dalashade_EnableDepthAssist ? 1.0 : 0.0,
-            Dalashade_DepthAssistStrength,
-            max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
         if (Dalashade_MaterialDebugMode == 1)
         {
             return float4(saturate(dustAir + waterMist) * materialDebugStrength, saturate(humidAir + aetherAir) * materialDebugStrength, saturate(snowAir + skyFogAir) * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 2)
         {
-            return float4(materialMasks.FoliageStrong * materialDebugStrength, materialMasks.OrganicGreenSurface * materialDebugStrength, humidAir * 5.0 * materialDebugStrength, 1.0);
+            return float4(material.Foliage * materialDebugStrength, safety.FoliageNoiseReject * materialDebugStrength, humidAir * 5.0 * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 3)
         {
-            return float4(materialMasks.SandDust * materialDebugStrength, dustAir * 4.0 * materialDebugStrength, heatDistance * materialDebugStrength, 1.0);
+            return float4(material.SandDust * materialDebugStrength, dustAir * 4.0 * materialDebugStrength, heatDistance * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 4)
         {
-            return float4(materialMasks.SnowIce * materialDebugStrength, snowAir * 5.0 * materialDebugStrength, highlightRollOff * 5.0 * materialDebugStrength, 1.0);
+            return float4(material.SnowIce * materialDebugStrength, snowAir * 5.0 * materialDebugStrength, highlightRollOff * 5.0 * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 5)
         {
-            return float4(materialMasks.WaterPlane * materialDebugStrength, waterMist * 5.0 * materialDebugStrength, materialMasks.SpecularGlint * materialDebugStrength, 1.0);
+            return float4(water.WetShoreline * materialDebugStrength, waterMist * 5.0 * materialDebugStrength, material.SpecularGlint * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 6)
         {
-            return float4(materialMasks.CrystalAether * materialDebugStrength, aetherAir * 5.0 * materialDebugStrength, magicGlow * materialDebugStrength, 1.0);
+            return float4(material.CrystalAether * materialDebugStrength, aetherAir * 5.0 * materialDebugStrength, magicGlow * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 7)
         {
-            return float4(materialMasks.SkyCloudFog * materialDebugStrength, skyFogAir * 5.0 * materialDebugStrength, realFogWeather * materialDebugStrength, 1.0);
+            return float4(material.SkyCloudFog * materialDebugStrength, skyFogAir * 5.0 * materialDebugStrength, realFogWeather * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 8)
         {
@@ -459,11 +525,11 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         }
         if (Dalashade_MaterialDebugMode == 9)
         {
-            return float4(materialMasks.WaterPlane * materialDebugStrength, waterMist * 5.0 * materialDebugStrength, materialWaterGate * materialDebugStrength, 1.0);
+            return float4(water.WaterSurface * materialDebugStrength, waterMist * 5.0 * materialDebugStrength, materialWaterGate * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 10)
         {
-            return float4(materialMasks.SpecularGlint * materialDebugStrength, specularMask * materialDebugStrength, rainGlow * materialDebugStrength, 1.0);
+            return float4(material.SpecularGlint * materialDebugStrength, specularMask * materialDebugStrength, rainGlow * materialDebugStrength, 1.0);
         }
 
         if (Dalashade_DebugView == 1)

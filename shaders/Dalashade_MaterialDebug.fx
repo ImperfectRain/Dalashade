@@ -99,7 +99,7 @@ uniform float Dalashade_WetSurfaceContext < ui_type = "slider"; ui_min = 0.0; ui
 
 uniform int Dalashade_MaterialDebugMode <
     ui_type = "combo";
-    ui_items = "Off/pass-through\0Overview final masks\0Combined confidence\0Raw sky/fog\0Gated sky/fog\0Final sky/fog\0Raw foliage strong\0Organic green surface\0Final foliage influence\0Raw water/specular combined\0Gated water/specular combined\0Final water/specular combined\0Raw snow/ice\0Gated snow/ice\0Final snow/ice\0Raw sand/dust\0Gated sand/dust\0Final sand/dust\0Depth confidence\0Depth-assisted sky/fog\0Stone/ruins\0Metal/industrial\0Crystal/aether\0Neon/glass\0Fire/lava/heat\0Skin-protection\0Void/darkness\0Raw water plane\0Gated water plane\0Final water plane\0Raw specular glint\0Gated specular glint\0Final specular glint\0Water resolver overview\0Raw cyan water\0Raw deep water\0Shallow water\0Deep water\0Water horizon\0Wet shoreline\0Foam/edge\0Water receiver\0Water source\0Sky source vs reject\0Sand/skin reject\0Water coherence\0Shared safety overview\0Shared receiver confidence\0Shared light source confidence\0";
+    ui_items = "Off/pass-through\0Overview final masks\0Combined confidence\0Raw sky/fog\0Gated sky/fog\0Final sky/fog\0Raw foliage strong\0Organic green surface\0Final foliage influence\0Raw water/specular combined\0Gated water/specular combined\0Final water/specular combined\0Raw snow/ice\0Gated snow/ice\0Final snow/ice\0Raw sand/dust\0Gated sand/dust\0Final sand/dust\0Depth confidence\0Depth-assisted sky/fog\0Stone/ruins\0Metal/industrial\0Crystal/aether\0Neon/glass\0Fire/lava/heat\0Skin-protection\0Void/darkness\0Raw water plane\0Gated water plane\0Final water plane\0Raw specular glint\0Gated specular glint\0Final specular glint\0Water resolver overview\0Raw cyan water\0Raw deep water\0Shallow water\0Deep water\0Water horizon\0Wet shoreline\0Foam/edge\0Water receiver\0Water source\0Sky source vs reject\0Sand/skin reject\0Water coherence\0Shared safety overview\0Shared receiver confidence\0Shared light source confidence\0SurfaceReflection receiver preview\0SceneGI receiver/source preview\0AtmosphereBloom eligibility preview\0WeatherAtmosphere air influence preview\0SmartSharpen dampening preview\0AdaptiveGrade protection preview\0";
     ui_label = "Dalashade Material Debug Mode";
     ui_tooltip = "False-color material heuristic visualizer. Raw modes show pixel evidence, gated modes show scene-scaled evidence, and final modes show conflict-resolved masks. These are not true engine material IDs.";
 > = 0;
@@ -503,6 +503,43 @@ float4 Dalashade_MaterialDebugPass(float4 position : SV_Position, float2 texcoor
     {
         confidence = material.LightSourceConfidence;
         debugColor = lerp(float3(0.12, 0.04, 0.0), float3(1.00, 0.66, 0.16), confidence) * confidence;
+    }
+    else if (mode == 49)
+    {
+        float wetHardReceiver = saturate(material.ReceiverConfidence * max(Dalashade_WetSurfaceContext, water.WetShoreline) * (1.0 - safety.SkyReject) * (1.0 - safety.SkinReject));
+        float aetherReceiver = saturate((material.CrystalAether + material.NeonGlass) * material.SurfaceSmoothness * (1.0 - safety.SkyReject));
+        confidence = saturate(water.WaterReceiver + wetHardReceiver + aetherReceiver);
+        debugColor = saturate(water.WaterReceiver * float3(0.0, 0.85, 1.0) + wetHardReceiver * float3(0.28, 0.52, 0.78) + aetherReceiver * float3(0.70, 0.22, 1.0));
+    }
+    else if (mode == 50)
+    {
+        float receiver = saturate(material.ReceiverConfidence * (1.0 - safety.SkyReject) * (1.0 - safety.SkinReject));
+        float source = saturate(material.LightSourceConfidence + water.WaterSource * 0.35);
+        confidence = max(receiver, source);
+        debugColor = saturate(receiver * float3(0.08, 0.86, 0.26) + source * float3(1.0, 0.48, 0.08));
+    }
+    else if (mode == 51)
+    {
+        float glow = saturate(material.SpecularGlint * 0.60 + water.FoamOrEdge * 0.45 + material.CrystalAether + material.NeonGlass + material.FireLavaHeat);
+        float skyDiffuse = saturate(material.SkyCloudFog * (1.0 - safety.HighlightProtect * 0.60));
+        confidence = saturate(glow + skyDiffuse * 0.35);
+        debugColor = saturate(glow * float3(0.82, 0.58, 1.0) + skyDiffuse * float3(0.16, 0.34, 1.0));
+    }
+    else if (mode == 52)
+    {
+        float air = saturate(material.SkyCloudFog + material.Foliage * 0.35 + material.SandDust * 0.45 + material.SnowIce * 0.45 + water.WetShoreline * 0.30 + material.CrystalAether * 0.30);
+        confidence = air;
+        debugColor = saturate(material.SkyCloudFog * float3(0.18, 0.42, 1.0) + material.Foliage * float3(0.14, 0.76, 0.20) + material.SandDust * float3(1.0, 0.58, 0.08) + material.SnowIce * float3(0.74, 0.92, 1.0) + water.WetShoreline * float3(0.20, 0.82, 1.0) + material.CrystalAether * float3(0.54, 0.18, 1.0));
+    }
+    else if (mode == 53)
+    {
+        confidence = saturate(safety.FoliageNoiseReject + safety.WaterAOReject + safety.SkyReject + safety.SkinReject + safety.SnowProtect + material.SpecularGlint * 0.42);
+        debugColor = saturate(safety.FoliageNoiseReject * float3(0.08, 0.82, 0.16) + safety.WaterAOReject * float3(0.0, 0.84, 1.0) + safety.SkyReject * float3(0.10, 0.34, 1.0) + safety.SkinReject * float3(1.0, 0.54, 0.42) + safety.SnowProtect * float3(0.74, 0.90, 1.0) + material.SpecularGlint * float3(0.62, 0.86, 1.0));
+    }
+    else if (mode == 54)
+    {
+        confidence = saturate(material.Foliage * 0.45 + safety.BrightSandProtect + safety.SnowProtect + safety.SkinReject + material.CrystalAether * 0.45 + material.NeonGlass * 0.35 + material.VoidDarkness * 0.50);
+        debugColor = saturate(material.Foliage * float3(0.05, 0.80, 0.14) + safety.BrightSandProtect * float3(1.0, 0.58, 0.08) + safety.SnowProtect * float3(0.78, 0.92, 1.0) + safety.SkinReject * float3(1.0, 0.54, 0.42) + material.CrystalAether * float3(0.55, 0.22, 1.0) + material.NeonGlass * float3(1.0, 0.0, 0.85) + material.VoidDarkness * float3(0.38, 0.05, 0.75));
     }
 
     return float4(Dalashade_ApplyDebugOverlay(source, saturate(debugColor), confidence), 1.0);

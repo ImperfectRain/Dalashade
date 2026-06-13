@@ -65,9 +65,9 @@ public sealed class CompatibilityReportExporter
             "Dalashade_WeatherAtmosphere.fx",
             "Dalashade_WeatherAtmosphere",
             "Weather/air/haze material shaping",
-            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialSkyCloudFog", "Dalashade_EnableDepthAssist", "Dalashade_DepthAssistStrength", "Dalashade_DepthAssistConfidenceFloor", "Dalashade_DepthConfidenceFloor"),
-            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialSkyCloudFog"),
-            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialSkyCloudFog")),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_WaterContext", "Dalashade_CoastalContext", "Dalashade_OpenOceanContext", "Dalashade_ShallowWaterContext", "Dalashade_WetSurfaceContext", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialSkyCloudFog", "Dalashade_EnableDepthAssist", "Dalashade_DepthAssistStrength", "Dalashade_DepthAssistConfidenceFloor", "Dalashade_DepthConfidenceFloor"),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_WaterContext", "Dalashade_CoastalContext", "Dalashade_OpenOceanContext", "Dalashade_ShallowWaterContext", "Dalashade_WetSurfaceContext", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialSkyCloudFog"),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_WaterContext", "Dalashade_CoastalContext", "Dalashade_OpenOceanContext", "Dalashade_ShallowWaterContext", "Dalashade_WetSurfaceContext", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialSkyCloudFog")),
         new(
             "Dalashade_SmartSharpen.fx",
             "Dalashade_SmartSharpen",
@@ -347,6 +347,8 @@ public sealed class CompatibilityReportExporter
             var source = sourceByShader[shader.FileName];
             var sourceAvailable = !string.IsNullOrWhiteSpace(source);
             var usesSharedResolver = sourceAvailable && UsesSharedMaterialResolver(source);
+            var usesWaterResolver = sourceAvailable && source.Contains("Dalashade_ResolveWater", StringComparison.Ordinal);
+            var usesSafetyResolver = sourceAvailable && source.Contains("Dalashade_ResolveSafety", StringComparison.Ordinal);
             var hasLocalMaterialLogic = sourceAvailable && HasLocalMaterialLogic(source, usesSharedResolver);
             var debugExposes = sourceAvailable
                                && (shader.Technique.Equals("Dalashade_MaterialDebug", StringComparison.OrdinalIgnoreCase)
@@ -358,7 +360,9 @@ public sealed class CompatibilityReportExporter
             builder.AppendLine($"- Shader file: `{shader.FileName}`");
             builder.AppendLine($"- Role: {shader.Role}");
             builder.AppendLine($"- Source available for declaration/use scan: {(sourceAvailable ? "yes" : "no")}");
-            builder.AppendLine($"- Uses shared resolver from `Dalashade_MaterialMasks.fxh`: {(usesSharedResolver ? "yes" : sourceAvailable ? "no" : "unknown")}");
+            builder.AppendLine($"- Shared material resolver consumed: {(usesSharedResolver ? "yes" : sourceAvailable ? "no" : "unknown")}");
+            builder.AppendLine($"- Water resolver consumed: {(usesWaterResolver ? "yes" : sourceAvailable ? "no" : "unknown")}");
+            builder.AppendLine($"- Safety resolver consumed: {(usesSafetyResolver ? "yes" : sourceAvailable ? "no" : "unknown")}");
             builder.AppendLine($"- Local material override logic: {(hasLocalMaterialLogic ? "yes" : sourceAvailable ? "no" : "unknown")}");
             builder.AppendLine($"- Debug view exposes consumed material result: {(debugExposes ? "yes" : "no")}");
             builder.AppendLine();
@@ -1061,15 +1065,12 @@ public sealed class CompatibilityReportExporter
 
     private static bool UsesSharedMaterialResolver(string source)
     {
-        return source.Contains("Dalashade_GetAllMaterialMasks", StringComparison.Ordinal)
-               || source.Contains("Dalashade_ResolveWater", StringComparison.Ordinal)
-               || source.Contains("Dalashade_GetWaterPlaneMask", StringComparison.Ordinal)
-               || source.Contains("Dalashade_GetMaterialSignals", StringComparison.Ordinal);
+        return source.Contains("Dalashade_ResolveMaterials", StringComparison.Ordinal);
     }
 
     private static bool HasLocalMaterialLogic(string source, bool usesSharedResolver)
     {
-        if (source.Contains("Dalashade_ResolveWater", StringComparison.Ordinal))
+        if (usesSharedResolver)
         {
             return false;
         }

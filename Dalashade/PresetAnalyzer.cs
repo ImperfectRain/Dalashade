@@ -683,6 +683,13 @@ public sealed class PresetAnalyzer
             warnings.Add("Dalashade_SurfaceReflection is active but WaterPlane or SpecularGlint material uniforms are missing from its section. Broad water sheen and thin glint behavior may collapse back to conservative defaults.");
         }
 
+        if (surfaceReflection is not null
+            && (!SectionContainsKey(lines, surfaceReflection.Section, "Dalashade_WaterContext")
+                || !SectionContainsKey(lines, surfaceReflection.Section, "Dalashade_CoastalContext")))
+        {
+            warnings.Add("Dalashade_SurfaceReflection is active but WaterContext or CoastalContext uniforms are missing from its section. The staged water resolver may be unable to distinguish ocean, shoreline, and non-water cyan/aether surfaces reliably.");
+        }
+
         if (sceneGI is not null)
         {
             warnings.Add("Dalashade_SceneGI is active; preset analysis cannot confirm ReShade depth-buffer support. Verify depth in-game if AO, bounce, or depth-normal confidence debug views look flat.");

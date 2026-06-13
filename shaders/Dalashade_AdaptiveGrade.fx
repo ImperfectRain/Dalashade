@@ -290,10 +290,12 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float materialCrystal = saturate(Dalashade_MaterialCrystalAether);
     float materialSkin = saturate(Dalashade_MaterialSkinProtection);
     float materialVoid = saturate(Dalashade_MaterialVoidDarkness);
-    Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasksWithDepthAssist(
+    Dalashade_MaterialResolve material = Dalashade_ResolveMaterials(
         source,
         texcoord,
         materialFoliage,
+        0.0,
+        0.0,
         0.0,
         materialSandDust,
         materialSnowIce,
@@ -308,13 +310,38 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
         Dalashade_EnableDepthAssist ? 1.0 : 0.0,
         Dalashade_DepthAssistStrength,
         max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
-    float materialFoliagePixel = saturate(materialMasks.FoliageStrong + materialMasks.OrganicGreenSurface * 0.25);
-    float materialSandPixel = materialMasks.SandDust;
-    float materialSnowPixel = materialMasks.SnowIce;
-    float materialMetalPixel = materialMasks.MetalIndustrial;
-    float materialCrystalPixel = materialMasks.CrystalAether;
-    float materialSkinPixel = materialMasks.SkinProtection;
-    float materialVoidPixel = materialMasks.VoidDarkness;
+    Dalashade_WaterResolve water = Dalashade_ResolveWater(
+        source,
+        texcoord,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        material.WaterPlane,
+        material.SpecularGlint,
+        material.SandDust,
+        material.SkyCloudFog,
+        material.SkinProtection,
+        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
+        Dalashade_DepthAssistStrength,
+        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
+    Dalashade_SafetyResolve safetyResolve = Dalashade_ResolveSafety(
+        source,
+        texcoord,
+        material,
+        water,
+        highlightProtection,
+        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
+        Dalashade_DepthAssistStrength,
+        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
+    float materialFoliagePixel = material.Foliage;
+    float materialSandPixel = material.SandDust;
+    float materialSnowPixel = material.SnowIce;
+    float materialMetalPixel = material.MetalIndustrial;
+    float materialCrystalPixel = material.CrystalAether;
+    float materialSkinPixel = saturate(max(material.SkinProtection, safetyResolve.SkinReject));
+    float materialVoidPixel = material.VoidDarkness;
     float manualStrength = saturate(Dalashade_ManualStrength);
     float safety = 1.0 - saturate(readability * 0.42 + combat * 0.58);
     float foliageRichness = max(foliage, materialFoliage) * atmosphere * safety;

@@ -72,6 +72,11 @@ public sealed class PresetWriter
         "Dalashade_MaterialWaterSpecular",
         "Dalashade_MaterialWaterPlane",
         "Dalashade_MaterialSpecularGlint",
+        "Dalashade_WaterContext",
+        "Dalashade_CoastalContext",
+        "Dalashade_OpenOceanContext",
+        "Dalashade_ShallowWaterContext",
+        "Dalashade_WetSurfaceContext",
         "Dalashade_MaterialCrystalAether",
         "Dalashade_MaterialSkyCloudFog"
     ];
@@ -146,6 +151,7 @@ public sealed class PresetWriter
         "Dalashade_CoastalContext",
         "Dalashade_OpenOceanContext",
         "Dalashade_ShallowWaterContext",
+        "Dalashade_WetSurfaceContext",
         "Dalashade_MaterialSandDust",
         "Dalashade_MaterialSnowIce",
         "Dalashade_MaterialMetalIndustrial",

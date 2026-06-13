@@ -314,7 +314,7 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float materialSnowIce = saturate(Dalashade_MaterialSnowIce);
     float materialSkyCloudFog = saturate(Dalashade_MaterialSkyCloudFog);
     float materialSkinProtection = saturate(Dalashade_MaterialSkinProtection);
-    Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasksWithWaterSplitDepthAssist(
+    Dalashade_MaterialResolve material = Dalashade_ResolveMaterials(
         center,
         texcoord,
         materialFoliage,
@@ -334,15 +334,40 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
         Dalashade_EnableDepthAssist ? 1.0 : 0.0,
         Dalashade_DepthAssistStrength,
         max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
-    float materialFoliageStrong = materialMasks.FoliageStrong;
-    float materialOrganicGreen = materialMasks.OrganicGreenSurface;
+    Dalashade_WaterResolve water = Dalashade_ResolveWater(
+        center,
+        texcoord,
+        materialWaterPlaneScene,
+        materialWaterPlaneScene,
+        materialWaterPlaneScene,
+        materialWaterPlaneScene,
+        wetness,
+        material.WaterPlane,
+        material.SpecularGlint,
+        0.0,
+        material.SkyCloudFog,
+        material.SkinProtection,
+        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
+        Dalashade_DepthAssistStrength,
+        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
+    Dalashade_SafetyResolve safety = Dalashade_ResolveSafety(
+        center,
+        texcoord,
+        material,
+        water,
+        highlightProtection,
+        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
+        Dalashade_DepthAssistStrength,
+        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
+    float materialFoliageStrong = material.Foliage;
+    float materialOrganicGreen = saturate(material.Foliage * material.SurfaceHardness * 0.35);
     float materialFoliagePixel = saturate(materialFoliageStrong + materialOrganicGreen * 0.42);
-    float materialWaterPlanePixel = materialMasks.WaterPlane;
-    float materialSpecularGlintPixel = materialMasks.SpecularGlint;
-    float materialWaterPixel = materialMasks.WaterSpecular;
-    float materialSnowPixel = materialMasks.SnowIce;
-    float materialSkyPixel = materialMasks.SkyCloudFog;
-    float materialSkinPixel = materialMasks.SkinProtection;
+    float materialWaterPlanePixel = water.WaterSurface;
+    float materialSpecularGlintPixel = material.SpecularGlint;
+    float materialWaterPixel = saturate(max(water.WaterSurface, material.WaterSpecular));
+    float materialSnowPixel = material.SnowIce;
+    float materialSkyPixel = saturate(max(material.SkyCloudFog, safety.SkyReject));
+    float materialSkinPixel = saturate(max(material.SkinProtection, safety.SkinReject));
 
     float brightMask = smoothstep(0.62, 0.96, centerLuma);
     float veryBrightMask = smoothstep(0.78, 1.0, centerLuma);
@@ -362,7 +387,7 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
         * smoothstep(0.16, 0.42, centerLuma)
         * (1.0 - smoothstep(0.78, 0.98, centerLuma));
     float materialFoliagePressure = saturate(materialFoliagePixel * FoliageDampenStrength * (0.22 + textureDetailMask * 0.82 + farDepthMask * 0.24));
-    float materialWaterPressure = saturate(materialWaterPlanePixel * (0.28 + wetness * 0.28 + farDepthMask * 0.18) * HighlightDampenStrength);
+    float materialWaterPressure = saturate(materialWaterPlanePixel * (0.34 + wetness * 0.28 + farDepthMask * 0.18) * HighlightDampenStrength);
     float materialGlintPressure = saturate(materialSpecularGlintPixel * (specularEdgeMask * 0.78 + veryBrightMask * 0.28) * HaloDampenStrength);
     float materialSnowPressure = saturate(materialSnowPixel * (brightMask * 0.54 + veryBrightMask * 0.36 + structuralEdgeMask * 0.18) * HaloDampenStrength);
     float materialSkyPressure = saturate(max(materialSkyPixel, materialSkyCloudFog * skyGradientMask * 0.42) * max(skyGradientMask, smoothGradientMask * (0.45 + haze * 0.45)) * SkyDampenStrength);

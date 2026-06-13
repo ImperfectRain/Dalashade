@@ -303,7 +303,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float edge = Dalashade_GetEdgeStrength(texcoord);
     float saturation = Dalashade_GetSaturation(color);
 
-    Dalashade_MaterialMasks material = Dalashade_GetAllMaterialMasksWithWaterSplitDepthAssist(
+    Dalashade_MaterialResolve material = Dalashade_ResolveMaterials(
         color,
         texcoord,
         0.0,
@@ -357,9 +357,19 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
         0.0,
         0.0,
         0.0);
-    skyReject = saturate(max(skyReject, water.SkyReject * Dalashade_SurfaceReflectionSkyReject));
-    skinProtect = saturate(max(skinProtect, water.SkinReject * Dalashade_SurfaceReflectionSkinProtect));
+    Dalashade_SafetyResolve safety = Dalashade_ResolveSafety(
+        color,
+        texcoord,
+        material,
+        water,
+        Dalashade_HighlightProtection,
+        0.0,
+        0.0,
+        0.0);
+    skyReject = saturate(max(skyReject, safety.SkyReject * Dalashade_SurfaceReflectionSkyReject));
+    skinProtect = saturate(max(skinProtect, safety.SkinReject * Dalashade_SurfaceReflectionSkinProtect));
     safeSurface = (1.0 - skyReject) * (1.0 - skinProtect * 0.92) * gameplayDampen;
+    highlightSafety = saturate(max(highlightSafety, safety.HighlightProtect));
 
     float warmDryReject = saturate(water.SandReject + material.SandDust * (0.22 + bright * 0.42));
     float hardSurfaceHint = saturate(material.MetalIndustrial * 0.55 + midtone * smoothness * 0.24 + material.SpecularGlint * 0.16);
@@ -425,7 +435,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float3 contribution = (waterSheen + waterReflection + specularGlint + specularReflection + wetReflection + aetherNeonReflection + iceSheen) * Dalashade_SurfaceReflectionStrength * nightBoost;
     contribution *= 1.0 - highlightSafety * 0.56;
 
-    float waterSheenAllowance = material.WaterPlane * (0.096 + Dalashade_Wetness * 0.030);
+    float waterSheenAllowance = water.WaterReceiver * (0.110 + Dalashade_Wetness * 0.035);
     float glintAllowance = material.SpecularGlint * 0.070;
     float wetAllowance = Dalashade_Wetness * wetHardSurfaceReceiver * 0.078;
     float aetherNeonAllowance = saturate(material.CrystalAether + material.NeonGlass + material.FireLavaHeat) * (0.060 + Dalashade_Night * 0.035 + Dalashade_CinematicPermission * 0.020);
