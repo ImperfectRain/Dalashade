@@ -59,6 +59,7 @@ Compatibility report export can build `MaterialProfile` and `MaterialIntent` dia
 - Material debug mode, overlay mode, opacity, and strength are owned by the relevant `.fx` shader UI in ReShade. Dalashade writes scene-level material channel uniforms only.
 - Reports use the terms `RawCandidate`, `SceneGatedCandidate`, and `FinalMask` for shader-side mask tuning. Plugin-side MaterialProfile and MaterialIntent provide scene gates; the `.fx` masks still decide pixel-level material influence.
 - Compatibility reports also list first-party custom shader activation state, sections receiving MaterialIntent uniforms, injected shader-owned depth controls, and likely failure sources for material calibration: scene plausibility, MaterialIntent gating, raw pixel heuristic, final conflict suppression, optional depth assist, or production shader behavior.
+- Compatibility reports include a `Material Parity Audit` that compares first-party shader source declarations, generated-preset write coverage, expected material use, shared `Dalashade_MaterialMasks.fxh` resolver use, local material logic, and debug visibility. This is diagnostics-only and does not change generated preset output.
 
 ## Pipeline Ownership
 

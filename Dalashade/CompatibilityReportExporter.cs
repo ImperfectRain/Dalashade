@@ -14,6 +14,90 @@ public sealed record CompatibilityReportExportResult(bool Success, string Messag
 public sealed class CompatibilityReportExporter
 {
     public const string MaterialIntentDiagnosticsTableHeader = "| Channel | Profile prior | Non-profile evidence | Final value | Top suppressions |";
+    private sealed record MaterialParityChannel(string Uniform, string Label);
+    private sealed record MaterialParityShader(string FileName, string Technique, string Role, IReadOnlySet<string> WrittenUniforms, IReadOnlySet<string> ExpectedUniforms, IReadOnlySet<string> DebugUniforms);
+
+    private static readonly IReadOnlyList<MaterialParityChannel> SharedMaterialParityChannels =
+    [
+        new("Dalashade_MaterialFoliage", "Foliage"),
+        new("Dalashade_MaterialWaterPlane", "WaterPlane"),
+        new("Dalashade_MaterialSpecularGlint", "SpecularGlint"),
+        new("Dalashade_MaterialWaterSpecular", "WaterSpecular legacy"),
+        new("Dalashade_MaterialSandDust", "SandDust"),
+        new("Dalashade_MaterialSnowIce", "SnowIce"),
+        new("Dalashade_MaterialStoneRuins", "StoneRuins"),
+        new("Dalashade_MaterialMetalIndustrial", "MetalIndustrial"),
+        new("Dalashade_MaterialCrystalAether", "CrystalAether"),
+        new("Dalashade_MaterialNeonGlass", "NeonGlass"),
+        new("Dalashade_MaterialFireLavaHeat", "FireLavaHeat"),
+        new("Dalashade_MaterialSkyCloudFog", "SkyCloudFog"),
+        new("Dalashade_MaterialSkinProtection", "SkinProtection"),
+        new("Dalashade_MaterialVoidDarkness", "VoidDarkness"),
+        new("Dalashade_WaterContext", "WaterContext"),
+        new("Dalashade_CoastalContext", "CoastalContext"),
+        new("Dalashade_OpenOceanContext", "OpenOceanContext"),
+        new("Dalashade_ShallowWaterContext", "ShallowWaterContext"),
+        new("Dalashade_WetSurfaceContext", "WetSurfaceContext"),
+        new("Dalashade_RainWetContext", "RainWetContext"),
+        new("Dalashade_EnableDepthAssist", "Depth assist enable"),
+        new("Dalashade_DepthAssistStrength", "Depth assist strength"),
+        new("Dalashade_DepthAssistConfidenceFloor", "Depth assist confidence floor"),
+        new("Dalashade_DepthConfidenceFloor", "Depth confidence alias")
+    ];
+
+    private static readonly IReadOnlyList<MaterialParityShader> MaterialParityShaders =
+    [
+        new(
+            "Dalashade_AdaptiveGrade.fx",
+            "Dalashade_AdaptiveGrade",
+            "Scene-aware color/tone protection",
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialSkinProtection", "Dalashade_MaterialVoidDarkness", "Dalashade_EnableDepthAssist", "Dalashade_DepthAssistStrength", "Dalashade_DepthAssistConfidenceFloor", "Dalashade_DepthConfidenceFloor"),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialSkinProtection", "Dalashade_MaterialVoidDarkness"),
+            Set()),
+        new(
+            "Dalashade_AtmosphereBloom.fx",
+            "Dalashade_AtmosphereBloom",
+            "Selective material glow/bloom eligibility",
+            Set("Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_EnableDepthAssist", "Dalashade_DepthAssistStrength", "Dalashade_DepthAssistConfidenceFloor", "Dalashade_DepthConfidenceFloor"),
+            Set("Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog"),
+            Set("Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog")),
+        new(
+            "Dalashade_WeatherAtmosphere.fx",
+            "Dalashade_WeatherAtmosphere",
+            "Weather/air/haze material shaping",
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialSkyCloudFog", "Dalashade_EnableDepthAssist", "Dalashade_DepthAssistStrength", "Dalashade_DepthAssistConfidenceFloor", "Dalashade_DepthConfidenceFloor"),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialSkyCloudFog"),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialSkyCloudFog")),
+        new(
+            "Dalashade_SmartSharpen.fx",
+            "Dalashade_SmartSharpen",
+            "Material-aware sharpening suppression",
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialSnowIce", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection", "Dalashade_EnableDepthAssist", "Dalashade_DepthAssistStrength", "Dalashade_DepthAssistConfidenceFloor", "Dalashade_DepthConfidenceFloor"),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialSnowIce", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection"),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialSnowIce", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection")),
+        new(
+            "Dalashade_MaterialDebug.fx",
+            "Dalashade_MaterialDebug",
+            "Truth viewer for shared material masks",
+            Set(SharedMaterialParityChannels.Select(channel => channel.Uniform).Where(uniform => !string.Equals(uniform, "Dalashade_RainWetContext", StringComparison.Ordinal)).ToArray()),
+            Set(SharedMaterialParityChannels.Select(channel => channel.Uniform).Where(uniform => !string.Equals(uniform, "Dalashade_RainWetContext", StringComparison.Ordinal)).ToArray()),
+            Set(SharedMaterialParityChannels.Select(channel => channel.Uniform).Where(uniform => !string.Equals(uniform, "Dalashade_RainWetContext", StringComparison.Ordinal)).ToArray())),
+        new(
+            "Dalashade_SceneGI.fx",
+            "Dalashade_SceneGI",
+            "Screen-space AO, bounce, and light pooling",
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialStoneRuins", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection", "Dalashade_MaterialVoidDarkness"),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialStoneRuins", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection", "Dalashade_MaterialVoidDarkness"),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialStoneRuins", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection", "Dalashade_MaterialVoidDarkness")),
+        new(
+            "Dalashade_SurfaceReflection.fx",
+            "Dalashade_SurfaceReflection",
+            "Water resolver, reflection receivers, and glints",
+            Set("Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_WaterContext", "Dalashade_CoastalContext", "Dalashade_OpenOceanContext", "Dalashade_ShallowWaterContext", "Dalashade_WetSurfaceContext", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection"),
+            Set("Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_WaterContext", "Dalashade_CoastalContext", "Dalashade_OpenOceanContext", "Dalashade_ShallowWaterContext", "Dalashade_WetSurfaceContext", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection"),
+            Set("Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_WaterContext", "Dalashade_CoastalContext", "Dalashade_OpenOceanContext", "Dalashade_ShallowWaterContext", "Dalashade_WetSurfaceContext", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection"))
+    ];
+
     private static readonly IReadOnlySet<string> SceneGIIntentNames = new HashSet<string>(StringComparer.Ordinal)
     {
         nameof(SceneIntent.Atmosphere),
@@ -142,6 +226,7 @@ public sealed class CompatibilityReportExporter
         AppendColorFamilyComparison(builder, currentImage, masterStyle, profile);
         AppendMappingValidation(builder, configuration, analysis, shaderSupport, effectiveBasePresetPath);
         AppendCustomShaderDiagnostics(builder, configuration, analysis, shaderSupport, writeResult, tagStackDiagnostics, currentImage);
+        AppendMaterialParityAudit(builder);
         AppendShaderSupport(builder, shaderSupport);
         AppendChangedVariables(builder, writeResult);
         AppendSanitizeActions(builder, writeResult);
@@ -240,6 +325,101 @@ public sealed class CompatibilityReportExporter
             }
         }
 
+        builder.AppendLine();
+    }
+
+    private static void AppendMaterialParityAudit(StringBuilder builder)
+    {
+        var sourceByShader = MaterialParityShaders.ToDictionary(
+            shader => shader.FileName,
+            shader => ReadShaderSource(shader.FileName),
+            StringComparer.OrdinalIgnoreCase);
+
+        builder.AppendLine("## Material Parity Audit");
+        builder.AppendLine();
+        builder.AppendLine("- This diagnostics-only audit checks whether first-party Dalashade shaders participate in the shared material/context vocabulary.");
+        builder.AppendLine("- `Generated writes` means Dalashade can inject or write that uniform into the generated preset for that shader section. `Declares` and `Used` are read from local `.fx` source when available.");
+        builder.AppendLine("- Shaders are allowed to specialize. Channels outside a shader's responsibility are reported as `Not applicable by design` rather than silently passing.");
+        builder.AppendLine();
+
+        foreach (var shader in MaterialParityShaders)
+        {
+            var source = sourceByShader[shader.FileName];
+            var sourceAvailable = !string.IsNullOrWhiteSpace(source);
+            var usesSharedResolver = sourceAvailable && UsesSharedMaterialResolver(source);
+            var hasLocalMaterialLogic = sourceAvailable && HasLocalMaterialLogic(source, usesSharedResolver);
+            var debugExposes = sourceAvailable
+                               && (shader.Technique.Equals("Dalashade_MaterialDebug", StringComparison.OrdinalIgnoreCase)
+                                   || source.Contains("Dalashade_MaterialDebugMode", StringComparison.Ordinal)
+                                   || source.Contains("DebugMode", StringComparison.Ordinal));
+
+            builder.AppendLine($"### {shader.Technique}");
+            builder.AppendLine();
+            builder.AppendLine($"- Shader file: `{shader.FileName}`");
+            builder.AppendLine($"- Role: {shader.Role}");
+            builder.AppendLine($"- Source available for declaration/use scan: {(sourceAvailable ? "yes" : "no")}");
+            builder.AppendLine($"- Uses shared resolver from `Dalashade_MaterialMasks.fxh`: {(usesSharedResolver ? "yes" : sourceAvailable ? "no" : "unknown")}");
+            builder.AppendLine($"- Local material override logic: {(hasLocalMaterialLogic ? "yes" : sourceAvailable ? "no" : "unknown")}");
+            builder.AppendLine($"- Debug view exposes consumed material result: {(debugExposes ? "yes" : "no")}");
+            builder.AppendLine();
+            builder.AppendLine("| Channel | Declares | Generated writes | Expected use | Used | Parity status |");
+            builder.AppendLine("| --- | --- | --- | --- | --- | --- |");
+
+            foreach (var channel in SharedMaterialParityChannels)
+            {
+                var declares = sourceAvailable && source.Contains(channel.Uniform, StringComparison.Ordinal);
+                var writes = shader.WrittenUniforms.Contains(channel.Uniform);
+                var expected = shader.ExpectedUniforms.Contains(channel.Uniform)
+                               || (IsDepthAssistUniform(channel.Uniform) && (declares || writes));
+                var used = sourceAvailable && CountOccurrences(source, channel.Uniform) > 1;
+                builder.AppendLine($"| `{channel.Uniform}` | {YesNo(declares)} | {YesNo(writes)} | {YesNo(expected)} | {YesNo(used)} | {FormatParityStatus(declares, writes, expected, used, usesSharedResolver)} |");
+            }
+
+            builder.AppendLine();
+        }
+
+        builder.AppendLine("### Shared Material Channel Coverage");
+        builder.AppendLine();
+        builder.Append("| Channel |");
+        foreach (var shader in MaterialParityShaders)
+        {
+            builder.Append($" {ShortShaderName(shader.Technique)} |");
+        }
+
+        builder.AppendLine();
+        builder.Append("| --- |");
+        foreach (var _ in MaterialParityShaders)
+        {
+            builder.Append(" --- |");
+        }
+
+        builder.AppendLine();
+
+        foreach (var channel in SharedMaterialParityChannels)
+        {
+            builder.Append($"| `{channel.Uniform}` |");
+            foreach (var shader in MaterialParityShaders)
+            {
+                var source = sourceByShader[shader.FileName];
+                var sourceAvailable = !string.IsNullOrWhiteSpace(source);
+                var declares = sourceAvailable && source.Contains(channel.Uniform, StringComparison.Ordinal);
+                var writes = shader.WrittenUniforms.Contains(channel.Uniform);
+                var expected = shader.ExpectedUniforms.Contains(channel.Uniform)
+                               || (IsDepthAssistUniform(channel.Uniform) && (declares || writes));
+                var used = sourceAvailable && CountOccurrences(source, channel.Uniform) > 1;
+                builder.Append($" {FormatCoverageCell(declares, writes, expected, used)} |");
+            }
+
+            builder.AppendLine();
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### Material Parity Notes");
+        builder.AppendLine();
+        builder.AppendLine("- SurfaceReflection currently has the advanced water context branch: `WaterContext`, `CoastalContext`, `OpenOceanContext`, `ShallowWaterContext`, and `WetSurfaceContext`.");
+        builder.AppendLine("- Shaders that only receive `WaterPlane`, `SpecularGlint`, or legacy `WaterSpecular` are intentionally older water/specular consumers until they are explicitly upgraded.");
+        builder.AppendLine("- `Dalashade_MaterialDebug.fx` is the truth viewer for shared shader-side masks. Production shaders may refine final masks, but this audit flags silent local-only material detection.");
+        builder.AppendLine("- `Dalashade_RainWetContext` is listed as a planned vocabulary slot; it should remain `N/A` until a shader and mapper explicitly support it.");
         builder.AppendLine();
     }
 
@@ -831,6 +1011,171 @@ public sealed class CompatibilityReportExporter
             pair => (IReadOnlyList<string>)pair.Value.OrderBy(key => key, StringComparer.OrdinalIgnoreCase).ToArray(),
             StringComparer.OrdinalIgnoreCase);
     }
+
+    private static IReadOnlySet<string> Set(params string[] values)
+    {
+        return new HashSet<string>(values, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string ReadShaderSource(string fileName)
+    {
+        foreach (var root in CandidateSourceRoots())
+        {
+            var path = Path.Combine(root, "shaders", fileName);
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+
+            try
+            {
+                return File.ReadAllText(path);
+            }
+            catch (IOException)
+            {
+                return string.Empty;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return string.Empty;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static IEnumerable<string> CandidateSourceRoots()
+    {
+        var current = Directory.GetCurrentDirectory();
+        for (var directory = new DirectoryInfo(current); directory is not null; directory = directory.Parent)
+        {
+            yield return directory.FullName;
+        }
+
+        var baseDirectory = AppContext.BaseDirectory;
+        for (var directory = new DirectoryInfo(baseDirectory); directory is not null; directory = directory.Parent)
+        {
+            yield return directory.FullName;
+        }
+    }
+
+    private static bool UsesSharedMaterialResolver(string source)
+    {
+        return source.Contains("Dalashade_GetAllMaterialMasks", StringComparison.Ordinal)
+               || source.Contains("Dalashade_ResolveWater", StringComparison.Ordinal)
+               || source.Contains("Dalashade_GetWaterPlaneMask", StringComparison.Ordinal)
+               || source.Contains("Dalashade_GetMaterialSignals", StringComparison.Ordinal);
+    }
+
+    private static bool HasLocalMaterialLogic(string source, bool usesSharedResolver)
+    {
+        if (source.Contains("Dalashade_ResolveWater", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return usesSharedResolver
+               && (source.Contains("materialWater", StringComparison.Ordinal)
+                   || source.Contains("materialFoliage", StringComparison.Ordinal)
+                   || source.Contains("materialSnow", StringComparison.Ordinal)
+                   || source.Contains("materialSky", StringComparison.Ordinal)
+                   || source.Contains("waterReceiver", StringComparison.Ordinal)
+                   || source.Contains("emissive", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static int CountOccurrences(string source, string value)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = source.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += value.Length;
+        }
+
+        return count;
+    }
+
+    private static string FormatParityStatus(bool declares, bool writes, bool expected, bool used, bool usesSharedResolver)
+    {
+        if (!expected)
+        {
+            return "Not applicable by design";
+        }
+
+        if (writes && declares && used && usesSharedResolver)
+        {
+            return "Full parity";
+        }
+
+        if (declares && !writes)
+        {
+            return "Declared but not written";
+        }
+
+        if (writes && !declares)
+        {
+            return "Written but not declared";
+        }
+
+        if (declares && writes && !used)
+        {
+            return "Declared/written but not consumed";
+        }
+
+        if (used && !usesSharedResolver)
+        {
+            return "Local-only detection";
+        }
+
+        return "Missing";
+    }
+
+    private static string FormatCoverageCell(bool declares, bool writes, bool expected, bool used)
+    {
+        if (!expected)
+        {
+            return "N/A";
+        }
+
+        if (writes && declares && used)
+        {
+            return "W+D+U";
+        }
+
+        if (writes && declares)
+        {
+            return "W+D";
+        }
+
+        if (declares && !writes)
+        {
+            return "D only";
+        }
+
+        if (writes && !declares)
+        {
+            return "W only";
+        }
+
+        return "Missing";
+    }
+
+    private static string ShortShaderName(string technique)
+    {
+        const string prefix = "Dalashade_";
+        return technique.StartsWith(prefix, StringComparison.Ordinal) ? technique[prefix.Length..] : technique;
+    }
+
+    private static bool IsDepthAssistUniform(string uniform)
+    {
+        return string.Equals(uniform, "Dalashade_EnableDepthAssist", StringComparison.Ordinal)
+               || string.Equals(uniform, "Dalashade_DepthAssistStrength", StringComparison.Ordinal)
+               || string.Equals(uniform, "Dalashade_DepthAssistConfidenceFloor", StringComparison.Ordinal)
+               || string.Equals(uniform, "Dalashade_DepthConfidenceFloor", StringComparison.Ordinal);
+    }
+
+    private static string YesNo(bool value) => value ? "yes" : "no";
 
     private static float CalculateMappingConfidence(IReadOnlyList<PresetTechnique> activeTechniques)
     {
