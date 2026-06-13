@@ -9,7 +9,7 @@ Implemented plugin support:
 - Top-level `shaders/` folder exists for custom `.fx` files.
 - `Configuration.EnableDalashadeCustomShaders` gates all custom shader variable writes.
 - `CustomShaderVariableMapper` writes stable `SceneIntent` values into Dalashade custom shader sections when matching sections and keys exist in generated preset content.
-- MaterialIntent uniforms are optional and zero-impact by default. Dalashade writes them only when `EnableMaterialIntent`, `EnableMaterialIntentShaderMapping`, and positive `MaterialIntentStrength` are all active.
+- MaterialProfile builds scene-level material plausibility priors for diagnostics and MaterialIntent. MaterialIntent uniforms are optional and zero-impact by default. Dalashade writes them only when `EnableMaterialIntent`, `EnableMaterialIntentShaderMapping`, and positive `MaterialIntentStrength` are all active.
 - `Configuration.AutoInjectDalashadeCustomShaderSections` can optionally add known Dalashade custom shader sections to the generated preset only.
 - Main window and compatibility reports show whether custom shader support is enabled, which custom sections were detected, and which custom variables were written.
 
@@ -50,6 +50,15 @@ When `AutoInjectDalashadeCustomShaderSections` is off, Dalashade does not insert
 When both `EnableDalashadeCustomShaders` and `AutoInjectDalashadeCustomShaderSections` are on, Dalashade may inject known custom shader sections and variables into the generated preset only. It never mutates the base preset. Current injection support is limited to `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, `[Dalashade_SmartSharpen.fx]`, `[Dalashade_AtmosphereBloom.fx]`, and `[Dalashade_MaterialDebug.fx]`.
 
 MaterialIntent variable injection is skipped unless MaterialIntent shader mapping is explicitly enabled. Disabled mapping does not write zeroes into existing material keys and does not add material keys during generated-preset-only injection. Current MaterialIntent shader behavior is section-scoped per first-party shader so each shader receives only the material channels it actually uses.
+
+Material flow is layered:
+
+1. SceneTags describe biome, weather, mood, area, gameplay, material, and art-direction context.
+2. MaterialProfile turns those tags plus territory/weather text, screenshot metrics, and SceneIntent values into scene plausibility priors such as `jungleCanopy`, `coastalWaterline`, `snowfield`, `desertOpen`, `neonUrban`, `aetherialLandscape`, `dungeonInterior`, or `raidArena`.
+3. MaterialIntent consumes those priors and outputs normalized scene-level material channels.
+4. Shader-side MaterialMasks still decide pixel-level influence. Debug docs use `RawCandidate` for local pixel evidence, `SceneGatedCandidate` for local evidence scaled by scene plausibility, and `FinalMask` for the shader-specific result after conflicts and depth/smoothness checks.
+
+MaterialProfile and MaterialIntent are plausibility gates, not true engine material IDs. A high scene-level value should make matching pixels eligible; it should not tint or alter the whole frame by itself.
 
 Initial MaterialIntent uniforms reserved for first-party Dalashade shaders:
 
@@ -349,7 +358,7 @@ The shader uses two channels. Structural clarity uses broad, lower-frequency lum
 
 `Dalashade_MaterialDebug.fx` is a dedicated diagnostic overlay. Copy both `Dalashade_MaterialDebug.fx` and `Dalashade_MaterialMasks.fxh` into a ReShade shader search folder, regenerate the preset with custom shader support, MaterialIntent, MaterialIntent shader mapping, material debug masks, and generated-preset section injection enabled, then enable the `Dalashade_MaterialDebug` technique manually in ReShade. Keep it last or near-last in the stack while debugging.
 
-The overlay visualizes shader-side material heuristic influence. It is not true FFXIV engine material-ID detection, so false positives are expected. Scene-level MaterialIntent uniforms gate each pixel mask; high scene-level foliage, water, snow, or aether values do not tint the whole screen unless individual pixels also match the local color/luma/saturation/edge/depth heuristics.
+The overlay visualizes shader-side material heuristic influence. It is not true FFXIV engine material-ID detection, so false positives are expected. Scene-level MaterialProfile/MaterialIntent priors gate each pixel mask; high scene-level foliage, water, snow, or aether values do not tint the whole screen unless individual pixels also match the local color/luma/saturation/edge/depth heuristics.
 
 The shared mask include separates raw candidates from scene-level gates and conflict suppression. `SkyCloudFog` uses smoothness, upper-screen prior, color families, clouds/overcast, warm dawn/dusk sky, night sky, canopy gaps, and optional depth; depth can help but is not required. `Foliage` separates strong leaves/grass/canopy from weak `OrganicGreenSurface` influence so mossy rocks or green-lit bark can damp sharpening slightly without appearing as full foliage in the master overlay.
 

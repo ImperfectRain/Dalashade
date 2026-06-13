@@ -14,7 +14,8 @@ Scene context is collected in `Dalashade/GameContext.cs`.
 | Time buckets | `GameContextService.GetTimeBucket()` | Converts Eorzea hour into Dawn, Day, Dusk, or Night. |
 | Scene tags | `SceneClassifier.Classify(GameContext context)` | Converts raw context into weather, area, biome, mood, confidence, and gameplay tags. |
 | Scene intent | `SceneIntentBuilder.Build(...)` in `Dalashade/SceneIntent.cs` | Converts tags, screenshot analysis, target style, and performance budget into stack-aware intent values before profile stack budgets. |
-| Material intent diagnostics | `MaterialIntentBuilder.Build(...)` in `Dalashade/MaterialIntentBuilder.cs` | Converts the existing tag stack, screenshot metrics, and SceneIntent context into report-only inferred material likelihoods. Does not change generated presets. |
+| Material profile diagnostics | `MaterialProfileBuilder.Build(...)` in `Dalashade/MaterialProfileBuilder.cs` | Converts tags, territory/weather text, area context, screenshot metrics, and SceneIntent context into scene-level material plausibility priors. Does not change generated presets. |
+| Material intent diagnostics | `MaterialIntentBuilder.Build(...)` in `Dalashade/MaterialIntentBuilder.cs` | Converts the existing tag stack, MaterialProfile priors, screenshot metrics, and SceneIntent context into optional inferred material likelihoods. Does not change generated presets unless MaterialIntent shader mapping is explicitly enabled. |
 | Visual profile effects | `ProfileEngine.Create()` in `Dalashade/VisualProfile.cs` | Applies context adjustments, scene-intent stack budgets, screenshot analysis, master style, target style, and performance budget. |
 
 ## Tag Taxonomy
@@ -59,9 +60,25 @@ Night sub-tags include:
 
 The matching `SceneIntent` channels are `Night`, `Moonlight`, `ArtificialLight`, `AmbientDarkness`, and `NightAtmosphere`. These are additive diagnostics and shader inputs. `Readability` gets only a mild night contribution; nighttime readability should come mainly from light hierarchy, local structure, and protected highlights instead of broad midtone lifting.
 
-## Material Intent Diagnostics
+## Material Profile And Intent Diagnostics
 
-`MaterialIntent` is implemented as an optional report-only semantic layer. It estimates likely material families from existing data: territory and weather names, scene tags, biome/mood/material/art-direction tags, gameplay-state tags, screenshot metrics, and the current `SceneIntent`. It is conservative confidence inference, not true FFXIV engine material ID detection.
+`MaterialProfile` is the scene-level plausibility layer between SceneTags/MaterialIntent and shader-side MaterialMasks. It estimates which material families are plausible in the current scene before any `.fx` shader tries per-pixel heuristics. It is not true FFXIV engine material ID detection.
+
+MaterialProfile uses territory ID/name, biome key/confidence, area key, weather key/name, time bucket tags, mood/material/art-direction tags, gameplay-state tags, screenshot metrics, and current `SceneIntent` values. Reports show its selected family, profile tags, top priors, and suppressions.
+
+Starter profile families include:
+
+| Family | Typical profile tags | Material priors |
+| --- | --- | --- |
+| `jungle/rainforest` | `jungleCanopy`, `forestCanopy`, optional `mossyStone` and `ruinsMixedWithFoliage` | High foliage, some sky/cloud gaps, optional stone/ruins, suppressed snow/metal/neon/sand/void. |
+| `coastal/tropical` | `coastalWaterline`, `openSkyField` | Water/specular, sky/cloud, beach sand, mild foliage, suppressed snow/void. |
+| `snow/cold` | `snowfield`, `openSkyField` | Snow/ice, sky/cloud/cold air, stone/ruins, Garlemald metal/industrial support, suppressed sand/heat. |
+| `desert/badlands` | `desertOpen`, `openSkyField` | Sand/dust, sky/heat air, restrained heat influence, suppressed snow and unsupported water. |
+| `neon/high-tech` | `neonUrban`, `industrialInterior`, `settlementLights` | Neon/glass, metal/industrial, limited sky if exterior, suppressed natural materials unless explicit. |
+| `aetherial/cosmic` | `aetherialLandscape`, `openSkyField` | Crystal/aether and sky/space atmosphere, suppressed mundane sand/metal unless tags support them. |
+| Interior/duty overlays | `dungeonInterior`, `raidArena` | Suppressed generic sky/cloud/fog and conservative cinematic material assumptions for gameplay. |
+
+`MaterialIntent` consumes MaterialProfile priors plus the older tag, territory, screenshot, and SceneIntent evidence. It outputs the same normalized channels and remains optional, conservative, and diagnosable.
 
 MaterialIntent is controlled by configuration:
 
@@ -94,6 +111,16 @@ MaterialIntent currently reports these normalized channels:
 Every channel records positive and negative contribution diagnostics. Compatibility reports show the final channel value, top positive sources, and top suppressions. These diagnostics do not alter `SceneIntent` or `VisualProfile`.
 
 MaterialIntent shader variable plumbing is zero-impact by default. When `EnableMaterialIntentShaderMapping` is off, Dalashade skips MaterialIntent variables entirely: it does not update existing material keys and generated-preset-only injection does not add material keys. When mapping is on, `EnableMaterialIntent` is on, and `MaterialIntentStrength` is greater than `0.0`, matching known material keys in Dalashade custom shader sections can be written as `MaterialIntent value * MaterialIntentStrength`. Missing uniforms and missing custom shader sections are skipped safely.
+
+Shader-side material masks use separate debug vocabulary:
+
+| Term | Meaning |
+| --- | --- |
+| `RawCandidate` | What a shader-side pixel heuristic sees from color, luminance, saturation, edge/detail, smoothness, and depth cues. |
+| `SceneGatedCandidate` | Raw candidate scaled by MaterialProfile/MaterialIntent plausibility. |
+| `FinalMask` | Shader-specific result after conflict suppression, optional depth assistance, and local dampening. |
+
+MaterialProfile and MaterialIntent provide scene gates. They do not decide that a specific pixel is foliage, sky, water, snow, or skin by themselves.
 
 ## Current Weather Tags
 

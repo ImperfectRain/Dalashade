@@ -8,7 +8,13 @@ public static class MaterialIntentBuilder
 {
     public static MaterialIntent Build(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis)
     {
+        return Build(diagnostics, imageAnalysis, MaterialProfileBuilder.Build(diagnostics, imageAnalysis));
+    }
+
+    public static MaterialIntent Build(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, MaterialProfile profile)
+    {
         var state = new State(diagnostics);
+        AddMaterialProfile(state, profile);
         AddFoliage(state);
         AddWaterSpecular(state);
         AddSandDust(state);
@@ -24,6 +30,18 @@ public static class MaterialIntentBuilder
         AddSceneIntentHints(state);
 
         return state.ToIntent();
+    }
+
+    private static void AddMaterialProfile(State state, MaterialProfile profile)
+    {
+        foreach (var channel in MaterialIntent.ChannelNames)
+        {
+            var value = profile.ValueFor(channel);
+            if (value > 0f)
+            {
+                state.Add(channel, value, "MaterialProfile", $"Profile family '{profile.Family}' contributed material plausibility prior.");
+            }
+        }
     }
 
     private static void AddFoliage(State state)

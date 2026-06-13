@@ -198,7 +198,8 @@ public sealed class CompatibilityReportExporter
             return;
         }
 
-        var intent = MaterialIntentBuilder.Build(tagStackDiagnostics, currentImage).WithStrength(configuration.MaterialIntentStrength);
+        var profile = MaterialProfileBuilder.Build(tagStackDiagnostics, currentImage);
+        var intent = MaterialIntentBuilder.Build(tagStackDiagnostics, currentImage, profile).WithStrength(configuration.MaterialIntentStrength);
         var writtenUniforms = writeResult.Changes
             .Where(change => string.Equals(change.ReasonCategory, CustomShaderVariableMapper.MaterialReasonCategory, StringComparison.OrdinalIgnoreCase))
             .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
@@ -206,6 +207,7 @@ public sealed class CompatibilityReportExporter
             .ToArray();
 
         builder.AppendLine("- MaterialIntent is an inferred material-likelihood diagnostic layer. It uses tags, territory/weather text, gameplay context, screenshot metrics, and existing SceneIntent context; it does not detect true engine material IDs.");
+        builder.AppendLine("- MaterialProfile is a scene-level plausibility layer between SceneTags/MaterialIntent and shader-side pixel masks. Shader masks still decide per-pixel `RawCandidate`, `SceneGatedCandidate`, and `FinalMask` behavior.");
         builder.AppendLine("- MaterialIntent does not change SceneIntent or VisualProfile. Generated shader variables are written only when MaterialIntent shader mapping is explicitly enabled and matching Dalashade custom shader keys exist.");
         builder.AppendLine($"- MaterialIntent strength: {configuration.MaterialIntentStrength:0.###}");
         builder.AppendLine($"- Shader mapping: {(configuration.EnableMaterialIntentShaderMapping ? "enabled" : "disabled")}");
@@ -226,6 +228,20 @@ public sealed class CompatibilityReportExporter
         else
         {
             builder.AppendLine($"- MaterialIntent uniforms written: {writtenUniforms.Length}. Final material channel values are raw inferred value multiplied by MaterialIntent strength.");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### MaterialProfile Scene Plausibility");
+        builder.AppendLine();
+        builder.AppendLine($"- Selected family: {profile.Family}");
+        builder.AppendLine($"- Profile tags: {FormatPlainList(profile.ProfileTags)}");
+        builder.AppendLine($"- Top material priors: {FormatMaterialProfilePriors(profile)}");
+        builder.AppendLine();
+        builder.AppendLine("| Channel | Prior | Positive profile reasons | Profile suppressions |");
+        builder.AppendLine("| --- | --- | --- | --- |");
+        foreach (var channel in MaterialIntent.ChannelNames)
+        {
+            builder.AppendLine($"| {channel} | {profile.ValueFor(channel):0.###} | {FormatMaterialProfileContributions(profile.Contributions, channel, positive: true)} | {FormatMaterialProfileContributions(profile.Contributions, channel, positive: false)} |");
         }
 
         builder.AppendLine();
@@ -757,6 +773,28 @@ public sealed class CompatibilityReportExporter
     }
 
     private static string FormatMaterialContributions(IReadOnlyList<MaterialIntentContribution> contributions, string channel, bool positive)
+    {
+        var selected = contributions
+            .Where(contribution => string.Equals(contribution.Channel, channel, StringComparison.Ordinal)
+                                   && (positive ? contribution.Amount > 0f : contribution.Amount < 0f))
+            .OrderByDescending(contribution => Math.Abs(contribution.Amount))
+            .Take(3)
+            .Select(contribution => $"{EscapeTable(contribution.Source)} {contribution.Amount:+0.##;-0.##;0}: {EscapeTable(contribution.Reason)}")
+            .ToArray();
+
+        return selected.Length == 0 ? "none" : string.Join("<br>", selected);
+    }
+
+    private static string FormatMaterialProfilePriors(MaterialProfile profile)
+    {
+        var selected = profile.TopPriors(5)
+            .Select(item => $"{EscapeTable(item.Channel)} {item.Value:0.###}")
+            .ToArray();
+
+        return selected.Length == 0 ? "none" : string.Join(", ", selected);
+    }
+
+    private static string FormatMaterialProfileContributions(IReadOnlyList<MaterialProfileContribution> contributions, string channel, bool positive)
     {
         var selected = contributions
             .Where(contribution => string.Equals(contribution.Channel, channel, StringComparison.Ordinal)

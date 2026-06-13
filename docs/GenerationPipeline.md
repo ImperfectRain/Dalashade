@@ -18,11 +18,16 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
    - Fog/mist drives haze; gloom drives dark mood with much less haze.
    - Night is a contextual layer: derived tags such as `moonlitNight`, `lamplitNight`, `canopyNight`, `coastalNight`, `industrialNight`, `snowNight`, and `desertNight` add light-hierarchy intent without replacing biome/weather/material identity.
    - Combat/duty dampen cinematic, bloom, and haze pressure without deleting the zone identity.
-9. `ProfileEngine.CreateWithRules()` in `Dalashade/VisualProfile.cs` creates a `VisualProfile`, applied rules, and tag-stack diagnostics.
-10. If master style is available, `MasterStyleMatcher.Match()` in `Dalashade/MasterStyleMatcher.cs` returns deltas, diagnostics, rules, and color-family adjustments.
-11. `Plugin.ScanPresetCompatibility()` runs `PresetWriter.ScanSupportedVariables()` and `PresetAnalyzer.Analyze()`.
+9. `MaterialProfileBuilder.Build(...)` can derive report-visible material plausibility priors from the tag stack, territory/weather text, area context, screenshot metrics, gameplay state, and `SceneIntent`.
+   - This is scene plausibility, not true engine material ID detection.
+   - It sits between SceneTags/MaterialIntent and shader-side pixel masks.
+   - It does not change `SceneIntent`, `VisualProfile`, or generated shader values by itself.
+10. `MaterialIntentBuilder.Build(...)` consumes the tag stack and `MaterialProfile` priors when MaterialIntent diagnostics or shader mapping are enabled.
+11. `ProfileEngine.CreateWithRules()` in `Dalashade/VisualProfile.cs` creates a `VisualProfile`, applied rules, and tag-stack diagnostics.
+12. If master style is available, `MasterStyleMatcher.Match()` in `Dalashade/MasterStyleMatcher.cs` returns deltas, diagnostics, rules, and color-family adjustments.
+13. `Plugin.ScanPresetCompatibility()` runs `PresetWriter.ScanSupportedVariables()` and `PresetAnalyzer.Analyze()`.
     - First-party `Dalashade_*` shader sections are classified as known controlled Dalashade effects when they appear in preset content.
-12. `PresetWriter.WriteGeneratedPreset()` reads the base preset and creates shader adjustments from `ShaderVariableMapper.CreateAdjustments()`.
+14. `PresetWriter.WriteGeneratedPreset()` reads the base preset and creates shader adjustments from `ShaderVariableMapper.CreateAdjustments()`.
     - If `EnableDalashadeCustomShaders` is enabled, `CustomShaderVariableMapper` can also write normalized `SceneIntent` values into matching Dalashade custom shader sections.
     - If `AutoInjectDalashadeCustomShaderSections` is also enabled, known Dalashade custom shader sections and variables can be inserted into the generated preset only.
     - Custom shader variable writes happen when the generated preset content contains matching Dalashade section/key lines, either from the base preset or from generated-preset-only injection.
@@ -30,23 +35,26 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
     - First-party custom shaders can receive `Night`, `Moonlight`, `ArtificialLight`, `AmbientDarkness`, and `NightAtmosphere` intent values when their sections/keys exist or are injected into the generated preset.
     - `Dalashade_MaterialDebug.fx` is an optional false-color utility shader. It can receive MaterialIntent debug uniforms, but Dalashade does not add it to `Techniques=` or require it for normal output.
     - Dalashade does not append custom shader entries to `Techniques=`, copy `.fx` files, or require custom shaders for normal operation.
-13. `GenerationAuthorityPolicy.From()` dampens secondary authorities for selected compatibility modes.
-14. The writer edits only matching section/key lines, records `ChangedShaderVariable` entries, and applies `SanitizeActionPipeline` only when allowed by mode.
-15. If backups are enabled and the generated preset already exists, `PresetWriter` creates and prunes backups.
-16. `PresetWriter` writes a temporary file and replaces the generated preset path.
-17. `Plugin.ReloadShadersIfNeeded()` optionally calls `ReShadeController.ReloadAfterPresetWrite()`.
+15. `GenerationAuthorityPolicy.From()` dampens secondary authorities for selected compatibility modes.
+16. The writer edits only matching section/key lines, records `ChangedShaderVariable` entries, and applies `SanitizeActionPipeline` only when allowed by mode.
+17. If backups are enabled and the generated preset already exists, `PresetWriter` creates and prunes backups.
+18. `PresetWriter` writes a temporary file and replaces the generated preset path.
+19. `Plugin.ReloadShadersIfNeeded()` optionally calls `ReShadeController.ReloadAfterPresetWrite()`.
 
 ## Report-Only Diagnostics
 
-Compatibility report export can build `MaterialIntent` diagnostics from the existing tag stack, screenshot metrics, and SceneIntent context.
+Compatibility report export can build `MaterialProfile` and `MaterialIntent` diagnostics from the existing tag stack, screenshot metrics, and SceneIntent context.
 
+- MaterialProfile is the scene plausibility stage. It chooses a broad family such as `jungle/rainforest`, `coastal/tropical`, `snow/cold`, `desert/badlands`, `neon/high-tech`, or `aetherial/cosmic`, adds profile tags such as `forestCanopy`, `coastalWaterline`, `snowfield`, `desertOpen`, `neonUrban`, `aetherialLandscape`, `dungeonInterior`, or `raidArena`, then records material priors and suppressions.
 - MaterialIntent is inferred material likelihood, not true engine material ID detection.
+- MaterialIntent consumes MaterialProfile priors plus older tag, territory, screenshot, and SceneIntent evidence. It still outputs the same normalized material channels.
 - `EnableMaterialIntent` controls whether MaterialIntent is calculated; disabled returns neutral values.
 - `EnableMaterialIntentDiagnostics` controls whether reports/UI show the diagnostics.
 - `EnableMaterialIntentShaderMapping` allows generated-preset MaterialIntent uniform writes only when MaterialIntent is enabled, strength is greater than `0.0`, and matching known Dalashade custom shader keys exist.
 - When MaterialIntent shader mapping is disabled, MaterialIntent variables are skipped entirely. Generated-preset-only injection does not add material keys in that state.
-- MaterialIntent does not change `SceneIntent` or `VisualProfile`.
+- MaterialProfile and MaterialIntent do not change `SceneIntent` or `VisualProfile`.
 - Material debug mode, overlay mode, opacity, and strength are owned by the relevant `.fx` shader UI in ReShade. Dalashade writes scene-level material channel uniforms only.
+- Reports use the terms `RawCandidate`, `SceneGatedCandidate`, and `FinalMask` for shader-side mask tuning. Plugin-side MaterialProfile and MaterialIntent provide scene gates; the `.fx` masks still decide pixel-level material influence.
 
 ## Pipeline Ownership
 
@@ -57,7 +65,7 @@ Compatibility report export can build `MaterialIntent` diagnostics from the exis
 | Paths/config | `Dalashade/Configuration.cs`, `Plugin.InitializePresetFolders()`, `Plugin.ResolveEffectiveBasePresetPath()` |
 | Context and tags | `Dalashade/GameContext.cs` |
 | Scene intent and tag diagnostics | `Dalashade/SceneIntent.cs` |
-| Material intent report diagnostics | `Dalashade/MaterialIntent.cs`, `Dalashade/MaterialIntentBuilder.cs` |
+| Material profile and intent report diagnostics | `Dalashade/MaterialProfile.cs`, `Dalashade/MaterialProfileBuilder.cs`, `Dalashade/MaterialIntent.cs`, `Dalashade/MaterialIntentBuilder.cs` |
 | Screenshot analysis | `Dalashade/ImageAnalysis.cs` |
 | Master image selection | `Dalashade/MasterStyle.cs` |
 | Master style deltas | `Dalashade/MasterStyleMatcher.cs` |
