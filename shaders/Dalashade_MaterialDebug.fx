@@ -91,9 +91,15 @@ uniform float Dalashade_MaterialVoidDarkness <
     ui_label = "Dalashade Material Void/Darkness";
 > = 0.0;
 
+uniform float Dalashade_WaterContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Water Context"; > = 0.0;
+uniform float Dalashade_CoastalContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Coastal Context"; > = 0.0;
+uniform float Dalashade_OpenOceanContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Open Ocean Context"; > = 0.0;
+uniform float Dalashade_ShallowWaterContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Shallow Water Context"; > = 0.0;
+uniform float Dalashade_WetSurfaceContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Wet Surface Context"; > = 0.0;
+
 uniform int Dalashade_MaterialDebugMode <
     ui_type = "combo";
-    ui_items = "Off/pass-through\0Overview final masks\0Combined confidence\0Raw sky/fog\0Gated sky/fog\0Final sky/fog\0Raw foliage strong\0Organic green surface\0Final foliage influence\0Raw water/specular combined\0Gated water/specular combined\0Final water/specular combined\0Raw snow/ice\0Gated snow/ice\0Final snow/ice\0Raw sand/dust\0Gated sand/dust\0Final sand/dust\0Depth confidence\0Depth-assisted sky/fog\0Stone/ruins\0Metal/industrial\0Crystal/aether\0Neon/glass\0Fire/lava/heat\0Skin-protection\0Void/darkness\0Raw water plane\0Gated water plane\0Final water plane\0Raw specular glint\0Gated specular glint\0Final specular glint\0";
+    ui_items = "Off/pass-through\0Overview final masks\0Combined confidence\0Raw sky/fog\0Gated sky/fog\0Final sky/fog\0Raw foliage strong\0Organic green surface\0Final foliage influence\0Raw water/specular combined\0Gated water/specular combined\0Final water/specular combined\0Raw snow/ice\0Gated snow/ice\0Final snow/ice\0Raw sand/dust\0Gated sand/dust\0Final sand/dust\0Depth confidence\0Depth-assisted sky/fog\0Stone/ruins\0Metal/industrial\0Crystal/aether\0Neon/glass\0Fire/lava/heat\0Skin-protection\0Void/darkness\0Raw water plane\0Gated water plane\0Final water plane\0Raw specular glint\0Gated specular glint\0Final specular glint\0Water resolver overview\0Raw cyan water\0Raw deep water\0Shallow water\0Deep water\0Water horizon\0Wet shoreline\0Foam/edge\0Water receiver\0Water source\0Sky source vs reject\0Sand/skin reject\0Water coherence\0";
     ui_label = "Dalashade Material Debug Mode";
     ui_tooltip = "False-color material heuristic visualizer. Raw modes show pixel evidence, gated modes show scene-scaled evidence, and final modes show conflict-resolved masks. These are not true engine material IDs.";
 > = 0;
@@ -213,6 +219,22 @@ float4 Dalashade_MaterialDebugPass(float4 position : SV_Position, float2 texcoor
         Dalashade_MaterialSkinProtection,
         Dalashade_MaterialVoidDarkness);
     Dalashade_MaterialMasks noDepthMasks = Dalashade_ResolveFinalMaterialMasks(noDepthSignals, noDepthRaw, noDepthGated);
+    Dalashade_WaterResolve water = Dalashade_ResolveWater(
+        source,
+        texcoord,
+        Dalashade_WaterContext,
+        Dalashade_CoastalContext,
+        Dalashade_OpenOceanContext,
+        Dalashade_ShallowWaterContext,
+        Dalashade_WetSurfaceContext,
+        Dalashade_MaterialWaterPlane,
+        Dalashade_MaterialSpecularGlint,
+        Dalashade_MaterialSandDust,
+        Dalashade_MaterialSkyCloudFog,
+        Dalashade_MaterialSkinProtection,
+        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
+        Dalashade_DepthAssistStrength,
+        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
 
     float confidence = masks.CombinedConfidence;
     float3 debugColor = Dalashade_GetMaterialOverviewColor(masks);
@@ -372,6 +394,75 @@ float4 Dalashade_MaterialDebugPass(float4 position : SV_Position, float2 texcoor
     {
         confidence = masks.SpecularGlint;
         debugColor = float3(0.62, 0.86, 1.00) * confidence;
+    }
+    else if (mode == 33)
+    {
+        confidence = water.Confidence;
+        debugColor = saturate(water.ShallowWater * float3(0.00, 1.00, 0.90)
+            + water.DeepWater * float3(0.00, 0.22, 0.55)
+            + water.WetShoreline * float3(0.65, 1.00, 1.00)
+            + water.FoamOrEdge * float3(0.92, 1.00, 1.00)
+            + water.SkyReject * float3(0.42, 0.02, 0.02));
+    }
+    else if (mode == 34)
+    {
+        confidence = water.RawCyanWater;
+        debugColor = float3(0.00, 1.00, 0.86) * confidence;
+    }
+    else if (mode == 35)
+    {
+        confidence = water.RawDeepWater;
+        debugColor = float3(0.00, 0.22, 0.60) * confidence;
+    }
+    else if (mode == 36)
+    {
+        confidence = water.ShallowWater;
+        debugColor = float3(0.00, 1.00, 0.90) * confidence;
+    }
+    else if (mode == 37)
+    {
+        confidence = water.DeepWater;
+        debugColor = float3(0.00, 0.28, 0.62) * confidence;
+    }
+    else if (mode == 38)
+    {
+        confidence = water.WaterHorizon;
+        debugColor = float3(0.05, 0.48, 1.00) * confidence;
+    }
+    else if (mode == 39)
+    {
+        confidence = water.WetShoreline;
+        debugColor = float3(0.55, 1.00, 1.00) * confidence;
+    }
+    else if (mode == 40)
+    {
+        confidence = water.FoamOrEdge;
+        debugColor = float3(0.92, 1.00, 1.00) * confidence;
+    }
+    else if (mode == 41)
+    {
+        confidence = water.WaterReceiver;
+        debugColor = float3(0.00, 0.86, 1.00) * confidence;
+    }
+    else if (mode == 42)
+    {
+        confidence = water.WaterSource;
+        debugColor = float3(0.00, 0.58, 1.00) * confidence;
+    }
+    else if (mode == 43)
+    {
+        confidence = max(water.SkySource, water.SkyReject);
+        debugColor = saturate(water.SkySource * float3(0.10, 0.30, 1.00) + water.SkyReject * float3(0.80, 0.02, 0.04));
+    }
+    else if (mode == 44)
+    {
+        confidence = max(water.SandReject, water.SkinReject);
+        debugColor = saturate(water.SandReject * float3(1.00, 0.46, 0.02) + water.SkinReject * float3(1.00, 0.30, 0.52));
+    }
+    else if (mode == 45)
+    {
+        confidence = water.WaterCoherence;
+        debugColor = float3(0.18, 0.82, 1.00) * confidence;
     }
 
     return float4(Dalashade_ApplyDebugOverlay(source, saturate(debugColor), confidence), 1.0);

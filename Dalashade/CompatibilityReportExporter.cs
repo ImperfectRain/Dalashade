@@ -305,6 +305,12 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- SurfaceReflection debug mode {writeLabel} value: {ClampInt(configuration.DalashadeSurfaceReflectionDebugMode, 0, 10)} ({FormatSurfaceReflectionDebugMode(configuration.DalashadeSurfaceReflectionDebugMode)}).");
         builder.AppendLine($"- SurfaceReflection debug output mode {writeLabel} value: 0 ({FormatSurfaceReflectionDebugOutputMode(0)}).");
         builder.AppendLine($"- SurfaceReflection debug opacity {writeLabel} value: {Math.Clamp(configuration.DalashadeSurfaceReflectionDebugOpacity, 0f, 1f):0.###}.");
+        var materialProfile = MaterialProfileBuilder.Build(tagStackDiagnostics, currentImage);
+        var materialIntent = configuration.EnableMaterialIntent
+            ? MaterialIntentBuilder.Build(tagStackDiagnostics, currentImage, materialProfile).WithStrength(configuration.MaterialIntentStrength)
+            : MaterialIntent.Neutral;
+        builder.AppendLine($"- Water resolver context: WaterContext={materialIntent.WaterSpecular:0.###}, CoastalContext={materialIntent.WaterSpecular:0.###}, OpenOceanContext={materialIntent.WaterSpecular * 0.85f:0.###}, ShallowWaterContext={Math.Max(materialIntent.WaterSpecular * 0.72f, Math.Min(materialIntent.WaterSpecular, materialIntent.SandDust) * 0.20f):0.###}, WetSurfaceContext={tagStackDiagnostics.Intent.Wetness:0.###}.");
+        builder.AppendLine("- Water resolver note: scene context values are generated-preset priors; shader-side `Dalashade_ResolveWater` still performs per-pixel water classification and rejects sky, sand, skin, and isolated glints.");
         builder.AppendLine($"- Dominant MaterialIntent drivers: {FormatDominantMaterialDrivers(configuration, tagStackDiagnostics, currentImage, SurfaceReflectionMaterialNames)}");
         builder.AppendLine($"- Generated SurfaceReflection variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.SurfaceReflectionReasonCategory, "Dalashade_SurfaceReflection")}");
         builder.AppendLine($"- Generated SurfaceReflection material variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.MaterialReasonCategory, "Dalashade_SurfaceReflection")}");

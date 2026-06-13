@@ -136,6 +136,12 @@ uniform float Dalashade_Night < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; 
 uniform float Dalashade_ArtificialLight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Artificial Light"; > = 0.0;
 uniform float Dalashade_CinematicPermission < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Cinematic Permission"; > = 0.0;
 
+uniform float Dalashade_WaterContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Water Context"; > = 0.0;
+uniform float Dalashade_CoastalContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Coastal Context"; > = 0.0;
+uniform float Dalashade_OpenOceanContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Open Ocean Context"; > = 0.0;
+uniform float Dalashade_ShallowWaterContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Shallow Water Context"; > = 0.0;
+uniform float Dalashade_WetSurfaceContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Wet Surface Context"; > = 0.0;
+
 uniform float Dalashade_MaterialWaterPlane < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Material Water Plane"; > = 0.0;
 uniform float Dalashade_MaterialSpecularGlint < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Material Specular Glint"; > = 0.0;
 uniform float Dalashade_MaterialSandDust < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Material Sand Dust"; > = 0.0;
@@ -335,32 +341,46 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float3 reflectedStreak = Dalashade_SampleReflectionStreak(texcoord, depth, glintStreakDirection, reflectionOffset * 1.45, reflectionDepthReject);
     float verticalDepthContinuity = Dalashade_SurfaceReflectionDepthGate(texcoord + verticalReflectDirection * reflectionOffset, depth, reflectionDepthReject);
     float streakDepthContinuity = Dalashade_SurfaceReflectionDepthGate(texcoord + glintStreakDirection * reflectionOffset * 1.45, depth, reflectionDepthReject);
-    float cyanBlueSupport = smoothstep(0.02, 0.38, max(color.g, color.b) - color.r * 0.82) * smoothstep(0.10, 0.58, saturation + material.WaterPlane * 0.30);
-    float warmDryReject = saturate(material.SandDust * (0.45 + bright * 0.55) + smoothstep(0.54, 0.90, color.r - min(color.g, color.b)));
+    Dalashade_WaterResolve water = Dalashade_ResolveWater(
+        color,
+        texcoord,
+        Dalashade_WaterContext,
+        Dalashade_CoastalContext,
+        Dalashade_OpenOceanContext,
+        Dalashade_ShallowWaterContext,
+        Dalashade_WetSurfaceContext,
+        Dalashade_MaterialWaterPlane,
+        Dalashade_MaterialSpecularGlint,
+        Dalashade_MaterialSandDust,
+        Dalashade_MaterialSkyCloudFog,
+        Dalashade_MaterialSkinProtection,
+        0.0,
+        0.0,
+        0.0);
+    skyReject = saturate(max(skyReject, water.SkyReject * Dalashade_SurfaceReflectionSkyReject));
+    skinProtect = saturate(max(skinProtect, water.SkinReject * Dalashade_SurfaceReflectionSkinProtect));
+    safeSurface = (1.0 - skyReject) * (1.0 - skinProtect * 0.92) * gameplayDampen;
+
+    float warmDryReject = saturate(water.SandReject + material.SandDust * (0.22 + bright * 0.42));
     float hardSurfaceHint = saturate(material.MetalIndustrial * 0.55 + midtone * smoothness * 0.24 + material.SpecularGlint * 0.16);
 
     float3 sheenSample = Dalashade_SurfaceReflectionDirectionalSheen(texcoord, Dalashade_WaterSheenRadius, depth);
-    float3 cyanSheen = lerp(float3(0.04, 0.20, 0.24), float3(0.12, 0.58, 0.68), saturate(saturation + material.WaterPlane));
-    float waterReceiver = material.WaterPlane
-        * cyanBlueSupport
-        * smoothstep(0.48, 0.96, smoothness)
-        * smoothstep(0.0, 0.42, 1.0 - edge)
+    float3 cyanSheen = lerp(float3(0.04, 0.20, 0.24), float3(0.12, 0.58, 0.68), saturate(saturation + water.ShallowWater + material.WaterPlane));
+    float waterReceiver = water.WaterReceiver
         * surfaceFacing
         * verticalDepthContinuity
-        * safeSurface
-        * (1.0 - warmDryReject * 0.78)
-        * (1.0 - material.SandDust * 0.72)
-        * (1.0 - material.MetalIndustrial * 0.28)
-        * (1.0 - skyReject * 0.98);
+        * safeSurface;
     float3 waterSheen = lerp(cyanSheen, sheenSample, 0.46) * waterReceiver * Dalashade_WaterSheenStrength * 1.62;
     float reflectedWaterLuma = Dalashade_SurfaceReflectionLuma(reflectedVertical);
-    float skyColorSource = saturate(smoothstep(0.16, 0.88, reflectedWaterLuma + Dalashade_GetSaturation(reflectedVertical) * 0.36) * (0.35 + material.SkyCloudFog * 0.42 + material.WaterPlane * 0.28));
-    float waterSource = saturate((skyColorSource + material.WaterPlane * 0.34 + Dalashade_Wetness * 0.16) * waterReceiver);
-    float waterReflectionMask = waterReceiver * waterSource * (1.0 - bright * 0.26);
+    float skyColorSource = saturate(max(water.SkySource, smoothstep(0.16, 0.88, reflectedWaterLuma + Dalashade_GetSaturation(reflectedVertical) * 0.36) * (0.28 + water.WaterHorizon * 0.30)));
+    float waterSource = saturate(max(water.WaterSource, water.WetShoreline * 0.35) + skyColorSource * water.WaterReceiver * 0.32);
+    float waterReflectionMask = waterReceiver * saturate(waterSource + skyColorSource * 0.25) * (1.0 - bright * 0.26);
     float3 waterReflection = lerp(reflectedVertical, reflectedSoft, reflectionSoftness * 0.42) * lerp(float3(0.68, 0.98, 1.0), cyanSheen + 0.18, 0.34) * waterReflectionMask * Dalashade_WaterReflectionStrength;
+    float shorelineSheenMask = saturate((water.WetShoreline * 0.72 + water.FoamOrEdge * 0.42) * safeSurface * (1.0 - skinProtect * 0.92));
+    waterSheen += lerp(float3(0.26, 0.72, 0.86), sheenSample, 0.30) * shorelineSheenMask * Dalashade_WaterSheenStrength * 0.72;
 
     float glintShape = smoothstep(0.44, 0.98, luma) * smoothstep(0.025, 0.32, edge) * (1.0 - smoothness * 0.48);
-    float specularGlintSource = saturate(material.SpecularGlint * glintShape * streakDepthContinuity * (1.0 - waterReceiver * 0.16) * (1.0 - skinProtect * 0.80) * (1.0 - skyReject * 0.78) * (1.0 - warmDryReject * 0.28));
+    float specularGlintSource = saturate(max(material.SpecularGlint * glintShape, water.FoamOrEdge * 0.38) * streakDepthContinuity * (1.0 - waterReceiver * 0.16) * (1.0 - skinProtect * 0.80) * (1.0 - skyReject * 0.78) * (1.0 - warmDryReject * 0.28));
     float metalReceiver = material.MetalIndustrial
         * hardSurfaceHint
         * smoothstep(0.02, 0.34, edge)
@@ -371,7 +391,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float3 specularGlint = lerp(float3(0.65, 0.86, 1.0), max(color + 0.26, reflectedStreak), 0.42) * specularGlintSource * Dalashade_SpecularGlintStrength * 1.54;
     float3 specularReflection = reflectedStreak * specularGlintSource * max(metalReceiver, waterReceiver * 0.35) * Dalashade_SpecularReflectionStrength * 0.86;
 
-    float wetHardSurfaceReceiver = Dalashade_Wetness
+    float wetHardSurfaceReceiver = max(Dalashade_Wetness, Dalashade_WetSurfaceContext)
         * hardSurfaceHint
         * smoothstep(0.36, 0.94, smoothness)
         * smoothstep(0.0, 0.62, 1.0 - edge)
@@ -426,8 +446,8 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
         float debugMask = finalMask;
         if (mode == 1)
         {
-            debugColor = float3(0.0, waterReflectionMask * 0.85, waterReflectionMask);
-            debugMask = waterReflectionMask;
+            debugColor = float3(0.0, waterReceiver * 0.85, waterReceiver);
+            debugMask = waterReceiver;
         }
         else if (mode == 2)
         {
@@ -461,12 +481,12 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
         }
         else if (mode == 9)
         {
-            debugColor = saturate(waterSource * float3(0.00, 0.75, 1.00) + specularGlintSource * float3(0.55, 0.78, 1.0) + aetherNeonSource * float3(0.48, 0.20, 1.00) + fireLampSource * float3(1.0, 0.34, 0.04));
+            debugColor = saturate(water.WaterSource * float3(0.00, 0.75, 1.00) + water.SkySource * float3(0.10, 0.28, 0.90) + specularGlintSource * float3(0.55, 0.78, 1.0) + aetherNeonSource * float3(0.48, 0.20, 1.00) + fireLampSource * float3(1.0, 0.34, 0.04));
             debugMask = reflectionSourceMask;
         }
         else if (mode == 10)
         {
-            debugColor = saturate(waterReceiver * float3(0.0, 0.78, 1.0) + wetHardSurfaceReceiver * float3(0.28, 0.52, 0.78) + metalReceiver * float3(0.35, 0.55, 0.78) + aetherGlassReceiver * float3(0.74, 0.28, 1.0) + iceReceiver * float3(0.70, 0.88, 1.0) + reflectionReceiverRejected * float3(0.90, 0.06, 0.04));
+            debugColor = saturate(waterReceiver * float3(0.0, 0.78, 1.0) + water.WetShoreline * float3(0.62, 1.0, 1.0) + wetHardSurfaceReceiver * float3(0.28, 0.52, 0.78) + metalReceiver * float3(0.35, 0.55, 0.78) + aetherGlassReceiver * float3(0.74, 0.28, 1.0) + iceReceiver * float3(0.70, 0.88, 1.0) + reflectionReceiverRejected * float3(0.90, 0.06, 0.04));
             debugMask = reflectionReceiverMask;
         }
 

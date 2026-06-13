@@ -95,6 +95,26 @@ struct Dalashade_FinalMaterialMasks
     float CombinedConfidence;
 };
 
+struct Dalashade_WaterResolve
+{
+    float RawCyanWater;
+    float RawDeepWater;
+    float ShallowWater;
+    float DeepWater;
+    float WaterHorizon;
+    float WetShoreline;
+    float FoamOrEdge;
+    float WaterSurface;
+    float WaterReceiver;
+    float WaterSource;
+    float SkySource;
+    float SkyReject;
+    float SandReject;
+    float SkinReject;
+    float WaterCoherence;
+    float Confidence;
+};
+
 // Back-compat alias for first-party shaders written before the v2 struct split.
 #define Dalashade_MaterialMasks Dalashade_FinalMaterialMasks
 
@@ -415,6 +435,121 @@ Dalashade_FinalMaterialMasks Dalashade_ResolveFinalMaterialMasks(Dalashade_Mater
         masks.FireLavaHeat + masks.SkyCloudFog + masks.SkinProtection + masks.VoidDarkness);
 
     return masks;
+}
+
+float Dalashade_GetWaterCoherence(Dalashade_MaterialSignals s)
+{
+    float2 texel = BUFFER_PIXEL_SIZE;
+    float3 cA = tex2D(ReShade::BackBuffer, s.Uv + float2(texel.x * 2.0, 0.0)).rgb;
+    float3 cB = tex2D(ReShade::BackBuffer, s.Uv - float2(texel.x * 2.0, 0.0)).rgb;
+    float3 cC = tex2D(ReShade::BackBuffer, s.Uv + float2(0.0, texel.y * 2.0)).rgb;
+    float3 cD = tex2D(ReShade::BackBuffer, s.Uv - float2(0.0, texel.y * 2.0)).rgb;
+
+    float lumaDelta = abs(s.Luma - Dalashade_GetLuminance(cA))
+        + abs(s.Luma - Dalashade_GetLuminance(cB))
+        + abs(s.Luma - Dalashade_GetLuminance(cC))
+        + abs(s.Luma - Dalashade_GetLuminance(cD));
+    float satDelta = abs(s.Saturation - Dalashade_GetSaturation(cA))
+        + abs(s.Saturation - Dalashade_GetSaturation(cB))
+        + abs(s.Saturation - Dalashade_GetSaturation(cC))
+        + abs(s.Saturation - Dalashade_GetSaturation(cD));
+    float hueDelta = Dalashade_GetHueDistance(s.Hue, Dalashade_GetHue(cA))
+        + Dalashade_GetHueDistance(s.Hue, Dalashade_GetHue(cB))
+        + Dalashade_GetHueDistance(s.Hue, Dalashade_GetHue(cC))
+        + Dalashade_GetHueDistance(s.Hue, Dalashade_GetHue(cD));
+
+    float colorCoherence = saturate(1.0 - lumaDelta * 1.75 - satDelta * 0.55 - hueDelta * 0.72);
+    float lowTexture = saturate(s.Smoothness * 0.68 + (1.0 - max(s.Edge, s.Detail)) * 0.32);
+    return saturate(colorCoherence * lowTexture);
+}
+
+Dalashade_WaterResolve Dalashade_ResolveWater(
+    float3 color,
+    float2 uv,
+    float waterContext,
+    float coastalContext,
+    float openOceanContext,
+    float shallowWaterContext,
+    float wetSurfaceContext,
+    float materialWaterPlane,
+    float materialSpecularGlint,
+    float materialSandDust,
+    float materialSkyCloudFog,
+    float materialSkinProtection,
+    float depthAssistEnabled,
+    float depthAssistStrength,
+    float depthConfidenceFloor)
+{
+    Dalashade_MaterialSignals s = Dalashade_GetMaterialSignals(color, uv, depthAssistEnabled, depthAssistStrength, depthConfidenceFloor);
+    Dalashade_RawMaterialCandidates raw = Dalashade_GetRawMaterialCandidates(s);
+    Dalashade_WaterResolve water;
+
+    float blueCyan = max(Dalashade_HueMask(s.Hue, 0.52, 0.13), Dalashade_HueMask(s.Hue, 0.60, 0.14));
+    float teal = max(blueCyan, Dalashade_HueMask(s.Hue, 0.46, 0.10));
+    float warm = max(Dalashade_HueMask(s.Hue, 0.08, 0.09), Dalashade_HueMask(s.Hue, 0.14, 0.09));
+    float fireLike = max(Dalashade_HueMask(s.Hue, 0.03, 0.06), Dalashade_HueMask(s.Hue, 0.10, 0.06)) * smoothstep(0.42, 1.0, s.Luma) * smoothstep(0.36, 0.95, s.Saturation);
+    float skinLike = max(Dalashade_HueMask(s.Hue, 0.055, 0.040), Dalashade_HueMask(s.Hue, 0.085, 0.035)) * Dalashade_RangeMask(s.Luma, 0.22, 0.78) * Dalashade_RangeMask(s.Saturation, 0.08, 0.46);
+
+    float sceneWater = saturate(max(waterContext, max(materialWaterPlane, raw.WaterPlane * max(waterContext, 0.28))));
+    float sceneCoastal = saturate(max(coastalContext, sceneWater * 0.72));
+    float sceneOpenOcean = saturate(max(openOceanContext, sceneCoastal * 0.62));
+    float sceneShallow = saturate(max(shallowWaterContext, sceneCoastal * 0.54));
+    float sceneWet = saturate(max(wetSurfaceContext, sceneWater * 0.22));
+    float waterSceneSupport = saturate(max(sceneWater, max(sceneCoastal, max(sceneOpenOcean, sceneShallow))));
+
+    water.WaterCoherence = Dalashade_GetWaterCoherence(s);
+    float lowerOrHorizon = saturate(s.LowerScreen * 0.56 + (1.0 - s.UpperScreen) * 0.30 + s.CenterScreen * 0.10 + s.DepthFarConfidence * 0.10);
+    water.SkyReject = saturate(raw.SkyCloudFog * max(materialSkyCloudFog, 0.36) * (0.72 + s.UpperScreen * 0.28) * (1.0 - waterSceneSupport * 0.28));
+    water.SandReject = saturate(max(raw.SandDust, materialSandDust) * (0.52 + smoothstep(0.36, 0.88, s.Luma) * 0.34) + warm * smoothstep(0.12, 0.48, s.Saturation) * (1.0 - teal * 0.55));
+    water.SkinReject = saturate(max(raw.SkinProtection, max(materialSkinProtection, skinLike)) * (0.72 + s.CenterScreen * 0.18));
+
+    water.RawCyanWater = saturate(teal * smoothstep(0.12, 0.62, s.Saturation) * Dalashade_RangeMask(s.Luma, 0.05, 0.92)
+        * (0.40 + water.WaterCoherence * 0.60)
+        * (0.52 + lowerOrHorizon * 0.34 + waterSceneSupport * 0.22)
+        * (1.0 - water.SkyReject * (0.38 + s.UpperScreen * 0.22))
+        * (1.0 - water.SandReject * 0.58)
+        * (1.0 - water.SkinReject * 0.82)
+        * (1.0 - fireLike * 0.72));
+
+    float deepWaterTone = teal * smoothstep(0.05, 0.34, s.Saturation) * saturate(1.0 - smoothstep(0.78, 1.0, s.Luma)) * smoothstep(0.38, 0.96, s.Smoothness);
+    water.RawDeepWater = saturate(deepWaterTone
+        * (0.30 + sceneWater * 0.32 + sceneOpenOcean * 0.38 + s.DepthFarConfidence * 0.16)
+        * (1.0 - water.SkyReject * (0.46 + s.UpperScreen * 0.24))
+        * (1.0 - water.SandReject * 0.48)
+        * (1.0 - water.SkinReject * 0.80));
+
+    water.ShallowWater = saturate(water.RawCyanWater * (0.42 + sceneShallow * 0.46 + sceneCoastal * 0.20) * (1.0 - water.SandReject * 0.36));
+    water.DeepWater = saturate(water.RawDeepWater * (0.42 + sceneOpenOcean * 0.50 + sceneWater * 0.22));
+    water.WaterHorizon = saturate(max(water.RawDeepWater, water.RawCyanWater * 0.55)
+        * sceneOpenOcean
+        * smoothstep(0.20, 0.82, s.Smoothness)
+        * saturate(0.22 + s.UpperScreen * 0.22 + s.DepthFarConfidence * 0.42 + s.DepthInvalidConfidence * 0.16)
+        * (1.0 - water.SkyReject * 0.58));
+
+    float edgeOrFoam = smoothstep(0.05, 0.32, max(s.Edge, s.Detail)) * smoothstep(0.42, 0.96, s.Luma);
+    water.FoamOrEdge = saturate(edgeOrFoam * max(teal, saturate(1.0 - s.Saturation) * 0.55) * sceneCoastal * (1.0 - water.SkinReject * 0.85) * (1.0 - fireLike * 0.72));
+    water.WetShoreline = saturate((water.ShallowWater * 0.55 + water.FoamOrEdge * 0.52)
+        * max(sceneCoastal, sceneWet)
+        * (0.36 + water.SandReject * 0.38 + s.LowerScreen * 0.18)
+        * (1.0 - water.SkyReject * 0.90)
+        * (1.0 - water.SkinReject * 0.90));
+
+    water.WaterSurface = saturate(max(water.ShallowWater, water.DeepWater)
+        * (0.36 + water.WaterCoherence * 0.48 + smoothstep(0.42, 0.95, s.Smoothness) * 0.22)
+        * (1.0 - water.SkyReject * 0.78)
+        * (1.0 - water.SandReject * 0.50)
+        * (1.0 - water.SkinReject * 0.95));
+    water.SkySource = saturate(raw.SkyCloudFog * (0.35 + materialSkyCloudFog * 0.42 + sceneOpenOcean * 0.18) * (1.0 - water.SkinReject * 0.90));
+    water.WaterReceiver = saturate(water.WaterSurface
+        * (0.54 + waterSceneSupport * 0.38)
+        * (0.54 + water.WaterCoherence * 0.46)
+        * (1.0 - water.SkyReject * 0.95)
+        * (1.0 - water.SandReject * 0.72)
+        * (1.0 - water.SkinReject * 0.98));
+    water.WaterSource = saturate(max(water.WaterSurface, max(water.WaterHorizon * 0.70, max(water.FoamOrEdge * 0.45, water.SkySource * sceneOpenOcean * 0.42))));
+    water.Confidence = saturate(water.WaterReceiver + water.WaterSource * 0.45 + water.WetShoreline * 0.50 + water.FoamOrEdge * 0.38);
+
+    return water;
 }
 
 Dalashade_FinalMaterialMasks Dalashade_GetAllMaterialMasksWithDepthAssist(

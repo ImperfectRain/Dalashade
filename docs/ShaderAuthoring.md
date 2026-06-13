@@ -357,6 +357,11 @@ Dalashade-driven controls:
 | `Dalashade_WaterSheenStrength` | Broad water-plane sheen strength. Uses `WaterPlane`, not thin `SpecularGlint`, for water surfaces. |
 | `Dalashade_WaterReflectionStrength` | First-stage water-plane reflection-impression strength. Uses cheap vertical screen samples on broad water receivers; this is not SSR. |
 | `Dalashade_WaterSheenRadius` | Small directional sample radius for water/surface sheen impression. This is not SSR tracing. |
+| `Dalashade_WaterContext` | Scene-level water plausibility prior for the staged water resolver. This is not a pixel mask. |
+| `Dalashade_CoastalContext` | Scene-level coastal/beach/harbor prior used to permit shoreline and shallow-water detection. |
+| `Dalashade_OpenOceanContext` | Scene-level open-ocean/horizon prior used for distant water and sky-source reflection color. |
+| `Dalashade_ShallowWaterContext` | Scene-level shallow/turquoise water prior used for Costa-style water surfaces. |
+| `Dalashade_WetSurfaceContext` | Scene-level rain/wet-surface prior; currently written from SceneIntent wetness and used for wet hard-surface receivers. |
 | `Dalashade_SpecularGlintStrength` | Tight highlight/glint shaping for rails, lamps, wet edges, water sparkles, polished metal, and aether edges. |
 | `Dalashade_SpecularReflectionStrength` | Tight reflected-highlight/streak strength for glint sources. It should stay localized and never create broad water reflection alone. |
 | `Dalashade_WetReflectionStrength` | Wet-surface reflection impression for roads, stone, wood, and metal when `Dalashade_Wetness` supports it. |
@@ -386,7 +391,7 @@ Dalashade-driven controls:
 | `Dalashade_MaterialSkyCloudFog` | Rejects sky/fog contamination. |
 | `Dalashade_MaterialSkinProtection` | Protects likely skin/character regions. |
 
-SurfaceReflection intentionally separates `WaterPlane` from `SpecularGlint`. WaterPlane drives broad cyan/teal water or shallow-water sheen and receives a cheap vertical screen-space reflection impression. SpecularGlint drives thin reflective highlights on rails, wet edges, lamps, polished metal, water sparkles, and aether edges. Wetness allows stronger reflection impressions on dark smooth hard surfaces, while CrystalAether, NeonGlass, and FireLavaHeat can create localized cyan/violet/magenta/warm reflection streaks on plausible receiver surfaces. The shader keeps separate internal receiver masks for water, wet hard surfaces, metal, aether/glass, and ice, plus a rejection mask for sky, skin, warm dry terrain, and bright matte surfaces. Source masks and receiver masks both need confidence before reflection is applied, so bright terrain or broad receiver regions alone should not turn the scene glossy. Debug mode output is routed before normal final blending; output mode `0` is a full replacement mask for tuning.
+SurfaceReflection intentionally separates `WaterPlane` from `SpecularGlint`. The staged water resolver first uses scene-level context uniforms such as `Dalashade_WaterContext`, `Dalashade_CoastalContext`, `Dalashade_OpenOceanContext`, and `Dalashade_ShallowWaterContext`, then performs shader-side pixel classification for raw cyan water, raw deep water, shallow water, deep water, water horizon, wet shoreline, foam/edge, water receiver, water source, sky source, and rejection masks. WaterPlane drives broad cyan/teal water or shallow-water sheen and receives a cheap vertical screen-space reflection impression. SpecularGlint drives thin reflective highlights on rails, wet edges, lamps, polished metal, water sparkles, and aether edges. Wetness allows stronger reflection impressions on dark smooth hard surfaces, while CrystalAether, NeonGlass, and FireLavaHeat can create localized cyan/violet/magenta/warm reflection streaks on plausible receiver surfaces. The shader keeps separate internal receiver masks for water, wet hard surfaces, metal, aether/glass, and ice, plus a rejection mask for sky, skin, warm dry terrain, and bright matte surfaces. Source masks and receiver masks both need confidence before reflection is applied, so bright terrain or broad receiver regions alone should not turn the scene glossy. Debug mode output is routed before normal final blending; output mode `0` is a full replacement mask for tuning.
 
 ## Atmosphere Bloom Controls
 
@@ -529,6 +534,25 @@ Depth assist is shader-owned and disabled by default through `Dalashade_EnableDe
 | `24` | Final fire/lava/heat mask | red/orange |
 | `25` | Final skin-protection mask | peach/pink |
 | `26` | Final void/darkness mask | purple |
+| `27` | Raw water plane | cyan |
+| `28` | Scene-gated water plane | cyan |
+| `29` | Final water plane | cyan |
+| `30` | Raw specular glint | white-blue |
+| `31` | Scene-gated specular glint | white-blue |
+| `32` | Final specular glint | white-blue |
+| `33` | Water resolver overview | cyan/deep blue/white/red rejection |
+| `34` | Raw cyan water | turquoise |
+| `35` | Raw deep water | dark blue |
+| `36` | Shallow water | bright turquoise |
+| `37` | Deep water | dark teal-blue |
+| `38` | Water horizon | blue |
+| `39` | Wet shoreline | white-cyan |
+| `40` | Foam/edge | white-cyan |
+| `41` | Water receiver | cyan |
+| `42` | Water source | blue-cyan |
+| `43` | Sky source vs sky reject | blue source, red reject |
+| `44` | Sand/skin rejection | orange sand, pink skin |
+| `45` | Water coherence | cyan |
 
 Overlay mode `0` replaces the image with the debug mask, `1` alpha-blends over the game image, and `2` applies an additive/tint overlay. `Dalashade_MaterialDebugOpacity` controls visibility, and `Dalashade_MaterialDebugStrength` can disable the overlay without changing the selected mode.
 
