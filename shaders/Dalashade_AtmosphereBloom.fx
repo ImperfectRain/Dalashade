@@ -154,6 +154,23 @@ uniform float Dalashade_MaterialDebugStrength <
     ui_label = "Dalashade Material Debug Strength";
 > = 1.0;
 
+uniform bool Dalashade_EnableDepthAssist <
+    ui_label = "Enable Depth Assist";
+    ui_tooltip = "Optional material-mask helper. Disabled by default; bloom masks still work without depth.";
+> = false;
+
+uniform float Dalashade_DepthAssistStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Depth Assist Strength";
+> = 0.0;
+
+uniform float Dalashade_DepthAssistConfidenceFloor <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Depth Assist Confidence Floor";
+> = 0.0;
+
 uniform float BloomStrength <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -330,7 +347,7 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
         float warmMask = smoothstep(0.03, 0.34, color.r - max(color.g, color.b) * 0.72);
         float coolAetherMask = smoothstep(0.06, 0.42, max(color.b, color.g) - color.r * 0.58);
         float neonColorMask = smoothstep(0.10, 0.55, saturatedAccent) * smoothstep(threshold - 0.22, 1.0, luma);
-        Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasks(
+        Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasksWithDepthAssist(
             color,
             texcoord,
             0.0,
@@ -344,7 +361,10 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
             materialFire,
             materialSky,
             0.0,
-            0.0);
+            0.0,
+            Dalashade_EnableDepthAssist ? 1.0 : 0.0,
+            Dalashade_DepthAssistStrength,
+            Dalashade_DepthAssistConfidenceFloor);
         float skyMask = materialMasks.SkyCloudFog;
         float waterMask = materialMasks.WaterSpecular;
         float aetherMask = materialMasks.CrystalAether * coolAetherMask * smoothstep(threshold - 0.18, 1.0, luma);

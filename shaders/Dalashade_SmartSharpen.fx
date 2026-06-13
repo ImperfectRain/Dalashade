@@ -112,6 +112,23 @@ uniform float Dalashade_MaterialDebugStrength <
     ui_label = "Dalashade Material Debug Strength";
 > = 1.0;
 
+uniform bool Dalashade_EnableDepthAssist <
+    ui_label = "Enable Depth Assist";
+    ui_tooltip = "Optional material-mask helper. Disabled by default; SmartSharpen masks still work without depth.";
+> = false;
+
+uniform float Dalashade_DepthAssistStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Depth Assist Strength";
+> = 0.0;
+
+uniform float Dalashade_DepthAssistConfidenceFloor <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Depth Assist Confidence Floor";
+> = 0.0;
+
 uniform float SharpenStrength <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -274,7 +291,7 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float materialSnowIce = saturate(Dalashade_MaterialSnowIce);
     float materialSkyCloudFog = saturate(Dalashade_MaterialSkyCloudFog);
     float materialSkinProtection = saturate(Dalashade_MaterialSkinProtection);
-    Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasks(
+    Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasksWithDepthAssist(
         center,
         texcoord,
         materialFoliage,
@@ -288,7 +305,10 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
         0.0,
         materialSkyCloudFog,
         materialSkinProtection,
-        0.0);
+        0.0,
+        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
+        Dalashade_DepthAssistStrength,
+        Dalashade_DepthAssistConfidenceFloor);
     float materialFoliageStrong = materialMasks.FoliageStrong;
     float materialOrganicGreen = materialMasks.OrganicGreenSurface;
     float materialFoliagePixel = saturate(materialFoliageStrong + materialOrganicGreen * 0.42);

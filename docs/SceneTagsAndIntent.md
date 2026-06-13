@@ -122,6 +122,18 @@ Shader-side material masks use separate debug vocabulary:
 
 MaterialProfile and MaterialIntent provide scene gates. They do not decide that a specific pixel is foliage, sky, water, snow, or skin by themselves.
 
+`shaders/Dalashade_MaterialMasks.fxh` implements the current MaterialMasks v2 shader-side layer. It computes raw visual candidates, scales them by scene material plausibility, resolves conflicts, and exposes final masks to first-party shaders. Depth assist exists as an optional shader-owned helper for sky/water/snow/foreground separation, but it is disabled by default and is never required for mask output.
+
+Current first-party shader responsibilities are section-scoped:
+
+| Shader | Material-aware responsibility |
+| --- | --- |
+| `Dalashade_SmartSharpen.fx` | Suppresses unsafe sharpening on sky/fog, foliage, water/specular glints, snow/ice, and skin-like smooth regions while preserving structural edges. |
+| `Dalashade_AtmosphereBloom.fx` | Uses material eligibility for water/specular, fire/heat, crystal/aether, neon/glass, and sky/fog restraint. |
+| `Dalashade_WeatherAtmosphere.fx` | Uses material masks for foliage humidity, coastal/wet air, snow/cold air, sand/dust air, sky/fog, and aetherial atmosphere. |
+| `Dalashade_AdaptiveGrade.fx` | Uses masks lightly for protection and preservation, not strong material color casts. |
+| `Dalashade_MaterialDebug.fx` | Visualizes broad material heuristics and raw/gated/final failures when manually enabled in ReShade. |
+
 ## Current Weather Tags
 
 `SceneClassifier.Classify` emits separate weather signals instead of one broad fog bucket.
@@ -324,6 +336,8 @@ Diagnostics currently include:
 | Ultima Thule / Elpis / Il Mheg | `cosmic`, `aetherial`, or `fae` | alien, aetherial, fae, dreamlike, magical | CrystalAether | Cool, otherworldly, magical, atmospheric, high depth. |
 | Garlemald / Castrum / factory | `imperial` | imperial, industrial, metallic, smoky, structured | SnowIce where cold; MetalIndustrial | Metallic, hard, readable, desaturated, restrained bloom. |
 | Allagan / Azys Lla | `ancient` | ancient, ruins, structured, aetherial | MetalIndustrial and/or StoneRuins/CrystalAether | Structured hard-surface identity without random organic material assumptions. |
+| Rainy Limsa / wet city | `coastal` | rain, wet, specular, water, settlementNight | WaterSpecular, SkyCloudFog | Wet stone and coastal glints are plausible without treating all stone as water. |
+| Cave / dungeon interior | `cave` | dark, interior, gameplayReadable | Low SkyCloudFog unless explicit fog/open-air tags exist | Suppresses generic sky assumptions while preserving gameplay readability. |
 | Void / gothic / darkness scene | `void` | haunted, gloom, dark, void | VoidDarkness only when explicit support exists | Preserves black depth and avoids treating ordinary night as void. |
 
 ## Planned / Future

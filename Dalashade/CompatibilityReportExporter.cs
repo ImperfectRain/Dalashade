@@ -131,6 +131,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Material debug shader listed: {(materialDebugTechnique is null ? "no" : "yes")}");
         builder.AppendLine($"- Material debug technique activation: {(materialDebugTechnique is null ? "absent" : PresetAnalyzer.FormatActivationState(materialDebugTechnique.ActivationState))}");
         builder.AppendLine("- Material debug controls: shader-owned in ReShade UI; Dalashade does not write debug mode, overlay mode, opacity, or strength.");
+        builder.AppendLine($"- First-party custom shader status: {FormatFirstPartyCustomShaderStatus(analysis)}");
         builder.AppendLine("- Manual shader install/activation: Dalashade does not copy `.fx` files into ReShade or enable techniques. Install needed Dalashade `.fx` files in a ReShade shader search folder separately, then enable wanted custom shader techniques in ReShade.");
         builder.AppendLine("- Variable writes require matching Dalashade custom shader section/key lines in generated preset content. Those lines can come from the base preset or from generated-preset-only injection.");
         builder.AppendLine("- Static bridge status:");
@@ -299,6 +300,16 @@ public sealed class CompatibilityReportExporter
                 builder.AppendLine($"- `{change.Section}` / `{change.Key}`: {change.OldValue} -> {change.NewValue} | reason={change.ReasonCategory}");
             }
         }
+
+        builder.AppendLine();
+        builder.AppendLine("### MaterialMasks V2 Calibration Notes");
+        builder.AppendLine();
+        builder.AppendLine("- Shader-side mask vocabulary: `RawCandidate` is local pixel evidence, `SceneGatedCandidate` is raw evidence scaled by MaterialProfile/MaterialIntent plausibility, and `FinalMask` is the conflict-resolved mask used by a production shader.");
+        builder.AppendLine("- Depth assist: optional, shader-owned, and disabled by default. It can improve sky/water/snow/foreground separation only when the ReShade depth buffer is valid; color, texture, smoothness, screen-region, and scene gates still work without depth.");
+        builder.AppendLine($"- Sections receiving MaterialIntent uniforms: {FormatMaterialUniformSections(writtenUniforms)}");
+        builder.AppendLine($"- Shader-owned depth-assist controls injected: {FormatInjectedDepthAssistVariables(writeResult)}");
+        builder.AppendLine("- First-party shader material responsibilities: SmartSharpen suppresses unsafe sharpening, AtmosphereBloom gates local glow, WeatherAtmosphere shapes air/haze, AdaptiveGrade applies subtle material protection, and MaterialDebug visualizes masks only when manually enabled.");
+        builder.AppendLine("- Likely failure sources to inspect: scene profile plausibility, MaterialIntent strength/gating, raw pixel heuristic, final conflict suppression, optional depth assist, then the specific production shader debug view.");
 
         builder.AppendLine();
     }
@@ -770,6 +781,65 @@ public sealed class CompatibilityReportExporter
             .FirstOrDefault(technique => technique.TechniqueName.Contains("Dalashade_MaterialDebug", StringComparison.OrdinalIgnoreCase)
                                          || technique.ShaderFile.Contains("Dalashade_MaterialDebug", StringComparison.OrdinalIgnoreCase)
                                          || technique.Section.Contains("Dalashade_MaterialDebug", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string FormatFirstPartyCustomShaderStatus(PresetAnalysisResult analysis)
+    {
+        var statuses = new[]
+        {
+            FormatFirstPartyShaderStatus(analysis, "WeatherAtmosphere", "Dalashade_WeatherAtmosphere"),
+            FormatFirstPartyShaderStatus(analysis, "AdaptiveGrade", "Dalashade_AdaptiveGrade"),
+            FormatFirstPartyShaderStatus(analysis, "AtmosphereBloom", "Dalashade_AtmosphereBloom"),
+            FormatFirstPartyShaderStatus(analysis, "SmartSharpen", "Dalashade_SmartSharpen"),
+            FormatFirstPartyShaderStatus(analysis, "MaterialDebug", "Dalashade_MaterialDebug")
+        };
+
+        return string.Join("; ", statuses);
+    }
+
+    private static string FormatFirstPartyShaderStatus(PresetAnalysisResult analysis, string label, string shaderKey)
+    {
+        var matches = analysis.Techniques
+            .Where(technique => ContainsShaderKey(technique, shaderKey))
+            .ToArray();
+        if (matches.Length == 0)
+        {
+            return $"{label}=absent";
+        }
+
+        var active = matches.Any(technique => technique.ActivationState == TechniqueActivationState.Active);
+        var listed = string.Join("/", matches.Select(technique => PresetAnalyzer.FormatActivationState(technique.ActivationState)).Distinct(StringComparer.OrdinalIgnoreCase));
+        return $"{label}={(active ? "active" : "listed")}({listed})";
+    }
+
+    private static bool ContainsShaderKey(PresetTechnique technique, string shaderKey)
+    {
+        return technique.TechniqueName.Contains(shaderKey, StringComparison.OrdinalIgnoreCase)
+               || technique.ShaderFile.Contains(shaderKey, StringComparison.OrdinalIgnoreCase)
+               || technique.Section.Contains(shaderKey, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FormatMaterialUniformSections(IReadOnlyList<ChangedShaderVariable> writtenUniforms)
+    {
+        var sections = writtenUniforms
+            .Select(change => change.Section)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(section => section, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return sections.Length == 0 ? "none" : string.Join(", ", sections.Select(section => $"`{section}`"));
+    }
+
+    private static string FormatInjectedDepthAssistVariables(PresetWriteResult writeResult)
+    {
+        var variables = writeResult.CustomShaderInjection.Variables
+            .Where(variable => variable.Contains("DepthAssist", StringComparison.OrdinalIgnoreCase)
+                               || variable.Contains("EnableDepthAssist", StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(variable => variable, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return variables.Length == 0 ? "none" : string.Join(", ", variables.Select(variable => $"`{variable}`"));
     }
 
     private static string FormatMaterialContributions(IReadOnlyList<MaterialIntentContribution> contributions, string channel, bool positive)

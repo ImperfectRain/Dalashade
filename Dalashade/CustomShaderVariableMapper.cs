@@ -107,8 +107,16 @@ public sealed class CustomShaderVariableMapper
         "Dalashade_MaterialVoidDarkness"
     ];
 
+    private static readonly HashSet<string> ShaderOwnedVariables =
+    [
+        "Dalashade_EnableDepthAssist",
+        "Dalashade_DepthAssistStrength",
+        "Dalashade_DepthAssistConfidenceFloor"
+    ];
+
     public static IReadOnlyCollection<string> KnownVariableNames => Variables.Keys
         .Concat(MaterialVariables.Keys)
+        .Concat(ShaderOwnedVariables)
         .Concat(SmartSharpenAuthority.WritableVariables)
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToArray();
@@ -171,6 +179,7 @@ public sealed class CustomShaderVariableMapper
         return !string.IsNullOrWhiteSpace(key)
                && (Variables.ContainsKey(key)
                    || MaterialVariables.ContainsKey(key)
+                   || ShaderOwnedVariables.Contains(key)
                    || SmartSharpenAuthority.WritableVariables.Contains(key, StringComparer.OrdinalIgnoreCase));
     }
 

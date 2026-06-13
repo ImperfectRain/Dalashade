@@ -1,4 +1,5 @@
 #include "ReShade.fxh"
+#include "Dalashade_MaterialMasks.fxh"
 
 uniform float Dalashade_Readability <
     ui_type = "slider";
@@ -167,6 +168,23 @@ uniform float Dalashade_MaterialVoidDarkness <
     ui_tooltip = "Inferred void or darkness likelihood. Preserves black depth and avoids gray wash.";
 > = 0.0;
 
+uniform bool Dalashade_EnableDepthAssist <
+    ui_label = "Enable Depth Assist";
+    ui_tooltip = "Optional material-mask helper. Disabled by default; grade masks still work without depth.";
+> = false;
+
+uniform float Dalashade_DepthAssistStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Depth Assist Strength";
+> = 0.0;
+
+uniform float Dalashade_DepthAssistConfidenceFloor <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Depth Assist Confidence Floor";
+> = 0.0;
+
 uniform float Dalashade_ManualStrength <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -265,6 +283,31 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float materialCrystal = saturate(Dalashade_MaterialCrystalAether);
     float materialSkin = saturate(Dalashade_MaterialSkinProtection);
     float materialVoid = saturate(Dalashade_MaterialVoidDarkness);
+    Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasksWithDepthAssist(
+        source,
+        texcoord,
+        materialFoliage,
+        0.0,
+        materialSandDust,
+        materialSnowIce,
+        0.0,
+        materialMetalIndustrial,
+        materialCrystal,
+        0.0,
+        0.0,
+        0.0,
+        materialSkin,
+        materialVoid,
+        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
+        Dalashade_DepthAssistStrength,
+        Dalashade_DepthAssistConfidenceFloor);
+    float materialFoliagePixel = saturate(materialMasks.FoliageStrong + materialMasks.OrganicGreenSurface * 0.25);
+    float materialSandPixel = materialMasks.SandDust;
+    float materialSnowPixel = materialMasks.SnowIce;
+    float materialMetalPixel = materialMasks.MetalIndustrial;
+    float materialCrystalPixel = materialMasks.CrystalAether;
+    float materialSkinPixel = materialMasks.SkinProtection;
+    float materialVoidPixel = materialMasks.VoidDarkness;
     float manualStrength = saturate(Dalashade_ManualStrength);
     float safety = 1.0 - saturate(readability * 0.42 + combat * 0.58);
     float foliageRichness = max(foliage, materialFoliage) * atmosphere * safety;
@@ -308,8 +351,8 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float temperature = Dalashade_ManualTemperature + (heatIdentity * 0.074) - (coldIdentity * 0.065) - (cosmic * 0.040) - (hardSurfaceIdentity * 0.018) - (moonlight * 0.048) + (artificialLight * 0.022);
     float tint = Dalashade_ManualTint + (aetherIdentity * 0.030) - (neonGlow * 0.012) + (cosmic * 0.020) - (hardSurfaceIdentity * 0.010) + (moonlight * 0.010);
 
-    float skinTintGuard = 1.0 - materialSkin * 0.34;
-    saturationAmount *= 1.0 - materialSkin * 0.24;
+    float skinTintGuard = 1.0 - max(materialSkin * 0.34, materialSkinPixel * 0.45);
+    saturationAmount *= 1.0 - max(materialSkin * 0.24, materialSkinPixel * 0.34);
     temperature *= skinTintGuard;
     tint *= skinTintGuard;
 
@@ -328,18 +371,18 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float greenSignal = saturate((source.g - max(source.r, source.b) * 0.78) * 2.4);
     float warmSignal = saturate((source.r - source.b) * 1.8 + heat * 0.20);
     float coolSignal = saturate((source.b - source.r) * 1.6 + cold * 0.18 + cosmic * 0.28);
-    float foliageColor = foliageRichness * greenSignal * (1.0 - highlightMask * 0.45);
+    float foliageColor = foliageRichness * max(greenSignal, materialFoliagePixel * 0.68) * (1.0 - highlightMask * 0.45);
     graded = lerp(graded, graded * float3(0.965, 1.055, 0.940), foliageColor * 0.18);
-    graded = lerp(graded, graded * float3(1.038, 1.008, 0.948), heatIdentity * warmSignal * 0.048 * safety * (1.0 - materialSkin * 0.35));
-    graded = lerp(graded, graded * float3(0.940, 0.970, 1.055), max(coldIdentity, cosmic) * coolSignal * 0.060 * safety);
+    graded = lerp(graded, graded * float3(1.038, 1.008, 0.948), heatIdentity * max(warmSignal, materialSandPixel * 0.48) * 0.048 * safety * (1.0 - materialSkin * 0.35));
+    graded = lerp(graded, graded * float3(0.940, 0.970, 1.055), max(coldIdentity, cosmic) * max(coolSignal, materialSnowPixel * 0.42) * 0.060 * safety);
     graded = lerp(graded, float3(Dalashade_Luma(graded), Dalashade_Luma(graded), Dalashade_Luma(graded)), hardSurfaceIdentity * 0.045);
-    graded = lerp(graded, graded * float3(0.982, 0.995, 1.025), materialMetalIndustrial * coolSignal * 0.040 * safety);
-    graded = lerp(graded, graded * float3(0.985, 0.978, 1.035), materialCrystal * max(coolSignal, greenSignal) * 0.034 * safety);
+    graded = lerp(graded, graded * float3(0.982, 0.995, 1.025), materialMetalIndustrial * max(coolSignal, materialMetalPixel * 0.45) * 0.040 * safety);
+    graded = lerp(graded, graded * float3(0.985, 0.978, 1.035), materialCrystal * max(max(coolSignal, greenSignal), materialCrystalPixel * 0.42) * 0.034 * safety);
 
     // Night light hierarchy: unlit regions deepen, moonlit mids cool gently, and artificial light affects bright local pools instead of lifting the frame.
     float moonlitSurface = moonlight * smoothstep(0.18, 0.66, luma) * (1.0 - highlightMask * 0.34) * safety;
     float artificialLightPool = artificialLight * smoothstep(0.42, 0.92, luma) * (0.55 + max(max(neonGlow, magicGlow), materialCrystal) * 0.45) * (1.0 - combat * 0.42);
-    float nightDarken = ambientDarkness * shadowMask * (0.052 + night * 0.022 + materialVoid * 0.020) * (1.0 - readability * 0.28);
+    float nightDarken = ambientDarkness * shadowMask * (0.052 + night * 0.022 + max(materialVoid, materialVoidPixel) * 0.020) * (1.0 - readability * 0.28);
     nightDarken *= 1.0 - artificialLightPool * 0.42;
     graded *= 1.0 - nightDarken;
     graded = lerp(graded, graded * float3(0.90, 0.96, 1.055), moonlitSurface * 0.20);
@@ -366,11 +409,11 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     graded += lift * manualStrength * (1.0 - source);
 
     // Preserve black depth in forests, industrial zones, and gloom-heavy scenes by recovering contrast in the deepest shadows.
-    float blackDepth = shadowMask * (ambientDarkness * 0.060 + max(foliage, materialFoliage) * 0.040 + hardSurfaceIdentity * 0.030 + cosmic * 0.014 + materialVoid * 0.060) * (1.0 - combat * 0.45);
+    float blackDepth = shadowMask * (ambientDarkness * 0.060 + max(foliage, max(materialFoliage, materialFoliagePixel)) * 0.040 + hardSurfaceIdentity * 0.030 + cosmic * 0.014 + max(materialVoid, materialVoidPixel) * 0.060) * (1.0 - combat * 0.45);
     graded = lerp(graded, graded * (1.0 - blackDepth), saturate(1.0 - readability * 0.40));
 
     // Skin protection reins in extreme shifts on smooth warm midtones without flattening the whole grade.
-    float skinLikeMidtone = materialSkin
+    float skinLikeMidtone = max(materialSkin * 0.65, materialSkinPixel)
         * smoothstep(0.18, 0.58, luma)
         * (1.0 - smoothstep(0.78, 0.98, luma))
         * smoothstep(0.02, 0.22, source.r - source.b)

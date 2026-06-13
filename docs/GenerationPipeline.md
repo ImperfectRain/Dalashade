@@ -33,6 +33,8 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
     - Custom shader variable writes happen when the generated preset content contains matching Dalashade section/key lines, either from the base preset or from generated-preset-only injection.
     - `Dalashade_SmartSharpen.fx` receives extra authority-aware tuning from preset analysis so it behaves as a secondary, foliage-safe pass when other active sharpeners are present.
     - First-party custom shaders can receive `Night`, `Moonlight`, `ArtificialLight`, `AmbientDarkness`, and `NightAtmosphere` intent values when their sections/keys exist or are injected into the generated preset.
+    - Material-aware first-party shader behavior is section-scoped: SmartSharpen uses final masks for suppression, AtmosphereBloom uses glow eligibility masks, WeatherAtmosphere uses air/haze masks, and AdaptiveGrade uses only subtle protection/preservation masks.
+    - `Dalashade_MaterialMasks.fxh` exposes raw candidates, scene-gated candidates, final masks, and optional depth assist for first-party shaders. Depth assist is shader-owned, disabled by default, and never required.
     - `Dalashade_MaterialDebug.fx` is an optional false-color utility shader. It can receive MaterialIntent debug uniforms, but Dalashade does not add it to `Techniques=` or require it for normal output.
     - Dalashade does not append custom shader entries to `Techniques=`, copy `.fx` files, or require custom shaders for normal operation.
 15. `GenerationAuthorityPolicy.From()` dampens secondary authorities for selected compatibility modes.
@@ -55,6 +57,7 @@ Compatibility report export can build `MaterialProfile` and `MaterialIntent` dia
 - MaterialProfile and MaterialIntent do not change `SceneIntent` or `VisualProfile`.
 - Material debug mode, overlay mode, opacity, and strength are owned by the relevant `.fx` shader UI in ReShade. Dalashade writes scene-level material channel uniforms only.
 - Reports use the terms `RawCandidate`, `SceneGatedCandidate`, and `FinalMask` for shader-side mask tuning. Plugin-side MaterialProfile and MaterialIntent provide scene gates; the `.fx` masks still decide pixel-level material influence.
+- Compatibility reports also list first-party custom shader activation state, sections receiving MaterialIntent uniforms, injected shader-owned depth controls, and likely failure sources for material calibration: scene plausibility, MaterialIntent gating, raw pixel heuristic, final conflict suppression, optional depth assist, or production shader behavior.
 
 ## Pipeline Ownership
 

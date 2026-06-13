@@ -176,6 +176,23 @@ uniform float Dalashade_MaterialDebugStrength <
     ui_label = "Dalashade Material Debug Strength";
 > = 1.0;
 
+uniform bool Dalashade_EnableDepthAssist <
+    ui_label = "Enable Depth Assist";
+    ui_tooltip = "Optional material-mask helper. Disabled by default; atmosphere masks still work without depth.";
+> = false;
+
+uniform float Dalashade_DepthAssistStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Depth Assist Strength";
+> = 0.0;
+
+uniform float Dalashade_DepthAssistConfidenceFloor <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Depth Assist Confidence Floor";
+> = 0.0;
+
 uniform float Dalashade_ManualStrength <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -364,7 +381,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         float heatDust = saturate(heatShimmerSoftness * 8.0 + max(heat, materialSandDust) * heatDistance * 0.35);
         float materialDebugStrength = Dalashade_Saturate(Dalashade_MaterialDebugStrength);
         float materialAir = saturate(humidAir + dustAir + snowAir + waterMist + aetherAir + skyFogAir + nightAtmosphere * night * 0.20);
-        Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasks(
+        Dalashade_MaterialMasks materialMasks = Dalashade_GetAllMaterialMasksWithDepthAssist(
             color,
             texcoord,
             materialFoliage,
@@ -378,7 +395,10 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
             0.0,
             materialSkyFog,
             0.0,
-            0.0);
+            0.0,
+            Dalashade_EnableDepthAssist ? 1.0 : 0.0,
+            Dalashade_DepthAssistStrength,
+            Dalashade_DepthAssistConfidenceFloor);
         if (Dalashade_MaterialDebugMode == 1)
         {
             return float4(saturate(dustAir + waterMist) * materialDebugStrength, saturate(humidAir + aetherAir) * materialDebugStrength, saturate(snowAir + skyFogAir) * materialDebugStrength, 1.0);

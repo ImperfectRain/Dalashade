@@ -351,6 +351,9 @@ Manual testing controls:
 | `ShowDebugMask` / `DebugView` | Shows composite, structural edge, texture detail, final sharpen, dampening, or foliage/far-depth suppression masks. |
 | `Dalashade_MaterialDebugMode` | Material-aware debug override: `0` off, `1` overview, `2` foliage, `3` water/specular, `4` snow/ice, `5` sky/fog, `6` skin protection, `10` final material dampening. |
 | `Dalashade_MaterialDebugStrength` | Scales material debug-mask visibility. Debug masks show inferred influence, not true engine material IDs. |
+| `Dalashade_EnableDepthAssist` | Optional material-mask helper. Default `false`; depth is never required for SmartSharpen material dampening. |
+| `Dalashade_DepthAssistStrength` | Default `0.0`. Allows valid depth to help sky/fog, water, snow, and foreground protection separation. |
+| `Dalashade_DepthAssistConfidenceFloor` | Default `0.0`. Minimum confidence only when depth assist is enabled and depth has been verified. |
 
 The shader uses two channels. Structural clarity uses broad, lower-frequency luma edges for silhouettes and readable geometry. Texture detail is separate and much smaller, then strongly dampened by foliage, haze, wetness, far depth, bright edges, sky/smooth gradients, deep night shadows, and secondary sharpen authority. Artificial-light intent can preserve modest structural clarity on lit subjects, but it does not increase micro-texture sharpening. MaterialIntent only adds additional dampening: foliage reduces leaf/grass/canopy crunch, water/specular reduces glint shimmer, snow/ice reduces bright snow noise and haloing, sky/cloud/fog excludes smooth gradients, and skin protection reduces aggressive smoothing-region sharpening. If Marty Sharpen or another non-Dalashade sharpener is active, generated SmartSharpen values default to secondary authority: lower overall strength, much lower texture detail, higher anti-crunch, and stronger foliage/far-depth/halo dampening. Do not use this shader as an anti-aliasing replacement.
 
@@ -360,27 +363,57 @@ The shader uses two channels. Structural clarity uses broad, lower-frequency lum
 
 The overlay visualizes shader-side material heuristic influence. It is not true FFXIV engine material-ID detection, so false positives are expected. Scene-level MaterialProfile/MaterialIntent priors gate each pixel mask; high scene-level foliage, water, snow, or aether values do not tint the whole screen unless individual pixels also match the local color/luma/saturation/edge/depth heuristics.
 
-The shared mask include separates raw candidates from scene-level gates and conflict suppression. `SkyCloudFog` uses smoothness, upper-screen prior, color families, clouds/overcast, warm dawn/dusk sky, night sky, canopy gaps, and optional depth; depth can help but is not required. `Foliage` separates strong leaves/grass/canopy from weak `OrganicGreenSurface` influence so mossy rocks or green-lit bark can damp sharpening slightly without appearing as full foliage in the master overlay.
+The shared mask include separates raw candidates, scene-level gates, and final conflict-resolved masks. `SkyCloudFog` uses smoothness, upper-screen prior, color families, clouds/overcast, warm dawn/dusk sky, night sky, canopy gaps, and optional depth; depth can help but is not required. `Foliage` separates strong leaves/grass/canopy from weak `OrganicGreenSurface` influence so mossy rocks or green-lit bark can damp sharpening slightly without appearing as full foliage in the master overlay.
+
+Depth assist is shader-owned and disabled by default through `Dalashade_EnableDepthAssist=false` and `Dalashade_DepthAssistStrength=0.0`. When enabled, valid depth can boost sky/fog confidence in smooth far or missing-depth regions, suppress upper-screen water false positives, help separate snow fields from clouds, and help foreground skin protection. Depth is only supporting evidence: if depth is unavailable, flat, inverted, or unreliable, masks still run from color, smoothness, texture, screen region, and scene profile gates.
 
 | Mode | Meaning | Color |
 | --- | --- | --- |
 | `0` | Off / pass-through | normal image |
-| `1` | Overview false-color material overlay | mixed material colors |
-| `2` | Foliage strong + organic-green influence | green for strong foliage, olive/brown-green for weak mossy/green hard surfaces |
-| `3` | Water/specular | cyan |
-| `4` | Sand/dust | orange/yellow |
-| `5` | Snow/ice | pale blue / white-blue |
-| `6` | Sky/fog | blue |
-| `7` | Stone/ruins | neutral stone gray/brown |
-| `8` | Metal/industrial | steel blue-gray |
-| `9` | Crystal/aether | violet/cyan |
-| `10` | Neon/glass | hot magenta/cyan |
-| `11` | Fire/lava/heat | red/orange |
-| `12` | Skin-protection | peach/pink |
-| `13` | Void/darkness | purple |
-| `14` | Combined material confidence | grayscale/white |
+| `1` | Overview final masks | mixed material colors |
+| `2` | Combined final confidence | grayscale/white |
+| `3` | Raw sky/fog candidate | blue |
+| `4` | Scene-gated sky/fog candidate | cyan-blue |
+| `5` | Final sky/fog mask | blue |
+| `6` | Raw strong foliage candidate | green |
+| `7` | Raw organic-green surface candidate | olive/brown-green |
+| `8` | Final foliage influence | green plus olive weak influence |
+| `9` | Raw water/specular candidate | cyan |
+| `10` | Scene-gated water/specular candidate | cyan |
+| `11` | Final water/specular mask | cyan |
+| `12` | Raw snow/ice candidate | pale blue / white-blue |
+| `13` | Scene-gated snow/ice candidate | pale blue / white-blue |
+| `14` | Final snow/ice mask | pale blue / white-blue |
+| `15` | Raw sand/dust candidate | orange/yellow |
+| `16` | Scene-gated sand/dust candidate | orange/yellow |
+| `17` | Final sand/dust mask | orange/yellow |
+| `18` | Depth confidence | red near-depth, green far-depth, blue invalid/missing depth |
+| `19` | Depth-assisted sky/fog comparison | red no-depth final, green depth-assisted final, blue delta |
+| `20` | Final stone/ruins mask | stone gray |
+| `21` | Final metal/industrial mask | steel blue-gray |
+| `22` | Final crystal/aether mask | violet |
+| `23` | Final neon/glass mask | hot magenta |
+| `24` | Final fire/lava/heat mask | red/orange |
+| `25` | Final skin-protection mask | peach/pink |
+| `26` | Final void/darkness mask | purple |
 
 Overlay mode `0` replaces the image with the debug mask, `1` alpha-blends over the game image, and `2` applies an additive/tint overlay. `Dalashade_MaterialDebugOpacity` controls visibility, and `Dalashade_MaterialDebugStrength` can disable the overlay without changing the selected mode.
+
+## Material Calibration Workflow
+
+Use this workflow when tuning MaterialProfile, MaterialIntent, or shader-side masks:
+
+1. Generate a preset with custom shader support, generated-preset section injection, MaterialIntent, MaterialIntent diagnostics, and MaterialIntent shader mapping enabled.
+2. Install `Dalashade_MaterialDebug.fx` and `Dalashade_MaterialMasks.fxh` in a ReShade shader search folder, then enable `Dalashade_MaterialDebug` manually in ReShade.
+3. Check overview mode first. It should be color-coded and should not turn the whole screen white unless many final material masks genuinely overlap.
+4. Check raw sky/fog, gated sky/fog, and final sky/fog. If raw is wrong, tune shader heuristics; if gated is wrong, inspect MaterialProfile/MaterialIntent; if final is wrong, inspect conflict suppression or depth assist.
+5. Check raw strong foliage, organic green surface, and final foliage influence. Mossy rocks or green-lit bark may show weak organic-green influence, but should not read as full foliage in overview.
+6. Check shader-specific SmartSharpen material debug modes to confirm foliage, sky/fog, water/specular, snow/ice, and skin protection are suppressing sharpening only where useful.
+7. Test with depth assist off. This is the default and must remain usable.
+8. If the ReShade depth buffer is known to work, enable depth assist in the relevant `.fx` UI and compare sky/water/snow/foreground separation.
+9. Compare screenshots with the compatibility report. The report should make clear whether a failure came from scene profile plausibility, MaterialIntent strength/gating, raw pixel heuristics, final conflict suppression, optional depth assist, or production shader behavior.
+
+Representative calibration scenes are Rak'tika or Yak T'el for foliage/canopy/mossy stone, Costa or La Noscea for water/sand/sky/palms, Coerthas or Garlemald for snow/cloud/stone/metal, Thanalan or Amh Araeng for sand/stone/heat sky, Solution Nine or Heritage Found for neon/glass/metal/artificial light, Ultima Thule/Mare/Elpis/Il Mheg for sky/aether/cosmic light, Azys Lla or Allagan areas for ruins/metal/aether, rainy Limsa-style city scenes for wet stone/specular separation, and explicit void/gothic scenes for VoidDarkness.
 
 ## Supported SceneIntent Variables
 
@@ -421,6 +454,8 @@ SceneIntent values are normalized `0.0` to `1.0`. `Dalashade_SharpenAuthority` i
 `Dalashade_SmartSharpen.fx` currently consumes `Readability`, `Haze`, `Wetness`, `FoliageDensity`, `CombatPressure`, `HighlightProtection`, `Night`, `AmbientDarkness`, `ArtificialLight`, preset-derived `SharpenAuthority`, and the SmartSharpen-only MaterialIntent dampening channels listed above.
 
 `Dalashade_MaterialDebug.fx` consumes only MaterialIntent/debug uniforms and uses `Dalashade_MaterialMasks.fxh` for screen-space heuristic masks. Mode `0` is pass-through, so normal output is unchanged when the debug mode is disabled.
+
+The depth-assist controls `Dalashade_EnableDepthAssist`, `Dalashade_DepthAssistStrength`, and `Dalashade_DepthAssistConfidenceFloor` are shader-owned. Generated-preset section injection can include them with zero-impact defaults, but Dalashade does not enable depth assist or append any debug technique to `Techniques=`.
 
 ## Example Preset Section
 

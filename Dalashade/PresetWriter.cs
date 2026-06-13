@@ -108,6 +108,13 @@ public sealed class PresetWriter
         "Dalashade_MaterialVoidDarkness"
     ];
 
+    private static readonly IReadOnlyList<string> DepthAssistShaderOwnedVariables =
+    [
+        "Dalashade_EnableDepthAssist",
+        "Dalashade_DepthAssistStrength",
+        "Dalashade_DepthAssistConfidenceFloor"
+    ];
+
     private static readonly IReadOnlyList<KnownCustomShaderDefinition> KnownCustomShaders =
     [
         new(
@@ -133,7 +140,10 @@ public sealed class PresetWriter
                 "Dalashade_ArtificialLight",
                 "Dalashade_AmbientDarkness",
                 "Dalashade_NightAtmosphere",
-                "Dalashade_CinematicPermission")),
+                "Dalashade_CinematicPermission",
+                "Dalashade_EnableDepthAssist",
+                "Dalashade_DepthAssistStrength",
+                "Dalashade_DepthAssistConfidenceFloor")),
         new(
             "Dalashade_AdaptiveGrade.fx",
             "Dalashade_AdaptiveGrade",
@@ -157,7 +167,10 @@ public sealed class PresetWriter
                 "Dalashade_AmbientDarkness",
                 "Dalashade_NightAtmosphere",
                 "Dalashade_CinematicPermission",
-                "Dalashade_CombatPressure")),
+                "Dalashade_CombatPressure",
+                "Dalashade_EnableDepthAssist",
+                "Dalashade_DepthAssistStrength",
+                "Dalashade_DepthAssistConfidenceFloor")),
         new(
             "Dalashade_SmartSharpen.fx",
             "Dalashade_SmartSharpen",
@@ -186,7 +199,10 @@ public sealed class PresetWriter
                 "SkyDampenStrength",
                 "HazeDampenStrength",
                 "CombatDampenStrength",
-                "LumaOnlyStrength")),
+                "LumaOnlyStrength",
+                "Dalashade_EnableDepthAssist",
+                "Dalashade_DepthAssistStrength",
+                "Dalashade_DepthAssistConfidenceFloor")),
         new(
             "Dalashade_AtmosphereBloom.fx",
             "Dalashade_AtmosphereBloom",
@@ -207,12 +223,15 @@ public sealed class PresetWriter
                 "Dalashade_AmbientDarkness",
                 "Dalashade_NightAtmosphere",
                 "Dalashade_CombatPressure",
-                "Dalashade_CinematicPermission")),
+                "Dalashade_CinematicPermission",
+                "Dalashade_EnableDepthAssist",
+                "Dalashade_DepthAssistStrength",
+                "Dalashade_DepthAssistConfidenceFloor")),
         new(
             "Dalashade_MaterialDebug.fx",
             "Dalashade_MaterialDebug",
             "Dalashade_MaterialDebug@Dalashade_MaterialDebug.fx",
-            MaterialDebugShaderVariables)
+            MaterialDebugShaderVariables.Concat(DepthAssistShaderOwnedVariables).ToArray())
     ];
 
     private readonly ShaderVariableMapper mapper = new();

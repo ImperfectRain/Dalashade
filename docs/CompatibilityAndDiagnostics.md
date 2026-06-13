@@ -93,6 +93,18 @@ Compatibility reports include preset risk, authorities, role policies, shader su
 
 Scene-tag diagnostics include the primary biome, confidence, matched keyword/reason, active weather tags, secondary tags, material tags, area/context tags, gameplay-state tags, art-direction tags, and `SceneIntent` contributions grouped by tag category. Use these sections first when a generated preset has the wrong environmental identity.
 
+Material diagnostics are split into plugin-side scene plausibility and shader-side mask calibration:
+
+| Report item | Meaning |
+| --- | --- |
+| MaterialProfile family and tags | Scene-level material plausibility such as jungle canopy, coastal waterline, snowfield, neon urban, aetherial landscape, dungeon interior, or raid arena. |
+| MaterialIntent values | Optional inferred material likelihood channels. These are not true engine material IDs and do not affect visuals unless MaterialIntent shader mapping is enabled. |
+| MaterialIntent shader uniform output | Which first-party Dalashade shader sections received material channel values in the generated preset. |
+| MaterialMasks v2 notes | Debug vocabulary for `RawCandidate`, `SceneGatedCandidate`, `FinalMask`, optional depth assist, and likely failure sources. |
+| First-party custom shader status | Whether WeatherAtmosphere, AdaptiveGrade, AtmosphereBloom, SmartSharpen, and MaterialDebug appear active, inactive, unknown, or absent in preset analysis. |
+
+Material calibration failures should be traced in this order: scene profile plausibility, MaterialIntent strength/gating, raw pixel heuristic, final conflict suppression, optional depth assist, then production shader behavior. The master `Dalashade_MaterialDebug.fx` answers what Dalashade thinks a pixel might be; each production shader's local debug mode answers why that shader is affecting or suppressing the pixel.
+
 Regression reports scan a folder of `.ini` presets and write timestamped markdown summaries. They do not require ReShade to be running and should not overwrite user presets.
 
 ## UI Diagnostic Panels
@@ -119,6 +131,9 @@ The main window includes sections for:
 | Image turns black and white | Color grade variables, ReGrade+ Colorista changes, LUT strength, and compatibility mode. |
 | Preset too dark | Exposure, black point, white point, contrast, shadow lift, master style tonal deltas. |
 | Zone has the wrong identity | Scene Tags primary biome, biome reason, confidence, secondary/material/art-direction tags, and SceneIntent contribution groups. |
+| Material overlay misses daytime sky | MaterialDebug raw/gated/final sky-fog modes, MaterialProfile SkyCloudFog prior, optional depth assist state, and sky/fog conflict suppression. |
+| Foliage overlay marks rocks or trunks too strongly | MaterialDebug raw strong foliage, organic green surface, final foliage influence, StoneRuins prior, and SmartSharpen material dampening debug. |
+| Water and sky are confused | MaterialDebug raw/gated/final water plus raw/gated/final sky-fog modes, screen-position/depth-assist state, and WaterSpecular vs SkyCloudFog priors. |
 | No visible change | Changed variable count, active ReShade preset, reload diagnostics, and supported shader scan. |
 | Too many variables changed | Shader matching mode, inactive shader write mode, and multiple authorities. |
 | ReShade reload did not happen | `ReShade.ini` path, reload key sync, configured hotkey, and diagnostics. |
