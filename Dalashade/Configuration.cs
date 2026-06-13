@@ -101,6 +101,14 @@ public class Configuration : IPluginConfiguration
     public bool UsePremiumImmerseEffects { get; set; } = false;
     public bool EnableDalashadeCustomShaders { get; set; } = false;
     public bool AutoInjectDalashadeCustomShaderSections { get; set; } = false;
+    public bool EnableDalashadeSceneGIShaderVariables { get; set; } = false;
+    public float DalashadeSceneGIStrength { get; set; } = 0.35f;
+    public float DalashadeSceneGIAOIntensity { get; set; } = 0.25f;
+    public float DalashadeSceneGIBounceStrength { get; set; } = 0.20f;
+    public float DalashadeSceneGINightLightStrength { get; set; } = 0.30f;
+    public float DalashadeSceneGIMaterialInfluence { get; set; } = 0.50f;
+    public int DalashadeSceneGIDebugMode { get; set; } = 0;
+    public float DalashadeSceneGIDebugOpacity { get; set; } = 0.75f;
     public bool EnableMaterialIntent { get; set; } = false;
     public bool EnableMaterialIntentDiagnostics { get; set; } = true;
     public bool EnableMaterialIntentShaderMapping { get; set; } = false;

@@ -134,6 +134,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Material debug shader listed: {(materialDebugTechnique is null ? "no" : "yes")}");
         builder.AppendLine($"- Material debug technique activation: {(materialDebugTechnique is null ? "absent" : PresetAnalyzer.FormatActivationState(materialDebugTechnique.ActivationState))}");
         builder.AppendLine("- Split water/specular debug support: available when `Dalashade_MaterialDebug.fx` and `Dalashade_MaterialMasks.fxh` are installed. `WaterPlane` and `SpecularGlint` are shader-side heuristic masks derived from the existing WaterSpecular scene likelihood.");
+        builder.AppendLine($"- SceneGI generated variable writes: {(configuration.EnableDalashadeSceneGIShaderVariables ? "enabled" : "disabled")}. Technique activation remains manual in ReShade.");
         builder.AppendLine("- Material debug controls: shader-owned in ReShade UI; Dalashade does not write debug mode, overlay mode, opacity, or strength.");
         builder.AppendLine($"- First-party custom shader status: {FormatFirstPartyCustomShaderStatus(analysis)}");
         builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, and shader-owned controls are recognized/injected but not actively written by Dalashade.");
@@ -316,7 +317,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("- Depth confidence means usable signal confidence for material-mask heuristics, not guaranteed correct FFXIV engine depth. DLSS/upscaling, dynamic resolution, depth-buffer restrictions, or UI/depth mismatches can make depth unreliable.");
         builder.AppendLine($"- Sections receiving MaterialIntent uniforms: {FormatMaterialUniformSections(writtenUniforms)}");
         builder.AppendLine($"- Shader-owned depth-assist controls injected: {FormatInjectedDepthAssistVariables(writeResult)}");
-        builder.AppendLine("- First-party shader material responsibilities: SmartSharpen suppresses unsafe sharpening, AtmosphereBloom gates local glow, WeatherAtmosphere shapes air/haze, AdaptiveGrade applies subtle material protection, and MaterialDebug visualizes masks only when manually enabled.");
+        builder.AppendLine("- First-party shader material responsibilities: SmartSharpen suppresses unsafe sharpening, AtmosphereBloom gates local glow, WeatherAtmosphere shapes air/haze, AdaptiveGrade applies subtle material protection, SceneGI provides optional screen-space AO/bounce/light-pooling, and MaterialDebug visualizes masks only when manually enabled.");
         builder.AppendLine("- Likely failure sources to inspect: scene profile plausibility, MaterialIntent strength/gating, raw pixel heuristic, final conflict suppression, optional depth assist, then the specific production shader debug view.");
 
         builder.AppendLine();
@@ -799,7 +800,8 @@ public sealed class CompatibilityReportExporter
             FormatFirstPartyShaderStatus(analysis, "AdaptiveGrade", "Dalashade_AdaptiveGrade"),
             FormatFirstPartyShaderStatus(analysis, "AtmosphereBloom", "Dalashade_AtmosphereBloom"),
             FormatFirstPartyShaderStatus(analysis, "SmartSharpen", "Dalashade_SmartSharpen"),
-            FormatFirstPartyShaderStatus(analysis, "MaterialDebug", "Dalashade_MaterialDebug")
+            FormatFirstPartyShaderStatus(analysis, "MaterialDebug", "Dalashade_MaterialDebug"),
+            FormatFirstPartyShaderStatus(analysis, "SceneGI", "Dalashade_SceneGI")
         };
 
         return string.Join("; ", statuses);

@@ -9,30 +9,63 @@ public sealed class CustomShaderVariableMapper
 {
     public const string ReasonCategory = "Dalashade custom shader scene intent";
     public const string MaterialReasonCategory = "Dalashade custom shader material intent";
+    public const string SceneGIReasonCategory = "Dalashade custom shader SceneGI tuning";
 
     private static readonly IReadOnlyDictionary<string, Func<SceneIntent, float>> Variables =
         new Dictionary<string, Func<SceneIntent, float>>(StringComparer.OrdinalIgnoreCase)
         {
             ["Dalashade_Readability"] = intent => intent.Readability,
+            ["Dalashade_IntentReadability"] = intent => intent.Readability,
             ["Dalashade_Atmosphere"] = intent => intent.Atmosphere,
+            ["Dalashade_IntentAtmosphere"] = intent => intent.Atmosphere,
             ["Dalashade_HighlightProtection"] = intent => intent.HighlightProtection,
+            ["Dalashade_IntentHighlightProtection"] = intent => intent.HighlightProtection,
             ["Dalashade_ShadowProtection"] = intent => intent.ShadowProtection,
+            ["Dalashade_IntentShadowProtection"] = intent => intent.ShadowProtection,
             ["Dalashade_Haze"] = intent => intent.Haze,
+            ["Dalashade_IntentHaze"] = intent => intent.Haze,
             ["Dalashade_Wetness"] = intent => intent.Wetness,
+            ["Dalashade_IntentWetness"] = intent => intent.Wetness,
             ["Dalashade_Cold"] = intent => intent.Cold,
+            ["Dalashade_IntentCold"] = intent => intent.Cold,
             ["Dalashade_Heat"] = intent => intent.Heat,
+            ["Dalashade_IntentHeat"] = intent => intent.Heat,
             ["Dalashade_MagicGlow"] = intent => intent.MagicGlow,
+            ["Dalashade_IntentMagicGlow"] = intent => intent.MagicGlow,
             ["Dalashade_NeonGlow"] = intent => intent.NeonGlow,
+            ["Dalashade_IntentNeonGlow"] = intent => intent.NeonGlow,
             ["Dalashade_FoliageDensity"] = intent => intent.FoliageDensity,
+            ["Dalashade_IntentFoliageDensity"] = intent => intent.FoliageDensity,
             ["Dalashade_IndustrialHardness"] = intent => intent.IndustrialHardness,
+            ["Dalashade_IntentIndustrialHardness"] = intent => intent.IndustrialHardness,
             ["Dalashade_CosmicMood"] = intent => intent.CosmicMood,
+            ["Dalashade_IntentCosmicMood"] = intent => intent.CosmicMood,
             ["Dalashade_Night"] = intent => intent.Night,
             ["Dalashade_Moonlight"] = intent => intent.Moonlight,
             ["Dalashade_ArtificialLight"] = intent => intent.ArtificialLight,
             ["Dalashade_AmbientDarkness"] = intent => intent.AmbientDarkness,
             ["Dalashade_NightAtmosphere"] = intent => intent.NightAtmosphere,
             ["Dalashade_CombatPressure"] = intent => intent.CombatPressure,
-            ["Dalashade_CinematicPermission"] = intent => intent.CinematicPermission
+            ["Dalashade_IntentCombatPressure"] = intent => intent.CombatPressure,
+            ["Dalashade_CinematicPermission"] = intent => intent.CinematicPermission,
+            ["Dalashade_IntentCinematicPermission"] = intent => intent.CinematicPermission
+        };
+
+    private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> SceneGIVariables =
+        new Dictionary<string, Func<Configuration, float>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Dalashade_GIEnabled"] = configuration => configuration.EnableDalashadeSceneGIShaderVariables ? 1f : 0f,
+            ["Dalashade_GIStrength"] = configuration => configuration.DalashadeSceneGIStrength,
+            ["Dalashade_GIRadius"] = _ => 0.65f,
+            ["Dalashade_GIBounceStrength"] = configuration => configuration.DalashadeSceneGIBounceStrength,
+            ["Dalashade_GIAOIntensity"] = configuration => configuration.DalashadeSceneGIAOIntensity,
+            ["Dalashade_GIAORadius"] = _ => 0.45f,
+            ["Dalashade_GINightLightStrength"] = configuration => configuration.DalashadeSceneGINightLightStrength,
+            ["Dalashade_GIMaterialInfluence"] = configuration => configuration.DalashadeSceneGIMaterialInfluence,
+            ["Dalashade_GISkyReject"] = _ => 1.0f,
+            ["Dalashade_GISkinProtect"] = _ => 1.0f,
+            ["Dalashade_GIDebugMode"] = configuration => configuration.DalashadeSceneGIDebugMode,
+            ["Dalashade_GIDebugOpacity"] = configuration => configuration.DalashadeSceneGIDebugOpacity
         };
 
     private static readonly IReadOnlyDictionary<string, Func<MaterialIntent, Configuration, float>> MaterialVariables =
@@ -99,6 +132,23 @@ public sealed class CustomShaderVariableMapper
         "Dalashade_MaterialVoidDarkness"
     ];
 
+    private static readonly HashSet<string> SceneGIMaterialVariables =
+    [
+        "Dalashade_MaterialFoliage",
+        "Dalashade_MaterialWaterPlane",
+        "Dalashade_MaterialSpecularGlint",
+        "Dalashade_MaterialSandDust",
+        "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialStoneRuins",
+        "Dalashade_MaterialMetalIndustrial",
+        "Dalashade_MaterialCrystalAether",
+        "Dalashade_MaterialNeonGlass",
+        "Dalashade_MaterialFireLavaHeat",
+        "Dalashade_MaterialSkyCloudFog",
+        "Dalashade_MaterialSkinProtection",
+        "Dalashade_MaterialVoidDarkness"
+    ];
+
     private static readonly HashSet<string> MaterialDebugVariables =
     [
         "Dalashade_MaterialFoliage",
@@ -126,6 +176,7 @@ public sealed class CustomShaderVariableMapper
     ];
 
     public static IReadOnlyCollection<string> KnownVariableNames => Variables.Keys
+        .Concat(SceneGIVariables.Keys)
         .Concat(MaterialVariables.Keys)
         .Concat(ShaderOwnedVariables)
         .Concat(SmartSharpenAuthority.WritableVariables)
@@ -146,6 +197,18 @@ public sealed class CustomShaderVariableMapper
                 _ => new ShaderAdjustmentResult(Format(Clamp01(valueAccessor(intent))), false, false),
                 ReasonCategory,
                 EffectRole.UiUtility,
+                1f);
+            return true;
+        }
+
+        if (configuration.EnableDalashadeSceneGIShaderVariables
+            && IsSceneGISection(section)
+            && SceneGIVariables.TryGetValue(key, out var giAccessor))
+        {
+            adjustment = new ShaderAdjustment(
+                _ => new ShaderAdjustmentResult(Format(Clamp01(giAccessor(configuration))), false, false),
+                SceneGIReasonCategory,
+                EffectRole.AoGi,
                 1f);
             return true;
         }
@@ -189,6 +252,7 @@ public sealed class CustomShaderVariableMapper
     {
         return !string.IsNullOrWhiteSpace(key)
                && (Variables.ContainsKey(key)
+                   || SceneGIVariables.ContainsKey(key)
                    || MaterialVariables.ContainsKey(key)
                    || ShaderOwnedVariables.Contains(key)
                    || SmartSharpenAuthority.WritableVariables.Contains(key, StringComparer.OrdinalIgnoreCase));
@@ -226,6 +290,7 @@ public sealed class CustomShaderVariableMapper
                || (IsWeatherAtmosphereSection(section) && WeatherAtmosphereMaterialVariables.Contains(key))
                || (IsAtmosphereBloomSection(section) && AtmosphereBloomMaterialVariables.Contains(key))
                || (IsAdaptiveGradeSection(section) && AdaptiveGradeMaterialVariables.Contains(key))
+               || (IsSceneGISection(section) && SceneGIMaterialVariables.Contains(key))
                || (IsMaterialDebugSection(section) && MaterialDebugVariables.Contains(key));
     }
 
@@ -251,6 +316,12 @@ public sealed class CustomShaderVariableMapper
     {
         return string.Equals(section, "Dalashade_MaterialDebug.fx", StringComparison.OrdinalIgnoreCase)
                || section.Contains("Dalashade_MaterialDebug", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSceneGISection(string section)
+    {
+        return string.Equals(section, "Dalashade_SceneGI.fx", StringComparison.OrdinalIgnoreCase)
+               || section.Contains("Dalashade_SceneGI", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Format(float value) => value.ToString("0.######", CultureInfo.InvariantCulture);

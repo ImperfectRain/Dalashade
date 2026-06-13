@@ -116,6 +116,23 @@ public sealed class PresetWriter
         "Dalashade_MaterialVoidDarkness"
     ];
 
+    private static readonly IReadOnlyList<string> SceneGIMaterialIntentShaderVariables =
+    [
+        "Dalashade_MaterialFoliage",
+        "Dalashade_MaterialWaterPlane",
+        "Dalashade_MaterialSpecularGlint",
+        "Dalashade_MaterialSandDust",
+        "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialStoneRuins",
+        "Dalashade_MaterialMetalIndustrial",
+        "Dalashade_MaterialCrystalAether",
+        "Dalashade_MaterialNeonGlass",
+        "Dalashade_MaterialFireLavaHeat",
+        "Dalashade_MaterialSkyCloudFog",
+        "Dalashade_MaterialSkinProtection",
+        "Dalashade_MaterialVoidDarkness"
+    ];
+
     private static readonly IReadOnlyList<string> DepthAssistShaderOwnedVariables =
     [
         "Dalashade_EnableDepthAssist",
@@ -244,7 +261,40 @@ public sealed class PresetWriter
             "Dalashade_MaterialDebug.fx",
             "Dalashade_MaterialDebug",
             "Dalashade_MaterialDebug@Dalashade_MaterialDebug.fx",
-            MaterialDebugShaderVariables.Concat(DepthAssistShaderOwnedVariables).ToArray())
+            MaterialDebugShaderVariables.Concat(DepthAssistShaderOwnedVariables).ToArray()),
+        new(
+            "Dalashade_SceneGI.fx",
+            "Dalashade_SceneGI",
+            "Dalashade_SceneGI@Dalashade_SceneGI.fx",
+            WithMaterialIntentVariables(
+                SceneGIMaterialIntentShaderVariables,
+                "Dalashade_GIEnabled",
+                "Dalashade_GIStrength",
+                "Dalashade_GIRadius",
+                "Dalashade_GIBounceStrength",
+                "Dalashade_GIAOIntensity",
+                "Dalashade_GIAORadius",
+                "Dalashade_GINightLightStrength",
+                "Dalashade_GIMaterialInfluence",
+                "Dalashade_GISkyReject",
+                "Dalashade_GISkinProtect",
+                "Dalashade_GIDebugMode",
+                "Dalashade_GIDebugOpacity",
+                "Dalashade_IntentReadability",
+                "Dalashade_IntentAtmosphere",
+                "Dalashade_IntentHighlightProtection",
+                "Dalashade_IntentShadowProtection",
+                "Dalashade_IntentHaze",
+                "Dalashade_IntentWetness",
+                "Dalashade_IntentCold",
+                "Dalashade_IntentHeat",
+                "Dalashade_IntentMagicGlow",
+                "Dalashade_IntentNeonGlow",
+                "Dalashade_IntentFoliageDensity",
+                "Dalashade_IntentIndustrialHardness",
+                "Dalashade_IntentCosmicMood",
+                "Dalashade_IntentCombatPressure",
+                "Dalashade_IntentCinematicPermission"))
     ];
 
     private readonly ShaderVariableMapper mapper = new();
@@ -566,7 +616,7 @@ public sealed class PresetWriter
                 lines.Add($"[{shader.Section}]");
                 foreach (var variable in shaderVariables)
                 {
-                    lines.Add($"{variable}=0.000000");
+                    lines.Add($"{variable}={DefaultInjectedCustomShaderValue(shader.Section, variable)}");
                     injectedVariables.Add($"{shader.Section}/{variable}");
                 }
 
@@ -585,7 +635,7 @@ public sealed class PresetWriter
                         continue;
                     }
 
-                    lines.Insert(insertIndex, $"{variable}=0.000000");
+                    lines.Insert(insertIndex, $"{variable}={DefaultInjectedCustomShaderValue(shader.Section, variable)}");
                     insertIndex++;
                     injectedVariables.Add($"{shader.Section}/{variable}");
                 }
@@ -636,6 +686,30 @@ public sealed class PresetWriter
         return shader.Variables
             .Where(variable => !CustomShaderVariableMapper.IsKnownMaterialIntentVariable(variable))
             .ToArray();
+    }
+
+    private static string DefaultInjectedCustomShaderValue(string section, string variable)
+    {
+        if (!section.Contains("Dalashade_SceneGI", StringComparison.OrdinalIgnoreCase))
+        {
+            return "0.000000";
+        }
+
+        return variable switch
+        {
+            "Dalashade_GIEnabled" => "1.000000",
+            "Dalashade_GIStrength" => "0.350000",
+            "Dalashade_GIRadius" => "0.650000",
+            "Dalashade_GIBounceStrength" => "0.200000",
+            "Dalashade_GIAOIntensity" => "0.250000",
+            "Dalashade_GIAORadius" => "0.450000",
+            "Dalashade_GINightLightStrength" => "0.300000",
+            "Dalashade_GIMaterialInfluence" => "0.500000",
+            "Dalashade_GISkyReject" => "1.000000",
+            "Dalashade_GISkinProtect" => "1.000000",
+            "Dalashade_GIDebugOpacity" => "0.750000",
+            _ => "0.000000"
+        };
     }
 
     private static bool ShouldWriteMaterialIntentVariables(Configuration configuration)

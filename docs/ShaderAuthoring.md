@@ -25,6 +25,8 @@ Implemented shader prototypes:
 - Selective atmospheric bloom for bright sources, wet speculars, canopy openings, distant heat glow, magic/aether, and neon accents.
 - `shaders/Dalashade_MaterialDebug.fx`
 - Optional false-color MaterialIntent/debug visualizer for screen-space material heuristics. It includes `shaders/Dalashade_MaterialMasks.fxh` and is disabled by default.
+- `shaders/Dalashade_SceneGI.fx`
+- Optional screen-space GI-style pass for shallow contact AO, material-aware ambient bounce, and night light pooling. It is not path tracing, RTGI, or PTGI.
 
 Not implemented yet:
 
@@ -47,7 +49,7 @@ Custom shader writes are intentionally conservative:
 
 When `AutoInjectDalashadeCustomShaderSections` is off, Dalashade does not insert shader sections during generation.
 
-When both `EnableDalashadeCustomShaders` and `AutoInjectDalashadeCustomShaderSections` are on, Dalashade may inject known custom shader sections and variables into the generated preset only. It never mutates the base preset. Current injection support is limited to `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, `[Dalashade_SmartSharpen.fx]`, `[Dalashade_AtmosphereBloom.fx]`, and `[Dalashade_MaterialDebug.fx]`.
+When both `EnableDalashadeCustomShaders` and `AutoInjectDalashadeCustomShaderSections` are on, Dalashade may inject known custom shader sections and variables into the generated preset only. It never mutates the base preset. Current injection support is limited to `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, `[Dalashade_SmartSharpen.fx]`, `[Dalashade_AtmosphereBloom.fx]`, `[Dalashade_MaterialDebug.fx]`, and `[Dalashade_SceneGI.fx]`.
 
 MaterialIntent variable injection is skipped unless MaterialIntent shader mapping is explicitly enabled. Disabled mapping does not write zeroes into existing material keys and does not add material keys during generated-preset-only injection. Current MaterialIntent shader behavior is section-scoped per first-party shader so each shader receives only the material channels it actually uses.
 
@@ -99,6 +101,8 @@ The generated AtmosphereBloom section includes the bloom shader intent variables
 
 The generated MaterialDebug section contains MaterialIntent channel variables only. It may receive `Dalashade_MaterialFoliage`, `Dalashade_MaterialWaterSpecular`, `Dalashade_MaterialWaterPlane`, `Dalashade_MaterialSpecularGlint`, `Dalashade_MaterialSandDust`, `Dalashade_MaterialSnowIce`, `Dalashade_MaterialStoneRuins`, `Dalashade_MaterialMetalIndustrial`, `Dalashade_MaterialCrystalAether`, `Dalashade_MaterialNeonGlass`, `Dalashade_MaterialFireLavaHeat`, `Dalashade_MaterialSkyCloudFog`, `Dalashade_MaterialSkinProtection`, and `Dalashade_MaterialVoidDarkness` when MaterialIntent shader mapping is enabled. Debug mode, overlay mode, opacity, and strength stay in the `.fx` UI.
 
+The generated SceneGI section includes conservative GI controls and `Dalashade_Intent*` aliases for the SceneIntent values the shader consumes. `EnableDalashadeSceneGIShaderVariables` controls whether Dalashade actively rewrites those GI controls during generation; technique activation remains manual. When MaterialIntent shader mapping is enabled, SceneGI may also receive `Dalashade_MaterialFoliage`, `Dalashade_MaterialWaterPlane`, `Dalashade_MaterialSpecularGlint`, `Dalashade_MaterialSandDust`, `Dalashade_MaterialSnowIce`, `Dalashade_MaterialStoneRuins`, `Dalashade_MaterialMetalIndustrial`, `Dalashade_MaterialCrystalAether`, `Dalashade_MaterialNeonGlass`, `Dalashade_MaterialFireLavaHeat`, `Dalashade_MaterialSkyCloudFog`, `Dalashade_MaterialSkinProtection`, and `Dalashade_MaterialVoidDarkness`.
+
 Dalashade also does not currently install or copy custom shader files into a ReShade shader directory, and generated-preset injection does not enable techniques automatically. For manual testing, place the needed files from `shaders/` somewhere ReShade scans for shaders, then enable wanted techniques in ReShade.
 
 ## Manual Installation Diagnostics
@@ -113,7 +117,7 @@ The UI and compatibility report distinguish two separate states:
 | Variables injected | Dalashade added missing known `Dalashade_*` variables to a supported custom shader section in the generated preset. |
 | Technique injected | Currently expected to be `no`. Auto-injection adds sections and variables only; users must enable wanted techniques in ReShade. |
 | Generated preset only | Injection happened in the generated output path; the base preset was not modified. |
-| Base preset contains a Dalashade custom shader section | The selected base preset has a section such as `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, `[Dalashade_SmartSharpen.fx]`, `[Dalashade_AtmosphereBloom.fx]`, or `[Dalashade_MaterialDebug.fx]`, so Dalashade can inspect it for supported `Dalashade_*` keys. |
+| Base preset contains a Dalashade custom shader section | The selected base preset has a section such as `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, `[Dalashade_SmartSharpen.fx]`, `[Dalashade_AtmosphereBloom.fx]`, `[Dalashade_MaterialDebug.fx]`, or `[Dalashade_SceneGI.fx]`, so Dalashade can inspect it for supported `Dalashade_*` keys. |
 | Base preset technique active/inactive/unknown | Dalashade checks whether base preset sections appear active in `Techniques=`. Generated-preset-only injection does not imply the technique is active. |
 | Known custom variables found | Matching `Dalashade_*` keys were found in a Dalashade custom shader section. |
 | Variables detected but unchanged | Keys exist, but generation did not write values. Common causes are disabled custom shader support, inactive/unknown technique state, write-mode settings, or values already matching SceneIntent. |
@@ -124,7 +128,7 @@ This is not the same as shader file installation. ReShade must still be able to 
 
 Technique auto-injection is disabled. Dalashade can inject known sections and variables into the generated preset, but it does not append Dalashade custom shader entries to `Techniques=`. Base preset technique inactive/unknown means only that the base preset did not confirm activation. Users must install the relevant `.fx` files and enable wanted techniques in ReShade manually.
 
-Compatibility analysis classifies the five `Dalashade_*` first-party shader sections as controlled Dalashade effects when they appear in a preset. This means reports should treat them as known first-party color, bloom, clarity, atmosphere, or debug utility roles rather than unsupported third-party effects. Variable writes still require matching generated-preset section/key lines and custom shader support enabled.
+Compatibility analysis classifies the known `Dalashade_*` first-party shader sections as controlled Dalashade effects when they appear in a preset. This means reports should treat them as known first-party color, bloom, clarity, atmosphere, AO/GI, or debug utility roles rather than unsupported third-party effects. Variable writes still require matching generated-preset section/key lines and custom shader support enabled.
 
 ## Recommended ReShade Order
 
@@ -144,6 +148,15 @@ For `Dalashade_AdaptiveGrade.fx`, use this order:
 4. Avoid stacking it after a strong third-party color grade unless you deliberately want both grades active.
 
 The shader is meant to provide a mild Dalashade-native grade. It should usually sit late enough to see the shaped scene, but early enough that sharpening and UI restoration remain clean.
+
+For initial `Dalashade_SceneGI.fx` testing, use this order:
+
+1. After `Dalashade_AdaptiveGrade.fx`.
+2. Before `Dalashade_AtmosphereBloom.fx`, `Dalashade_WeatherAtmosphere.fx`, and `Dalashade_SmartSharpen.fx`.
+3. Before UI restore, KeepUI, or RestoreUI effects if applicable.
+4. Enable `Dalashade_SceneGI` manually in ReShade only after copying the `.fx` file and `Dalashade_MaterialMasks.fxh` into a ReShade shader search folder.
+
+SceneGI is a shallow screen-space approximation for contact AO, local ambient bounce, and night light pooling. It is not true path tracing, RTGI, or PTGI, and it does not replace paid third-party GI shaders.
 
 For `Dalashade_AtmosphereBloom.fx`, use this order:
 
@@ -270,6 +283,33 @@ Manual testing controls:
 The shader intentionally clamps per-channel movement relative to the source and clamps final output away from pure black and pure white. It uses selective color response: coastal/desert heat warms bright mids, jungle foliage gets richer greens without gray lift, snow/cosmic scenes cool highlights and shadows, and imperial/industrial scenes become harder and less pastel. Night grading deepens unlit regions, adds cool-neutral moonlit mids when supported, and lets artificial light affect localized bright pools instead of raising the whole frame. It is a native safety grade, not a full creative LUT replacement.
 
 MaterialIntent influences are intentionally subordinate to SceneIntent. They bias existing grade behavior instead of replacing it: foliage, sand/dust, snow/ice, metal/industrial, crystal/aether, skin protection, and void/darkness make small adjustments to color identity, highlight rolloff, tint restraint, and black-depth preservation. There are no AdaptiveGrade-specific material debug modes yet; use compatibility report written-variable diagnostics to confirm MaterialIntent values.
+
+## SceneGI Controls
+
+`Dalashade_SceneGI.fx` can be tested manually in ReShade or driven by generated Dalashade variables when `EnableDalashadeSceneGIShaderVariables` is enabled.
+
+Dalashade-driven controls:
+
+| Control | Purpose |
+| --- | --- |
+| `Dalashade_GIEnabled` | Master enable for the SceneGI pass. Generated section default is `1.0`; technique activation still remains manual. |
+| `Dalashade_GIStrength` | Overall bounded strength for AO, bounce, and night pooling. Default `0.35`. |
+| `Dalashade_GIRadius` | Small screen-space sampling radius for local GI-style response. Default `0.65`. |
+| `Dalashade_GIBounceStrength` | Material-aware ambient bounce intensity. Default `0.20`. |
+| `Dalashade_GIAOIntensity` | Contact AO intensity. Default `0.25`. |
+| `Dalashade_GIAORadius` | Small-radius AO sampling size. Default `0.45`. |
+| `Dalashade_GINightLightStrength` | Localized night light pooling strength. Default `0.30`. |
+| `Dalashade_GIMaterialInfluence` | How much MaterialIntent masks steer bounce color and protection. Default `0.50`. |
+| `Dalashade_GISkyReject` | Suppresses AO/bounce/light pooling on sky, fog, and broad atmosphere. Default `1.0`. |
+| `Dalashade_GISkinProtect` | Suppresses tinting and dirty AO on likely skin/character regions. Default `1.0`. |
+| `Dalashade_GIDebugMode` | `0` normal, `1` AO, `2` bounce, `3` night light pooling, `4` material influence, `5` sky rejection, `6` skin protection, `7` final GI influence, `8` depth-normal confidence. |
+| `Dalashade_GIDebugOpacity` | Debug overlay opacity. Default `0.75`. |
+| `Dalashade_Intent*` aliases | SceneIntent inputs for readability, atmosphere, highlight/shadow protection, haze, weather, glow, foliage density, industrial/cosmic mood, combat pressure, and cinematic permission. |
+| `Dalashade_Material*` channels | Section-scoped MaterialIntent inputs for foliage, water plane, specular glints, sand/dust, snow/ice, stone/ruins, metal/industrial, crystal/aether, neon/glass, fire/heat, sky/fog, skin protection, and void/darkness. |
+
+SceneGI uses only cheap local screen-space samples. Contact AO is reduced on sky/fog, skin, broad water, snow, bright sand, and combat-heavy scenes. Bounce is restrained to shadows and midtones and uses material masks for subtle foliage, sand, snow, water, fire, aether, neon, and industrial color response. Night light pooling looks for localized bright/emissive candidates instead of globally lifting dark scenes.
+
+Normal gameplay output is unchanged unless the `Dalashade_SceneGI` technique is manually enabled in ReShade. Generated-preset injection may add the section and variables, but Dalashade does not append the technique to `Techniques=`.
 
 ## Atmosphere Bloom Controls
 
@@ -469,6 +509,8 @@ SceneIntent values are normalized `0.0` to `1.0`. `Dalashade_SharpenAuthority` i
 
 `Dalashade_SmartSharpen.fx` currently consumes `Readability`, `Haze`, `Wetness`, `FoliageDensity`, `CombatPressure`, `HighlightProtection`, `Night`, `AmbientDarkness`, `ArtificialLight`, preset-derived `SharpenAuthority`, and the SmartSharpen-only MaterialIntent dampening channels listed above.
 
+`Dalashade_SceneGI.fx` currently consumes `Dalashade_Intent*` aliases for `Readability`, `Atmosphere`, `HighlightProtection`, `ShadowProtection`, `Haze`, `Wetness`, `Cold`, `Heat`, `MagicGlow`, `NeonGlow`, `FoliageDensity`, `IndustrialHardness`, `CosmicMood`, `CombatPressure`, and `CinematicPermission`, plus SceneGI controls and the SceneGI-only MaterialIntent channels listed above.
+
 `Dalashade_MaterialDebug.fx` consumes only MaterialIntent/debug uniforms and uses `Dalashade_MaterialMasks.fxh` for screen-space heuristic masks. Mode `0` is pass-through, so normal output is unchanged when the debug mode is disabled.
 
 The depth-assist controls `Dalashade_EnableDepthAssist`, `Dalashade_DepthAssistStrength`, `Dalashade_DepthAssistConfidenceFloor`, and the alias `Dalashade_DepthConfidenceFloor` are shader-owned. Generated-preset section injection can include them with zero-impact defaults, but Dalashade does not enable depth assist or append any debug technique to `Techniques=`.
@@ -597,6 +639,35 @@ Dalashade_MaterialFireLavaHeat=0.000000
 Dalashade_MaterialSkyCloudFog=0.000000
 Dalashade_MaterialSkinProtection=0.000000
 Dalashade_MaterialVoidDarkness=0.000000
+
+[Dalashade_SceneGI.fx]
+Dalashade_GIEnabled=1.000000
+Dalashade_GIStrength=0.350000
+Dalashade_GIRadius=0.650000
+Dalashade_GIBounceStrength=0.200000
+Dalashade_GIAOIntensity=0.250000
+Dalashade_GIAORadius=0.450000
+Dalashade_GINightLightStrength=0.300000
+Dalashade_GIMaterialInfluence=0.500000
+Dalashade_GISkyReject=1.000000
+Dalashade_GISkinProtect=1.000000
+Dalashade_GIDebugMode=0.000000
+Dalashade_GIDebugOpacity=0.750000
+Dalashade_IntentReadability=0.000000
+Dalashade_IntentAtmosphere=0.000000
+Dalashade_IntentHighlightProtection=0.000000
+Dalashade_IntentShadowProtection=0.000000
+Dalashade_IntentHaze=0.000000
+Dalashade_IntentWetness=0.000000
+Dalashade_IntentCold=0.000000
+Dalashade_IntentHeat=0.000000
+Dalashade_IntentMagicGlow=0.000000
+Dalashade_IntentNeonGlow=0.000000
+Dalashade_IntentFoliageDensity=0.000000
+Dalashade_IntentIndustrialHardness=0.000000
+Dalashade_IntentCosmicMood=0.000000
+Dalashade_IntentCombatPressure=0.000000
+Dalashade_IntentCinematicPermission=0.000000
 ```
 
 ## Regression Fixture

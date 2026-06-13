@@ -135,6 +135,7 @@ Current first-party shader responsibilities are section-scoped:
 | `Dalashade_WeatherAtmosphere.fx` | Uses material masks for foliage humidity, coastal/wet air, snow/cold air, sand/dust air, sky/fog, and aetherial atmosphere. |
 | `Dalashade_AdaptiveGrade.fx` | Uses masks lightly for protection and preservation, not strong material color casts. |
 | `Dalashade_MaterialDebug.fx` | Visualizes broad material heuristics and raw/gated/final failures when manually enabled in ReShade. |
+| `Dalashade_SceneGI.fx` | Uses material masks and SceneIntent aliases for optional screen-space contact AO, ambient bounce, and night light pooling. It is not path tracing/RTGI/PTGI. |
 
 ## Current Weather Tags
 
