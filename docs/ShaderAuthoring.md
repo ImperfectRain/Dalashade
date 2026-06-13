@@ -156,7 +156,7 @@ For initial `Dalashade_SceneGI.fx` testing, use this order:
 3. Before UI restore, KeepUI, or RestoreUI effects if applicable.
 4. Enable `Dalashade_SceneGI` manually in ReShade only after copying the `.fx` file and `Dalashade_MaterialMasks.fxh` into a ReShade shader search folder.
 
-SceneGI is a shallow screen-space approximation for contact AO, local ambient bounce, and night light pooling. It is not true path tracing, RTGI, or PTGI, and it does not replace paid third-party GI shaders.
+SceneGI is a screen-space approximation for contact AO, local ambient bounce, and night light pooling. It is not true path tracing, RTGI, or PTGI, and it does not replace paid third-party GI shaders.
 
 For `Dalashade_AtmosphereBloom.fx`, use this order:
 
@@ -308,7 +308,7 @@ Dalashade-driven controls:
 | `Dalashade_Intent*` aliases | SceneIntent inputs for readability, atmosphere, highlight/shadow protection, haze, weather, glow, foliage density, industrial/cosmic mood, combat pressure, and cinematic permission. |
 | `Dalashade_Material*` channels | Section-scoped MaterialIntent inputs for foliage, water plane, specular glints, sand/dust, snow/ice, stone/ruins, metal/industrial, crystal/aether, neon/glass, fire/heat, sky/fog, skin protection, and void/darkness. |
 
-SceneGI uses only cheap local screen-space samples. Contact AO is reduced on sky/fog, skin, broad water, snow, bright sand, and combat-heavy scenes. Bounce is restrained to shadows and midtones and uses material masks for subtle foliage, sand, snow, water, fire, aether, neon, and industrial color response. Night light pooling looks for localized bright/emissive candidates instead of globally lifting dark scenes. Debug output mode `0` returns replacement diagnostics instead of tinting the beautified scene, so AO, bounce, night light, material, sky rejection, skin protection, final influence, and depth-normal confidence can be inspected clearly.
+SceneGI uses cheap local screen-space samples, depth, depth-normal confidence, SceneIntent, and MaterialIntent masks to provide a stronger but still bounded GI-style lighting layer. Contact AO is layered into micro contact, medium crevice, and broad grounding responses; it is stronger on stone, ruins, industrial, foliage, and hard-surface areas, and reduced on sky/fog, skin, broad water, snow, bright sand, combat-heavy scenes, and high-highlight regions. Bounce is restrained to shadows and midtones and uses material masks for foliage, sand, snow, water plane, fire, aether, neon, metal, stone, and void behavior. Night light pooling looks for localized lamp/fire/aether/neon/specular/moonlit candidates instead of globally lifting dark scenes. The final output uses adaptive positive/negative contribution limits rather than a fixed narrow clamp, so night, cinematic, emissive, ruin, industrial, and aetherial scenes can show more GI while beaches, snow, sky/fog, skin, water, combat, and readability-heavy scenes stay restrained. Debug output mode `0` returns replacement diagnostics instead of tinting the beautified scene, so AO, bounce, night light, material, sky rejection, skin protection, final influence, and depth-normal confidence can be inspected clearly.
 
 Normal gameplay output is unchanged unless the `Dalashade_SceneGI` technique is manually enabled in ReShade. Generated-preset injection may add the section and variables, but Dalashade does not append the technique to `Techniques=`.
 
