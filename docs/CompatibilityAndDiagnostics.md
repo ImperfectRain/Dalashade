@@ -101,11 +101,13 @@ Material diagnostics are split into plugin-side scene plausibility and shader-si
 | MaterialIntent values | Optional inferred material likelihood channels. Reports separate profile prior, non-profile evidence, final value, and suppressions. These are not true engine material IDs and do not affect visuals unless MaterialIntent shader mapping is enabled. |
 | MaterialIntent shader uniform output | Which first-party Dalashade shader sections received material channel values in the generated preset. |
 | MaterialMasks v2 notes | Debug vocabulary for `RawCandidate`, `SceneGatedCandidate`, `FinalMask`, optional depth assist, and likely failure sources. |
-| First-party custom shader status | Whether WeatherAtmosphere, AdaptiveGrade, AtmosphereBloom, SmartSharpen, MaterialDebug, and SceneGI appear active, inactive, unknown, or absent in preset analysis. |
+| First-party custom shader status | Whether WeatherAtmosphere, AdaptiveGrade, AtmosphereBloom, SmartSharpen, MaterialDebug, SceneGI, and SurfaceReflection appear active, inactive, unknown, or absent in preset analysis. |
 
 Custom shader variable diagnostics separate three ownership classes. SceneIntent variables are Dalashade-controlled when custom shader support is enabled. MaterialIntent channel uniforms are Dalashade-controlled only when MaterialIntent shader mapping is enabled and section-scoped keys exist. Shader-owned controls, including depth assist and debug UI controls, may be known or injected with safe defaults but are not actively written by Dalashade.
 
 SceneGI diagnostics are separate from shader compilation. Dalashade can report whether the `Dalashade_SceneGI` section or technique appears in preset analysis and whether GI variables were written, but ReShade compile success still has to be verified in-game after installing `Dalashade_SceneGI.fx` and `Dalashade_MaterialMasks.fxh`.
+
+SurfaceReflection diagnostics are also separate from shader compilation. Dalashade can report whether the `Dalashade_SurfaceReflection` section or technique appears and whether reflection variables were written, but ReShade compile success still has to be verified in-game after installing `Dalashade_SurfaceReflection.fx` and `Dalashade_MaterialMasks.fxh`.
 
 Depth assist remains disabled by default. It can help material masks when ReShade depth is valid, but DLSS/upscaling, dynamic resolution, game depth restrictions, or UI/depth mismatches may make it unreliable. Reported depth confidence means usable signal confidence for mask heuristics, not guaranteed correct game depth.
 

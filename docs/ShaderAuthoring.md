@@ -27,6 +27,8 @@ Implemented shader prototypes:
 - Optional false-color MaterialIntent/debug visualizer for screen-space material heuristics. It includes `shaders/Dalashade_MaterialMasks.fxh` and is disabled by default.
 - `shaders/Dalashade_SceneGI.fx`
 - Optional screen-space GI-style pass for shallow contact AO, material-aware ambient bounce, and night light pooling. It is not path tracing, RTGI, or PTGI.
+- `shaders/Dalashade_SurfaceReflection.fx`
+- Optional material-aware reflection-impression pass for water-plane sheen, wet glints, ice sheen, and localized neon/aether/fire reflections. It is not SSR or ray tracing.
 
 Not implemented yet:
 
@@ -49,7 +51,7 @@ Custom shader writes are intentionally conservative:
 
 When `AutoInjectDalashadeCustomShaderSections` is off, Dalashade does not insert shader sections during generation.
 
-When both `EnableDalashadeCustomShaders` and `AutoInjectDalashadeCustomShaderSections` are on, Dalashade may inject known custom shader sections and variables into the generated preset only. It never mutates the base preset. Current injection support is limited to `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, `[Dalashade_SmartSharpen.fx]`, `[Dalashade_AtmosphereBloom.fx]`, `[Dalashade_MaterialDebug.fx]`, and `[Dalashade_SceneGI.fx]`.
+When both `EnableDalashadeCustomShaders` and `AutoInjectDalashadeCustomShaderSections` are on, Dalashade may inject known custom shader sections and variables into the generated preset only. It never mutates the base preset. Current injection support is limited to `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, `[Dalashade_SmartSharpen.fx]`, `[Dalashade_AtmosphereBloom.fx]`, `[Dalashade_MaterialDebug.fx]`, `[Dalashade_SceneGI.fx]`, and `[Dalashade_SurfaceReflection.fx]`.
 
 MaterialIntent variable injection is skipped unless MaterialIntent shader mapping is explicitly enabled. Disabled mapping does not write zeroes into existing material keys and does not add material keys during generated-preset-only injection. Current MaterialIntent shader behavior is section-scoped per first-party shader so each shader receives only the material channels it actually uses.
 
@@ -103,6 +105,8 @@ The generated MaterialDebug section contains MaterialIntent channel variables on
 
 The generated SceneGI section includes conservative GI controls and `Dalashade_Intent*` aliases for the SceneIntent values the shader consumes. `EnableDalashadeSceneGIShaderVariables` controls whether Dalashade actively rewrites those GI controls during generation; technique activation remains manual. When MaterialIntent shader mapping is enabled, SceneGI may also receive `Dalashade_MaterialFoliage`, `Dalashade_MaterialWaterPlane`, `Dalashade_MaterialSpecularGlint`, `Dalashade_MaterialSandDust`, `Dalashade_MaterialSnowIce`, `Dalashade_MaterialStoneRuins`, `Dalashade_MaterialMetalIndustrial`, `Dalashade_MaterialCrystalAether`, `Dalashade_MaterialNeonGlass`, `Dalashade_MaterialFireLavaHeat`, `Dalashade_MaterialSkyCloudFog`, `Dalashade_MaterialSkinProtection`, and `Dalashade_MaterialVoidDarkness`.
 
+The generated SurfaceReflection section includes reflection-impression controls and the SceneIntent values the shader consumes. `EnableDalashadeSurfaceReflectionShaderVariables` controls whether Dalashade actively rewrites those reflection controls during generation; technique activation remains manual. When MaterialIntent shader mapping is enabled, SurfaceReflection may also receive `Dalashade_MaterialWaterPlane`, `Dalashade_MaterialSpecularGlint`, `Dalashade_MaterialSandDust`, `Dalashade_MaterialSnowIce`, `Dalashade_MaterialMetalIndustrial`, `Dalashade_MaterialCrystalAether`, `Dalashade_MaterialNeonGlass`, `Dalashade_MaterialFireLavaHeat`, `Dalashade_MaterialSkyCloudFog`, and `Dalashade_MaterialSkinProtection`.
+
 Dalashade also does not currently install or copy custom shader files into a ReShade shader directory, and generated-preset injection does not enable techniques automatically. For manual testing, place the needed files from `shaders/` somewhere ReShade scans for shaders, then enable wanted techniques in ReShade.
 
 ## Manual Installation Diagnostics
@@ -117,7 +121,7 @@ The UI and compatibility report distinguish two separate states:
 | Variables injected | Dalashade added missing known `Dalashade_*` variables to a supported custom shader section in the generated preset. |
 | Technique injected | Currently expected to be `no`. Auto-injection adds sections and variables only; users must enable wanted techniques in ReShade. |
 | Generated preset only | Injection happened in the generated output path; the base preset was not modified. |
-| Base preset contains a Dalashade custom shader section | The selected base preset has a section such as `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, `[Dalashade_SmartSharpen.fx]`, `[Dalashade_AtmosphereBloom.fx]`, `[Dalashade_MaterialDebug.fx]`, or `[Dalashade_SceneGI.fx]`, so Dalashade can inspect it for supported `Dalashade_*` keys. |
+| Base preset contains a Dalashade custom shader section | The selected base preset has a section such as `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, `[Dalashade_SmartSharpen.fx]`, `[Dalashade_AtmosphereBloom.fx]`, `[Dalashade_MaterialDebug.fx]`, `[Dalashade_SceneGI.fx]`, or `[Dalashade_SurfaceReflection.fx]`, so Dalashade can inspect it for supported `Dalashade_*` keys. |
 | Base preset technique active/inactive/unknown | Dalashade checks whether base preset sections appear active in `Techniques=`. Generated-preset-only injection does not imply the technique is active. |
 | Known custom variables found | Matching `Dalashade_*` keys were found in a Dalashade custom shader section. |
 | Variables detected but unchanged | Keys exist, but generation did not write values. Common causes are disabled custom shader support, inactive/unknown technique state, write-mode settings, or values already matching SceneIntent. |
@@ -152,11 +156,20 @@ The shader is meant to provide a mild Dalashade-native grade. It should usually 
 For initial `Dalashade_SceneGI.fx` testing, use this order:
 
 1. After `Dalashade_AdaptiveGrade.fx`.
-2. Before `Dalashade_AtmosphereBloom.fx`, `Dalashade_WeatherAtmosphere.fx`, and `Dalashade_SmartSharpen.fx`.
+2. Before `Dalashade_SurfaceReflection.fx`, `Dalashade_AtmosphereBloom.fx`, `Dalashade_WeatherAtmosphere.fx`, and `Dalashade_SmartSharpen.fx`.
 3. Before UI restore, KeepUI, or RestoreUI effects if applicable.
 4. Enable `Dalashade_SceneGI` manually in ReShade only after copying the `.fx` file and `Dalashade_MaterialMasks.fxh` into a ReShade shader search folder.
 
 SceneGI is a screen-space approximation for contact AO, local ambient bounce, and night light pooling. It is not true path tracing, RTGI, or PTGI, and it does not replace paid third-party GI shaders.
+
+For `Dalashade_SurfaceReflection.fx`, use this order:
+
+1. After `Dalashade_SceneGI.fx`.
+2. Before `Dalashade_AtmosphereBloom.fx`, `Dalashade_WeatherAtmosphere.fx`, and final sharpeners.
+3. Before UI restore, KeepUI, or RestoreUI effects if applicable.
+4. Enable `Dalashade_SurfaceReflection` manually in ReShade only after copying the `.fx` file and `Dalashade_MaterialMasks.fxh` into a ReShade shader search folder.
+
+SurfaceReflection is a screen-space reflection-impression pass for water-plane sheen, wet glints, snow/ice sheen, polished metal/glass glints, and localized neon/aether/fire reflection streaks. It is not true SSR or ray-traced reflection, and it should remain separate from SceneGI.
 
 For `Dalashade_AtmosphereBloom.fx`, use this order:
 
@@ -312,6 +325,44 @@ Dalashade-driven controls:
 SceneGI uses cheap local screen-space samples, depth, depth-normal confidence, SceneIntent, and MaterialIntent masks to provide a stronger but still bounded GI-style lighting layer. Contact AO is layered into micro contact, medium crevice, and broad grounding responses; it is stronger on stone, ruins, industrial, foliage, and hard-surface areas, and reduced on sky/fog, skin, broad water, snow, bright sand, combat-heavy scenes, and high-highlight regions. Emissive source detection now gives saturated aether/crystal, neon, fire, lamp-like highlights, and specular glints more influence even when they are not pure white, then uses nearby local samples to spread restrained color onto plausible receiver surfaces such as grass, paths, trunks, stone, water planes, and structures. SceneGI separates high-frequency glints/detail from a lower-frequency material region term so broad GI receiver eligibility and material color influence are less edge-only. Bounce is restrained to shadows and midtones and uses material masks for foliage, sand, snow, water plane, fire, aether, neon, metal, stone, and void behavior. Night light pooling looks for localized lamp/fire/aether/neon/specular/moonlit candidates instead of globally lifting dark scenes. The final output uses adaptive positive/negative contribution limits rather than a fixed narrow clamp, so night, cinematic, emissive, ruin, industrial, and aetherial scenes can show more GI while beaches, snow, sky/fog, skin, water, combat, and readability-heavy scenes stay restrained. Debug output mode `0` returns replacement diagnostics instead of tinting the beautified scene, and `Dalashade_GIDebugBoost` makes low and mid-strength AO, bounce, night light, material, sky rejection, skin protection, final influence, depth-normal confidence, emissive source, receiver, safety, and layered-AO masks easier to inspect.
 
 Normal gameplay output is unchanged unless the `Dalashade_SceneGI` technique is manually enabled in ReShade. Generated-preset injection may add the section and variables, but Dalashade does not append the technique to `Techniques=`.
+
+## Surface Reflection Controls
+
+`Dalashade_SurfaceReflection.fx` can be tested manually in ReShade or driven by generated Dalashade variables when `EnableDalashadeSurfaceReflectionShaderVariables` is enabled.
+
+Dalashade-driven controls:
+
+| Control | Purpose |
+| --- | --- |
+| `Dalashade_SurfaceReflectionEnabled` | Master enable for the pass. Generated section default is `0.0` so injection alone cannot change visuals; technique activation remains manual. |
+| `Dalashade_SurfaceReflectionStrength` | Overall bounded strength for water sheen, wet glints, ice sheen, and emissive reflection impressions. |
+| `Dalashade_WaterSheenStrength` | Broad water-plane sheen strength. Uses `WaterPlane`, not thin `SpecularGlint`, for water surfaces. |
+| `Dalashade_WaterSheenRadius` | Small directional sample radius for water/surface sheen impression. This is not SSR tracing. |
+| `Dalashade_SpecularGlintStrength` | Tight highlight/glint shaping for rails, lamps, wet edges, water sparkles, polished metal, and aether edges. |
+| `Dalashade_WetReflectionStrength` | Wet-surface reflection impression for roads, stone, wood, and metal when `Dalashade_Wetness` supports it. |
+| `Dalashade_AetherReflectionStrength` | Cyan/violet/magenta aether reflection impression for crystal or magical scenes. |
+| `Dalashade_NeonReflectionStrength` | Cyan/magenta neon/glass reflection impression for high-tech scenes. |
+| `Dalashade_IceSheenStrength` | Cold crisp sheen for snow/ice scenes without dirtying bright snow. |
+| `Dalashade_SurfaceReflectionSkyReject` | Suppresses water/reflection influence on sky, cloud, fog, and broad atmosphere. |
+| `Dalashade_SurfaceReflectionSkinProtect` | Suppresses glint/tint on likely skin or character-smooth regions. |
+| `Dalashade_SurfaceReflectionDebugMode` | Integer enum: `0` normal, `1` WaterPlane sheen, `2` SpecularGlint, `3` wet reflection, `4` aether/neon reflection, `5` sky rejection, `6` skin protection, `7` final reflection influence, `8` contribution over black. |
+| `Dalashade_SurfaceReflectionDebugOpacity` | Debug overlay opacity. |
+| `Dalashade_SurfaceReflectionDebugBoost` | Debug-only amplification helper for low and mid-strength masks. |
+| `Dalashade_Wetness` | Allows wet-surface reflection impression when rain/wet tags support it. |
+| `Dalashade_HighlightProtection` | Restrains bright sand, snow, sky, and clipped highlight response. |
+| `Dalashade_Readability` / `Dalashade_CombatPressure` | Dampens reflection contribution in gameplay-critical scenes. |
+| `Dalashade_MagicGlow` / `Dalashade_NeonGlow` | Lets aether/neon material masks respond more visibly when scene tags support them. |
+| `Dalashade_Night` / `Dalashade_ArtificialLight` | Allows slightly stronger localized night lamp/neon/aether glints without global exposure lift. |
+| `Dalashade_MaterialWaterPlane` | Broad water-surface eligibility for restrained cyan/teal sheen. |
+| `Dalashade_MaterialSpecularGlint` | Thin glint eligibility for highlights, rails, lamps, wet edges, and water sparkles. |
+| `Dalashade_MaterialSandDust` | Suppresses fake water response on bright warm sand while allowing tiny supported glints. |
+| `Dalashade_MaterialSnowIce` | Supports cold ice/snow sheen and protects bright snow from dirty reflection. |
+| `Dalashade_MaterialMetalIndustrial` | Supports polished metal/glass glints without broad water-plane behavior. |
+| `Dalashade_MaterialCrystalAether` / `Dalashade_MaterialNeonGlass` / `Dalashade_MaterialFireLavaHeat` | Localized emissive reflection color for aether, neon, and fire/heat sources. |
+| `Dalashade_MaterialSkyCloudFog` | Rejects sky/fog contamination. |
+| `Dalashade_MaterialSkinProtection` | Protects likely skin/character regions. |
+
+SurfaceReflection intentionally separates `WaterPlane` from `SpecularGlint`. WaterPlane drives broad cyan/teal water or shallow-water sheen, while SpecularGlint drives thin reflective highlights on rails, wet edges, lamps, polished metal, water sparkles, and aether edges. Sand/dust, skin, sky/fog, combat/readability, and highlight protection clamp the effect so it stays a reflection impression rather than global brightness or fake SSR.
 
 ## Atmosphere Bloom Controls
 
@@ -513,6 +564,8 @@ SceneIntent values are normalized `0.0` to `1.0`. `Dalashade_SharpenAuthority` i
 
 `Dalashade_SceneGI.fx` currently consumes `Dalashade_Intent*` aliases for `Readability`, `Atmosphere`, `HighlightProtection`, `ShadowProtection`, `Haze`, `Wetness`, `Cold`, `Heat`, `MagicGlow`, `NeonGlow`, `FoliageDensity`, `IndustrialHardness`, `CosmicMood`, `CombatPressure`, and `CinematicPermission`, plus SceneGI controls and the SceneGI-only MaterialIntent channels listed above.
 
+`Dalashade_SurfaceReflection.fx` currently consumes `Wetness`, `HighlightProtection`, `Readability`, `CombatPressure`, `MagicGlow`, `NeonGlow`, `Night`, `ArtificialLight`, `CinematicPermission`, SurfaceReflection controls, and the SurfaceReflection-only MaterialIntent channels listed above.
+
 `Dalashade_MaterialDebug.fx` consumes only MaterialIntent/debug uniforms and uses `Dalashade_MaterialMasks.fxh` for screen-space heuristic masks. Mode `0` is pass-through, so normal output is unchanged when the debug mode is disabled.
 
 The depth-assist controls `Dalashade_EnableDepthAssist`, `Dalashade_DepthAssistStrength`, `Dalashade_DepthAssistConfidenceFloor`, and the alias `Dalashade_DepthConfidenceFloor` are shader-owned. Generated-preset section injection can include them with zero-impact defaults, but Dalashade does not enable depth assist or append any debug technique to `Techniques=`.
@@ -672,6 +725,31 @@ Dalashade_IntentIndustrialHardness=0.000000
 Dalashade_IntentCosmicMood=0.000000
 Dalashade_IntentCombatPressure=0.000000
 Dalashade_IntentCinematicPermission=0.000000
+
+[Dalashade_SurfaceReflection.fx]
+Dalashade_SurfaceReflectionEnabled=0.000000
+Dalashade_SurfaceReflectionStrength=0.320000
+Dalashade_WaterSheenStrength=0.380000
+Dalashade_WaterSheenRadius=1.350000
+Dalashade_SpecularGlintStrength=0.320000
+Dalashade_WetReflectionStrength=0.300000
+Dalashade_AetherReflectionStrength=0.360000
+Dalashade_NeonReflectionStrength=0.340000
+Dalashade_IceSheenStrength=0.240000
+Dalashade_SurfaceReflectionSkyReject=1.000000
+Dalashade_SurfaceReflectionSkinProtect=1.000000
+Dalashade_SurfaceReflectionDebugMode=0
+Dalashade_SurfaceReflectionDebugOpacity=0.750000
+Dalashade_SurfaceReflectionDebugBoost=2.250000
+Dalashade_Wetness=0.000000
+Dalashade_HighlightProtection=0.000000
+Dalashade_Readability=0.000000
+Dalashade_CombatPressure=0.000000
+Dalashade_MagicGlow=0.000000
+Dalashade_NeonGlow=0.000000
+Dalashade_Night=0.000000
+Dalashade_ArtificialLight=0.000000
+Dalashade_CinematicPermission=0.000000
 ```
 
 ## Regression Fixture

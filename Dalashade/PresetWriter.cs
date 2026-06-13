@@ -133,6 +133,20 @@ public sealed class PresetWriter
         "Dalashade_MaterialVoidDarkness"
     ];
 
+    private static readonly IReadOnlyList<string> SurfaceReflectionMaterialIntentShaderVariables =
+    [
+        "Dalashade_MaterialWaterPlane",
+        "Dalashade_MaterialSpecularGlint",
+        "Dalashade_MaterialSandDust",
+        "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialMetalIndustrial",
+        "Dalashade_MaterialCrystalAether",
+        "Dalashade_MaterialNeonGlass",
+        "Dalashade_MaterialFireLavaHeat",
+        "Dalashade_MaterialSkyCloudFog",
+        "Dalashade_MaterialSkinProtection"
+    ];
+
     private static readonly IReadOnlyList<string> DepthAssistShaderOwnedVariables =
     [
         "Dalashade_EnableDepthAssist",
@@ -296,7 +310,36 @@ public sealed class PresetWriter
                 "Dalashade_IntentIndustrialHardness",
                 "Dalashade_IntentCosmicMood",
                 "Dalashade_IntentCombatPressure",
-                "Dalashade_IntentCinematicPermission"))
+                "Dalashade_IntentCinematicPermission")),
+        new(
+            "Dalashade_SurfaceReflection.fx",
+            "Dalashade_SurfaceReflection",
+            "Dalashade_SurfaceReflection@Dalashade_SurfaceReflection.fx",
+            WithMaterialIntentVariables(
+                SurfaceReflectionMaterialIntentShaderVariables,
+                "Dalashade_SurfaceReflectionEnabled",
+                "Dalashade_SurfaceReflectionStrength",
+                "Dalashade_WaterSheenStrength",
+                "Dalashade_WaterSheenRadius",
+                "Dalashade_SpecularGlintStrength",
+                "Dalashade_WetReflectionStrength",
+                "Dalashade_AetherReflectionStrength",
+                "Dalashade_NeonReflectionStrength",
+                "Dalashade_IceSheenStrength",
+                "Dalashade_SurfaceReflectionSkyReject",
+                "Dalashade_SurfaceReflectionSkinProtect",
+                "Dalashade_SurfaceReflectionDebugMode",
+                "Dalashade_SurfaceReflectionDebugOpacity",
+                "Dalashade_SurfaceReflectionDebugBoost",
+                "Dalashade_Wetness",
+                "Dalashade_HighlightProtection",
+                "Dalashade_Readability",
+                "Dalashade_CombatPressure",
+                "Dalashade_MagicGlow",
+                "Dalashade_NeonGlow",
+                "Dalashade_Night",
+                "Dalashade_ArtificialLight",
+                "Dalashade_CinematicPermission"))
     ];
 
     private readonly ShaderVariableMapper mapper = new();
@@ -692,6 +735,28 @@ public sealed class PresetWriter
 
     private static string DefaultInjectedCustomShaderValue(string section, string variable)
     {
+        if (section.Contains("Dalashade_SurfaceReflection", StringComparison.OrdinalIgnoreCase))
+        {
+            return variable switch
+            {
+                "Dalashade_SurfaceReflectionEnabled" => "0.000000",
+                "Dalashade_SurfaceReflectionStrength" => "0.320000",
+                "Dalashade_WaterSheenStrength" => "0.380000",
+                "Dalashade_WaterSheenRadius" => "1.350000",
+                "Dalashade_SpecularGlintStrength" => "0.320000",
+                "Dalashade_WetReflectionStrength" => "0.300000",
+                "Dalashade_AetherReflectionStrength" => "0.360000",
+                "Dalashade_NeonReflectionStrength" => "0.340000",
+                "Dalashade_IceSheenStrength" => "0.240000",
+                "Dalashade_SurfaceReflectionSkyReject" => "1.000000",
+                "Dalashade_SurfaceReflectionSkinProtect" => "1.000000",
+                "Dalashade_SurfaceReflectionDebugMode" => "0",
+                "Dalashade_SurfaceReflectionDebugOpacity" => "0.750000",
+                "Dalashade_SurfaceReflectionDebugBoost" => "2.250000",
+                _ => "0.000000"
+            };
+        }
+
         if (!section.Contains("Dalashade_SceneGI", StringComparison.OrdinalIgnoreCase))
         {
             return "0.000000";

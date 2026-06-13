@@ -140,6 +140,10 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- SceneGI debug output mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugOutputMode, 0, 4)} ({FormatSceneGIDebugOutputMode(configuration.DalashadeSceneGIDebugOutputMode)}).");
         builder.AppendLine($"- SceneGI debug opacity {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugOpacity, 0f, 1f):0.###}.");
         builder.AppendLine($"- SceneGI debug boost {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f):0.###}. Debug boost affects diagnostic masks only, not normal GI output.");
+        var surfaceReflectionWriteLabel = configuration.EnableDalashadeSurfaceReflectionShaderVariables ? "written" : "configured";
+        builder.AppendLine($"- SurfaceReflection generated variable writes: {(configuration.EnableDalashadeSurfaceReflectionShaderVariables ? "enabled" : "disabled")}. Technique activation remains manual in ReShade.");
+        builder.AppendLine($"- SurfaceReflection strength {surfaceReflectionWriteLabel} value: {Math.Clamp(configuration.DalashadeSurfaceReflectionStrength, 0f, 1f):0.###}.");
+        builder.AppendLine($"- SurfaceReflection debug mode {surfaceReflectionWriteLabel} value: {ClampInt(configuration.DalashadeSurfaceReflectionDebugMode, 0, 8)} ({FormatSurfaceReflectionDebugMode(configuration.DalashadeSurfaceReflectionDebugMode)}).");
         builder.AppendLine("- Material debug controls: shader-owned in ReShade UI; Dalashade does not write debug mode, overlay mode, opacity, or strength.");
         builder.AppendLine($"- First-party custom shader status: {FormatFirstPartyCustomShaderStatus(analysis)}");
         builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, SceneGI debug controls can be written when SceneGI generated variables are enabled, and other shader-owned controls are recognized/injected but not actively written by Dalashade.");
@@ -825,6 +829,23 @@ public sealed class CompatibilityReportExporter
         };
     }
 
+    private static string FormatSurfaceReflectionDebugMode(int mode)
+    {
+        return ClampInt(mode, 0, 8) switch
+        {
+            0 => "Normal output",
+            1 => "WaterPlane sheen mask",
+            2 => "SpecularGlint mask",
+            3 => "Wet reflection mask",
+            4 => "Aether/neon reflection mask",
+            5 => "Sky rejection",
+            6 => "Skin protection",
+            7 => "Final reflection influence",
+            8 => "Contribution over black",
+            _ => "Unknown"
+        };
+    }
+
     private static PresetTechnique? FindMaterialDebugTechnique(PresetAnalysisResult analysis)
     {
         return analysis.Techniques
@@ -842,7 +863,8 @@ public sealed class CompatibilityReportExporter
             FormatFirstPartyShaderStatus(analysis, "AtmosphereBloom", "Dalashade_AtmosphereBloom"),
             FormatFirstPartyShaderStatus(analysis, "SmartSharpen", "Dalashade_SmartSharpen"),
             FormatFirstPartyShaderStatus(analysis, "MaterialDebug", "Dalashade_MaterialDebug"),
-            FormatFirstPartyShaderStatus(analysis, "SceneGI", "Dalashade_SceneGI")
+            FormatFirstPartyShaderStatus(analysis, "SceneGI", "Dalashade_SceneGI"),
+            FormatFirstPartyShaderStatus(analysis, "SurfaceReflection", "Dalashade_SurfaceReflection")
         };
 
         return string.Join("; ", statuses);

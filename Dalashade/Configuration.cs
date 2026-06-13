@@ -111,6 +111,14 @@ public class Configuration : IPluginConfiguration
     public int DalashadeSceneGIDebugOutputMode { get; set; } = 0;
     public float DalashadeSceneGIDebugOpacity { get; set; } = 0.75f;
     public float DalashadeSceneGIDebugBoost { get; set; } = 2.50f;
+    public bool EnableDalashadeSurfaceReflectionShaderVariables { get; set; } = false;
+    public float DalashadeSurfaceReflectionStrength { get; set; } = 0.32f;
+    public float DalashadeSurfaceReflectionWaterSheenStrength { get; set; } = 0.38f;
+    public float DalashadeSurfaceReflectionSpecularGlintStrength { get; set; } = 0.32f;
+    public float DalashadeSurfaceReflectionWetStrength { get; set; } = 0.30f;
+    public float DalashadeSurfaceReflectionAetherNeonStrength { get; set; } = 0.35f;
+    public int DalashadeSurfaceReflectionDebugMode { get; set; } = 0;
+    public float DalashadeSurfaceReflectionDebugOpacity { get; set; } = 0.75f;
     public bool EnableMaterialIntent { get; set; } = false;
     public bool EnableMaterialIntentDiagnostics { get; set; } = true;
     public bool EnableMaterialIntentShaderMapping { get; set; } = false;

@@ -267,6 +267,11 @@ public sealed class PresetAnalyzer
             return EffectRole.AoGi;
         }
 
+        if (IsFirstPartyDalashadeShader(entry, "surfacereflection"))
+        {
+            return EffectRole.Diffusion;
+        }
+
         if (ContainsAny(text, "keepui", "restoreui", "launchpad", "insight", "displaydepth", "stagedepth", "chromakey", "splitscreen", "aspectratio", "composition", "clipboard", "verticalpreviewer", "uimask", "crashpad"))
         {
             return EffectRole.UiUtility;
@@ -423,7 +428,7 @@ public sealed class PresetAnalyzer
 
         if (string.IsNullOrWhiteSpace(shaderFamily))
         {
-            return ContainsAny(text, "weatheratmosphere", "adaptivegrade", "atmospherebloom", "smartsharpen", "materialdebug", "scenegi");
+            return ContainsAny(text, "weatheratmosphere", "adaptivegrade", "atmospherebloom", "smartsharpen", "materialdebug", "scenegi", "surfacereflection");
         }
 
         return text.Contains(shaderFamily, StringComparison.OrdinalIgnoreCase);

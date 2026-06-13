@@ -10,6 +10,7 @@ public sealed class CustomShaderVariableMapper
     public const string ReasonCategory = "Dalashade custom shader scene intent";
     public const string MaterialReasonCategory = "Dalashade custom shader material intent";
     public const string SceneGIReasonCategory = "Dalashade custom shader SceneGI tuning";
+    public const string SurfaceReflectionReasonCategory = "Dalashade custom shader SurfaceReflection tuning";
 
     private static readonly IReadOnlyDictionary<string, Func<SceneIntent, float>> Variables =
         new Dictionary<string, Func<SceneIntent, float>>(StringComparer.OrdinalIgnoreCase)
@@ -68,6 +69,25 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_GIDebugOutputMode"] = configuration => configuration.DalashadeSceneGIDebugOutputMode,
             ["Dalashade_GIDebugOpacity"] = configuration => configuration.DalashadeSceneGIDebugOpacity,
             ["Dalashade_GIDebugBoost"] = configuration => configuration.DalashadeSceneGIDebugBoost
+        };
+
+    private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> SurfaceReflectionVariables =
+        new Dictionary<string, Func<Configuration, float>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Dalashade_SurfaceReflectionEnabled"] = configuration => configuration.EnableDalashadeSurfaceReflectionShaderVariables ? 1f : 0f,
+            ["Dalashade_SurfaceReflectionStrength"] = configuration => configuration.DalashadeSurfaceReflectionStrength,
+            ["Dalashade_WaterSheenStrength"] = configuration => configuration.DalashadeSurfaceReflectionWaterSheenStrength,
+            ["Dalashade_WaterSheenRadius"] = _ => 1.35f,
+            ["Dalashade_SpecularGlintStrength"] = configuration => configuration.DalashadeSurfaceReflectionSpecularGlintStrength,
+            ["Dalashade_WetReflectionStrength"] = configuration => configuration.DalashadeSurfaceReflectionWetStrength,
+            ["Dalashade_AetherReflectionStrength"] = configuration => configuration.DalashadeSurfaceReflectionAetherNeonStrength,
+            ["Dalashade_NeonReflectionStrength"] = configuration => configuration.DalashadeSurfaceReflectionAetherNeonStrength,
+            ["Dalashade_IceSheenStrength"] = _ => 0.24f,
+            ["Dalashade_SurfaceReflectionSkyReject"] = _ => 1.0f,
+            ["Dalashade_SurfaceReflectionSkinProtect"] = _ => 1.0f,
+            ["Dalashade_SurfaceReflectionDebugMode"] = configuration => configuration.DalashadeSurfaceReflectionDebugMode,
+            ["Dalashade_SurfaceReflectionDebugOpacity"] = configuration => configuration.DalashadeSurfaceReflectionDebugOpacity,
+            ["Dalashade_SurfaceReflectionDebugBoost"] = _ => 2.25f
         };
 
     private static readonly IReadOnlyDictionary<string, Func<MaterialIntent, Configuration, float>> MaterialVariables =
@@ -151,6 +171,20 @@ public sealed class CustomShaderVariableMapper
         "Dalashade_MaterialVoidDarkness"
     ];
 
+    private static readonly HashSet<string> SurfaceReflectionMaterialVariables =
+    [
+        "Dalashade_MaterialWaterPlane",
+        "Dalashade_MaterialSpecularGlint",
+        "Dalashade_MaterialSandDust",
+        "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialMetalIndustrial",
+        "Dalashade_MaterialCrystalAether",
+        "Dalashade_MaterialNeonGlass",
+        "Dalashade_MaterialFireLavaHeat",
+        "Dalashade_MaterialSkyCloudFog",
+        "Dalashade_MaterialSkinProtection"
+    ];
+
     private static readonly HashSet<string> MaterialDebugVariables =
     [
         "Dalashade_MaterialFoliage",
@@ -179,6 +213,7 @@ public sealed class CustomShaderVariableMapper
 
     public static IReadOnlyCollection<string> KnownVariableNames => Variables.Keys
         .Concat(SceneGIVariables.Keys)
+        .Concat(SurfaceReflectionVariables.Keys)
         .Concat(MaterialVariables.Keys)
         .Concat(ShaderOwnedVariables)
         .Concat(SmartSharpenAuthority.WritableVariables)
@@ -211,6 +246,18 @@ public sealed class CustomShaderVariableMapper
                 _ => FormatSceneGIValue(key, giAccessor(configuration)),
                 SceneGIReasonCategory,
                 EffectRole.AoGi,
+                1f);
+            return true;
+        }
+
+        if (configuration.EnableDalashadeSurfaceReflectionShaderVariables
+            && IsSurfaceReflectionSection(section)
+            && SurfaceReflectionVariables.TryGetValue(key, out var surfaceReflectionAccessor))
+        {
+            adjustment = new ShaderAdjustment(
+                _ => FormatSurfaceReflectionValue(key, surfaceReflectionAccessor(configuration)),
+                SurfaceReflectionReasonCategory,
+                EffectRole.Diffusion,
                 1f);
             return true;
         }
@@ -255,6 +302,7 @@ public sealed class CustomShaderVariableMapper
         return !string.IsNullOrWhiteSpace(key)
                && (Variables.ContainsKey(key)
                    || SceneGIVariables.ContainsKey(key)
+                   || SurfaceReflectionVariables.ContainsKey(key)
                    || MaterialVariables.ContainsKey(key)
                    || ShaderOwnedVariables.Contains(key)
                    || SmartSharpenAuthority.WritableVariables.Contains(key, StringComparer.OrdinalIgnoreCase));
@@ -347,6 +395,37 @@ public sealed class CustomShaderVariableMapper
                || string.Equals(key, "Dalashade_GIAORadius", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static ShaderAdjustmentResult FormatSurfaceReflectionValue(string key, float value)
+    {
+        if (string.Equals(key, "Dalashade_SurfaceReflectionDebugMode", StringComparison.OrdinalIgnoreCase))
+        {
+            var rounded = (int)MathF.Round(value);
+            var clamped = Math.Min(8, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 8);
+        }
+
+        if (string.Equals(key, "Dalashade_SurfaceReflectionEnabled", StringComparison.OrdinalIgnoreCase))
+        {
+            var enabled = value >= 0.5f ? 1 : 0;
+            return new ShaderAdjustmentResult(enabled.ToString(CultureInfo.InvariantCulture), false, false);
+        }
+
+        if (string.Equals(key, "Dalashade_WaterSheenRadius", StringComparison.OrdinalIgnoreCase))
+        {
+            var clamped = MathF.Min(8f, MathF.Max(0.25f, value));
+            return new ShaderAdjustmentResult(Format(clamped), value < 0.25f, value > 8f);
+        }
+
+        if (string.Equals(key, "Dalashade_SurfaceReflectionDebugBoost", StringComparison.OrdinalIgnoreCase))
+        {
+            var clamped = MathF.Min(8f, MathF.Max(0.25f, value));
+            return new ShaderAdjustmentResult(Format(clamped), value < 0.25f, value > 8f);
+        }
+
+        var normalized = Clamp01(value);
+        return new ShaderAdjustmentResult(Format(normalized), value < 0f, value > 1f);
+    }
+
     private static bool IsSupportedMaterialSectionVariable(string section, string key)
     {
         return (SmartSharpenAuthority.IsSmartSharpenSection(section) && SmartSharpenMaterialVariables.Contains(key))
@@ -354,6 +433,7 @@ public sealed class CustomShaderVariableMapper
                || (IsAtmosphereBloomSection(section) && AtmosphereBloomMaterialVariables.Contains(key))
                || (IsAdaptiveGradeSection(section) && AdaptiveGradeMaterialVariables.Contains(key))
                || (IsSceneGISection(section) && SceneGIMaterialVariables.Contains(key))
+               || (IsSurfaceReflectionSection(section) && SurfaceReflectionMaterialVariables.Contains(key))
                || (IsMaterialDebugSection(section) && MaterialDebugVariables.Contains(key));
     }
 
@@ -385,6 +465,12 @@ public sealed class CustomShaderVariableMapper
     {
         return string.Equals(section, "Dalashade_SceneGI.fx", StringComparison.OrdinalIgnoreCase)
                || section.Contains("Dalashade_SceneGI", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSurfaceReflectionSection(string section)
+    {
+        return string.Equals(section, "Dalashade_SurfaceReflection.fx", StringComparison.OrdinalIgnoreCase)
+               || section.Contains("Dalashade_SurfaceReflection", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Format(float value) => value.ToString("0.######", CultureInfo.InvariantCulture);
