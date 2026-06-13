@@ -302,7 +302,7 @@ Dalashade-driven controls:
 | `Dalashade_GIMaterialInfluence` | How much MaterialIntent masks steer bounce color and protection. Default `0.50`. |
 | `Dalashade_GISkyReject` | Suppresses AO/bounce/light pooling on sky, fog, and broad atmosphere. Default `1.0`. |
 | `Dalashade_GISkinProtect` | Suppresses tinting and dirty AO on likely skin/character regions. Default `1.0`. |
-| `Dalashade_GIDebugMode` | `0` normal, `1` AO, `2` bounce, `3` night light pooling, `4` material influence, `5` sky rejection, `6` skin protection, `7` final GI influence, `8` depth-normal confidence. |
+| `Dalashade_GIDebugMode` | Integer enum: `0` normal, `1` AO, `2` bounce, `3` night light pooling, `4` material influence, `5` sky rejection, `6` skin protection, `7` final GI influence, `8` depth-normal confidence. Dalashade writes it as `0` through `8`, not as a normalized float. |
 | `Dalashade_GIDebugOpacity` | Debug overlay opacity. Default `0.75`. |
 | `Dalashade_Intent*` aliases | SceneIntent inputs for readability, atmosphere, highlight/shadow protection, haze, weather, glow, foliage density, industrial/cosmic mood, combat pressure, and cinematic permission. |
 | `Dalashade_Material*` channels | Section-scoped MaterialIntent inputs for foliage, water plane, specular glints, sand/dust, snow/ice, stone/ruins, metal/industrial, crystal/aether, neon/glass, fire/heat, sky/fog, skin protection, and void/darkness. |
@@ -651,7 +651,7 @@ Dalashade_GINightLightStrength=0.300000
 Dalashade_GIMaterialInfluence=0.500000
 Dalashade_GISkyReject=1.000000
 Dalashade_GISkinProtect=1.000000
-Dalashade_GIDebugMode=0.000000
+Dalashade_GIDebugMode=0
 Dalashade_GIDebugOpacity=0.750000
 Dalashade_IntentReadability=0.000000
 Dalashade_IntentAtmosphere=0.000000

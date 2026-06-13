@@ -206,7 +206,7 @@ public sealed class CustomShaderVariableMapper
             && SceneGIVariables.TryGetValue(key, out var giAccessor))
         {
             adjustment = new ShaderAdjustment(
-                _ => new ShaderAdjustmentResult(Format(Clamp01(giAccessor(configuration))), false, false),
+                _ => FormatSceneGIValue(key, giAccessor(configuration)),
                 SceneGIReasonCategory,
                 EffectRole.AoGi,
                 1f);
@@ -282,6 +282,54 @@ public sealed class CustomShaderVariableMapper
     private static float MaterialOutput(string key, float value, Configuration configuration)
     {
         return Clamp01(value) * Clamp01(configuration.MaterialIntentStrength);
+    }
+
+    private static ShaderAdjustmentResult FormatSceneGIValue(string key, float value)
+    {
+        if (string.Equals(key, "Dalashade_GIDebugMode", StringComparison.OrdinalIgnoreCase))
+        {
+            var rounded = (int)MathF.Round(value);
+            var clamped = Math.Min(8, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 8);
+        }
+
+        if (string.Equals(key, "Dalashade_GIEnabled", StringComparison.OrdinalIgnoreCase))
+        {
+            var enabled = value >= 0.5f ? 1 : 0;
+            return new ShaderAdjustmentResult(enabled.ToString(CultureInfo.InvariantCulture), false, false);
+        }
+
+        if (IsSceneGINormalizedVariable(key))
+        {
+            var clamped = Clamp01(value);
+            return new ShaderAdjustmentResult(Format(clamped), value < 0f, value > 1f);
+        }
+
+        if (IsSceneGIRadiusVariable(key))
+        {
+            var clamped = MathF.Min(8f, MathF.Max(0f, value));
+            return new ShaderAdjustmentResult(Format(clamped), value < 0f, value > 8f);
+        }
+
+        return new ShaderAdjustmentResult(Format(value), false, false);
+    }
+
+    private static bool IsSceneGINormalizedVariable(string key)
+    {
+        return string.Equals(key, "Dalashade_GIStrength", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(key, "Dalashade_GIBounceStrength", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(key, "Dalashade_GIAOIntensity", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(key, "Dalashade_GINightLightStrength", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(key, "Dalashade_GIMaterialInfluence", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(key, "Dalashade_GISkyReject", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(key, "Dalashade_GISkinProtect", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(key, "Dalashade_GIDebugOpacity", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSceneGIRadiusVariable(string key)
+    {
+        return string.Equals(key, "Dalashade_GIRadius", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(key, "Dalashade_GIAORadius", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsSupportedMaterialSectionVariable(string section, string key)

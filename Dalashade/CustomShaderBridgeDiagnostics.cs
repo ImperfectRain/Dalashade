@@ -272,6 +272,11 @@ public static class CustomShaderBridgeDiagnosticsBuilder
             messages.Add("MaterialIntent variable path active: material values were written into matching generated preset Dalashade custom shader variables.");
         }
 
+        if (writtenVariables.Any(change => string.Equals(change.ReasonCategory, CustomShaderVariableMapper.SceneGIReasonCategory, StringComparison.OrdinalIgnoreCase)))
+        {
+            messages.Add("SceneGI variable path active: SceneGI tuning values were written into generated preset Dalashade custom shader variables.");
+        }
+
         if (writtenVariables.Any(change => string.Equals(change.Section, SmartSharpenAuthority.Section, StringComparison.OrdinalIgnoreCase)))
         {
             messages.Add("SmartSharpen generated tuning written: authority-aware slider values were written into the generated preset.");
@@ -282,6 +287,7 @@ public static class CustomShaderBridgeDiagnosticsBuilder
     {
         return string.Equals(item.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase)
                || string.Equals(item.ReasonCategory, CustomShaderVariableMapper.MaterialReasonCategory, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(item.ReasonCategory, CustomShaderVariableMapper.SceneGIReasonCategory, StringComparison.OrdinalIgnoreCase)
                || string.Equals(item.ReasonCategory, SmartSharpenAuthority.ReasonCategory, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -289,6 +295,7 @@ public static class CustomShaderBridgeDiagnosticsBuilder
     {
         return string.Equals(change.ReasonCategory, CustomShaderVariableMapper.ReasonCategory, StringComparison.OrdinalIgnoreCase)
                || string.Equals(change.ReasonCategory, CustomShaderVariableMapper.MaterialReasonCategory, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(change.ReasonCategory, CustomShaderVariableMapper.SceneGIReasonCategory, StringComparison.OrdinalIgnoreCase)
                || string.Equals(change.ReasonCategory, SmartSharpenAuthority.ReasonCategory, StringComparison.OrdinalIgnoreCase);
     }
 

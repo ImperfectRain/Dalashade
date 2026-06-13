@@ -135,6 +135,8 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Material debug technique activation: {(materialDebugTechnique is null ? "absent" : PresetAnalyzer.FormatActivationState(materialDebugTechnique.ActivationState))}");
         builder.AppendLine("- Split water/specular debug support: available when `Dalashade_MaterialDebug.fx` and `Dalashade_MaterialMasks.fxh` are installed. `WaterPlane` and `SpecularGlint` are shader-side heuristic masks derived from the existing WaterSpecular scene likelihood.");
         builder.AppendLine($"- SceneGI generated variable writes: {(configuration.EnableDalashadeSceneGIShaderVariables ? "enabled" : "disabled")}. Technique activation remains manual in ReShade.");
+        var sceneGIDebugWriteLabel = configuration.EnableDalashadeSceneGIShaderVariables ? "written" : "configured";
+        builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 8)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
         builder.AppendLine("- Material debug controls: shader-owned in ReShade UI; Dalashade does not write debug mode, overlay mode, opacity, or strength.");
         builder.AppendLine($"- First-party custom shader status: {FormatFirstPartyCustomShaderStatus(analysis)}");
         builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, and shader-owned controls are recognized/injected but not actively written by Dalashade.");
@@ -782,6 +784,25 @@ public sealed class CompatibilityReportExporter
     {
         return tag.Contains("Night", StringComparison.OrdinalIgnoreCase)
                || string.Equals(tag, "night", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int ClampInt(int value, int min, int max) => Math.Min(max, Math.Max(min, value));
+
+    private static string FormatSceneGIDebugMode(int mode)
+    {
+        return ClampInt(mode, 0, 8) switch
+        {
+            0 => "Off / normal output",
+            1 => "AO only",
+            2 => "Bounce only",
+            3 => "Night light pooling only",
+            4 => "Material influence",
+            5 => "Sky rejection",
+            6 => "Skin protection",
+            7 => "Final GI influence",
+            8 => "Depth-normal confidence",
+            _ => "Unknown"
+        };
     }
 
     private static PresetTechnique? FindMaterialDebugTechnique(PresetAnalysisResult analysis)
