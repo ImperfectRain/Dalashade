@@ -329,6 +329,7 @@ public sealed class PresetWriter
                 "Dalashade_SurfaceReflectionSkyReject",
                 "Dalashade_SurfaceReflectionSkinProtect",
                 "Dalashade_SurfaceReflectionDebugMode",
+                "Dalashade_SurfaceReflectionDebugOutputMode",
                 "Dalashade_SurfaceReflectionDebugOpacity",
                 "Dalashade_SurfaceReflectionDebugBoost",
                 "Dalashade_Wetness",
@@ -751,6 +752,7 @@ public sealed class PresetWriter
                 "Dalashade_SurfaceReflectionSkyReject" => "1.000000",
                 "Dalashade_SurfaceReflectionSkinProtect" => "1.000000",
                 "Dalashade_SurfaceReflectionDebugMode" => "0",
+                "Dalashade_SurfaceReflectionDebugOutputMode" => "0",
                 "Dalashade_SurfaceReflectionDebugOpacity" => "0.750000",
                 "Dalashade_SurfaceReflectionDebugBoost" => "2.250000",
                 _ => "0.000000"

@@ -300,6 +300,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Wet reflection strength {writeLabel}: {Math.Clamp(configuration.DalashadeSurfaceReflectionWetStrength, 0f, 1f):0.###}");
         builder.AppendLine($"- Aether/neon reflection strength {writeLabel}: {Math.Clamp(configuration.DalashadeSurfaceReflectionAetherNeonStrength, 0f, 1f):0.###}");
         builder.AppendLine($"- SurfaceReflection debug mode {writeLabel} value: {ClampInt(configuration.DalashadeSurfaceReflectionDebugMode, 0, 8)} ({FormatSurfaceReflectionDebugMode(configuration.DalashadeSurfaceReflectionDebugMode)}).");
+        builder.AppendLine($"- SurfaceReflection debug output mode {writeLabel} value: 0 ({FormatSurfaceReflectionDebugOutputMode(0)}).");
         builder.AppendLine($"- SurfaceReflection debug opacity {writeLabel} value: {Math.Clamp(configuration.DalashadeSurfaceReflectionDebugOpacity, 0f, 1f):0.###}.");
         builder.AppendLine($"- Dominant MaterialIntent drivers: {FormatDominantMaterialDrivers(configuration, tagStackDiagnostics, currentImage, SurfaceReflectionMaterialNames)}");
         builder.AppendLine($"- Generated SurfaceReflection variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.SurfaceReflectionReasonCategory, "Dalashade_SurfaceReflection")}");
@@ -952,6 +953,19 @@ public sealed class CompatibilityReportExporter
             6 => "Skin protection",
             7 => "Final reflection influence",
             8 => "Contribution over black",
+            _ => "Unknown"
+        };
+    }
+
+    private static string FormatSurfaceReflectionDebugOutputMode(int mode)
+    {
+        return ClampInt(mode, 0, 4) switch
+        {
+            0 => "Full replacement diagnostic",
+            1 => "Alpha overlay over original scene",
+            2 => "Side-by-side split",
+            3 => "Contribution over black",
+            4 => "Amplified difference view",
             _ => "Unknown"
         };
     }

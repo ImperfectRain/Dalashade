@@ -86,6 +86,7 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_SurfaceReflectionSkyReject"] = _ => 1.0f,
             ["Dalashade_SurfaceReflectionSkinProtect"] = _ => 1.0f,
             ["Dalashade_SurfaceReflectionDebugMode"] = configuration => configuration.DalashadeSurfaceReflectionDebugMode,
+            ["Dalashade_SurfaceReflectionDebugOutputMode"] = _ => 0f,
             ["Dalashade_SurfaceReflectionDebugOpacity"] = configuration => configuration.DalashadeSurfaceReflectionDebugOpacity,
             ["Dalashade_SurfaceReflectionDebugBoost"] = _ => 2.25f
         };
@@ -402,6 +403,13 @@ public sealed class CustomShaderVariableMapper
             var rounded = (int)MathF.Round(value);
             var clamped = Math.Min(8, Math.Max(0, rounded));
             return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 8);
+        }
+
+        if (string.Equals(key, "Dalashade_SurfaceReflectionDebugOutputMode", StringComparison.OrdinalIgnoreCase))
+        {
+            var rounded = (int)MathF.Round(value);
+            var clamped = Math.Min(4, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 4);
         }
 
         if (string.Equals(key, "Dalashade_SurfaceReflectionEnabled", StringComparison.OrdinalIgnoreCase))

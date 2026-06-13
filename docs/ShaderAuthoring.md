@@ -364,6 +364,7 @@ Dalashade-driven controls:
 | `Dalashade_SurfaceReflectionSkyReject` | Suppresses water/reflection influence on sky, cloud, fog, and broad atmosphere. |
 | `Dalashade_SurfaceReflectionSkinProtect` | Suppresses glint/tint on likely skin or character-smooth regions. |
 | `Dalashade_SurfaceReflectionDebugMode` | Integer enum: `0` normal, `1` WaterPlane sheen, `2` SpecularGlint, `3` wet reflection, `4` aether/neon reflection, `5` sky rejection, `6` skin protection, `7` final reflection influence, `8` contribution over black. |
+| `Dalashade_SurfaceReflectionDebugOutputMode` | Integer enum: `0` full replacement diagnostic, `1` alpha overlay over original scene, `2` side-by-side split, `3` contribution over black, `4` amplified difference view. Default `0` makes debug modes true diagnostic masks. |
 | `Dalashade_SurfaceReflectionDebugOpacity` | Debug overlay opacity. |
 | `Dalashade_SurfaceReflectionDebugBoost` | Debug-only amplification helper for low and mid-strength masks. |
 | `Dalashade_Wetness` | Allows wet-surface reflection impression when rain/wet tags support it. |
@@ -380,7 +381,7 @@ Dalashade-driven controls:
 | `Dalashade_MaterialSkyCloudFog` | Rejects sky/fog contamination. |
 | `Dalashade_MaterialSkinProtection` | Protects likely skin/character regions. |
 
-SurfaceReflection intentionally separates `WaterPlane` from `SpecularGlint`. WaterPlane drives broad cyan/teal water or shallow-water sheen, while SpecularGlint drives thin reflective highlights on rails, wet edges, lamps, polished metal, water sparkles, and aether edges. Sand/dust, skin, sky/fog, combat/readability, and highlight protection clamp the effect so it stays a reflection impression rather than global brightness or fake SSR.
+SurfaceReflection intentionally separates `WaterPlane` from `SpecularGlint`. WaterPlane drives broad cyan/teal water or shallow-water sheen, while SpecularGlint drives thin reflective highlights on rails, wet edges, lamps, polished metal, water sparkles, and aether edges. Wetness allows stronger reflection impressions on dark smooth hard surfaces, while CrystalAether, NeonGlass, and FireLavaHeat can create localized cyan/violet/magenta/warm reflection streaks on plausible receiver surfaces. Sand/dust, skin, sky/fog, combat/readability, and highlight protection clamp the effect so it stays a reflection impression rather than global brightness or fake SSR. Debug mode output is routed before normal final blending; output mode `0` is a full replacement mask for tuning.
 
 ## Atmosphere Bloom Controls
 
@@ -757,6 +758,7 @@ Dalashade_IceSheenStrength=0.240000
 Dalashade_SurfaceReflectionSkyReject=1.000000
 Dalashade_SurfaceReflectionSkinProtect=1.000000
 Dalashade_SurfaceReflectionDebugMode=0
+Dalashade_SurfaceReflectionDebugOutputMode=0
 Dalashade_SurfaceReflectionDebugOpacity=0.750000
 Dalashade_SurfaceReflectionDebugBoost=2.250000
 Dalashade_Wetness=0.000000
