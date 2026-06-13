@@ -136,6 +136,24 @@ Compatibility analysis classifies the known `Dalashade_*` first-party shader sec
 
 ## Recommended ReShade Order
 
+Recommended gameplay order for a full Dalashade-aware stack:
+
+8. iMMERSE Launchpad
+9. Deband
+10. iMMERSE Pro Clarity
+11. iMMERSE Pro ReGrade
+12. Dalashade_AdaptiveGrade
+13. Dalashade_SceneGI
+14. Dalashade_SurfaceReflection
+15. MagicBloom
+16. Dalashade_AtmosphereBloom
+17. Dalashade_WeatherAtmosphere
+18. iMMERSE Sharpen
+19. Dalashade_SmartSharpen
+20. Dalashade_MaterialDebug
+
+When debugging a first-party shader, temporarily put that shader last or near-last and use its full replacement or contribution-over-black debug output. Restore the gameplay order after tuning. `Dalashade_MaterialDebug` should remain a manual debug utility, not a normal production pass.
+
 For `Dalashade_WeatherAtmosphere.fx`, use this order:
 
 1. After AO, MXAO, RTGI, and other depth/lighting effects.

@@ -14,6 +14,53 @@ public sealed record CompatibilityReportExportResult(bool Success, string Messag
 public sealed class CompatibilityReportExporter
 {
     public const string MaterialIntentDiagnosticsTableHeader = "| Channel | Profile prior | Non-profile evidence | Final value | Top suppressions |";
+    private static readonly IReadOnlySet<string> SceneGIIntentNames = new HashSet<string>(StringComparer.Ordinal)
+    {
+        nameof(SceneIntent.Atmosphere),
+        nameof(SceneIntent.ShadowProtection),
+        nameof(SceneIntent.Wetness),
+        nameof(SceneIntent.MagicGlow),
+        nameof(SceneIntent.NeonGlow),
+        nameof(SceneIntent.FoliageDensity),
+        nameof(SceneIntent.IndustrialHardness),
+        nameof(SceneIntent.CosmicMood),
+        nameof(SceneIntent.Night),
+        nameof(SceneIntent.Moonlight),
+        nameof(SceneIntent.ArtificialLight),
+        nameof(SceneIntent.AmbientDarkness),
+        nameof(SceneIntent.NightAtmosphere),
+        nameof(SceneIntent.CombatPressure),
+        nameof(SceneIntent.CinematicPermission)
+    };
+
+    private static readonly IReadOnlySet<string> SceneGIMaterialNames = new HashSet<string>(StringComparer.Ordinal)
+    {
+        MaterialIntent.FoliageChannel,
+        MaterialIntent.WaterSpecularChannel,
+        MaterialIntent.SandDustChannel,
+        MaterialIntent.SnowIceChannel,
+        MaterialIntent.StoneRuinsChannel,
+        MaterialIntent.MetalIndustrialChannel,
+        MaterialIntent.CrystalAetherChannel,
+        MaterialIntent.NeonGlassChannel,
+        MaterialIntent.FireLavaHeatChannel,
+        MaterialIntent.SkyCloudFogChannel,
+        MaterialIntent.SkinProtectionChannel,
+        MaterialIntent.VoidDarknessChannel
+    };
+
+    private static readonly IReadOnlySet<string> SurfaceReflectionMaterialNames = new HashSet<string>(StringComparer.Ordinal)
+    {
+        MaterialIntent.WaterSpecularChannel,
+        MaterialIntent.SandDustChannel,
+        MaterialIntent.SnowIceChannel,
+        MaterialIntent.MetalIndustrialChannel,
+        MaterialIntent.CrystalAetherChannel,
+        MaterialIntent.NeonGlassChannel,
+        MaterialIntent.FireLavaHeatChannel,
+        MaterialIntent.SkyCloudFogChannel,
+        MaterialIntent.SkinProtectionChannel
+    };
 
     public CompatibilityReportExportResult Export(
         Configuration configuration,
@@ -94,7 +141,7 @@ public sealed class CompatibilityReportExporter
         AppendColorFamilyAdjustments(builder, profile);
         AppendColorFamilyComparison(builder, currentImage, masterStyle, profile);
         AppendMappingValidation(builder, configuration, analysis, shaderSupport, effectiveBasePresetPath);
-        AppendCustomShaderDiagnostics(builder, configuration, analysis, shaderSupport, writeResult);
+        AppendCustomShaderDiagnostics(builder, configuration, analysis, shaderSupport, writeResult, tagStackDiagnostics, currentImage);
         AppendShaderSupport(builder, shaderSupport);
         AppendChangedVariables(builder, writeResult);
         AppendSanitizeActions(builder, writeResult);
@@ -108,7 +155,14 @@ public sealed class CompatibilityReportExporter
         return builder.ToString();
     }
 
-    private static void AppendCustomShaderDiagnostics(StringBuilder builder, Configuration configuration, PresetAnalysisResult analysis, ShaderSupportScan shaderSupport, PresetWriteResult writeResult)
+    private static void AppendCustomShaderDiagnostics(
+        StringBuilder builder,
+        Configuration configuration,
+        PresetAnalysisResult analysis,
+        ShaderSupportScan shaderSupport,
+        PresetWriteResult writeResult,
+        TagStackDiagnostics tagStackDiagnostics,
+        ImageAnalysisResult currentImage)
     {
         builder.AppendLine("## Dalashade Custom Shader Diagnostics");
         builder.AppendLine();
@@ -134,19 +188,11 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Material debug shader listed: {(materialDebugTechnique is null ? "no" : "yes")}");
         builder.AppendLine($"- Material debug technique activation: {(materialDebugTechnique is null ? "absent" : PresetAnalyzer.FormatActivationState(materialDebugTechnique.ActivationState))}");
         builder.AppendLine("- Split water/specular debug support: available when `Dalashade_MaterialDebug.fx` and `Dalashade_MaterialMasks.fxh` are installed. `WaterPlane` and `SpecularGlint` are shader-side heuristic masks derived from the existing WaterSpecular scene likelihood.");
-        builder.AppendLine($"- SceneGI generated variable writes: {(configuration.EnableDalashadeSceneGIShaderVariables ? "enabled" : "disabled")}. Technique activation remains manual in ReShade.");
-        var sceneGIDebugWriteLabel = configuration.EnableDalashadeSceneGIShaderVariables ? "written" : "configured";
-        builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 12)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
-        builder.AppendLine($"- SceneGI debug output mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugOutputMode, 0, 4)} ({FormatSceneGIDebugOutputMode(configuration.DalashadeSceneGIDebugOutputMode)}).");
-        builder.AppendLine($"- SceneGI debug opacity {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugOpacity, 0f, 1f):0.###}.");
-        builder.AppendLine($"- SceneGI debug boost {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f):0.###}. Debug boost affects diagnostic masks only, not normal GI output.");
-        var surfaceReflectionWriteLabel = configuration.EnableDalashadeSurfaceReflectionShaderVariables ? "written" : "configured";
-        builder.AppendLine($"- SurfaceReflection generated variable writes: {(configuration.EnableDalashadeSurfaceReflectionShaderVariables ? "enabled" : "disabled")}. Technique activation remains manual in ReShade.");
-        builder.AppendLine($"- SurfaceReflection strength {surfaceReflectionWriteLabel} value: {Math.Clamp(configuration.DalashadeSurfaceReflectionStrength, 0f, 1f):0.###}.");
-        builder.AppendLine($"- SurfaceReflection debug mode {surfaceReflectionWriteLabel} value: {ClampInt(configuration.DalashadeSurfaceReflectionDebugMode, 0, 8)} ({FormatSurfaceReflectionDebugMode(configuration.DalashadeSurfaceReflectionDebugMode)}).");
+        AppendSceneGIDiagnostics(builder, configuration, analysis, writeResult, tagStackDiagnostics, currentImage);
+        AppendSurfaceReflectionDiagnostics(builder, configuration, analysis, writeResult, tagStackDiagnostics, currentImage);
         builder.AppendLine("- Material debug controls: shader-owned in ReShade UI; Dalashade does not write debug mode, overlay mode, opacity, or strength.");
         builder.AppendLine($"- First-party custom shader status: {FormatFirstPartyCustomShaderStatus(analysis)}");
-        builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, SceneGI debug controls can be written when SceneGI generated variables are enabled, and other shader-owned controls are recognized/injected but not actively written by Dalashade.");
+        builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, SceneGI and SurfaceReflection debug controls can be written by their separate generated-variable toggles, and other shader-owned controls are recognized/injected but not actively written by Dalashade.");
         builder.AppendLine("- Manual shader install/activation: Dalashade does not copy `.fx` files into ReShade or enable techniques. Install needed Dalashade `.fx` files in a ReShade shader search folder separately, then enable wanted custom shader techniques in ReShade.");
         builder.AppendLine("- Variable writes require matching Dalashade custom shader section/key lines in generated preset content. Those lines can come from the base preset or from generated-preset-only injection.");
         builder.AppendLine("- Static bridge status:");
@@ -195,6 +241,70 @@ public sealed class CompatibilityReportExporter
         }
 
         builder.AppendLine();
+    }
+
+    private static void AppendSceneGIDiagnostics(
+        StringBuilder builder,
+        Configuration configuration,
+        PresetAnalysisResult analysis,
+        PresetWriteResult writeResult,
+        TagStackDiagnostics tagStackDiagnostics,
+        ImageAnalysisResult currentImage)
+    {
+        var technique = FindFirstPartyTechnique(analysis, "Dalashade_SceneGI");
+        var writeLabel = configuration.EnableDalashadeSceneGIShaderVariables ? "written" : "configured";
+        builder.AppendLine();
+        builder.AppendLine("### SceneGI");
+        builder.AppendLine();
+        builder.AppendLine("- Responsibility: adaptive screen-space indirect lighting, AO, material bounce, night light pooling, and source-to-receiver propagation.");
+        builder.AppendLine($"- Shader listed/detected: {(technique is null ? "no" : "yes")}");
+        builder.AppendLine($"- Technique activation: {(technique is null ? "absent" : PresetAnalyzer.FormatActivationState(technique.ActivationState))}");
+        builder.AppendLine($"- Generated variable writes enabled: {(configuration.EnableDalashadeSceneGIShaderVariables ? "yes" : "no")}");
+        builder.AppendLine($"- GI strength {writeLabel}: {Math.Clamp(configuration.DalashadeSceneGIStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- AO intensity {writeLabel}: {Math.Clamp(configuration.DalashadeSceneGIAOIntensity, 0f, 1f):0.###}");
+        builder.AppendLine($"- Bounce strength {writeLabel}: {Math.Clamp(configuration.DalashadeSceneGIBounceStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- Night light strength {writeLabel}: {Math.Clamp(configuration.DalashadeSceneGINightLightStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- Material influence {writeLabel}: {Math.Clamp(configuration.DalashadeSceneGIMaterialInfluence, 0f, 1f):0.###}");
+        var sceneGIDebugWriteLabel = configuration.EnableDalashadeSceneGIShaderVariables ? "written" : "configured";
+        builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 12)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
+        builder.AppendLine($"- SceneGI debug output mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugOutputMode, 0, 4)} ({FormatSceneGIDebugOutputMode(configuration.DalashadeSceneGIDebugOutputMode)}).");
+        builder.AppendLine($"- SceneGI debug opacity {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugOpacity, 0f, 1f):0.###}.");
+        builder.AppendLine($"- SceneGI debug boost {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f):0.###}. Debug boost affects diagnostic masks only, not normal GI output.");
+        builder.AppendLine($"- Dominant SceneIntent drivers: {FormatDominantSceneDrivers(tagStackDiagnostics, SceneGIIntentNames)}");
+        builder.AppendLine($"- Dominant MaterialIntent drivers: {FormatDominantMaterialDrivers(configuration, tagStackDiagnostics, currentImage, SceneGIMaterialNames)}");
+        builder.AppendLine($"- Generated SceneGI variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.SceneGIReasonCategory, "Dalashade_SceneGI")}");
+        builder.AppendLine($"- Generated SceneGI material variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.MaterialReasonCategory, "Dalashade_SceneGI")}");
+        builder.AppendLine("- Technique activation remains manual; Dalashade never appends `Dalashade_SceneGI` to `Techniques=`.");
+    }
+
+    private static void AppendSurfaceReflectionDiagnostics(
+        StringBuilder builder,
+        Configuration configuration,
+        PresetAnalysisResult analysis,
+        PresetWriteResult writeResult,
+        TagStackDiagnostics tagStackDiagnostics,
+        ImageAnalysisResult currentImage)
+    {
+        var technique = FindFirstPartyTechnique(analysis, "Dalashade_SurfaceReflection");
+        var writeLabel = configuration.EnableDalashadeSurfaceReflectionShaderVariables ? "written" : "configured";
+        builder.AppendLine();
+        builder.AppendLine("### SurfaceReflection");
+        builder.AppendLine();
+        builder.AppendLine("- Responsibility: material-aware water sheen, wet reflection impression, specular glints, aether/neon streaks, icy sheen, and polished-surface response.");
+        builder.AppendLine($"- Shader listed/detected: {(technique is null ? "no" : "yes")}");
+        builder.AppendLine($"- Technique activation: {(technique is null ? "absent" : PresetAnalyzer.FormatActivationState(technique.ActivationState))}");
+        builder.AppendLine($"- Generated variable writes enabled: {(configuration.EnableDalashadeSurfaceReflectionShaderVariables ? "yes" : "no")}");
+        builder.AppendLine($"- Reflection strength {writeLabel}: {Math.Clamp(configuration.DalashadeSurfaceReflectionStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- Water sheen strength {writeLabel}: {Math.Clamp(configuration.DalashadeSurfaceReflectionWaterSheenStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- Specular glint strength {writeLabel}: {Math.Clamp(configuration.DalashadeSurfaceReflectionSpecularGlintStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- Wet reflection strength {writeLabel}: {Math.Clamp(configuration.DalashadeSurfaceReflectionWetStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- Aether/neon reflection strength {writeLabel}: {Math.Clamp(configuration.DalashadeSurfaceReflectionAetherNeonStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- SurfaceReflection debug mode {writeLabel} value: {ClampInt(configuration.DalashadeSurfaceReflectionDebugMode, 0, 8)} ({FormatSurfaceReflectionDebugMode(configuration.DalashadeSurfaceReflectionDebugMode)}).");
+        builder.AppendLine($"- SurfaceReflection debug opacity {writeLabel} value: {Math.Clamp(configuration.DalashadeSurfaceReflectionDebugOpacity, 0f, 1f):0.###}.");
+        builder.AppendLine($"- Dominant MaterialIntent drivers: {FormatDominantMaterialDrivers(configuration, tagStackDiagnostics, currentImage, SurfaceReflectionMaterialNames)}");
+        builder.AppendLine($"- Generated SurfaceReflection variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.SurfaceReflectionReasonCategory, "Dalashade_SurfaceReflection")}");
+        builder.AppendLine($"- Generated SurfaceReflection material variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.MaterialReasonCategory, "Dalashade_SurfaceReflection")}");
+        builder.AppendLine("- Technique activation remains manual; Dalashade never appends `Dalashade_SurfaceReflection` to `Techniques=`.");
     }
 
     private static void AppendMaterialIntentDiagnostics(StringBuilder builder, Configuration configuration, TagStackDiagnostics tagStackDiagnostics, ImageAnalysisResult currentImage, PresetWriteResult writeResult)
@@ -848,10 +958,16 @@ public sealed class CompatibilityReportExporter
 
     private static PresetTechnique? FindMaterialDebugTechnique(PresetAnalysisResult analysis)
     {
+        return FindFirstPartyTechnique(analysis, "Dalashade_MaterialDebug");
+    }
+
+    private static PresetTechnique? FindFirstPartyTechnique(PresetAnalysisResult analysis, string shaderKey)
+    {
         return analysis.Techniques
-            .FirstOrDefault(technique => technique.TechniqueName.Contains("Dalashade_MaterialDebug", StringComparison.OrdinalIgnoreCase)
-                                         || technique.ShaderFile.Contains("Dalashade_MaterialDebug", StringComparison.OrdinalIgnoreCase)
-                                         || technique.Section.Contains("Dalashade_MaterialDebug", StringComparison.OrdinalIgnoreCase));
+            .Where(technique => ContainsShaderKey(technique, shaderKey))
+            .OrderByDescending(technique => technique.ActivationState == TechniqueActivationState.Active)
+            .ThenByDescending(technique => technique.ActivationState == TechniqueActivationState.Inactive)
+            .FirstOrDefault();
     }
 
     private static string FormatFirstPartyCustomShaderStatus(PresetAnalysisResult analysis)
@@ -908,6 +1024,60 @@ public sealed class CompatibilityReportExporter
         return technique.TechniqueName.Contains(shaderKey, StringComparison.OrdinalIgnoreCase)
                || technique.ShaderFile.Contains(shaderKey, StringComparison.OrdinalIgnoreCase)
                || technique.Section.Contains(shaderKey, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FormatDominantSceneDrivers(TagStackDiagnostics diagnostics, IReadOnlySet<string> intentNames)
+    {
+        var selected = diagnostics.IntentContributions
+            .Where(contribution => contribution.Amount > 0f && intentNames.Contains(contribution.Intent))
+            .OrderByDescending(contribution => Math.Abs(contribution.Amount))
+            .Take(5)
+            .Select(contribution => $"{contribution.Intent} {contribution.Amount:+0.##;-0.##;0} from {contribution.Source}")
+            .ToArray();
+
+        return selected.Length == 0 ? "none" : string.Join(", ", selected);
+    }
+
+    private static string FormatDominantMaterialDrivers(
+        Configuration configuration,
+        TagStackDiagnostics diagnostics,
+        ImageAnalysisResult currentImage,
+        IReadOnlySet<string> channelNames)
+    {
+        if (!configuration.EnableMaterialIntent)
+        {
+            return "MaterialIntent disabled";
+        }
+
+        var profile = MaterialProfileBuilder.Build(diagnostics, currentImage);
+        var intent = MaterialIntentBuilder.Build(diagnostics, currentImage, profile).WithStrength(configuration.MaterialIntentStrength);
+        var selected = MaterialIntent.ChannelNames
+            .Where(channelNames.Contains)
+            .Select(channel => new
+            {
+                Channel = channel,
+                Value = intent.ValueFor(channel)
+            })
+            .Where(item => item.Value > 0.01f)
+            .OrderByDescending(item => item.Value)
+            .Take(6)
+            .Select(item => $"{item.Channel} {item.Value:0.###}")
+            .ToArray();
+
+        return selected.Length == 0 ? "none" : string.Join(", ", selected);
+    }
+
+    private static string FormatChangedKeys(PresetWriteResult writeResult, string reasonCategory, string shaderKey)
+    {
+        var keys = writeResult.Changes
+            .Where(change => string.Equals(change.ReasonCategory, reasonCategory, StringComparison.OrdinalIgnoreCase)
+                             && change.Section.Contains(shaderKey, StringComparison.OrdinalIgnoreCase))
+            .Select(change => change.Key)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return keys.Length == 0 ? "none" : string.Join(", ", keys.Select(key => $"`{key}`"));
     }
 
     private static string FormatMaterialUniformSections(IReadOnlyList<ChangedShaderVariable> writtenUniforms)

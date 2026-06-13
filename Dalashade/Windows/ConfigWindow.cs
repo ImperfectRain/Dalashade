@@ -220,7 +220,8 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TextWrapped("This does not install .fx shader files. Install needed Dalashade shaders in ReShade separately so ReShade can compile injected generated-preset sections.");
 
         ImGui.Separator();
-        DrawCheckbox("Enable SceneGI generated variables", configuration.EnableDalashadeSceneGIShaderVariables, value => configuration.EnableDalashadeSceneGIShaderVariables = value);
+        ImGui.TextWrapped("SceneGI: adaptive screen-space indirect lighting and material bounce");
+        DrawCheckbox("Enable SceneGI variable writes", configuration.EnableDalashadeSceneGIShaderVariables, value => configuration.EnableDalashadeSceneGIShaderVariables = value);
         DrawFloatSlider("SceneGI strength", configuration.DalashadeSceneGIStrength, 0f, 1f, value => configuration.DalashadeSceneGIStrength = value);
         DrawFloatSlider("SceneGI AO intensity", configuration.DalashadeSceneGIAOIntensity, 0f, 1f, value => configuration.DalashadeSceneGIAOIntensity = value);
         DrawFloatSlider("SceneGI bounce strength", configuration.DalashadeSceneGIBounceStrength, 0f, 1f, value => configuration.DalashadeSceneGIBounceStrength = value);
@@ -243,7 +244,8 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TextWrapped("SceneGI variable writes require Dalashade custom shader variables and matching generated preset keys. The SceneGI technique is never auto-enabled; enable it manually in ReShade after installing the .fx file.");
 
         ImGui.Separator();
-        DrawCheckbox("Enable SurfaceReflection generated variables", configuration.EnableDalashadeSurfaceReflectionShaderVariables, value => configuration.EnableDalashadeSurfaceReflectionShaderVariables = value);
+        ImGui.TextWrapped("SurfaceReflection: material-aware water, wetness, and glint response");
+        DrawCheckbox("Enable SurfaceReflection variable writes", configuration.EnableDalashadeSurfaceReflectionShaderVariables, value => configuration.EnableDalashadeSurfaceReflectionShaderVariables = value);
         DrawFloatSlider("SurfaceReflection strength", configuration.DalashadeSurfaceReflectionStrength, 0f, 1f, value => configuration.DalashadeSurfaceReflectionStrength = value);
         DrawFloatSlider("SurfaceReflection water sheen", configuration.DalashadeSurfaceReflectionWaterSheenStrength, 0f, 1f, value => configuration.DalashadeSurfaceReflectionWaterSheenStrength = value);
         DrawFloatSlider("SurfaceReflection specular glint", configuration.DalashadeSurfaceReflectionSpecularGlintStrength, 0f, 1f, value => configuration.DalashadeSurfaceReflectionSpecularGlintStrength = value);
@@ -257,6 +259,7 @@ public sealed class ConfigWindow : Window, IDisposable
         }
         DrawFloatSlider("SurfaceReflection debug opacity", configuration.DalashadeSurfaceReflectionDebugOpacity, 0f, 1f, value => configuration.DalashadeSurfaceReflectionDebugOpacity = value);
         ImGui.TextWrapped("SurfaceReflection is a separate optional first-party shader for water sheen, wet glints, and material-aware reflection impressions. The technique is never auto-enabled.");
+        ImGui.TextWrapped("Debug modes show inferred shader-side masks, not true engine material IDs.");
     }
 
     private string ReShadeReloadSummary()

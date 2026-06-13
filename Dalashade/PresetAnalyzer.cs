@@ -610,6 +610,7 @@ public sealed class PresetAnalyzer
 
         warnings.AddRange(multipleAuthorityWarnings);
         warnings.AddRange(FindReGradePlusRiskWarnings(lines));
+        warnings.AddRange(FindFirstPartyStackOrderWarnings(active, lines));
 
         if (active.Count == 0 && lines.All(line => !IsPresetKey(line, "Techniques")))
         {
@@ -622,6 +623,166 @@ public sealed class PresetAnalyzer
         }
 
         return warnings.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static IReadOnlyList<string> FindFirstPartyStackOrderWarnings(IReadOnlyList<PresetTechnique> active, IReadOnlyList<string> lines)
+    {
+        var warnings = new List<string>();
+        var order = BuildTechniqueOrder(lines);
+        var adaptiveGrade = FindActiveShader(active, "Dalashade_AdaptiveGrade");
+        var sceneGI = FindActiveShader(active, "Dalashade_SceneGI");
+        var surfaceReflection = FindActiveShader(active, "Dalashade_SurfaceReflection");
+        var materialDebug = FindActiveShader(active, "Dalashade_MaterialDebug");
+
+        if (sceneGI is not null && adaptiveGrade is not null && IsBefore(order, sceneGI, adaptiveGrade))
+        {
+            warnings.Add("Dalashade_SceneGI is active before Dalashade_AdaptiveGrade. Recommended order places AdaptiveGrade before SceneGI so GI works from the graded scene.");
+        }
+
+        if (surfaceReflection is not null && sceneGI is not null && IsBefore(order, surfaceReflection, sceneGI))
+        {
+            warnings.Add("Dalashade_SurfaceReflection is active before Dalashade_SceneGI. Recommended order places SceneGI before SurfaceReflection so reflection/glint response can sit on top of indirect lighting.");
+        }
+
+        if (materialDebug is not null)
+        {
+            var productionAfterDebug = active
+                .Where(IsDalashadeProductionShader)
+                .Any(technique => IsBefore(order, materialDebug, technique));
+            if (productionAfterDebug)
+            {
+                warnings.Add("Dalashade_MaterialDebug is active before production shaders. Put MaterialDebug last or near-last while debugging so it visualizes the final shared material masks.");
+            }
+        }
+
+        var firstGiOrReflection = MinKnownOrder(order, sceneGI, surfaceReflection);
+        if (firstGiOrReflection.HasValue)
+        {
+            var earlySharpeners = active
+                .Where(technique => technique.Role == EffectRole.Sharpen)
+                .Where(technique => TryGetTechniqueOrder(order, technique, out var sharpenOrder) && sharpenOrder < firstGiOrReflection.Value)
+                .Select(FormatTechnique)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (earlySharpeners.Length > 0)
+            {
+                warnings.Add($"Sharpening runs before SceneGI/SurfaceReflection: {string.Join(", ", earlySharpeners.Take(4))}. Recommended order keeps sharpeners after GI, reflection, bloom, and weather passes.");
+            }
+        }
+
+        var activeSharpeners = active.Where(technique => technique.Role == EffectRole.Sharpen).ToArray();
+        if (activeSharpeners.Length > 2)
+        {
+            warnings.Add($"Preset has {activeSharpeners.Length} active sharpeners. Too many sharpeners can create halos, foliage shimmer, and specular crunch.");
+        }
+
+        if (surfaceReflection is not null
+            && (!SectionContainsKey(lines, surfaceReflection.Section, "Dalashade_MaterialWaterPlane")
+                || !SectionContainsKey(lines, surfaceReflection.Section, "Dalashade_MaterialSpecularGlint")))
+        {
+            warnings.Add("Dalashade_SurfaceReflection is active but WaterPlane or SpecularGlint material uniforms are missing from its section. Broad water sheen and thin glint behavior may collapse back to conservative defaults.");
+        }
+
+        if (sceneGI is not null)
+        {
+            warnings.Add("Dalashade_SceneGI is active; preset analysis cannot confirm ReShade depth-buffer support. Verify depth in-game if AO, bounce, or depth-normal confidence debug views look flat.");
+        }
+
+        return warnings;
+    }
+
+    private static IReadOnlyDictionary<string, int> BuildTechniqueOrder(IReadOnlyList<string> lines)
+    {
+        var entries = ParseTechniqueEntries(lines, "TechniqueSorting");
+        if (entries.Count == 0)
+        {
+            entries = ParseTechniqueEntries(lines, "Techniques");
+        }
+
+        var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < entries.Count; index++)
+        {
+            foreach (var key in GetTechniqueKeys(entries[index]))
+            {
+                order.TryAdd(key, index);
+            }
+        }
+
+        return order;
+    }
+
+    private static PresetTechnique? FindActiveShader(IReadOnlyList<PresetTechnique> active, string shaderKey)
+    {
+        return active.FirstOrDefault(technique => ContainsTechniqueText(technique, shaderKey));
+    }
+
+    private static bool IsDalashadeProductionShader(PresetTechnique technique)
+    {
+        return ContainsTechniqueText(
+            technique,
+            "Dalashade_AdaptiveGrade",
+            "Dalashade_SceneGI",
+            "Dalashade_SurfaceReflection",
+            "Dalashade_AtmosphereBloom",
+            "Dalashade_WeatherAtmosphere",
+            "Dalashade_SmartSharpen");
+    }
+
+    private static bool ContainsTechniqueText(PresetTechnique technique, params string[] needles)
+    {
+        var text = $"{technique.TechniqueName} {technique.ShaderFile} {technique.Section}";
+        return needles.Any(needle => text.Contains(needle, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsBefore(IReadOnlyDictionary<string, int> order, PresetTechnique first, PresetTechnique second)
+    {
+        return TryGetTechniqueOrder(order, first, out var firstOrder)
+               && TryGetTechniqueOrder(order, second, out var secondOrder)
+               && firstOrder < secondOrder;
+    }
+
+    private static int? MinKnownOrder(IReadOnlyDictionary<string, int> order, params PresetTechnique?[] techniques)
+    {
+        var values = techniques
+            .Where(technique => technique is not null)
+            .Select(technique => TryGetTechniqueOrder(order, technique!, out var value) ? value : (int?)null)
+            .Where(value => value.HasValue)
+            .Select(value => value!.Value)
+            .ToArray();
+
+        return values.Length == 0 ? null : values.Min();
+    }
+
+    private static bool TryGetTechniqueOrder(IReadOnlyDictionary<string, int> order, PresetTechnique technique, out int value)
+    {
+        return order.TryGetValue($"{technique.TechniqueName}@{technique.ShaderFile}", out value)
+               || order.TryGetValue(technique.TechniqueName, out value)
+               || order.TryGetValue(technique.ShaderFile, out value)
+               || order.TryGetValue(technique.Section, out value);
+    }
+
+    private static bool SectionContainsKey(IReadOnlyList<string> lines, string sectionName, string keyName)
+    {
+        var inSection = false;
+        foreach (var line in lines)
+        {
+            if (TryReadSection(line, out var section))
+            {
+                inSection = section.Equals(sectionName, StringComparison.OrdinalIgnoreCase)
+                            || section.Contains(sectionName, StringComparison.OrdinalIgnoreCase)
+                            || sectionName.Contains(section, StringComparison.OrdinalIgnoreCase);
+                continue;
+            }
+
+            if (!inSection || !IsPresetKey(line, keyName, out _))
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     private static PresetRiskLevel ScoreRiskLevel(
