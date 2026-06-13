@@ -105,6 +105,19 @@ public static class MaterialProfileBuilder
             return;
         }
 
+        if (state.HasBiome("ancient") || state.ContainsAny("allagan", "azys lla", "amaurot", "ruin", "temple"))
+        {
+            state.SetFamily("ancient/ruins");
+            state.AddTag("ruinsMixedWithFoliage");
+            state.Add(MaterialIntent.StoneRuinsChannel, 0.30f * state.ConfidenceScale, "territory profile", "Ancient, Allagan, ruin, or temple scenes raise stone/ruin plausibility.");
+            state.Add(MaterialIntent.MetalIndustrialChannel, state.HasAny("allagan", "structured", "metallic") || state.ContainsAny("allagan", "azys lla") ? 0.14f : 0.04f, "territory profile", "Allagan/ancient structure can include metal or constructed hard-surface plausibility.");
+            state.Add(MaterialIntent.CrystalAetherChannel, state.HasAny("aetherial", "crystal", "luminous") ? 0.14f : 0.06f, "territory profile", "Ancient and Allagan scenes can include restrained aetherial plausibility.");
+            state.Add(MaterialIntent.FoliageChannel, state.HasAny("jungle", "forest", "lush", "verdant") ? 0.08f : -0.08f, "territory profile", "Ancient ruins suppress foliage unless explicit forest/jungle tags are present.");
+            state.Add(MaterialIntent.SnowIceChannel, -0.08f, "territory profile", "Ancient/ruin identity does not imply snow unless cold tags are explicit.");
+            state.Add(MaterialIntent.SandDustChannel, -0.06f, "territory profile", "Ancient/ruin identity keeps mundane sand/dust conservative unless desert tags are explicit.");
+            return;
+        }
+
         if (state.HasBiome("cosmic") || state.HasBiome("lunar") || state.HasBiome("fae") || state.HasBiome("aetherial") || state.ContainsAny("ultima thule", "elpis", "il mheg", "mare lamentorum"))
         {
             state.SetFamily("aetherial/cosmic");

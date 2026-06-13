@@ -103,6 +103,10 @@ Material diagnostics are split into plugin-side scene plausibility and shader-si
 | MaterialMasks v2 notes | Debug vocabulary for `RawCandidate`, `SceneGatedCandidate`, `FinalMask`, optional depth assist, and likely failure sources. |
 | First-party custom shader status | Whether WeatherAtmosphere, AdaptiveGrade, AtmosphereBloom, SmartSharpen, and MaterialDebug appear active, inactive, unknown, or absent in preset analysis. |
 
+Custom shader variable diagnostics separate three ownership classes. SceneIntent variables are Dalashade-controlled when custom shader support is enabled. MaterialIntent channel uniforms are Dalashade-controlled only when MaterialIntent shader mapping is enabled and section-scoped keys exist. Shader-owned controls, including depth assist and debug UI controls, may be known or injected with safe defaults but are not actively written by Dalashade.
+
+Depth assist remains disabled by default. It can help material masks when ReShade depth is valid, but DLSS/upscaling, dynamic resolution, game depth restrictions, or UI/depth mismatches may make it unreliable. Reported depth confidence means usable signal confidence for mask heuristics, not guaranteed correct game depth.
+
 Material calibration failures should be traced in this order: scene profile plausibility, MaterialIntent strength/gating, raw pixel heuristic, final conflict suppression, optional depth assist, then production shader behavior. The master `Dalashade_MaterialDebug.fx` answers what Dalashade thinks a pixel might be; each production shader's local debug mode answers why that shader is affecting or suppressing the pixel.
 
 Regression reports scan a folder of `.ini` presets and write timestamped markdown summaries. They do not require ReShade to be running and should not overwrite user presets.

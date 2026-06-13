@@ -190,6 +190,19 @@ public sealed class CustomShaderVariableMapper
                && MaterialVariables.ContainsKey(key);
     }
 
+    public static bool IsKnownSceneIntentVariable(string key)
+    {
+        return !string.IsNullOrWhiteSpace(key)
+               && Variables.ContainsKey(key);
+    }
+
+    public static bool IsKnownShaderOwnedVariable(string key)
+    {
+        return !string.IsNullOrWhiteSpace(key)
+               && (ShaderOwnedVariables.Contains(key)
+                   || SmartSharpenAuthority.WritableVariables.Contains(key, StringComparer.OrdinalIgnoreCase));
+    }
+
     private static float Clamp01(float value) => MathF.Min(1f, MathF.Max(0f, value));
 
     private static float MaterialOutput(string key, float value, Configuration configuration)

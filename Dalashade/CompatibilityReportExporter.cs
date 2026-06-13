@@ -13,6 +13,8 @@ public sealed record CompatibilityReportExportResult(bool Success, string Messag
 
 public sealed class CompatibilityReportExporter
 {
+    public const string MaterialIntentDiagnosticsTableHeader = "| Channel | Profile prior | Non-profile evidence | Final value | Top suppressions |";
+
     public CompatibilityReportExportResult Export(
         Configuration configuration,
         PresetAnalysisResult analysis,
@@ -122,6 +124,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Generated-preset injected techniques: {FormatInlineList(writeResult.CustomShaderInjection.Techniques)}");
         builder.AppendLine($"- Base preset custom shader section present: {(diagnostics.SectionFound ? "yes" : "no")}");
         builder.AppendLine($"- Base preset known custom variables found: {(diagnostics.KnownVariablesFound ? "yes" : "no")}");
+        builder.AppendLine($"- Known variable classes detected: {FormatCustomShaderVariableClasses(diagnostics.KnownVariables.Select(variable => variable.Key))}");
         builder.AppendLine($"- SceneIntent values written into generated preset: {(diagnostics.ValuesWritten ? "yes" : "no")}");
         builder.AppendLine($"- Variables detected but unchanged: {(diagnostics.VariablesDetectedButUnchanged ? "yes" : "no")}");
         builder.AppendLine($"- SmartSharpen authority: {diagnostics.SmartSharpenAuthority.Level.ToString().ToLowerInvariant()} ({diagnostics.SmartSharpenAuthority.ShaderValue:0})");
@@ -132,6 +135,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Material debug technique activation: {(materialDebugTechnique is null ? "absent" : PresetAnalyzer.FormatActivationState(materialDebugTechnique.ActivationState))}");
         builder.AppendLine("- Material debug controls: shader-owned in ReShade UI; Dalashade does not write debug mode, overlay mode, opacity, or strength.");
         builder.AppendLine($"- First-party custom shader status: {FormatFirstPartyCustomShaderStatus(analysis)}");
+        builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, and shader-owned controls are recognized/injected but not actively written by Dalashade.");
         builder.AppendLine("- Manual shader install/activation: Dalashade does not copy `.fx` files into ReShade or enable techniques. Install needed Dalashade `.fx` files in a ReShade shader search folder separately, then enable wanted custom shader techniques in ReShade.");
         builder.AppendLine("- Variable writes require matching Dalashade custom shader section/key lines in generated preset content. Those lines can come from the base preset or from generated-preset-only injection.");
         builder.AppendLine("- Static bridge status:");
@@ -246,7 +250,7 @@ public sealed class CompatibilityReportExporter
         }
 
         builder.AppendLine();
-        builder.AppendLine("| Channel | Profile prior | Non-profile evidence | Final value | Top suppressions |");
+        builder.AppendLine(MaterialIntentDiagnosticsTableHeader);
         builder.AppendLine("| --- | --- | --- | --- | --- |");
 
         foreach (var channel in MaterialIntent.ChannelNames)
@@ -307,6 +311,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine();
         builder.AppendLine("- Shader-side mask vocabulary: `RawCandidate` is local pixel evidence, `SceneGatedCandidate` is raw evidence scaled by MaterialProfile/MaterialIntent plausibility, and `FinalMask` is the conflict-resolved mask used by a production shader.");
         builder.AppendLine("- Depth assist: optional, shader-owned, and disabled by default. It can improve sky/water/snow/foreground separation only when the ReShade depth buffer is valid; color, texture, smoothness, screen-region, and scene gates still work without depth.");
+        builder.AppendLine("- Depth confidence means usable signal confidence for material-mask heuristics, not guaranteed correct FFXIV engine depth. DLSS/upscaling, dynamic resolution, depth-buffer restrictions, or UI/depth mismatches can make depth unreliable.");
         builder.AppendLine($"- Sections receiving MaterialIntent uniforms: {FormatMaterialUniformSections(writtenUniforms)}");
         builder.AppendLine($"- Shader-owned depth-assist controls injected: {FormatInjectedDepthAssistVariables(writeResult)}");
         builder.AppendLine("- First-party shader material responsibilities: SmartSharpen suppresses unsafe sharpening, AtmosphereBloom gates local glow, WeatherAtmosphere shapes air/haze, AdaptiveGrade applies subtle material protection, and MaterialDebug visualizes masks only when manually enabled.");
@@ -796,6 +801,24 @@ public sealed class CompatibilityReportExporter
         };
 
         return string.Join("; ", statuses);
+    }
+
+    private static string FormatCustomShaderVariableClasses(IEnumerable<string> keys)
+    {
+        var uniqueKeys = keys
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (uniqueKeys.Length == 0)
+        {
+            return "none";
+        }
+
+        var sceneIntent = uniqueKeys.Count(CustomShaderVariableMapper.IsKnownSceneIntentVariable);
+        var materialIntent = uniqueKeys.Count(CustomShaderVariableMapper.IsKnownMaterialIntentVariable);
+        var shaderOwned = uniqueKeys.Count(CustomShaderVariableMapper.IsKnownShaderOwnedVariable);
+        var otherKnown = uniqueKeys.Length - sceneIntent - materialIntent - shaderOwned;
+        return $"SceneIntent={sceneIntent}, MaterialIntent={materialIntent}, shader-owned={shaderOwned}, other-known={Math.Max(0, otherKnown)}";
     }
 
     private static string FormatFirstPartyShaderStatus(PresetAnalysisResult analysis, string label, string shaderKey)
