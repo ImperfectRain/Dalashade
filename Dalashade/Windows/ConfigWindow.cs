@@ -232,6 +232,12 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.DalashadeSceneGIDebugMode = sceneGIDebugMode;
             configuration.Save();
         }
+        var sceneGIDebugOutputMode = configuration.DalashadeSceneGIDebugOutputMode;
+        if (ImGui.SliderInt("SceneGI debug output mode", ref sceneGIDebugOutputMode, 0, 4))
+        {
+            configuration.DalashadeSceneGIDebugOutputMode = sceneGIDebugOutputMode;
+            configuration.Save();
+        }
         DrawFloatSlider("SceneGI debug opacity", configuration.DalashadeSceneGIDebugOpacity, 0f, 1f, value => configuration.DalashadeSceneGIDebugOpacity = value);
         ImGui.TextWrapped("SceneGI variable writes require Dalashade custom shader variables and matching generated preset keys. The SceneGI technique is never auto-enabled; enable it manually in ReShade after installing the .fx file.");
     }

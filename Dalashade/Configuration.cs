@@ -108,6 +108,7 @@ public class Configuration : IPluginConfiguration
     public float DalashadeSceneGINightLightStrength { get; set; } = 0.30f;
     public float DalashadeSceneGIMaterialInfluence { get; set; } = 0.50f;
     public int DalashadeSceneGIDebugMode { get; set; } = 0;
+    public int DalashadeSceneGIDebugOutputMode { get; set; } = 0;
     public float DalashadeSceneGIDebugOpacity { get; set; } = 0.75f;
     public bool EnableMaterialIntent { get; set; } = false;
     public bool EnableMaterialIntentDiagnostics { get; set; } = true;

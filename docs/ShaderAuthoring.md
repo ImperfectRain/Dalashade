@@ -303,11 +303,12 @@ Dalashade-driven controls:
 | `Dalashade_GISkyReject` | Suppresses AO/bounce/light pooling on sky, fog, and broad atmosphere. Default `1.0`. |
 | `Dalashade_GISkinProtect` | Suppresses tinting and dirty AO on likely skin/character regions. Default `1.0`. |
 | `Dalashade_GIDebugMode` | Integer enum: `0` normal, `1` AO, `2` bounce, `3` night light pooling, `4` material influence, `5` sky rejection, `6` skin protection, `7` final GI influence, `8` depth-normal confidence. Dalashade writes it as `0` through `8`, not as a normalized float. |
+| `Dalashade_GIDebugOutputMode` | Integer enum: `0` full replacement diagnostic, `1` alpha overlay over original scene, `2` side-by-side split, `3` contribution over black, `4` amplified difference view. Default `0` makes debug modes true diagnostic masks. |
 | `Dalashade_GIDebugOpacity` | Debug overlay opacity. Default `0.75`. |
 | `Dalashade_Intent*` aliases | SceneIntent inputs for readability, atmosphere, highlight/shadow protection, haze, weather, glow, foliage density, industrial/cosmic mood, combat pressure, and cinematic permission. |
 | `Dalashade_Material*` channels | Section-scoped MaterialIntent inputs for foliage, water plane, specular glints, sand/dust, snow/ice, stone/ruins, metal/industrial, crystal/aether, neon/glass, fire/heat, sky/fog, skin protection, and void/darkness. |
 
-SceneGI uses only cheap local screen-space samples. Contact AO is reduced on sky/fog, skin, broad water, snow, bright sand, and combat-heavy scenes. Bounce is restrained to shadows and midtones and uses material masks for subtle foliage, sand, snow, water, fire, aether, neon, and industrial color response. Night light pooling looks for localized bright/emissive candidates instead of globally lifting dark scenes.
+SceneGI uses only cheap local screen-space samples. Contact AO is reduced on sky/fog, skin, broad water, snow, bright sand, and combat-heavy scenes. Bounce is restrained to shadows and midtones and uses material masks for subtle foliage, sand, snow, water, fire, aether, neon, and industrial color response. Night light pooling looks for localized bright/emissive candidates instead of globally lifting dark scenes. Debug output mode `0` returns replacement diagnostics instead of tinting the beautified scene, so AO, bounce, night light, material, sky rejection, skin protection, final influence, and depth-normal confidence can be inspected clearly.
 
 Normal gameplay output is unchanged unless the `Dalashade_SceneGI` technique is manually enabled in ReShade. Generated-preset injection may add the section and variables, but Dalashade does not append the technique to `Techniques=`.
 
@@ -652,6 +653,7 @@ Dalashade_GIMaterialInfluence=0.500000
 Dalashade_GISkyReject=1.000000
 Dalashade_GISkinProtect=1.000000
 Dalashade_GIDebugMode=0
+Dalashade_GIDebugOutputMode=0
 Dalashade_GIDebugOpacity=0.750000
 Dalashade_IntentReadability=0.000000
 Dalashade_IntentAtmosphere=0.000000

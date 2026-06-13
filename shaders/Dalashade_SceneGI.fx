@@ -71,6 +71,12 @@ uniform int Dalashade_GIDebugMode <
     ui_label = "Dalashade GI Debug Mode";
 > = 0;
 
+uniform int Dalashade_GIDebugOutputMode <
+    ui_type = "combo";
+    ui_items = "Full replacement\0Alpha overlay over original\0Side-by-side split\0Contribution over black\0Amplified difference\0";
+    ui_label = "Dalashade GI Debug Output Mode";
+> = 0;
+
 uniform float Dalashade_GIDebugOpacity <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -156,6 +162,36 @@ float3 Dalashade_SceneGINeighborAverage(float2 uv, float radius)
     c += tex2D(ReShade::BackBuffer, uv + float2(0.0, texel.y)).rgb;
     c += tex2D(ReShade::BackBuffer, uv - float2(0.0, texel.y)).rgb;
     return c * 0.25;
+}
+
+float3 Dalashade_SceneGIDebugOutput(float2 texcoord, float3 originalColor, float3 resultColor, float3 debugColor, float debugMask)
+{
+    float opacity = saturate(Dalashade_GIDebugOpacity);
+    int outputMode = Dalashade_GIDebugOutputMode;
+    float3 cleanDebug = saturate(debugColor);
+
+    if (outputMode == 1)
+    {
+        return lerp(originalColor, cleanDebug, saturate(debugMask * opacity));
+    }
+
+    if (outputMode == 2)
+    {
+        float split = step(texcoord.x, 0.5);
+        return lerp(originalColor, cleanDebug, split);
+    }
+
+    if (outputMode == 3)
+    {
+        return saturate(cleanDebug * max(opacity, 0.001));
+    }
+
+    if (outputMode == 4)
+    {
+        return saturate(abs(resultColor - originalColor) * 8.0 + cleanDebug * 0.20);
+    }
+
+    return cleanDebug;
 }
 
 float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXCOORD) : SV_Target
@@ -256,42 +292,48 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     int mode = Dalashade_GIDebugMode;
     if (mode > 0)
     {
-        float opacity = saturate(Dalashade_GIDebugOpacity);
         float3 debugColor = float3(0.0, 0.0, 0.0);
-        float debugMask = 1.0;
+        float debugMask = finalInfluence;
         if (mode == 1)
         {
-            debugColor = ao.xxx;
+            float aoMask = saturate(ao * 4.0);
+            debugColor = aoMask.xxx;
             debugMask = ao;
         }
         else if (mode == 2)
         {
-            debugColor = saturate(bounce * 5.0);
+            float3 bounceContribution = saturate(bounce * 8.0);
+            debugColor = bounceContribution;
             debugMask = saturate(Dalashade_SceneGILuma(debugColor));
         }
         else if (mode == 3)
         {
-            debugColor = nightPool.xxx * nightTint;
+            float nightLightMask = saturate(nightPool * 3.0);
+            debugColor = nightLightMask.xxx * nightTint;
             debugMask = nightPool;
         }
         else if (mode == 4)
         {
-            debugColor = Dalashade_GetMaterialOverviewColor(material);
+            float materialInfluenceMask = materialInfluence;
+            debugColor = lerp(materialInfluenceMask.xxx, Dalashade_GetMaterialOverviewColor(material), 0.72);
             debugMask = material.CombinedConfidence;
         }
         else if (mode == 5)
         {
-            debugColor = float3(skyReject, material.SkyCloudFog, 1.0 - skyReject);
+            float skyRejectMask = skyReject;
+            debugColor = float3(0.10 * skyRejectMask, 0.42 * skyRejectMask, skyRejectMask);
             debugMask = saturate(max(skyReject, material.SkyCloudFog));
         }
         else if (mode == 6)
         {
-            debugColor = float3(skinProtect, 0.42 * skinProtect, 1.0 - skinProtect);
+            float skinProtectMask = skinProtect;
+            debugColor = float3(skinProtectMask, 0.58 * skinProtectMask, 0.42 * skinProtectMask);
             debugMask = skinProtect;
         }
         else if (mode == 7)
         {
-            debugColor = float3(ao, Dalashade_SceneGILuma(bounce) * 4.0, nightPool);
+            float3 contribution = saturate(abs(result - color) * 8.0);
+            debugColor = max(contribution, float3(ao, Dalashade_SceneGILuma(bounce) * 4.0, nightPool));
             debugMask = finalInfluence;
         }
         else if (mode == 8)
@@ -300,7 +342,7 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
             debugMask = max(normalConfidence, 0.35);
         }
 
-        return float4(lerp(color, saturate(debugColor), saturate(debugMask * opacity)), 1.0);
+        return float4(Dalashade_SceneGIDebugOutput(texcoord, color, result, debugColor, debugMask), 1.0);
     }
 
     return float4(result, 1.0);

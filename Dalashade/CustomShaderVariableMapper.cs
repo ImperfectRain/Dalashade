@@ -65,6 +65,7 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_GISkyReject"] = _ => 1.0f,
             ["Dalashade_GISkinProtect"] = _ => 1.0f,
             ["Dalashade_GIDebugMode"] = configuration => configuration.DalashadeSceneGIDebugMode,
+            ["Dalashade_GIDebugOutputMode"] = configuration => configuration.DalashadeSceneGIDebugOutputMode,
             ["Dalashade_GIDebugOpacity"] = configuration => configuration.DalashadeSceneGIDebugOpacity
         };
 
@@ -291,6 +292,13 @@ public sealed class CustomShaderVariableMapper
             var rounded = (int)MathF.Round(value);
             var clamped = Math.Min(8, Math.Max(0, rounded));
             return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 8);
+        }
+
+        if (string.Equals(key, "Dalashade_GIDebugOutputMode", StringComparison.OrdinalIgnoreCase))
+        {
+            var rounded = (int)MathF.Round(value);
+            var clamped = Math.Min(4, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 4);
         }
 
         if (string.Equals(key, "Dalashade_GIEnabled", StringComparison.OrdinalIgnoreCase))

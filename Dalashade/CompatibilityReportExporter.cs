@@ -137,6 +137,8 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- SceneGI generated variable writes: {(configuration.EnableDalashadeSceneGIShaderVariables ? "enabled" : "disabled")}. Technique activation remains manual in ReShade.");
         var sceneGIDebugWriteLabel = configuration.EnableDalashadeSceneGIShaderVariables ? "written" : "configured";
         builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 8)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
+        builder.AppendLine($"- SceneGI debug output mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugOutputMode, 0, 4)} ({FormatSceneGIDebugOutputMode(configuration.DalashadeSceneGIDebugOutputMode)}).");
+        builder.AppendLine($"- SceneGI debug opacity {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugOpacity, 0f, 1f):0.###}.");
         builder.AppendLine("- Material debug controls: shader-owned in ReShade UI; Dalashade does not write debug mode, overlay mode, opacity, or strength.");
         builder.AppendLine($"- First-party custom shader status: {FormatFirstPartyCustomShaderStatus(analysis)}");
         builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, and shader-owned controls are recognized/injected but not actively written by Dalashade.");
@@ -801,6 +803,19 @@ public sealed class CompatibilityReportExporter
             6 => "Skin protection",
             7 => "Final GI influence",
             8 => "Depth-normal confidence",
+            _ => "Unknown"
+        };
+    }
+
+    private static string FormatSceneGIDebugOutputMode(int mode)
+    {
+        return ClampInt(mode, 0, 4) switch
+        {
+            0 => "Full replacement diagnostic",
+            1 => "Alpha overlay over original scene",
+            2 => "Side-by-side split",
+            3 => "Contribution over black",
+            4 => "Amplified difference view",
             _ => "Unknown"
         };
     }
