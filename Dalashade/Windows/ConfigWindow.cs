@@ -227,7 +227,7 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawFloatSlider("SceneGI night light strength", configuration.DalashadeSceneGINightLightStrength, 0f, 1f, value => configuration.DalashadeSceneGINightLightStrength = value);
         DrawFloatSlider("SceneGI material influence", configuration.DalashadeSceneGIMaterialInfluence, 0f, 1f, value => configuration.DalashadeSceneGIMaterialInfluence = value);
         var sceneGIDebugMode = configuration.DalashadeSceneGIDebugMode;
-        if (ImGui.SliderInt("SceneGI debug mode", ref sceneGIDebugMode, 0, 8))
+        if (ImGui.SliderInt("SceneGI debug mode", ref sceneGIDebugMode, 0, 12))
         {
             configuration.DalashadeSceneGIDebugMode = sceneGIDebugMode;
             configuration.Save();
@@ -239,6 +239,7 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.Save();
         }
         DrawFloatSlider("SceneGI debug opacity", configuration.DalashadeSceneGIDebugOpacity, 0f, 1f, value => configuration.DalashadeSceneGIDebugOpacity = value);
+        DrawFloatSlider("SceneGI debug boost", configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f, value => configuration.DalashadeSceneGIDebugBoost = value);
         ImGui.TextWrapped("SceneGI variable writes require Dalashade custom shader variables and matching generated preset keys. The SceneGI technique is never auto-enabled; enable it manually in ReShade after installing the .fx file.");
     }
 

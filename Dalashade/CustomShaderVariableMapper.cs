@@ -66,7 +66,8 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_GISkinProtect"] = _ => 1.0f,
             ["Dalashade_GIDebugMode"] = configuration => configuration.DalashadeSceneGIDebugMode,
             ["Dalashade_GIDebugOutputMode"] = configuration => configuration.DalashadeSceneGIDebugOutputMode,
-            ["Dalashade_GIDebugOpacity"] = configuration => configuration.DalashadeSceneGIDebugOpacity
+            ["Dalashade_GIDebugOpacity"] = configuration => configuration.DalashadeSceneGIDebugOpacity,
+            ["Dalashade_GIDebugBoost"] = configuration => configuration.DalashadeSceneGIDebugBoost
         };
 
     private static readonly IReadOnlyDictionary<string, Func<MaterialIntent, Configuration, float>> MaterialVariables =
@@ -290,8 +291,8 @@ public sealed class CustomShaderVariableMapper
         if (string.Equals(key, "Dalashade_GIDebugMode", StringComparison.OrdinalIgnoreCase))
         {
             var rounded = (int)MathF.Round(value);
-            var clamped = Math.Min(8, Math.Max(0, rounded));
-            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 8);
+            var clamped = Math.Min(12, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 12);
         }
 
         if (string.Equals(key, "Dalashade_GIDebugOutputMode", StringComparison.OrdinalIgnoreCase))
@@ -317,6 +318,12 @@ public sealed class CustomShaderVariableMapper
         {
             var clamped = MathF.Min(8f, MathF.Max(0f, value));
             return new ShaderAdjustmentResult(Format(clamped), value < 0f, value > 8f);
+        }
+
+        if (string.Equals(key, "Dalashade_GIDebugBoost", StringComparison.OrdinalIgnoreCase))
+        {
+            var clamped = MathF.Min(8f, MathF.Max(0.25f, value));
+            return new ShaderAdjustmentResult(Format(clamped), value < 0.25f, value > 8f);
         }
 
         return new ShaderAdjustmentResult(Format(value), false, false);

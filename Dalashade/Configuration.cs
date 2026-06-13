@@ -110,6 +110,7 @@ public class Configuration : IPluginConfiguration
     public int DalashadeSceneGIDebugMode { get; set; } = 0;
     public int DalashadeSceneGIDebugOutputMode { get; set; } = 0;
     public float DalashadeSceneGIDebugOpacity { get; set; } = 0.75f;
+    public float DalashadeSceneGIDebugBoost { get; set; } = 2.50f;
     public bool EnableMaterialIntent { get; set; } = false;
     public bool EnableMaterialIntentDiagnostics { get; set; } = true;
     public bool EnableMaterialIntentShaderMapping { get; set; } = false;

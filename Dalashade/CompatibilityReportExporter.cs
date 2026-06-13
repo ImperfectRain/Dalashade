@@ -136,12 +136,13 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("- Split water/specular debug support: available when `Dalashade_MaterialDebug.fx` and `Dalashade_MaterialMasks.fxh` are installed. `WaterPlane` and `SpecularGlint` are shader-side heuristic masks derived from the existing WaterSpecular scene likelihood.");
         builder.AppendLine($"- SceneGI generated variable writes: {(configuration.EnableDalashadeSceneGIShaderVariables ? "enabled" : "disabled")}. Technique activation remains manual in ReShade.");
         var sceneGIDebugWriteLabel = configuration.EnableDalashadeSceneGIShaderVariables ? "written" : "configured";
-        builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 8)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
+        builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 12)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
         builder.AppendLine($"- SceneGI debug output mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugOutputMode, 0, 4)} ({FormatSceneGIDebugOutputMode(configuration.DalashadeSceneGIDebugOutputMode)}).");
         builder.AppendLine($"- SceneGI debug opacity {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugOpacity, 0f, 1f):0.###}.");
+        builder.AppendLine($"- SceneGI debug boost {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f):0.###}. Debug boost affects diagnostic masks only, not normal GI output.");
         builder.AppendLine("- Material debug controls: shader-owned in ReShade UI; Dalashade does not write debug mode, overlay mode, opacity, or strength.");
         builder.AppendLine($"- First-party custom shader status: {FormatFirstPartyCustomShaderStatus(analysis)}");
-        builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, and shader-owned controls are recognized/injected but not actively written by Dalashade.");
+        builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, SceneGI debug controls can be written when SceneGI generated variables are enabled, and other shader-owned controls are recognized/injected but not actively written by Dalashade.");
         builder.AppendLine("- Manual shader install/activation: Dalashade does not copy `.fx` files into ReShade or enable techniques. Install needed Dalashade `.fx` files in a ReShade shader search folder separately, then enable wanted custom shader techniques in ReShade.");
         builder.AppendLine("- Variable writes require matching Dalashade custom shader section/key lines in generated preset content. Those lines can come from the base preset or from generated-preset-only injection.");
         builder.AppendLine("- Static bridge status:");
@@ -792,7 +793,7 @@ public sealed class CompatibilityReportExporter
 
     private static string FormatSceneGIDebugMode(int mode)
     {
-        return ClampInt(mode, 0, 8) switch
+        return ClampInt(mode, 0, 12) switch
         {
             0 => "Off / normal output",
             1 => "AO only",
@@ -803,6 +804,10 @@ public sealed class CompatibilityReportExporter
             6 => "Skin protection",
             7 => "Final GI influence",
             8 => "Depth-normal confidence",
+            9 => "Emissive source mask",
+            10 => "Bounce receiver mask",
+            11 => "Adaptive limits / safety clamp",
+            12 => "Layered AO breakdown",
             _ => "Unknown"
         };
     }

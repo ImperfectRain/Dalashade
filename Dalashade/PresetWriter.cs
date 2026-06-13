@@ -281,6 +281,7 @@ public sealed class PresetWriter
                 "Dalashade_GIDebugMode",
                 "Dalashade_GIDebugOutputMode",
                 "Dalashade_GIDebugOpacity",
+                "Dalashade_GIDebugBoost",
                 "Dalashade_IntentReadability",
                 "Dalashade_IntentAtmosphere",
                 "Dalashade_IntentHighlightProtection",
@@ -710,6 +711,7 @@ public sealed class PresetWriter
             "Dalashade_GISkinProtect" => "1.000000",
             "Dalashade_GIDebugOutputMode" => "0",
             "Dalashade_GIDebugOpacity" => "0.750000",
+            "Dalashade_GIDebugBoost" => "2.500000",
             _ => "0.000000"
         };
     }
