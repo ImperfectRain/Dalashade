@@ -296,10 +296,13 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Generated variable writes enabled: {(configuration.EnableDalashadeSurfaceReflectionShaderVariables ? "yes" : "no")}");
         builder.AppendLine($"- Reflection strength {writeLabel}: {Math.Clamp(configuration.DalashadeSurfaceReflectionStrength, 0f, 1f):0.###}");
         builder.AppendLine($"- Water sheen strength {writeLabel}: {Math.Clamp(configuration.DalashadeSurfaceReflectionWaterSheenStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- Water reflection strength {writeLabel}: 0.45");
         builder.AppendLine($"- Specular glint strength {writeLabel}: {Math.Clamp(configuration.DalashadeSurfaceReflectionSpecularGlintStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- Specular reflection strength {writeLabel}: 0.30");
         builder.AppendLine($"- Wet reflection strength {writeLabel}: {Math.Clamp(configuration.DalashadeSurfaceReflectionWetStrength, 0f, 1f):0.###}");
         builder.AppendLine($"- Aether/neon reflection strength {writeLabel}: {Math.Clamp(configuration.DalashadeSurfaceReflectionAetherNeonStrength, 0f, 1f):0.###}");
-        builder.AppendLine($"- SurfaceReflection debug mode {writeLabel} value: {ClampInt(configuration.DalashadeSurfaceReflectionDebugMode, 0, 8)} ({FormatSurfaceReflectionDebugMode(configuration.DalashadeSurfaceReflectionDebugMode)}).");
+        builder.AppendLine($"- Reflection sample offset {writeLabel}: 0.018");
+        builder.AppendLine($"- SurfaceReflection debug mode {writeLabel} value: {ClampInt(configuration.DalashadeSurfaceReflectionDebugMode, 0, 10)} ({FormatSurfaceReflectionDebugMode(configuration.DalashadeSurfaceReflectionDebugMode)}).");
         builder.AppendLine($"- SurfaceReflection debug output mode {writeLabel} value: 0 ({FormatSurfaceReflectionDebugOutputMode(0)}).");
         builder.AppendLine($"- SurfaceReflection debug opacity {writeLabel} value: {Math.Clamp(configuration.DalashadeSurfaceReflectionDebugOpacity, 0f, 1f):0.###}.");
         builder.AppendLine($"- Dominant MaterialIntent drivers: {FormatDominantMaterialDrivers(configuration, tagStackDiagnostics, currentImage, SurfaceReflectionMaterialNames)}");
@@ -942,7 +945,7 @@ public sealed class CompatibilityReportExporter
 
     private static string FormatSurfaceReflectionDebugMode(int mode)
     {
-        return ClampInt(mode, 0, 8) switch
+        return ClampInt(mode, 0, 10) switch
         {
             0 => "Normal output",
             1 => "WaterPlane sheen mask",
@@ -953,6 +956,8 @@ public sealed class CompatibilityReportExporter
             6 => "Skin protection",
             7 => "Final reflection influence",
             8 => "Contribution over black",
+            9 => "Reflection source mask",
+            10 => "Reflection receiver mask",
             _ => "Unknown"
         };
     }

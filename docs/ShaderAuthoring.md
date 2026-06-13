@@ -355,15 +355,20 @@ Dalashade-driven controls:
 | `Dalashade_SurfaceReflectionEnabled` | Master enable for the pass. Generated section default is `0.0` so injection alone cannot change visuals; technique activation remains manual. |
 | `Dalashade_SurfaceReflectionStrength` | Overall bounded strength for water sheen, wet glints, ice sheen, and emissive reflection impressions. |
 | `Dalashade_WaterSheenStrength` | Broad water-plane sheen strength. Uses `WaterPlane`, not thin `SpecularGlint`, for water surfaces. |
+| `Dalashade_WaterReflectionStrength` | First-stage water-plane reflection-impression strength. Uses cheap vertical screen samples on broad water receivers; this is not SSR. |
 | `Dalashade_WaterSheenRadius` | Small directional sample radius for water/surface sheen impression. This is not SSR tracing. |
 | `Dalashade_SpecularGlintStrength` | Tight highlight/glint shaping for rails, lamps, wet edges, water sparkles, polished metal, and aether edges. |
+| `Dalashade_SpecularReflectionStrength` | Tight reflected-highlight/streak strength for glint sources. It should stay localized and never create broad water reflection alone. |
 | `Dalashade_WetReflectionStrength` | Wet-surface reflection impression for roads, stone, wood, and metal when `Dalashade_Wetness` supports it. |
 | `Dalashade_AetherReflectionStrength` | Cyan/violet/magenta aether reflection impression for crystal or magical scenes. |
 | `Dalashade_NeonReflectionStrength` | Cyan/magenta neon/glass reflection impression for high-tech scenes. |
 | `Dalashade_IceSheenStrength` | Cold crisp sheen for snow/ice scenes without dirtying bright snow. |
 | `Dalashade_SurfaceReflectionSkyReject` | Suppresses water/reflection influence on sky, cloud, fog, and broad atmosphere. |
 | `Dalashade_SurfaceReflectionSkinProtect` | Suppresses glint/tint on likely skin or character-smooth regions. |
-| `Dalashade_SurfaceReflectionDebugMode` | Integer enum: `0` normal, `1` WaterPlane sheen, `2` SpecularGlint, `3` wet reflection, `4` aether/neon reflection, `5` sky rejection, `6` skin protection, `7` final reflection influence, `8` contribution over black. |
+| `Dalashade_ReflectionSampleOffset` | Small screen-space sampling offset for the reflection impression. Default `0.018`; larger values are more obvious but less stable. |
+| `Dalashade_ReflectionSoftness` | Blends nearby taps for softened reflection color. |
+| `Dalashade_ReflectionDepthReject` | Depth-discontinuity rejection strength for cheap reflection samples. |
+| `Dalashade_SurfaceReflectionDebugMode` | Integer enum: `0` normal, `1` WaterPlane sheen, `2` SpecularGlint, `3` wet reflection, `4` aether/neon reflection, `5` sky rejection, `6` skin protection, `7` final reflection influence, `8` contribution over black, `9` reflection source mask, `10` reflection receiver mask. |
 | `Dalashade_SurfaceReflectionDebugOutputMode` | Integer enum: `0` full replacement diagnostic, `1` alpha overlay over original scene, `2` side-by-side split, `3` contribution over black, `4` amplified difference view. Default `0` makes debug modes true diagnostic masks. |
 | `Dalashade_SurfaceReflectionDebugOpacity` | Debug overlay opacity. |
 | `Dalashade_SurfaceReflectionDebugBoost` | Debug-only amplification helper for low and mid-strength masks. |
@@ -381,7 +386,7 @@ Dalashade-driven controls:
 | `Dalashade_MaterialSkyCloudFog` | Rejects sky/fog contamination. |
 | `Dalashade_MaterialSkinProtection` | Protects likely skin/character regions. |
 
-SurfaceReflection intentionally separates `WaterPlane` from `SpecularGlint`. WaterPlane drives broad cyan/teal water or shallow-water sheen, while SpecularGlint drives thin reflective highlights on rails, wet edges, lamps, polished metal, water sparkles, and aether edges. Wetness allows stronger reflection impressions on dark smooth hard surfaces, while CrystalAether, NeonGlass, and FireLavaHeat can create localized cyan/violet/magenta/warm reflection streaks on plausible receiver surfaces. Sand/dust, skin, sky/fog, combat/readability, and highlight protection clamp the effect so it stays a reflection impression rather than global brightness or fake SSR. Debug mode output is routed before normal final blending; output mode `0` is a full replacement mask for tuning.
+SurfaceReflection intentionally separates `WaterPlane` from `SpecularGlint`. WaterPlane drives broad cyan/teal water or shallow-water sheen and receives a cheap vertical screen-space reflection impression. SpecularGlint drives thin reflective highlights on rails, wet edges, lamps, polished metal, water sparkles, and aether edges. Wetness allows stronger reflection impressions on dark smooth hard surfaces, while CrystalAether, NeonGlass, and FireLavaHeat can create localized cyan/violet/magenta/warm reflection streaks on plausible receiver surfaces. Sand/dust, skin, sky/fog, combat/readability, and highlight protection clamp the effect so it stays a reflection impression rather than global brightness or fake SSR. Debug mode output is routed before normal final blending; output mode `0` is a full replacement mask for tuning.
 
 ## Atmosphere Bloom Controls
 
@@ -749,14 +754,19 @@ Dalashade_IntentCinematicPermission=0.000000
 Dalashade_SurfaceReflectionEnabled=0.000000
 Dalashade_SurfaceReflectionStrength=0.320000
 Dalashade_WaterSheenStrength=0.380000
+Dalashade_WaterReflectionStrength=0.450000
 Dalashade_WaterSheenRadius=1.350000
 Dalashade_SpecularGlintStrength=0.320000
+Dalashade_SpecularReflectionStrength=0.300000
 Dalashade_WetReflectionStrength=0.300000
 Dalashade_AetherReflectionStrength=0.360000
 Dalashade_NeonReflectionStrength=0.340000
 Dalashade_IceSheenStrength=0.240000
 Dalashade_SurfaceReflectionSkyReject=1.000000
 Dalashade_SurfaceReflectionSkinProtect=1.000000
+Dalashade_ReflectionSampleOffset=0.018000
+Dalashade_ReflectionSoftness=0.500000
+Dalashade_ReflectionDepthReject=0.650000
 Dalashade_SurfaceReflectionDebugMode=0
 Dalashade_SurfaceReflectionDebugOutputMode=0
 Dalashade_SurfaceReflectionDebugOpacity=0.750000
