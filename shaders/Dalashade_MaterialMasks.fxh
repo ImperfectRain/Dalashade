@@ -873,6 +873,51 @@ float3 Dalashade_GetWaterDebugColor(Dalashade_WaterResolve water)
     return saturate(color);
 }
 
+float3 Dalashade_GetWaterSkyConflictDebugColor(Dalashade_MaterialCompetition competition)
+{
+    float waterWins = saturate(competition.WaterPixelConfidence);
+    float skyWins = saturate(competition.SkyPixelConfidence);
+    float conflict = sqrt(saturate(competition.WaterSkyConflict * (1.0 - max(waterWins, skyWins) * 0.45)));
+
+    return saturate(
+        skyWins * float3(1.0, 0.05, 0.03)
+        + waterWins * float3(0.0, 0.85, 1.0)
+        + conflict * float3(1.0, 0.85, 0.05));
+}
+
+float3 Dalashade_GetWaterPixelConfidenceDebugColor(Dalashade_MaterialCompetition competition)
+{
+    float waterPixel = sqrt(saturate(competition.WaterPixelConfidence));
+    return float3(0.0, 0.90, 1.0) * waterPixel;
+}
+
+float3 Dalashade_GetSkyPixelConfidenceDebugColor(Dalashade_MaterialCompetition competition)
+{
+    float skyPixel = sqrt(saturate(competition.SkyPixelConfidence));
+    return float3(0.18, 0.42, 1.0) * skyPixel;
+}
+
+float3 Dalashade_GetWaterReceiverHorizonDebugColor(Dalashade_MaterialCompetition competition)
+{
+    float receiver = sqrt(saturate(competition.WaterReceiverConfidence));
+    float horizonOnly = sqrt(saturate(competition.HorizonOnlyConfidence));
+    float rejectedSky = sqrt(saturate(competition.SkyPixelConfidence));
+
+    return saturate(
+        receiver * float3(0.0, 0.95, 1.0)
+        + horizonOnly * float3(0.05, 0.20, 1.0)
+        + rejectedSky * float3(0.95, 0.05, 0.02));
+}
+
+float3 Dalashade_GetReceiverSplitDebugColor(Dalashade_MaterialResolve material)
+{
+    return saturate(
+        sqrt(saturate(material.ReflectionReceiverConfidence)) * float3(0.0, 0.82, 1.0)
+        + sqrt(saturate(material.StructureReceiverConfidence)) * float3(0.16, 0.92, 0.24)
+        + sqrt(saturate(material.AOReceiverConfidence)) * float3(0.75, 0.86, 0.32)
+        + sqrt(saturate(material.ReceiverConfidence)) * float3(0.35, 0.35, 0.35) * 0.35);
+}
+
 float3 Dalashade_GetSafetyDebugColor(Dalashade_SafetyResolve safety)
 {
     float3 color = float3(0.0, 0.0, 0.0);

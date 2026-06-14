@@ -544,38 +544,33 @@ float4 Dalashade_MaterialDebugPass(float4 position : SV_Position, float2 texcoor
     }
     else if (mode == 55)
     {
+        // Water/sky decision view: red = sky wins, cyan = water wins, yellow = unresolved conflict.
         confidence = max(competition.WaterSkyConflict, max(competition.WaterPixelConfidence, competition.SkyPixelConfidence));
-        debugColor = saturate(
-            competition.SkyPixelConfidence * float3(1.0, 0.05, 0.03)
-            + competition.WaterPixelConfidence * float3(0.0, 0.85, 1.0)
-            + competition.WaterSkyConflict * float3(0.78, 0.70, 0.08) * (1.0 - max(competition.WaterPixelConfidence, competition.SkyPixelConfidence) * 0.45));
+        debugColor = Dalashade_GetWaterSkyConflictDebugColor(competition);
     }
     else if (mode == 56)
     {
+        // Actual likely water pixels only; source-only horizon evidence is intentionally excluded.
         confidence = competition.WaterPixelConfidence;
-        debugColor = float3(0.0, 0.90, 1.0) * confidence;
+        debugColor = Dalashade_GetWaterPixelConfidenceDebugColor(competition);
     }
     else if (mode == 57)
     {
+        // Actual likely sky/cloud/fog pixels only; this is not the broader raw sky score.
         confidence = competition.SkyPixelConfidence;
-        debugColor = float3(0.18, 0.42, 1.0) * confidence;
+        debugColor = Dalashade_GetSkyPixelConfidenceDebugColor(competition);
     }
     else if (mode == 58)
     {
+        // Separates receiver water from horizon/source-only water and rejected sky.
         confidence = max(competition.WaterReceiverConfidence, max(competition.HorizonOnlyConfidence, competition.SkyPixelConfidence));
-        debugColor = saturate(
-            competition.WaterReceiverConfidence * float3(0.0, 0.90, 1.0)
-            + competition.HorizonOnlyConfidence * float3(0.05, 0.24, 1.0)
-            + competition.SkyPixelConfidence * float3(0.85, 0.04, 0.02));
+        debugColor = Dalashade_GetWaterReceiverHorizonDebugColor(competition);
     }
     else if (mode == 59)
     {
+        // Specialized receiver split: cyan = reflection, green = structure, yellow = AO, faint gray = legacy receiver.
         confidence = max(material.ReflectionReceiverConfidence, max(material.AOReceiverConfidence, max(material.StructureReceiverConfidence, material.ReceiverConfidence * 0.35)));
-        debugColor = saturate(
-            material.StructureReceiverConfidence * float3(0.18, 0.92, 0.24)
-            + material.AOReceiverConfidence * float3(0.70, 0.86, 0.38)
-            + material.ReflectionReceiverConfidence * float3(0.0, 0.82, 1.0)
-            + material.ReceiverConfidence * float3(0.35, 0.35, 0.35) * 0.35);
+        debugColor = Dalashade_GetReceiverSplitDebugColor(material);
     }
 
     return float4(Dalashade_ApplyDebugOverlay(source, saturate(debugColor), confidence), 1.0);
