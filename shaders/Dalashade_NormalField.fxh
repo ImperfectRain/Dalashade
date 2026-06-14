@@ -199,7 +199,6 @@ Dalashade_NormalField Dalashade_ResolveNormalField(
     field.DetailStrength = field.DetailConfidence * saturate(1.0 - field.EdgeDiscontinuity * 0.72);
     field.NormalConfidence = saturate(enabled * (field.DepthConfidence * 0.58 + field.DetailStrength * 0.42));
     float structureReceiverConfidence = saturate(max(material.StructureReceiverConfidence, material.ReceiverConfidence * 0.35));
-    float reflectionReceiverConfidence = saturate(max(material.ReflectionReceiverConfidence, water.WaterReceiver * 0.45));
     float aoReceiverConfidence = saturate(max(material.AOReceiverConfidence, material.ReceiverConfidence * 0.30));
     float normalGroundTerm = smoothstep(0.58, 0.96, field.CombinedNormal.z);
     float normalWallTerm = smoothstep(0.12, 0.62, 1.0 - abs(field.CombinedNormal.z));
@@ -257,7 +256,20 @@ Dalashade_NormalField Dalashade_ResolveNormalField(
     float hardSmoothReceiver = saturate((material.MetalIndustrial * 0.32 + material.StoneRuins * 0.20 + material.SurfaceHardness * 0.30) * smoothness);
     float glintReceiver = saturate(material.SpecularGlint * (0.35 + material.MetalIndustrial * 0.20 + material.SnowIce * 0.12));
     float iceReceiver = saturate(material.SnowIce * smoothness * highlightSafety * 0.24);
-    float reflectionSupport = saturate(reflectionReceiverConfidence * 0.42 + waterReceiver + hardSmoothReceiver + glintReceiver + iceReceiver);
+    float sharedReflectionReceiver = saturate(material.ReflectionReceiverConfidence);
+    float waterSpecificReceiver = saturate(water.WaterReceiver);
+    float reflectionSemanticSupport = saturate(
+        sharedReflectionReceiver * 0.52
+        + waterSpecificReceiver * 0.40
+        + hardSmoothReceiver * 0.14
+        + glintReceiver * 0.10
+        + iceReceiver * 0.08);
+    float reflectionNormalTrust = saturate(
+        0.42
+        + field.NormalConfidence * 0.18
+        + field.OrientationConfidence * 0.12
+        + sharedReflectionReceiver * 0.22
+        + waterSpecificReceiver * 0.22);
 
     float shadingCandidate = saturate(
         field.StructureCandidate * 0.38
@@ -279,13 +291,13 @@ Dalashade_NormalField Dalashade_ResolveNormalField(
         * (1.0 - water.WaterReceiver * waterSuppression * 0.45)
         * (1.0 - safety.HighlightProtect * 0.20));
     field.ReflectionReceiver = saturate(enabled
-        * reflectionSupport
+        * reflectionSemanticSupport
+        * reflectionNormalTrust
         * receiverSafety
         * highlightSafety
-        * (0.32 + field.OrientationConfidence * 0.38 + water.WaterReceiver * 0.30)
         * (1.0 - material.Foliage * 0.35)
         * (1.0 - safety.FoliageNoiseReject * 0.30)
-        * (1.0 - field.EdgeDiscontinuity * 0.45));
+        * (1.0 - field.EdgeDiscontinuity * 0.30));
     float orientationForAO = saturate(
         field.GroundPlaneCandidate * 0.28
         + field.WallPlaneCandidate * 0.18
