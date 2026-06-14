@@ -490,6 +490,14 @@ Dalashade_MaterialCompetition Dalashade_ResolveMaterialCompetition(
         + raw.WaterPlane * 0.28
         + gated.WaterSpecular * 0.12
         + lowTexture * waterRegionBias * 0.18);
+    float strongWaterLocalProof = saturate(
+        gated.WaterPlane * 0.54
+        + raw.WaterPlane * 0.34
+        + gated.WaterSpecular * 0.08
+        + raw.WaterSpecular * 0.06);
+    float waterProofBoost = saturate(
+        strongWaterLocalProof
+        * (0.48 + waterRegionBias * 0.32 + lowTexture * 0.20));
     float skyDominance = saturate(
         skyWins * 0.70
         + competition.SkyScore * skyRegionBias * 0.35
@@ -503,9 +511,9 @@ Dalashade_MaterialCompetition Dalashade_ResolveMaterialCompetition(
     competition.SkyPixelConfidence = saturate(skyWins * (1.0 - waterWins * 0.45));
     competition.WaterPixelConfidence = saturate(
         waterLocalProof
-        * (0.38 + waterWins * 0.62)
-        * (1.0 - skyDominance * 0.72)
-        * (1.0 - horizonBand * competition.WaterSkyConflict * 0.35));
+        * (0.34 + waterWins * 0.54 + waterProofBoost * 0.24)
+        * (1.0 - skyDominance * lerp(0.78, 0.58, waterProofBoost))
+        * (1.0 - horizonBand * competition.WaterSkyConflict * 0.34));
     competition.HorizonOnlyConfidence = saturate(
         horizonEvidence
         * competition.WaterSkyConflict
@@ -514,9 +522,9 @@ Dalashade_MaterialCompetition Dalashade_ResolveMaterialCompetition(
         * (1.0 - raw.SurfaceHardTexture * 0.35));
     competition.WaterReceiverConfidence = saturate(
         competition.WaterPixelConfidence
-        * (0.36 + gated.WaterPlane * 0.34 + lowTexture * 0.30)
-        * (1.0 - competition.SkyPixelConfidence * 0.90)
-        * (1.0 - competition.HorizonOnlyConfidence * 0.82));
+        * (0.30 + gated.WaterPlane * 0.38 + lowTexture * 0.28 + waterProofBoost * 0.24)
+        * (1.0 - competition.SkyPixelConfidence * lerp(0.92, 0.64, waterProofBoost))
+        * (1.0 - competition.HorizonOnlyConfidence * 0.84));
 
     float nonSky = saturate(1.0 - competition.SkyPixelConfidence * 0.90 - gated.SkyCloudFog * 0.45);
     float nonSkin = saturate(1.0 - gated.SkinProtection * 0.85);
