@@ -766,7 +766,7 @@ Preset and plugin config files are included intentionally for debugging. Full Re
             }
 
             var candidate = Path.IsPathRooted(value) ? value : Path.Combine(iniDirectory, value);
-            return Path.GetFullPath(candidate);
+            return TryGetFullPath(candidate);
         }
 
         return null;
@@ -796,37 +796,46 @@ Preset and plugin config files are included intentionally for debugging. Full Re
                 foreach (var rawPath in line[(separatorIndex + 1)..].Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                 {
                     var normalized = rawPath.Trim('"');
-                    var candidate = Path.IsPathRooted(normalized) ? normalized : Path.Combine(iniDirectory, normalized);
-                    if (Directory.Exists(candidate))
+                    if (string.IsNullOrWhiteSpace(normalized))
                     {
-                        yield return Path.GetFullPath(candidate);
+                        continue;
+                    }
+
+                    var candidate = Path.IsPathRooted(normalized) ? normalized : Path.Combine(iniDirectory, normalized);
+                    var fullPath = TryGetFullPath(candidate);
+                    if (!string.IsNullOrWhiteSpace(fullPath) && Directory.Exists(fullPath))
+                    {
+                        yield return fullPath;
                     }
                 }
             }
 
             var defaultShaders = Path.Combine(iniDirectory, "reshade-shaders", "Shaders");
-            if (Directory.Exists(defaultShaders))
+            var fullDefaultShaders = TryGetFullPath(defaultShaders);
+            if (!string.IsNullOrWhiteSpace(fullDefaultShaders) && Directory.Exists(fullDefaultShaders))
             {
-                yield return Path.GetFullPath(defaultShaders);
+                yield return fullDefaultShaders;
             }
         }
     }
 
     private static string? FindReShadeIni(Configuration configuration)
     {
-        if (!string.IsNullOrWhiteSpace(configuration.ReShadeIniPath) && File.Exists(configuration.ReShadeIniPath))
+        var configuredReShadeIni = TryGetFullPath(configuration.ReShadeIniPath);
+        if (!string.IsNullOrWhiteSpace(configuredReShadeIni) && File.Exists(configuredReShadeIni))
         {
-            return Path.GetFullPath(configuration.ReShadeIniPath);
+            return configuredReShadeIni;
         }
 
         foreach (var candidate in new[] { configuration.GeneratedPresetPath, configuration.BasePresetPath })
         {
-            if (string.IsNullOrWhiteSpace(candidate))
+            var fullCandidate = TryGetFullPath(candidate);
+            if (string.IsNullOrWhiteSpace(fullCandidate))
             {
                 continue;
             }
 
-            var directory = File.Exists(candidate) ? Path.GetDirectoryName(Path.GetFullPath(candidate)) : Path.GetDirectoryName(Path.GetFullPath(candidate));
+            var directory = File.Exists(fullCandidate) ? Path.GetDirectoryName(fullCandidate) : Path.GetDirectoryName(fullCandidate);
             while (!string.IsNullOrWhiteSpace(directory))
             {
                 var reShadeIniPath = Path.Combine(directory, "ReShade.ini");
@@ -850,6 +859,23 @@ Preset and plugin config files are included intentionally for debugging. Full Re
         }
 
         return null;
+    }
+
+    private static string? TryGetFullPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
     }
 
     private static string? TryFindGamePath()
