@@ -98,7 +98,7 @@ Explainability fields:
 
 Important semantics:
 
-- `WaterPixelConfidence != WaterReceiver != WaterSource`.
+- `WaterPixelConfidence != WaterReceiver != WaterSource`; the last name means reflection source-color eligibility, not "a water surface pixel."
 - `HorizonOnlyConfidence` is source/context only, not receiver.
 - `SkySource` can provide reflection color context for water, but must not receive reflection.
 - `ReceiverConfidence` is legacy broad compatibility.
@@ -155,8 +155,8 @@ Use specialized receiver fields when available. Use `ReceiverConfidence` only as
 - `FoamOrEdge`: foam/wave/shoreline edge support.
 - `WaterSurface`: broad coherent water-like surface.
 - `WaterReceiver`: water allowed to receive broad reflection.
-- `WaterSource`: water allowed to contribute sampled source color.
-- `SkySource`: sky color allowed as source context.
+- `WaterSource`: water-related reflection source-color eligibility. This can include water, foam, and horizon-like source color, so it is not a receiver mask.
+- `SkySource`: sky color allowed as source context. It is not a receiver mask.
 - `SkyReject`: sky/cloud/fog receiver rejection.
 - `SandReject`: warm dry sand/terrain rejection.
 - `SkinReject`: skin/character rejection.
@@ -166,7 +166,7 @@ Use specialized receiver fields when available. Use `ReceiverConfidence` only as
 - `WaterSkyConflict`: ambiguous water/sky conflict value.
 - `Confidence`: overall water resolve confidence.
 
-Use `WaterReceiver` for receiver masks. Use `WaterSource` and `SkySource` only for sampled color/source context.
+Use `WaterReceiver` for receiver masks. Use `WaterSource` and `SkySource` only for sampled reflection color/source context.
 
 ## Dalashade_SafetyResolve
 
@@ -208,6 +208,6 @@ These modes are diagnostic internals. They are not production material IDs.
 
 - Do not add a separate water detector inside production shaders when `Dalashade_ResolveWater` can be improved.
 - Do not use scene water context as pixel proof.
-- Do not let `WaterSource`, `SkySource`, or `HorizonOnlyConfidence` become receiver masks.
+- Do not let reflection source-color fields such as `WaterSource`, `SkySource`, or `HorizonOnlyConfidence` become receiver masks.
 - Do not make `ReceiverConfidence` the main gate for reflection, AO, or sharpening when specialized fields exist.
 - Do not tune formulas reactively without first checking the competition debug modes.

@@ -57,7 +57,7 @@ NormalField consumes `Dalashade_MaterialResolve`, `Dalashade_WaterResolve`, and 
 - `AOReceiver` leans on `material.AOReceiverConfidence`, `StructureCandidate`, and `GroundPlaneCandidate`.
 - `ShadingReceiver` leans on `StructureCandidate`, `GroundPlaneCandidate`, `material.StructureReceiverConfidence`, and safety gates.
 
-`water.WaterSource` and `water.SkySource` are intentionally excluded from receiver logic. Source/context evidence is not receiver evidence.
+`water.WaterSource` and `water.SkySource` are intentionally excluded from receiver logic. They describe sampled reflection source-color/context eligibility, not where a reflection is allowed to appear.
 
 ## Detail Normal Rules
 
@@ -117,5 +117,5 @@ Recommended integration order:
 - Do not describe NormalField as real game normals.
 - Do not make fallback normals produce semantic receiver masks.
 - Do not use `WallPlaneCandidate` as the main structure signal.
-- Do not use `WaterSource` or `SkySource` as receiver evidence.
+- Do not use reflection source-color fields such as `WaterSource` or `SkySource` as receiver evidence.
 - Do not integrate NormalField into production shaders without debug screenshots across coastal, snow, desert, city, interior, aether, foliage, and combat scenes.

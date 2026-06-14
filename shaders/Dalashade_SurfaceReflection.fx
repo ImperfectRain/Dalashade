@@ -2,9 +2,10 @@
 #include "Dalashade_MaterialMasks.fxh"
 
 // Dalashade SurfaceReflection is a lightweight material-aware reflection
-// impression pass. It is not SSR, RTGI, PTGI, or ray tracing. It shapes water
-// sheen, wet-surface glints, icy sheen, neon/aether streaks, and polished
-// surface highlights from cheap screen-space masks.
+// impression pass. It includes a restrained pseudo-SSR contribution, but it is
+// not full SSR, RTGI, PTGI, or ray tracing. It shapes water sheen, wet-surface
+// glints, icy sheen, neon/aether streaks, and polished surface highlights from
+// cheap screen-space masks.
 
 uniform float Dalashade_SurfaceReflectionEnabled <
     ui_type = "slider";

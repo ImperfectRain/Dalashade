@@ -54,7 +54,7 @@ Debug modes are diagnostic views, not material IDs. A cyan mask in one mode does
 
 - `WaterPixelConfidence` means the material competition layer thinks the pixel is likely water.
 - `WaterReceiver` means the pixel can receive broad water reflection.
-- `WaterSource` and `SkySource` can contribute sampled color, but are not receiver evidence.
+- `WaterSource` and `SkySource` can contribute sampled reflection color, but are not receiver evidence.
 - `ReflectionReceiverConfidence` is an effect-role confidence signal, not final reflected color.
 - `NormalField.ReflectionReceiver` is intentionally conservative and can be darker than `MaterialDebug` receiver views.
 
@@ -69,7 +69,7 @@ First-party shaders must keep these boundaries:
 - Do not let sky receive reflection or AO.
 - Do not turn all smooth/cyan surfaces into water.
 - Do not treat horizon/source-only evidence as receiver evidence.
-- Do not use `WaterSource` as receiver.
+- Do not use reflection source-color fields such as `WaterSource` as receiver masks.
 - Do not make the whole scene glossy, bloomy, sharpened, or lifted.
 - Keep diagnostic shaders optional and visually inert when disabled.
 

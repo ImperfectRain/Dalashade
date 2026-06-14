@@ -63,7 +63,7 @@ MaterialIntent uniforms are scene priors. Shader-side `Dalashade_MaterialMasks.f
 
 Water context uniforms such as `Dalashade_WaterContext`, `Dalashade_CoastalContext`, `Dalashade_OpenOceanContext`, `Dalashade_ShallowWaterContext`, and `Dalashade_WetSurfaceContext` are scene priors. They allow water detection; they do not prove water pixels.
 
-Shader-side `WaterPixelConfidence`, `WaterReceiver`, `WaterSource`, `SkySource`, and `HorizonOnlyConfidence` keep water roles separated.
+Shader-side `WaterPixelConfidence`, `WaterReceiver`, `WaterSource`, `SkySource`, and `HorizonOnlyConfidence` keep water roles separated. In that vocabulary, `WaterSource` means water-related reflection source-color eligibility; it does not mean "this pixel is a water surface receiver."
 
 ## Debugging Material Failures
 

@@ -58,11 +58,11 @@ This shader depends on strict separation:
 
 - `WaterReceiver` is receiver evidence.
 - `MaterialResolve.ReflectionReceiverConfidence` is shared reflection receiver support.
-- `WaterSource` is source/context only.
+- `WaterSource` is reflection source-color/context eligibility, not a water-surface receiver mask.
 - `SkySource` is source color only.
 - `HorizonOnlyConfidence` is source/context only.
 
-Never use source-only fields as receiver masks. Horizon water may color water reflection but must not become a reflective surface.
+Never use source-only color fields as receiver masks. Horizon water may color water reflection but must not become a reflective surface.
 
 ## Debug modes
 
@@ -112,5 +112,5 @@ NormalField may later help shape reflection roughness/projection, but material r
 - Do not implement expensive ray marching or temporal accumulation.
 - Do not reflect UI, skin, or sky.
 - Do not make all smooth/cyan surfaces reflective.
-- Do not use `WaterSource`, `SkySource`, or horizon evidence as receiver masks.
+- Do not use reflection source-color fields such as `WaterSource`, `SkySource`, or horizon evidence as receiver masks.
 - Do not use broad `ReceiverConfidence` as a major reflection boost.
