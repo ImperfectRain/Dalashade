@@ -493,19 +493,16 @@ Dalashade_MaterialCompetition Dalashade_ResolveMaterialCompetition(
 
     float skyWins = saturate(competition.SkyScore * (0.50 + skyRegionBias) * (1.0 - waterRegionBias * 0.35));
     float waterWins = saturate(competition.WaterScore * (0.50 + waterRegionBias) * (1.0 - skyRegionBias * 0.35));
-    float waterLocalProof = saturate(
+    float rawWaterLocalProof = saturate(
         gated.WaterPlane * 0.42
         + raw.WaterPlane * 0.28
         + gated.WaterSpecular * 0.12
         + lowTexture * waterRegionBias * 0.18);
-    float strongWaterLocalProof = saturate(
+    float rawStrongWaterLocalProof = saturate(
         gated.WaterPlane * 0.54
         + raw.WaterPlane * 0.34
         + gated.WaterSpecular * 0.08
         + raw.WaterSpecular * 0.06);
-    float waterProofBoost = saturate(
-        strongWaterLocalProof
-        * (0.48 + waterRegionBias * 0.32 + lowTexture * 0.20));
     float constructedCyanReject = saturate(
         gated.NeonGlass * 0.42
         + gated.CrystalAether * 0.34
@@ -514,8 +511,17 @@ Dalashade_MaterialCompetition Dalashade_ResolveMaterialCompetition(
         + gated.StoneRuins * 0.16);
     float constructedWinsOverWater = saturate(
         constructedCyanReject
-        * (1.0 - strongWaterLocalProof * 0.65)
+        * (1.0 - rawStrongWaterLocalProof * 0.65)
         * (1.0 - gated.WaterPlane * 0.45));
+    float constructedWaterProofReject = saturate(
+        constructedWinsOverWater * 0.78
+        + constructedCyanReject * (1.0 - rawStrongWaterLocalProof * 0.45) * 0.35);
+    float waterLocalProof = saturate(rawWaterLocalProof * (1.0 - constructedWaterProofReject * 0.72));
+    float strongWaterLocalProof = saturate(rawStrongWaterLocalProof * (1.0 - constructedWaterProofReject * 0.82));
+    float waterProofBoost = saturate(
+        strongWaterLocalProof
+        * (0.48 + waterRegionBias * 0.32 + lowTexture * 0.20)
+        * (1.0 - constructedWaterProofReject * 0.78));
     float constructedWinsOverSky = saturate(
         constructedCyanReject
         * (0.45 + raw.SurfaceHardTexture * 0.28 + max(gated.MetalIndustrial, max(gated.CrystalAether, gated.NeonGlass)) * 0.35)
