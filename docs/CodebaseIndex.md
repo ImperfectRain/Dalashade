@@ -1,60 +1,141 @@
 # Codebase Index
 
-This map lists implemented files and their current responsibilities. Do not invent new ownership without checking the code first.
+This index lists the significant files in the repository and the ownership boundaries around them. Use it before editing code so changes land in the correct layer.
 
-| Area | File path | Main classes/types | What it owns | Safe to edit? | Notes |
-| --- | --- | --- | --- | --- | --- |
-| Plugin entrypoint | `Dalashade/Plugin.cs` | `Plugin` | Dalamud services, command registration, window setup, generation orchestration, report export, reload calls, folder defaults | Yes, carefully | Do not add feature logic here if it belongs in a service/helper. |
-| Configuration | `Dalashade/Configuration.cs` | `Configuration`, config enums | User settings, paths, modes, tuning fields | Yes | Preserve existing config fields unless explicitly migrating. |
-| Main UI | `Dalashade/Windows/MainWindow.cs` | `MainWindow` | Runtime status, generation controls, diagnostics panels | Yes | UI only; avoid generation logic here. |
-| Settings UI | `Dalashade/Windows/ConfigWindow.cs` | `ConfigWindow` | Paths, library dropdown, behavior settings, reload settings, tuning controls | Yes | UI should call helpers/services, not own algorithms. |
-| UI section helper | `Dalashade/Windows/UiSection.cs` | `UiSection` | Collapsible section rendering | Yes | Keep generic. |
-| Game context and tags | `Dalashade/GameContext.cs` | `GameContextService`, `SceneClassifier`, `GameContext`, `SceneTags` | Territory, weather, time, combat, duty, GPose, cutscene, biome tags | Yes, with build testing | Uses Dalamud/Lumina/FFXIVClientStructs data. |
-| scene intent and tag diagnostics | `Dalashade/SceneIntent.cs` | `SceneIntent`, `SceneIntentBuilder`, `SceneIntentContribution`, `TagStackDiagnostics`, `TagStackContribution` | Stable normalized scene-language contract and tag-stack diagnostics | Yes, with build testing | Future shaders/bridge code should consume this model instead of scattered tag logic. |
-| Material profile and intent diagnostics | `Dalashade/MaterialProfile.cs`, `Dalashade/MaterialProfileBuilder.cs`, `Dalashade/MaterialProfileContribution.cs`, `Dalashade/MaterialIntent.cs`, `Dalashade/MaterialIntentBuilder.cs`, `Dalashade/MaterialIntentContribution.cs` | `MaterialProfile`, `MaterialProfileBuilder`, `MaterialIntent`, `MaterialIntentBuilder` | Optional inferred scene material plausibility, material likelihoods, and contribution diagnostics | Yes, carefully | Zero-impact by default. MaterialProfile feeds MaterialIntent diagnostics; shader variables are written only when MaterialIntent shader mapping is explicitly enabled. |
-| Screenshot/image analysis | `Dalashade/ImageAnalysis.cs` | `ImageAnalysisService`, `ImageAnalysisResult`, `ColorFamilyStats` | Screenshot sampling, luminance percentiles, tone/color-family stats | Yes, carefully | Image math affects master style and screenshot feedback. |
-| Visual profile generation | `Dalashade/VisualProfile.cs` | `ProfileEngine`, `VisualProfile`, `AppliedRule` | Converts context/tags/image/master style into normalized target values | Yes, carefully | Central behavior file. Avoid unrelated refactors. |
-| Master style selection | `Dalashade/MasterStyle.cs` | `MasterStyleService` | Finds/analyzes master images and selects reference style | Yes | Does not write presets. |
-| Master style matching | `Dalashade/MasterStyleMatcher.cs` | `MasterStyleMatcher`, `MasterStyleMatchResult`, `MasterStyleProfileDeltas` | Applies master style tone/color/family deltas to profile values | Yes, carefully | Keep conservative; changes can affect many shaders. |
-| Master diagnostics | `Dalashade/MasterStyleDiagnostics.cs` | `MasterStyleDiagnostics`, `MasterStyleTonalDeltas` | Effective strength, scene similarity, diagnostic values | Yes | UI/report surface depends on it. |
-| Master tuning presets | `Dalashade/MasterStyleTuningPresets.cs` | `MasterStyleTuningPresets` | Subtle/Balanced/Strong/Cinematic/Aggressive GPose values | Yes | Keep UI-independent. |
-| Preset analyzer | `Dalashade/PresetAnalyzer.cs` | `PresetAnalyzer`, `PresetTechnique`, `PresetRiskReport` | Techniques parsing, role/risk/support classification, authority detection | Yes, carefully | Detection/reporting only; does not write presets. |
-| Preset writer | `Dalashade/PresetWriter.cs` | `PresetWriter`, `PresetWriteResult`, `ChangedShaderVariable`, `ShaderSupportScan` | Reads base preset, applies mapped values, writes generated preset, backups, support scan | Yes, carefully | Do not overwrite base preset. |
-| Shader variable mapping | `Dalashade/ShaderVariableMapper.cs` | `ShaderVariableMapper`, `ShaderVariableDefinition`, `ShaderAdjustment` | Known shader section/key mappings, clamps, vector/scalar value math | Yes, carefully | Prefer strict section mappings. Avoid LooseKeys changes. |
-| Custom shader intent mapping | `Dalashade/CustomShaderVariableMapper.cs` | `CustomShaderVariableMapper` | Writes normalized `SceneIntent` values into Dalashade custom shader sections when enabled | Yes, for future custom shader tasks. | No custom shader is required for normal operation. |
-| Custom shader diagnostics | `Dalashade/CustomShaderBridgeDiagnostics.cs` | `CustomShaderBridgeDiagnosticsBuilder`, `CustomShaderBridgeDiagnostics` | Static bridge status for custom shader support, section/key detection, activation state, and written variables | Yes | Diagnostic only; do not add live IPC or auto-install behavior here. |
-| Weather atmosphere shader prototype | `shaders/Dalashade_WeatherAtmosphere.fx` | ReShade technique `Dalashade_WeatherAtmosphere` | Custom `.fx` prototype for depth-aware haze, glow, weather mood, and highlight protection | Yes, for shader authoring tasks. | Manual ReShade shader-file install/use for now; generated-preset section injection is optional. |
-| Adaptive grade shader prototype | `shaders/Dalashade_AdaptiveGrade.fx` | ReShade technique `Dalashade_AdaptiveGrade` | Custom `.fx` prototype for SceneIntent-driven exposure, contrast, saturation, temperature, highlight rolloff, shadow lift, and cinematic bias | Yes, for shader authoring tasks. | Manual ReShade shader-file install/use for now; generated-preset section injection is optional. |
-| Atmosphere bloom shader prototype | `shaders/Dalashade_AtmosphereBloom.fx` | ReShade technique `Dalashade_AtmosphereBloom` | Custom `.fx` prototype for controlled atmospheric bloom with magic/neon tint, combat dampening, and highlight restraint | Yes, for shader authoring tasks. | Manual ReShade shader-file install/use for now; generated-preset section injection is optional. |
-| Smart sharpen shader prototype | `shaders/Dalashade_SmartSharpen.fx` | ReShade technique `Dalashade_SmartSharpen` | Custom `.fx` prototype for conservative clarity that dampens haze, wet highlights, foliage shimmer, far-depth detail, and combat clutter | Yes, for shader authoring tasks. | Manual ReShade shader-file install/use for now; generated-preset section injection is optional. |
-| Material debug shader utility | `shaders/Dalashade_MaterialDebug.fx`, `shaders/Dalashade_MaterialMasks.fxh` | ReShade technique `Dalashade_MaterialDebug`, MaterialMasks v2 helpers | Optional false-color screen-space material heuristic visualizer; shared raw/gated/final material masks with optional depth assist | Yes, for shader authoring tasks. | Manual ReShade shader-file install/use; disabled by default and never auto-activated. Depth assist is shader-owned and off by default. |
-| SceneGI shader prototype | `shaders/Dalashade_SceneGI.fx`, `shaders/Dalashade_MaterialMasks.fxh` | ReShade technique `Dalashade_SceneGI` | Optional screen-space GI-style approximation for contact AO, material-aware ambient bounce, and night light pooling | Yes, for shader authoring tasks. | Not path tracing/RTGI/PTGI. Manual ReShade shader-file install/use; disabled unless manually activated. |
-| Surface reflection shader prototype | `shaders/Dalashade_SurfaceReflection.fx`, `shaders/Dalashade_MaterialMasks.fxh` | ReShade technique `Dalashade_SurfaceReflection` | Optional material-aware water sheen, wet-surface glint, ice sheen, and neon/aether reflection-impression pass | Yes, for shader authoring tasks. | Not SSR/ray tracing. Manual ReShade shader-file install/use; disabled unless manually activated. |
-| NormalField diagnostics | `shaders/Dalashade_NormalField.fxh`, `shaders/Dalashade_NormalDebug.fx`, `docs/NormalField.md` | ReShade technique `Dalashade_NormalDebug`, NormalField helper functions | Optional screen-space inferred surface-normal diagnostics and shared helper layer for future first-party shader work | Yes, for diagnostics/documentation tasks. | Disabled by default. Not true FFXIV material normals, G-buffer access, or texture normal maps. Not integrated into production shaders yet. |
-| Gameplay sanitize | `Dalashade/SanitizeActionPipeline.cs` | `SanitizeActionPipeline`, `SanitizeAction` | Separate GameplaySanitize-only reductions | Yes | Do not disable shaders unless clearly safe and requested. |
-| Authority policy | `Dalashade/GenerationAuthorityPolicy.cs` | `GenerationAuthorityPolicy`, `CompatibilityRolePolicies` | Primary/secondary authority dampening and role policies | Yes, carefully | Changes alter how multiple shaders share roles. |
-| Compatibility reports | `Dalashade/CompatibilityReportExporter.cs` | `CompatibilityReportExporter` | Markdown compatibility report export and mapping validation | Yes | Diagnostic only. Should not change generation. |
-| Color-family diagnostics | `Dalashade/ColorFamilyComparisonRows.cs` | `ColorFamilyComparisonRows` | Shared color-family comparison rows for UI/report | Yes | Keep display logic consistent. |
-| ReShade reload | `Dalashade/ReShadeController.cs` | `ReShadeController`, `ReloadDiagnostics`, `ReloadResult` | ReShade.ini detection, KeyReload sync, hotkey send/test reload | Yes, carefully | Current reload is best-effort. |
-| Keybind capture | `Dalashade/Keybind.cs` | `Keybind`, `KeybindCapture` | Reload hotkey config/capture/format | Yes | Windows virtual key behavior. |
-| Base preset library | `Dalashade/BasePresetLibrary.cs` | `BasePresetLibrary`, `BasePresetLibraryItem` | Scans top-level `.ini` files in the Base folder | Yes | Dropdown selection sets `Configuration.BasePresetPath`. |
-| Regression reports | `Dalashade/PresetRegressionReportHarness.cs` | `PresetRegressionReportHarness`, `PresetRegressionSummary` | Scans a test folder and creates markdown regression reports | Yes | Does not require ReShade running. |
-| Scene tag regression checks | `Dalashade/SceneTagRegressionHarness.cs` | `SceneTagRegressionHarness`, `SceneTagRegressionCase` | Verifies representative territory/weather/tag outputs and final profile clamps | Yes | Covers key FFXIV zone families for tag-system edits. |
-| Plugin manifest | `Dalashade/Dalashade.json` | JSON manifest | Plugin metadata inside build output | Only for release tasks | Keep version/release text aligned. |
-| Custom repo manifest | `repo.json` | JSON manifest | Dalamud custom repository metadata/download links | Only for release tasks | Verify URLs and zip names before changing. |
-| Release zips | `releases/` | Zip files | Published plugin artifacts | Only for release tasks | Do not alter during normal code tasks. |
-| CI | `.github/workflows/pr-build.yml` | GitHub Actions workflow | Restore, Release build, repo JSON, optional zip validation | Yes | Keep Windows runner because Dalamud path setup is Windows-oriented. |
+Status meanings:
+
+- **Stable:** core behavior or contract; edit with regression checks.
+- **Experimental:** active shader/heuristic work; edit narrowly and verify debug views.
+- **Debug-only:** diagnostics and reporting only; should not change visuals.
+- **Release asset:** release metadata or packaged output; edit only for release tasks.
+
+## Repository Root
+
+| File path | Purpose | Runtime role | Inputs | Outputs | Main dependencies | Used by | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `README.md` | User-facing project overview and setup notes. | Documentation only. | Current feature set. | Setup and scope guidance. | Docs pages. | Users/contributors. | Stable. |
+| `LICENSE.md` | License text. | Legal metadata. | None. | License terms. | None. | Repository. | Stable. |
+| `Dalashade.sln` | Visual Studio solution. | Build entry point. | C# project. | Build graph. | `Dalashade/Dalashade.csproj`. | `dotnet build`. | Stable. |
+| `repo.json` | Dalamud custom repository manifest. | Release metadata. | Release zip URL/version. | Dalamud repo entry. | `releases/`. | Plugin installers. | Release asset. |
+| `releases/*.zip` | Packaged plugin releases. | Release artifacts. | Built plugin output. | Installable zips. | Build/release process. | Users/Dalamud repo. | Release asset. |
+| `scripts/ValidateRelease.ps1` | Release validation helper. | Manual release check. | `repo.json`, release zips. | Validation output. | PowerShell. | Maintainers. | Stable. |
+
+## C# Plugin Files
+
+| File path | Purpose | Runtime role | Inputs | Outputs | Main dependencies | Used by | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `Dalashade/Plugin.cs` | Plugin entry point and orchestration. | Registers Dalamud services/windows/commands and coordinates generation, scanning, reports, reload. | Dalamud services, config, UI commands. | Generated preset, UI state, reports, reload call. | Most service classes. | Dalamud runtime. | Stable. |
+| `Dalashade/Dalashade.csproj` | Plugin project file. | Build/package config. | NuGet/Dalamud references. | Plugin assembly. | `packages.lock.json`. | `dotnet build`. | Stable. |
+| `Dalashade/Dalashade.json` | Plugin manifest. | Dalamud metadata. | Version/name/author. | Plugin metadata. | Build output. | Dalamud. | Release asset. |
+| `Dalashade/Configuration.cs` | Serialized user settings and enums. | Stores paths, modes, shader mapping, MaterialIntent, NormalField, reload, debug/export settings. | UI edits, defaults. | Persisted configuration. | Dalamud config. | Plugin, UI, exporters, writer. | Stable. |
+| `Dalashade/GameContext.cs` | Game state and scene tag classification. | Reads territory/weather/time/combat/duty/GPose/cutscene and derives tags. | Dalamud/Lumina/client state. | `GameContext`, `SceneTags`. | FFXIV/Dalamud APIs. | SceneIntent, MaterialProfile, reports. | Stable. |
+| `Dalashade/SceneIntent.cs` | SceneIntent and tag-stack diagnostics. | Converts scene tags/screenshot/style/performance into normalized intent channels. | `GameContext`, `SceneTags`, image analysis, config. | `SceneIntent`, contribution breakdowns. | `ImageAnalysis`, config. | Shader mappers, reports, VisualProfile. | Stable. |
+| `Dalashade/VisualProfile.cs` | Visual profile generation. | Converts context/intent/style into target values for known shader variables. | Scene intent, screenshot, master style, config. | `VisualProfile`, applied rules. | SceneIntent, MasterStyle. | ShaderVariableMapper. | Stable. |
+| `Dalashade/ImageAnalysis.cs` | Screenshot analysis. | Samples screenshots for luminance, contrast, saturation, clipping, color families. | Screenshot files. | `ImageAnalysisResult`. | ImageSharp/system drawing utilities as available. | VisualProfile, MaterialProfile, reports. | Stable. |
+| `Dalashade/MasterStyle.cs` | Master image discovery/analysis. | Finds and analyzes reference images. | Master style folder/config. | Master style image metrics. | ImageAnalysis. | MasterStyleMatcher. | Stable. |
+| `Dalashade/MasterStyleMatcher.cs` | Master-style deltas. | Compares current scene to master images and creates profile deltas. | Image analysis, master style metrics, config. | `MasterStyleMatchResult`. | MasterStyleDiagnostics. | VisualProfile. | Stable. |
+| `Dalashade/MasterStyleDiagnostics.cs` | Master style report data. | Explains master style strength/similarity/deltas. | Master style results. | Diagnostics rows. | MasterStyleMatcher. | UI/report. | Stable. |
+| `Dalashade/MasterStyleTuningPresets.cs` | Named master style tuning presets. | Provides preset parameter sets. | Config enum. | Strength/behavior defaults. | Configuration. | Config UI. | Stable. |
+| `Dalashade/MaterialProfile.cs` | Scene material profile model. | Stores scene-level material plausibility family/tags/priors. | MaterialProfileBuilder. | Profile values. | None. | MaterialIntent/report. | Stable. |
+| `Dalashade/MaterialProfileBuilder.cs` | Scene material profile builder. | Infers material family/priors from tags, weather, territory, screenshot, SceneIntent. | Scene tags, context, image stats. | `MaterialProfile`. | GameContext, SceneIntent. | MaterialIntent/report. | Experimental. |
+| `Dalashade/MaterialProfileContribution.cs` | Profile contribution diagnostics. | Records positive/negative material profile evidence. | Builder events. | Contribution list. | MaterialProfileBuilder. | Reports/debug bundle. | Stable. |
+| `Dalashade/MaterialIntent.cs` | MaterialIntent model. | Stores normalized scene material channels. | MaterialIntentBuilder. | Intent values. | None. | CustomShaderVariableMapper, reports. | Stable. |
+| `Dalashade/MaterialIntentBuilder.cs` | MaterialIntent builder. | Builds material likelihoods and suppressions from tags/profile/context. | MaterialProfile, SceneIntent, tags, screenshot. | `MaterialIntent`. | MaterialProfileBuilder. | Shader mapping/report. | Experimental. |
+| `Dalashade/MaterialIntentContribution.cs` | MaterialIntent diagnostics. | Records contribution reasons per material channel. | MaterialIntentBuilder. | Contribution rows. | MaterialIntentBuilder. | Reports/debug bundle. | Stable. |
+| `Dalashade/ShaderVariableMapper.cs` | Known third-party shader variable mapping. | Maps `VisualProfile` to known ReShade section/key changes with clamps. | VisualProfile, preset sections. | `ShaderAdjustment` list. | PresetWriter. | Generated preset. | Stable. |
+| `Dalashade/CustomShaderVariableMapper.cs` | First-party shader uniform mapping. | Maps SceneIntent, MaterialIntent, water/day/night/NormalField settings into Dalashade shader sections. | Config, SceneIntent, MaterialIntent, preset content. | Custom shader variable writes. | PresetWriter. | Generated preset. | Experimental. |
+| `Dalashade/PresetWriter.cs` | Generated preset writer and custom section injector. | Reads base preset, applies mapped values, writes generated preset safely. | Base preset, VisualProfile, config, mappings. | Generated `.ini`, changed variable list, backups. | ShaderVariableMapper, CustomShaderVariableMapper. | Generate button. | Stable. |
+| `Dalashade/PresetAnalyzer.cs` | Preset compatibility analysis. | Parses techniques/sections and classifies roles, risk, authorities, support. | Active/base preset text. | `PresetAnalysisResult`, warnings. | Shader definitions. | UI/report/debug bundle. | Stable. |
+| `Dalashade/CompatibilityReportExporter.cs` | Markdown report exporter. | Generates compatibility, material parity, NormalField, stack, and diagnostics report. | Config, analysis, context, material intent, shader files. | Markdown report. | PresetAnalyzer, source scanners. | Export Report, DebugBundleExporter. | Debug-only. |
+| `Dalashade/DebugBundleExporter.cs` | Debug bundle exporter. | Writes timestamped diagnostic folder and optional zip. | Config, context, reports, presets, shader files. | Bundle files and manifest. | CompatibilityReportExporter, path helpers. | Export Debug Bundle. | Debug-only. |
+| `Dalashade/CustomShaderBridgeDiagnostics.cs` | Custom shader bridge diagnostics. | Reports shader section/key support, activation, and writes. | Preset content, config, changed variables. | Diagnostic summary. | PresetWriter, mapper. | UI/report. | Debug-only. |
+| `Dalashade/GenerationAuthorityPolicy.cs` | Multi-authority policy. | Dampens secondary role owners according to compatibility mode. | Preset analysis, config. | Authority policy. | PresetAnalyzer. | ShaderVariableMapper/writer. | Stable. |
+| `Dalashade/SanitizeActionPipeline.cs` | Gameplay sanitize actions. | Applies separate gameplay-safe reductions where allowed. | Preset analysis, config. | Sanitize action list/changes. | PresetWriter. | Generated preset. | Stable. |
+| `Dalashade/ReShadeController.cs` | ReShade reload support. | Finds ReShade ini, syncs reload key, sends reload hotkey. | Config, ReShade.ini. | Reload result/diagnostics. | Keybind. | Plugin reload path. | Stable. |
+| `Dalashade/Keybind.cs` | Keybind model/capture. | Stores and formats reload keybinds. | UI key capture. | Keybind config. | Windows virtual keys. | Config UI, ReShadeController. | Stable. |
+| `Dalashade/BasePresetLibrary.cs` | Base preset scanner. | Finds selectable `.ini` presets in base folder. | Base preset folder. | Library items. | File system. | Config UI. | Stable. |
+| `Dalashade/ColorFamilyComparisonRows.cs` | Color-family report rows. | Formats color-family comparison diagnostics. | Image/master style analysis. | Rows for UI/report. | ImageAnalysis. | UI/report. | Stable. |
+| `Dalashade/PresetRegressionReportHarness.cs` | Preset regression harness. | Batch-runs preset analysis/report summaries over fixture folders. | Test preset folder. | Markdown regression summaries. | PresetAnalyzer. | Maintainers. | Debug-only. |
+| `Dalashade/SceneTagRegressionHarness.cs` | Scene tag regression harness. | Checks representative territory/weather/tag/profile outputs. | Hard-coded cases. | Regression result/failures. | GameContext, SceneIntent. | Maintainers. | Debug-only. |
+| `Dalashade/SmartSharpenAuthority.cs` | Sharpen authority helper. | Identifies how Dalashade SmartSharpen should behave with other sharpeners. | Preset analysis. | Authority diagnostic. | PresetAnalyzer. | Writer/report. | Stable. |
+| `Dalashade/Windows/MainWindow.cs` | Main plugin UI. | Shows status, generation buttons, diagnostics, changed variables, reports. | Plugin services/results. | ImGui UI. | UiSection, Plugin. | User. | Stable. |
+| `Dalashade/Windows/ConfigWindow.cs` | Settings UI. | Shows paths, modes, custom shader, MaterialIntent, NormalField, reload settings. | Configuration. | ImGui UI and config updates. | UiSection, Plugin services. | User. | Stable. |
+| `Dalashade/Windows/UiSection.cs` | UI section helper. | Renders collapsible sections consistently. | ImGui calls. | UI blocks. | Dalamud ImGui. | Windows. | Stable. |
+| `Dalashade/packages.lock.json` | NuGet lock file. | Dependency reproducibility. | Restore operation. | Locked packages. | `Dalashade.csproj`. | `dotnet restore/build`. | Stable. |
+
+## Shader Files
+
+| File path | Purpose | Runtime role | Inputs | Outputs | Main dependencies | Used by | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `shaders/Dalashade_MaterialMasks.fxh` | Shared material/water/safety resolver contract. | Converts color/depth/uniforms into material resolves and debug colors. | Backbuffer, depth, scene/material priors. | `MaterialResolve`, `WaterResolve`, `SafetyResolve`, debug colors. | `ReShade.fxh`. | All first-party shaders. | Experimental contract. |
+| `shaders/Dalashade_NormalField.fxh` | Optional inferred NormalField contract. | Produces depth/detail/combined normals and receiver candidates. | Backbuffer, depth, material/water/safety resolves, NormalField settings. | `Dalashade_NormalField`, debug colors. | `MaterialMasks.fxh`. | `Dalashade_NormalDebug.fx`, future production shaders. | Experimental/debug-first. |
+| `shaders/Dalashade_AdaptiveGrade.fx` | Base tonal adaptation shader. | Applies scene/day/night/material-aware tone and color adjustments. | Scene/material/day/night uniforms, shared resolvers. | Graded color and debug masks. | `MaterialMasks.fxh`. | ReShade technique `Dalashade_AdaptiveGrade`. | Production-oriented. |
+| `shaders/Dalashade_SceneGI.fx` | Screen-space GI/AO impression. | Applies conservative AO, bounce, source pooling. | Scene/material/water/safety uniforms, depth. | GI/AO modified color and debug masks. | `MaterialMasks.fxh`. | ReShade technique `Dalashade_SceneGI`. | Experimental production. |
+| `shaders/Dalashade_SurfaceReflection.fx` | Pseudo-SSR and material reflection simulation. | Applies water/wet/metal/aether reflection projections and source-qualified pseudo SSR. | Shared resolves, depth, reflection sliders. | Reflected color contribution and debug modes. | `MaterialMasks.fxh`. | ReShade technique `Dalashade_SurfaceReflection`. | Experimental production. |
+| `shaders/Dalashade_AtmosphereBloom.fx` | Material-aware atmospheric bloom. | Applies restrained bloom/glow from qualified sources. | Shared resolves, bloom sliders, scene uniforms. | Bloomed color and debug masks. | `MaterialMasks.fxh`. | ReShade technique `Dalashade_AtmosphereBloom`. | Production-oriented. |
+| `shaders/Dalashade_WeatherAtmosphere.fx` | Weather/air/haze shader. | Applies scene/weather/day/night/coastal/heat/snow/fog air. | Shared resolves, depth, weather uniforms. | Atmospheric color contribution and debug masks. | `MaterialMasks.fxh`. | ReShade technique `Dalashade_WeatherAtmosphere`. | Experimental production. |
+| `shaders/Dalashade_SmartSharpen.fx` | Material-aware sharpen shader. | Applies controlled clarity with material/safety dampening. | Shared resolves, sharpen sliders, scene uniforms. | Sharpened color and debug masks. | `MaterialMasks.fxh`. | ReShade technique `Dalashade_SmartSharpen`. | Production-oriented. |
+| `shaders/Dalashade_MaterialDebug.fx` | Shared material truth viewer. | Visualizes material, water, safety, receiver, and competition masks. | Shared material uniforms, depth, debug mode. | False-color debug output. | `MaterialMasks.fxh`. | ReShade technique `Dalashade_MaterialDebug`. | Debug-only. |
+| `shaders/Dalashade_NormalDebug.fx` | NormalField truth viewer. | Visualizes inferred normals, structure, receivers, and safety. | Shared material uniforms, NormalField settings, depth. | False-color debug output. | `MaterialMasks.fxh`, `NormalField.fxh`. | ReShade technique `Dalashade_NormalDebug`. | Debug-only. |
+
+## Documentation Files
+
+| File path | Purpose | Used by | Status |
+| --- | --- | --- | --- |
+| `docs/README.md` | Documentation landing page. | Contributors/Codex. | Stable. |
+| `docs/CodebaseIndex.md` | File ownership and audit map. | Contributors/Codex. | Stable. |
+| `docs/GenerationPipeline.md` | Generate-button to preset-write flow. | Maintainers/Codex. | Stable. |
+| `docs/SceneTagsAndIntent.md` | Scene tags, night/day layers, SceneIntent behavior. | Scene/tag work. | Stable. |
+| `docs/MaterialIntent.md` | MaterialProfile/MaterialIntent and shader-side material distinction. | Material/shader work. | Stable. |
+| `docs/ShaderMapping.md` | Known shader variable mapping behavior. | Preset writer work. | Stable. |
+| `docs/ShaderAuthoring.md` | First-party shader authoring notes. | Shader work. | Stable. |
+| `docs/Shaders/ShaderSystemOverview.md` | First-party shader stack and shared contracts. | Shader work. | Stable. |
+| `docs/Shaders/MaterialMasks.md` | Shared material/water/safety contract reference. | Material/shader work. | Experimental contract doc. |
+| `docs/Shaders/NormalField.md` | Shared NormalField include contract reference. | NormalField work. | Experimental contract doc. |
+| `docs/Shaders/AdaptiveGrade.md` | AdaptiveGrade shader reference. | Shader work. | Stable. |
+| `docs/Shaders/AtmosphereBloom.md` | AtmosphereBloom shader reference. | Shader work. | Stable. |
+| `docs/Shaders/MaterialDebug.md` | MaterialDebug shader reference. | Debug work. | Debug-only. |
+| `docs/Shaders/NormalDebug.md` | NormalDebug shader reference. | Debug work. | Debug-only. |
+| `docs/Shaders/SceneGI.md` | SceneGI shader reference. | Shader work. | Experimental. |
+| `docs/Shaders/SmartSharpen.md` | SmartSharpen shader reference. | Shader work. | Stable. |
+| `docs/Shaders/SurfaceReflection.md` | SurfaceReflection shader reference. | Reflection work. | Experimental. |
+| `docs/Shaders/WeatherAtmosphere.md` | WeatherAtmosphere shader reference. | Weather shader work. | Experimental. |
+| `docs/NormalField.md` | User-facing NormalField config/test plan. | NormalField diagnostics. | Stable. |
+| `docs/DebugBundles.md` | Debug bundle content and failure model. | Export/report work. | Stable. |
+| `docs/Configuration.md` | Configuration field groups and safety rules. | Config/UI work. | Stable. |
+| `docs/SafetyAndScope.md` | Plugin scope, non-automation, export safety. | Review/release work. | Stable. |
+| `docs/CompatibilityAndDiagnostics.md` | Compatibility report and diagnostic panels. | Report/debug work. | Stable. |
+| `docs/PresetWriting.md` | Generated preset write rules. | Preset writer work. | Stable. |
+| `docs/ReShadeReload.md` | Reload hotkey behavior. | Reload work. | Stable. |
+| `docs/MasterStyle.md` | Master style system. | Style work. | Stable. |
+| `docs/ReleaseChecklist.md` | Release process. | Release tasks. | Stable. |
+| `docs/CodexEditingGuide.md` | Repo-specific Codex editing rules. | Codex runs. | Stable. |
+| `docs/CodexSessionHandoff.md` | Handoff notes. | Codex runs. | Stable. |
+
+## Test Fixtures and Release Support
+
+| File path | Purpose | Runtime role | Inputs | Outputs | Used by | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| `test-presets/free-shader-fixtures/*.ini` | Representative free shader preset fixtures. | Test data. | Preset analyzer. | Regression output. | Regression harness. | Stable. |
+| `test-presets/custom-shader-fixtures/DalashadeWeatherAtmosphere.ini` | Custom shader fixture. | Test data. | Preset analyzer/writer. | Regression output. | Regression harness. | Stable. |
+| `.github/workflows/pr-build.yml` | PR build workflow if present. | CI. | Repository checkout. | Build result. | GitHub Actions. | Stable. |
 
 ## Common Tasks -> Files To Inspect First
 
 | Task | Inspect first |
 | --- | --- |
-| Change weather behavior | `Dalashade/GameContext.cs`, `Dalashade/VisualProfile.cs`, `docs/SceneTagsAndIntent.md` |
-| Add shader support | `Dalashade/ShaderVariableMapper.cs`, `Dalashade/PresetAnalyzer.cs`, `Dalashade/PresetWriter.cs`, `docs/ShaderMapping.md` |
-| Add custom Dalashade shader work | `shaders/`, `Dalashade/CustomShaderVariableMapper.cs`, `docs/ShaderAuthoring.md` |
-| Fix generated preset output | `Dalashade/PresetWriter.cs`, `Dalashade/ShaderVariableMapper.cs`, `Dalashade/CompatibilityReportExporter.cs` |
-| Improve master style | `Dalashade/MasterStyle.cs`, `Dalashade/MasterStyleMatcher.cs`, `Dalashade/MasterStyleDiagnostics.cs`, `Dalashade/Windows/MainWindow.cs` |
-| Fix ReShade reload | `Dalashade/ReShadeController.cs`, `Dalashade/Keybind.cs`, `docs/ReShadeReload.md` |
-| Fix install/update | `repo.json`, `Dalashade/Dalashade.csproj`, `Dalashade/Dalashade.json`, `releases/`, `docs/ReleaseChecklist.md` |
-| Improve UI layout | `Dalashade/Windows/MainWindow.cs`, `Dalashade/Windows/ConfigWindow.cs`, `Dalashade/Windows/UiSection.cs` |
-| Add diagnostics/report output | `Dalashade/CompatibilityReportExporter.cs`, `Dalashade/PresetRegressionReportHarness.cs`, UI diagnostics in `Dalashade/Windows/MainWindow.cs` |
+| Change scene/time/weather tags | `Dalashade/GameContext.cs`, `Dalashade/SceneIntent.cs`, `docs/SceneTagsAndIntent.md` |
+| Change broad tonal output | `Dalashade/VisualProfile.cs`, `Dalashade/ShaderVariableMapper.cs`, `shaders/Dalashade_AdaptiveGrade.fx` |
+| Change MaterialIntent priors | `Dalashade/MaterialProfileBuilder.cs`, `Dalashade/MaterialIntentBuilder.cs`, `docs/MaterialIntent.md` |
+| Change shader pixel material classification | `shaders/Dalashade_MaterialMasks.fxh`, `docs/Shaders/MaterialMasks.md`, `shaders/Dalashade_MaterialDebug.fx` |
+| Change SurfaceReflection visuals | `shaders/Dalashade_SurfaceReflection.fx`, `docs/Shaders/SurfaceReflection.md`, MaterialDebug modes 58-59 |
+| Change NormalField diagnostics | `shaders/Dalashade_NormalField.fxh`, `shaders/Dalashade_NormalDebug.fx`, `docs/Shaders/NormalField.md` |
+| Change generated preset output | `Dalashade/PresetWriter.cs`, `Dalashade/ShaderVariableMapper.cs`, `Dalashade/CustomShaderVariableMapper.cs`, `docs/PresetWriting.md` |
+| Change compatibility reports | `Dalashade/CompatibilityReportExporter.cs`, `docs/CompatibilityAndDiagnostics.md` |
+| Change debug bundle export | `Dalashade/DebugBundleExporter.cs`, `docs/DebugBundles.md` |
+| Change config fields/UI | `Dalashade/Configuration.cs`, `Dalashade/Windows/ConfigWindow.cs`, `docs/Configuration.md` |
+| Change release packaging | `repo.json`, `Dalashade/Dalashade.csproj`, `Dalashade/Dalashade.json`, `releases/`, `docs/ReleaseChecklist.md` |
+
+## Files intentionally not documented in detail
+
+Generated binaries, build intermediates, local ReShade preset outputs, and `.codex-remote-attachments/` are not documented as repository behavior. They are local or generated artifacts and should not be used as source-of-truth design references.

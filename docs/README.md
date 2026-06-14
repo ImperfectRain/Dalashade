@@ -18,10 +18,18 @@ These docs are for users who want to understand what Dalashade is doing, maintai
 | Code map and ownership | [CodebaseIndex.md](CodebaseIndex.md) |
 | Generate button to written preset flow | [GenerationPipeline.md](GenerationPipeline.md) |
 | Territory, weather, time, combat tags | [SceneTagsAndIntent.md](SceneTagsAndIntent.md) |
+| MaterialProfile and MaterialIntent | [MaterialIntent.md](MaterialIntent.md) |
 | Generated preset write behavior | [PresetWriting.md](PresetWriting.md) |
 | Shader support and mappings | [ShaderMapping.md](ShaderMapping.md) |
 | Custom shader authoring scaffold | [ShaderAuthoring.md](ShaderAuthoring.md) |
+| First-party shader system overview | [Shaders/ShaderSystemOverview.md](Shaders/ShaderSystemOverview.md) |
+| Shared material/water/receiver contract | [Shaders/MaterialMasks.md](Shaders/MaterialMasks.md) |
+| Per-shader references | [Shaders/ShaderSystemOverview.md](Shaders/ShaderSystemOverview.md#first-party-shader-roles) |
 | Optional NormalField diagnostics and test plan | [NormalField.md](NormalField.md) |
+| NormalField shader contract | [Shaders/NormalField.md](Shaders/NormalField.md) |
+| Debug bundle export | [DebugBundles.md](DebugBundles.md) |
+| Configuration field groups | [Configuration.md](Configuration.md) |
+| Safety and project scope | [SafetyAndScope.md](SafetyAndScope.md) |
 | Master style matching | [MasterStyle.md](MasterStyle.md) |
 | Compatibility reports and diagnostics | [CompatibilityAndDiagnostics.md](CompatibilityAndDiagnostics.md) |
 | ReShade reload behavior | [ReShadeReload.md](ReShadeReload.md) |
@@ -38,3 +46,5 @@ Before editing code, read:
 4. `docs/CodexEditingGuide.md`
 
 Do not treat planned-roadmap docs as implementation references. Planned systems are labeled as planned and should not be implemented unless the user explicitly asks for that work.
+
+For shader work, start with `docs/Shaders/ShaderSystemOverview.md`, then read the specific shader document and the relevant shared contract document. Production shader behavior should be interpreted through `docs/Shaders/MaterialMasks.md` before tuning individual effects.

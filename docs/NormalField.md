@@ -6,6 +6,8 @@ It is built from ReShade depth, image gradients, shared material masks, water ma
 
 NormalField is not true FFXIV material normals, not G-buffer access, and not actual texture normal maps. It is a conservative inferred surface field that should fail safely when depth or screen-space evidence is unreliable.
 
+For the shader include contract and field semantics, see [Shaders/NormalField.md](Shaders/NormalField.md).
+
 ## Configuration
 
 | Setting | Meaning |

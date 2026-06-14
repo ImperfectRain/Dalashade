@@ -44,6 +44,41 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
 18. `PresetWriter` writes a temporary file and replaces the generated preset path.
 19. `Plugin.ReloadShadersIfNeeded()` optionally calls `ReShadeController.ReloadAfterPresetWrite()`.
 
+## Shader-side Pipeline
+
+First-party shaders consume generated uniforms through a shared shader contract rather than separate local material detectors.
+
+```text
+Generated preset uniforms
+-> Dalashade_MaterialMasks.fxh
+-> MaterialResolve / WaterResolve / SafetyResolve
+-> shader-specific receiver/source/effect logic
+```
+
+`Dalashade_MaterialMasks.fxh` owns raw pixel evidence, scene-gated candidates, material competition, final material masks, water resolve, material resolve, and safety resolve. `Dalashade_NormalField.fxh` optionally consumes those resolves to produce inferred screen-space normal/structure/receiver diagnostics.
+
+See:
+
+- `docs/Shaders/MaterialMasks.md`
+- `docs/Shaders/NormalField.md`
+- `docs/Shaders/ShaderSystemOverview.md`
+
+## Export Pipeline
+
+Standalone report export is owned by `CompatibilityReportExporter`. If no path is configured, it writes to:
+
+```text
+<plugin config directory>/Reports/Dalashade_CompatibilityReport_yyyyMMdd_HHmmss.md
+```
+
+Debug bundle export is owned by `DebugBundleExporter`. It creates a timestamped folder under:
+
+```text
+<plugin config directory>/DebugBundles/
+```
+
+The debug bundle includes a fresh compatibility report when possible and records optional failures in `manifest.json` and `bundle-export-log.txt`. See `docs/DebugBundles.md`.
+
 ## Report-Only Diagnostics
 
 Compatibility report export can build `MaterialProfile` and `MaterialIntent` diagnostics from the existing tag stack, screenshot metrics, and SceneIntent context.

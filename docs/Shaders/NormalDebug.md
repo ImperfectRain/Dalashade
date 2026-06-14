@@ -1,0 +1,74 @@
+# Dalashade_NormalDebug
+
+## Current purpose
+
+`shaders/Dalashade_NormalDebug.fx` visualizes the optional NormalField screen-space inferred surface data.
+
+## Intended purpose
+
+NormalDebug should make future NormalField integration auditable before production shaders consume it. It is not required for gameplay.
+
+## Current implementation summary
+
+The shader samples color/depth, resolves material/water/safety masks, calls `Dalashade_ResolveNormalField`, and returns one of the shared NormalField debug views.
+
+## Inputs
+
+- Backbuffer color and depth.
+- Shared material/context uniforms.
+- NormalField controls: strength, depth strength, detail strength, material influence, water/skin/sky suppression, debug mode, debug boost.
+- `Dalashade_MaterialMasks.fxh` and `Dalashade_NormalField.fxh`.
+
+## Outputs
+
+Debug-only visualization of inferred normals, candidates, receivers, and safety suppression.
+
+## Core algorithm
+
+1. Sample source color.
+2. Resolve `MaterialResolve`, `WaterResolve`, and `SafetyResolve`.
+3. Resolve `Dalashade_NormalField`.
+4. Return `Dalashade_GetNormalDebugColor(field, mode, boost)`.
+
+## Material/Water/Normal dependencies
+
+NormalDebug is the direct consumer of `Dalashade_NormalField.fxh`. It depends on MaterialMasks for sky/skin/water/receptor gates. It does not prove any production shader is using NormalField.
+
+## Debug modes
+
+| Mode | Meaning |
+| --- | --- |
+| Normal image | Pass-through source image. |
+| Depth normal RGB | Encoded coarse depth normal. |
+| Detail normal RGB | Encoded restrained detail normal. |
+| Combined normal RGB | Encoded blended normal. |
+| Ground/plane candidate | Plane/support candidate. |
+| Wall-plane candidate | Strict vertical/wall candidate. |
+| Structure candidate | Broad structure/object confidence. |
+| Detail eligibility | Detail-normal trust/strength. |
+| Normal confidence | Overall NormalField confidence. |
+| Shading receiver | Future shading receiver mask. |
+| Reflection receiver | Future reflection receiver mask. |
+| AO receiver | Future AO receiver mask. |
+| Safety suppression | RGB safety suppression components. |
+
+## Safety and suppression rules
+
+Sky, skin, water, highlight, foliage-noise, and edge discontinuity gates suppress unsafe detail and receiver values. Default/fallback normals are display-safe only and should not create receiver masks.
+
+## Current limitations
+
+- Depth quality depends on ReShade depth.
+- ReflectionReceiver can be intentionally darker than MaterialDebug receiver views.
+- Detail normals are weak by design to avoid shimmer.
+- UI/depth risk remains heuristic.
+
+## Future direction
+
+Use NormalDebug across representative scenes before integrating NormalField into SurfaceReflection, SceneGI, SmartSharpen, or WeatherAtmosphere.
+
+## Do not do
+
+- Do not treat NormalDebug as production output.
+- Do not boost stored receiver values just to make debug brighter.
+- Do not describe the output as real FFXIV normals.

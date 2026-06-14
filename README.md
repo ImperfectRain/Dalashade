@@ -26,6 +26,20 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 - It does not modify your base preset in place.
 - It does not capture live frames yet.
 - It does not magically know taste. It has opinions, but they are intentionally mild.
+- It does not automate gameplay, read or inject network packets, control combat input, track players, or identify mechanics.
+
+## Documentation
+
+Maintainer and shader documentation lives under [`docs/`](docs/README.md).
+
+Start here:
+
+- [`docs/CodebaseIndex.md`](docs/CodebaseIndex.md) for file ownership and audit status.
+- [`docs/GenerationPipeline.md`](docs/GenerationPipeline.md) for the generate-to-preset flow.
+- [`docs/Shaders/ShaderSystemOverview.md`](docs/Shaders/ShaderSystemOverview.md) for first-party shader stack behavior.
+- [`docs/Shaders/MaterialMasks.md`](docs/Shaders/MaterialMasks.md) for the shared material/water/receiver contract.
+- [`docs/Shaders/SurfaceReflection.md`](docs/Shaders/SurfaceReflection.md) for the current pseudo-SSR/reflection shader.
+- [`docs/SafetyAndScope.md`](docs/SafetyAndScope.md) for project boundaries and review notes.
 
 ## Basic Setup
 

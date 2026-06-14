@@ -145,10 +145,16 @@ The main window includes sections for:
 | Zone has the wrong identity | Scene Tags primary biome, biome reason, confidence, secondary/material/art-direction tags, and SceneIntent contribution groups. |
 | Material overlay misses daytime sky | MaterialDebug raw/gated/final sky-fog modes, MaterialProfile SkyCloudFog prior, optional depth assist state, and sky/fog conflict suppression. |
 | Foliage overlay marks rocks or trunks too strongly | MaterialDebug raw strong foliage, organic green surface, final foliage influence, StoneRuins prior, and SmartSharpen material dampening debug. |
-| Water and sky are confused | MaterialDebug raw/gated/final water plus raw/gated/final sky-fog modes, screen-position/depth-assist state, and WaterSpecular vs SkyCloudFog priors. Use split WaterPlane modes to check broad water surfaces separately from glints. |
+| Water and sky are confused | MaterialDebug modes 55-65. Start with 55 water/sky conflict, 56 water pixel confidence, 57 sky pixel confidence, and 58 water receiver vs horizon. Use 60-65 to inspect local water proof, constructed/aether rejection, sky dominance, and water proof boost before tuning formulas. |
 | Water/specular marks rails, nails, plank seams, or hard silhouette highlights | Check MaterialDebug SpecularGlint modes. Thin reflective geometry can be valid glint evidence, but WaterPlane should remain low on those pixels. |
 | No visible change | Changed variable count, active ReShade preset, reload diagnostics, and supported shader scan. |
 | Too many variables changed | Shader matching mode, inactive shader write mode, and multiple authorities. |
 | ReShade reload did not happen | `ReShade.ini` path, reload key sync, configured hotkey, and diagnostics. |
 
 Do not treat a high changed-variable count as automatically good. For broad presets, many changes can mean the matching mode or compatibility policy is too aggressive.
+
+## Debug Bundle Export
+
+`Export Debug Bundle` is documented in [DebugBundles.md](DebugBundles.md). It is designed for partial success: missing optional presets, missing shader files, failed hashes, or zip failures should be recorded as skipped items instead of failing the bundle when core diagnostics are written.
+
+Use `bundle-export-log.txt` first when diagnosing export failures. Use `manifest.json` to see which files were included or skipped.
