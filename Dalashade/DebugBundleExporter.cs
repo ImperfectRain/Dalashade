@@ -42,7 +42,8 @@ public sealed class DebugBundleExporter
         "Dalashade_MaterialDebug.fx",
         "Dalashade_SceneGI.fx",
         "Dalashade_SurfaceReflection.fx",
-        "Dalashade_MaterialMasks.fxh"
+        "Dalashade_MaterialMasks.fxh",
+        "Dalashade_NormalField.fxh"
     ];
 
     public DebugBundleExportResult Export(
