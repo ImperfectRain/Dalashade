@@ -27,6 +27,10 @@ struct Dalashade_NormalField
     float ShadingReceiver;
     float ReflectionReceiver;
     float AOReceiver;
+
+    float SafetySkySuppression;
+    float SafetySkinHighlightSuppression;
+    float SafetyWaterNoiseSuppression;
 };
 
 float3 Dalashade_NormalField_DefaultNormal()
@@ -107,9 +111,9 @@ float3 Dalashade_GetImageGradientNormal(float2 uv, float detailStrength)
     float up = Dalashade_NormalField_Luma(tex2D(ReShade::BackBuffer, uv - float2(0.0, texel.y)).rgb);
     float down = Dalashade_NormalField_Luma(tex2D(ReShade::BackBuffer, uv + float2(0.0, texel.y)).rgb);
 
-    // Deliberately weak: this is a detail hint, not a relief-map pass.
-    float dx = (right - left) * 2.5 * strength;
-    float dy = (down - up) * 2.5 * strength;
+    // Deliberately restrained: this is a selective detail hint, not a relief-map pass.
+    float dx = (right - left) * 3.35 * strength;
+    float dy = (down - up) * 3.35 * strength;
     return Dalashade_NormalField_SafeNormalize(float3(-dx, -dy, 1.0));
 }
 
@@ -122,13 +126,13 @@ float Dalashade_GetDetailEligibility(
     float smoothness,
     float luma)
 {
-    float hardSurface = saturate(material.StoneRuins * 0.45 + material.MetalIndustrial * 0.45 + material.SurfaceHardness * 0.35);
-    float groundMaterial = saturate(material.SandDust * 0.26 + material.SnowIce * 0.16 + material.CrystalAether * 0.12);
-    float controlledTexture = smoothstep(0.025, 0.22, detail) * (1.0 - smoothstep(0.34, 0.82, edge));
+    float hardSurface = saturate(material.StoneRuins * 0.52 + material.MetalIndustrial * 0.52 + material.SurfaceHardness * 0.42);
+    float groundMaterial = saturate(material.SandDust * 0.30 + material.SnowIce * 0.14 + material.CrystalAether * 0.12);
+    float controlledTexture = smoothstep(0.015, 0.18, detail) * (1.0 - smoothstep(0.30, 0.72, edge));
     float highlightRisk = smoothstep(0.62, 0.96, luma) * saturate(safety.HighlightProtect + material.SpecularGlint * 0.55);
     float foliageNoiseRisk = saturate(safety.FoliageNoiseReject * 0.65 + material.Foliage * smoothstep(0.18, 0.55, detail) * 0.28);
     float atmosphereRisk = saturate(safety.SkyReject * 0.95 + material.SkyCloudFog * 0.65);
-    float surfaceSupport = saturate(0.18 + hardSurface + groundMaterial + material.ReceiverConfidence * 0.22);
+    float surfaceSupport = saturate(0.08 + hardSurface + groundMaterial + material.ReceiverConfidence * 0.24);
     float safetyGate = saturate(1.0
         - atmosphereRisk
         - safety.SkinReject * 0.90
@@ -182,27 +186,50 @@ Dalashade_NormalField Dalashade_ResolveNormalField(
     field.CombinedNormal = Dalashade_NormalField_SafeNormalize(depthWeighted + (detailWeighted - Dalashade_NormalField_DefaultNormal()) * 0.70);
 
     field.SurfaceFacing = saturate(field.CombinedNormal.z);
-    field.GroundFacing = saturate(smoothstep(0.58, 0.96, field.CombinedNormal.z) * (1.0 - safety.SkyReject * 0.85));
-    field.WallFacing = saturate((1.0 - field.GroundFacing) * smoothstep(0.10, 0.72, 1.0 - abs(field.CombinedNormal.z)) * (1.0 - safety.SkyReject * 0.85));
     field.EdgeDiscontinuity = saturate(edge * (0.55 + field.DepthConfidence * 0.45) + safety.UIDepthRisk * 0.45);
     field.DetailStrength = field.DetailConfidence * saturate(1.0 - field.EdgeDiscontinuity * 0.72);
     field.NormalConfidence = saturate(enabled * (field.DepthConfidence * 0.58 + field.DetailStrength * 0.42));
+    float orientationConfidence = saturate(field.DepthConfidence * 0.75 + field.DetailConfidence * 0.25);
+    float skyGate = saturate(1.0 - safety.SkyReject * 0.85);
+    field.GroundFacing = saturate(smoothstep(0.58, 0.96, field.CombinedNormal.z) * orientationConfidence * skyGate);
+    field.WallFacing = saturate(smoothstep(0.18, 0.72, 1.0 - abs(field.CombinedNormal.z)) * orientationConfidence * skyGate);
 
     float receiverSafety = saturate(1.0 - safety.SkyReject * skySuppression - safety.SkinReject * skinSuppression);
-    field.ShadingReceiver = saturate(enabled * material.ReceiverConfidence * receiverSafety * (0.42 + field.NormalConfidence * 0.58));
-    field.ReflectionReceiver = saturate(enabled * receiverSafety
-        * (water.WaterReceiver * (0.44 + water.WaterCoherence * 0.46)
-            + material.SpecularGlint * 0.20
-            + material.MetalIndustrial * smoothness * 0.20
-            + material.SnowIce * smoothness * 0.12)
-        * (1.0 - safety.SkyReject * 0.90)
-        * (1.0 - safety.SkinReject * 0.90));
+    float highlightSafety = saturate(1.0 - safety.HighlightProtect * 0.45 - safety.BrightSandProtect * 0.35 - safety.SnowProtect * 0.30);
+    float waterReceiver = saturate(water.WaterReceiver * (0.45 + water.WaterCoherence * 0.55));
+    float hardSmoothReceiver = saturate((material.MetalIndustrial * 0.32 + material.StoneRuins * 0.20 + material.SurfaceHardness * 0.30) * smoothness);
+    float glintReceiver = saturate(material.SpecularGlint * (0.35 + material.MetalIndustrial * 0.20 + material.SnowIce * 0.12));
+    float iceReceiver = saturate(material.SnowIce * smoothness * highlightSafety * 0.24);
+    float reflectionSupport = saturate(waterReceiver + hardSmoothReceiver + glintReceiver + iceReceiver);
+
+    float structuralReceiver = saturate(
+        material.ReceiverConfidence * 0.45
+        + field.GroundFacing * 0.25
+        + field.WallFacing * 0.25
+        + material.SurfaceHardness * 0.20);
+
+    field.ShadingReceiver = saturate(enabled * orientationConfidence * material.ReceiverConfidence * receiverSafety * (0.35 + field.NormalConfidence * 0.65));
+    field.ReflectionReceiver = saturate(enabled
+        * reflectionSupport
+        * receiverSafety
+        * highlightSafety
+        * (0.32 + orientationConfidence * 0.38 + water.WaterReceiver * 0.30)
+        * (1.0 - material.Foliage * 0.35)
+        * (1.0 - safety.FoliageNoiseReject * 0.30)
+        * (1.0 - field.EdgeDiscontinuity * 0.45));
     field.AOReceiver = saturate(enabled
-        * (material.StoneRuins * 0.32 + material.MetalIndustrial * 0.32 + material.SurfaceHardness * 0.26 + material.Foliage * 0.10)
+        * structuralReceiver
+        * orientationConfidence
         * (1.0 - water.WaterReceiver * waterSuppression)
         * receiverSafety
-        * (1.0 - safety.SnowProtect * 0.35)
-        * (1.0 - safety.BrightSandProtect * 0.30));
+        * (1.0 - safety.SnowProtect * 0.45)
+        * (1.0 - safety.BrightSandProtect * 0.35)
+        * (1.0 - safety.FoliageNoiseReject * 0.45)
+        * (1.0 - field.EdgeDiscontinuity * 0.35));
+
+    field.SafetySkySuppression = saturate(safety.SkyReject * skySuppression);
+    field.SafetySkinHighlightSuppression = saturate(safety.SkinReject * skinSuppression + safety.HighlightProtect * 0.35 + safety.BrightSandProtect * 0.20 + safety.SnowProtect * 0.15);
+    field.SafetyWaterNoiseSuppression = saturate(water.WaterReceiver * waterSuppression + safety.WaterAOReject * 0.45 + safety.FoliageNoiseReject * 0.35 + field.EdgeDiscontinuity * 0.20);
 
     if (enabled <= 0.0001)
     {
@@ -220,6 +247,9 @@ Dalashade_NormalField Dalashade_ResolveNormalField(
         field.ShadingReceiver = 0.0;
         field.ReflectionReceiver = 0.0;
         field.AOReceiver = 0.0;
+        field.SafetySkySuppression = 0.0;
+        field.SafetySkinHighlightSuppression = 0.0;
+        field.SafetyWaterNoiseSuppression = 0.0;
     }
 
     return field;
@@ -270,8 +300,11 @@ float3 Dalashade_GetNormalDebugColor(Dalashade_NormalField field, int mode, floa
     }
     if (mode == 11)
     {
-        float rejected = saturate((1.0 - field.ShadingReceiver) * 0.35 + field.EdgeDiscontinuity * 0.45 + (1.0 - field.NormalConfidence) * 0.20);
-        return float3(saturate(rejected * debugBoost), saturate(field.EdgeDiscontinuity * debugBoost), saturate((1.0 - field.NormalConfidence) * debugBoost));
+        float safetyBoost = min(debugBoost, 3.0);
+        return saturate(float3(
+            field.SafetySkySuppression,
+            field.SafetySkinHighlightSuppression,
+            field.SafetyWaterNoiseSuppression) * safetyBoost);
     }
 
     return Dalashade_NormalField_EncodeNormal(field.CombinedNormal);
