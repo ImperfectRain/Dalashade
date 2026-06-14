@@ -262,6 +262,11 @@ public sealed class PresetAnalyzer
             return EffectRole.UiUtility;
         }
 
+        if (IsFirstPartyDalashadeShader(entry, "normaldebug"))
+        {
+            return EffectRole.UiUtility;
+        }
+
         if (IsFirstPartyDalashadeShader(entry, "scenegi"))
         {
             return EffectRole.AoGi;
@@ -428,7 +433,7 @@ public sealed class PresetAnalyzer
 
         if (string.IsNullOrWhiteSpace(shaderFamily))
         {
-            return ContainsAny(text, "weatheratmosphere", "adaptivegrade", "atmospherebloom", "smartsharpen", "materialdebug", "scenegi", "surfacereflection");
+            return ContainsAny(text, "weatheratmosphere", "adaptivegrade", "atmospherebloom", "smartsharpen", "materialdebug", "normaldebug", "scenegi", "surfacereflection");
         }
 
         return text.Contains(shaderFamily, StringComparison.OrdinalIgnoreCase);

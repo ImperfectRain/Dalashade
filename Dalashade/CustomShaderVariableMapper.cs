@@ -108,8 +108,17 @@ public sealed class CustomShaderVariableMapper
     private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> NormalFieldVariables =
         new Dictionary<string, Func<Configuration, float>>(StringComparer.OrdinalIgnoreCase)
         {
+            ["Dalashade_NormalDebugEnabled"] = configuration => configuration.EnableNormalField && configuration.EnableNormalFieldShaderMapping ? 1f : 0f,
+            ["Dalashade_NormalDebugMode"] = configuration => configuration.NormalFieldDebugMode,
+            ["Dalashade_NormalDebugBoost"] = configuration => configuration.NormalFieldDebugBoost,
             ["Dalashade_NormalFieldEnabled"] = configuration => configuration.EnableNormalField && configuration.EnableNormalFieldShaderMapping ? 1f : 0f,
             ["Dalashade_NormalFieldStrength"] = configuration => configuration.NormalFieldStrength,
+            ["Dalashade_NormalDepthStrength"] = configuration => configuration.NormalFieldDepthStrength,
+            ["Dalashade_NormalDetailStrength"] = configuration => configuration.NormalFieldDetailStrength,
+            ["Dalashade_NormalMaterialInfluence"] = configuration => configuration.NormalFieldMaterialInfluence,
+            ["Dalashade_NormalWaterSuppression"] = configuration => configuration.NormalFieldWaterSuppression,
+            ["Dalashade_NormalSkinSuppression"] = configuration => configuration.NormalFieldSkinSuppression,
+            ["Dalashade_NormalSkySuppression"] = configuration => configuration.NormalFieldSkySuppression,
             ["Dalashade_NormalFieldDepthStrength"] = configuration => configuration.NormalFieldDepthStrength,
             ["Dalashade_NormalFieldDetailStrength"] = configuration => configuration.NormalFieldDetailStrength,
             ["Dalashade_NormalFieldMaterialInfluence"] = configuration => configuration.NormalFieldMaterialInfluence,
@@ -459,20 +468,23 @@ public sealed class CustomShaderVariableMapper
 
     private static ShaderAdjustmentResult FormatNormalFieldValue(string key, float value)
     {
-        if (string.Equals(key, "Dalashade_NormalFieldEnabled", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(key, "Dalashade_NormalFieldEnabled", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "Dalashade_NormalDebugEnabled", StringComparison.OrdinalIgnoreCase))
         {
             var enabled = value >= 0.5f ? 1 : 0;
             return new ShaderAdjustmentResult(enabled.ToString(CultureInfo.InvariantCulture), false, false);
         }
 
-        if (string.Equals(key, "Dalashade_NormalFieldDebugMode", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(key, "Dalashade_NormalFieldDebugMode", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "Dalashade_NormalDebugMode", StringComparison.OrdinalIgnoreCase))
         {
             var rounded = (int)MathF.Round(value);
             var clamped = Math.Min(11, Math.Max(0, rounded));
             return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 11);
         }
 
-        if (string.Equals(key, "Dalashade_NormalFieldDebugBoost", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(key, "Dalashade_NormalFieldDebugBoost", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "Dalashade_NormalDebugBoost", StringComparison.OrdinalIgnoreCase))
         {
             var clamped = MathF.Min(8f, MathF.Max(0.25f, value));
             return new ShaderAdjustmentResult(Format(clamped), value < 0.25f, value > 8f);
@@ -552,6 +564,7 @@ public sealed class CustomShaderVariableMapper
                || (IsAdaptiveGradeSection(section) && AdaptiveGradeMaterialVariables.Contains(key))
                || (IsSceneGISection(section) && SceneGIMaterialVariables.Contains(key))
                || (IsSurfaceReflectionSection(section) && SurfaceReflectionMaterialVariables.Contains(key))
+               || (IsNormalDebugSection(section) && MaterialDebugVariables.Contains(key))
                || (IsMaterialDebugSection(section) && MaterialDebugVariables.Contains(key));
     }
 
@@ -564,6 +577,7 @@ public sealed class CustomShaderVariableMapper
                    || IsAdaptiveGradeSection(section)
                    || IsSceneGISection(section)
                    || IsSurfaceReflectionSection(section)
+                   || IsNormalDebugSection(section)
                    || IsMaterialDebugSection(section));
     }
 
@@ -589,6 +603,12 @@ public sealed class CustomShaderVariableMapper
     {
         return string.Equals(section, "Dalashade_MaterialDebug.fx", StringComparison.OrdinalIgnoreCase)
                || section.Contains("Dalashade_MaterialDebug", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsNormalDebugSection(string section)
+    {
+        return string.Equals(section, "Dalashade_NormalDebug.fx", StringComparison.OrdinalIgnoreCase)
+               || section.Contains("Dalashade_NormalDebug", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsSceneGISection(string section)

@@ -83,6 +83,13 @@ public sealed class CompatibilityReportExporter
             Set(SharedMaterialParityChannels.Select(channel => channel.Uniform).Where(uniform => !string.Equals(uniform, "Dalashade_RainWetContext", StringComparison.Ordinal)).ToArray()),
             Set(SharedMaterialParityChannels.Select(channel => channel.Uniform).Where(uniform => !string.Equals(uniform, "Dalashade_RainWetContext", StringComparison.Ordinal)).ToArray())),
         new(
+            "Dalashade_NormalDebug.fx",
+            "Dalashade_NormalDebug",
+            "Truth viewer for shared NormalField diagnostics",
+            Set(SharedMaterialParityChannels.Select(channel => channel.Uniform).Where(uniform => !string.Equals(uniform, "Dalashade_RainWetContext", StringComparison.Ordinal)).ToArray()),
+            Set(SharedMaterialParityChannels.Select(channel => channel.Uniform).Where(uniform => !string.Equals(uniform, "Dalashade_RainWetContext", StringComparison.Ordinal)).ToArray()),
+            Set(SharedMaterialParityChannels.Select(channel => channel.Uniform).Where(uniform => !string.Equals(uniform, "Dalashade_RainWetContext", StringComparison.Ordinal)).ToArray())),
+        new(
             "Dalashade_SceneGI.fx",
             "Dalashade_SceneGI",
             "Screen-space AO, bounce, and light pooling",
@@ -1413,6 +1420,7 @@ public sealed class CompatibilityReportExporter
             FormatFirstPartyShaderStatus(analysis, "AtmosphereBloom", "Dalashade_AtmosphereBloom"),
             FormatFirstPartyShaderStatus(analysis, "SmartSharpen", "Dalashade_SmartSharpen"),
             FormatFirstPartyShaderStatus(analysis, "MaterialDebug", "Dalashade_MaterialDebug"),
+            FormatFirstPartyShaderStatus(analysis, "NormalDebug", "Dalashade_NormalDebug"),
             FormatFirstPartyShaderStatus(analysis, "SceneGI", "Dalashade_SceneGI"),
             FormatFirstPartyShaderStatus(analysis, "SurfaceReflection", "Dalashade_SurfaceReflection")
         };

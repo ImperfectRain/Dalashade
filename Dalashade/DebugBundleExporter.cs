@@ -40,6 +40,7 @@ public sealed class DebugBundleExporter
         "Dalashade_WeatherAtmosphere.fx",
         "Dalashade_SmartSharpen.fx",
         "Dalashade_MaterialDebug.fx",
+        "Dalashade_NormalDebug.fx",
         "Dalashade_SceneGI.fx",
         "Dalashade_SurfaceReflection.fx",
         "Dalashade_MaterialMasks.fxh",
@@ -536,6 +537,7 @@ Preset and plugin config files are included intentionally for debugging. Full Re
         "Dalashade_WeatherAtmosphere",
         "iMMERSE Sharpen",
         "Dalashade_SmartSharpen",
+        "Dalashade_NormalDebug",
         "Dalashade_MaterialDebug"
     ];
 

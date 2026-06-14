@@ -135,6 +135,20 @@ public sealed class PresetWriter
         "Dalashade_MaterialVoidDarkness"
     ];
 
+    private static readonly IReadOnlyList<string> NormalFieldShaderVariables =
+    [
+        "Dalashade_NormalDebugEnabled",
+        "Dalashade_NormalDebugMode",
+        "Dalashade_NormalDebugBoost",
+        "Dalashade_NormalFieldStrength",
+        "Dalashade_NormalDepthStrength",
+        "Dalashade_NormalDetailStrength",
+        "Dalashade_NormalMaterialInfluence",
+        "Dalashade_NormalWaterSuppression",
+        "Dalashade_NormalSkinSuppression",
+        "Dalashade_NormalSkySuppression"
+    ];
+
     private static readonly IReadOnlyList<string> SceneGIMaterialIntentShaderVariables =
     [
         "Dalashade_MaterialFoliage",
@@ -321,6 +335,14 @@ public sealed class PresetWriter
             "Dalashade_MaterialDebug",
             "Dalashade_MaterialDebug@Dalashade_MaterialDebug.fx",
             MaterialDebugShaderVariables.Concat(DepthAssistShaderOwnedVariables).ToArray()),
+        new(
+            "Dalashade_NormalDebug.fx",
+            "Dalashade_NormalDebug",
+            "Dalashade_NormalDebug@Dalashade_NormalDebug.fx",
+            MaterialDebugShaderVariables
+                .Concat(DepthAssistShaderOwnedVariables)
+                .Concat(NormalFieldShaderVariables)
+                .ToArray()),
         new(
             "Dalashade_SceneGI.fx",
             "Dalashade_SceneGI",
@@ -789,14 +811,17 @@ public sealed class PresetWriter
 
     private static IReadOnlyList<string> VariablesForInjection(Configuration configuration, KnownCustomShaderDefinition shader)
     {
-        if (ShouldWriteMaterialIntentVariables(configuration))
-        {
-            return shader.Variables;
-        }
-
         return shader.Variables
-            .Where(variable => !CustomShaderVariableMapper.IsKnownMaterialIntentVariable(variable))
+            .Where(variable => ShouldWriteMaterialIntentVariables(configuration) || !CustomShaderVariableMapper.IsKnownMaterialIntentVariable(variable))
+            .Where(variable => ShouldWriteNormalFieldVariables(configuration) || !CustomShaderVariableMapper.IsKnownNormalFieldVariable(variable))
             .ToArray();
+    }
+
+    private static bool ShouldWriteNormalFieldVariables(Configuration configuration)
+    {
+        return configuration.EnableNormalField
+               && configuration.EnableNormalFieldShaderMapping
+               && configuration.NormalFieldStrength > 0f;
     }
 
     private static string DefaultInjectedCustomShaderValue(string section, string variable)

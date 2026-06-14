@@ -25,6 +25,8 @@ Implemented shader prototypes:
 - Selective atmospheric bloom for bright sources, wet speculars, canopy openings, distant heat glow, magic/aether, and neon accents.
 - `shaders/Dalashade_MaterialDebug.fx`
 - Optional false-color MaterialIntent/debug visualizer for screen-space material heuristics. It includes `shaders/Dalashade_MaterialMasks.fxh` and is disabled by default.
+- `shaders/Dalashade_NormalDebug.fx`
+- Optional NormalField visualizer for screen-space inferred normals, receiver masks, and safety suppression. It includes `shaders/Dalashade_NormalField.fxh` and is disabled by default.
 - `shaders/Dalashade_SceneGI.fx`
 - Optional screen-space GI-style pass for shallow contact AO, material-aware ambient bounce, and night light pooling. It is not path tracing, RTGI, or PTGI.
 - `shaders/Dalashade_SurfaceReflection.fx`
@@ -51,7 +53,7 @@ Custom shader writes are intentionally conservative:
 
 When `AutoInjectDalashadeCustomShaderSections` is off, Dalashade does not insert shader sections during generation.
 
-When both `EnableDalashadeCustomShaders` and `AutoInjectDalashadeCustomShaderSections` are on, Dalashade may inject known custom shader sections and variables into the generated preset only. It never mutates the base preset. Current injection support is limited to `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, `[Dalashade_SmartSharpen.fx]`, `[Dalashade_AtmosphereBloom.fx]`, `[Dalashade_MaterialDebug.fx]`, `[Dalashade_SceneGI.fx]`, and `[Dalashade_SurfaceReflection.fx]`.
+When both `EnableDalashadeCustomShaders` and `AutoInjectDalashadeCustomShaderSections` are on, Dalashade may inject known custom shader sections and variables into the generated preset only. It never mutates the base preset. Current injection support is limited to `[Dalashade_WeatherAtmosphere.fx]`, `[Dalashade_AdaptiveGrade.fx]`, `[Dalashade_SmartSharpen.fx]`, `[Dalashade_AtmosphereBloom.fx]`, `[Dalashade_MaterialDebug.fx]`, `[Dalashade_NormalDebug.fx]`, `[Dalashade_SceneGI.fx]`, and `[Dalashade_SurfaceReflection.fx]`.
 
 MaterialIntent variable injection is skipped unless MaterialIntent shader mapping is explicitly enabled. Disabled mapping does not write zeroes into existing material keys and does not add material keys during generated-preset-only injection. Current MaterialIntent shader behavior is section-scoped per first-party shader so each shader receives only the material channels it actually uses.
 
@@ -91,6 +93,7 @@ Custom shader variables are grouped by ownership:
 | --- | --- | --- |
 | Dalashade-controlled SceneIntent variables | `Dalashade_Readability`, `Dalashade_Atmosphere`, `Dalashade_Haze`, `Dalashade_CombatPressure` | Yes, when custom shader support is enabled and matching keys exist. |
 | MaterialIntent channel uniforms | `Dalashade_MaterialFoliage`, `Dalashade_MaterialSkyCloudFog`, `Dalashade_MaterialWaterSpecular` | Yes, only when MaterialIntent, MaterialIntent shader mapping, custom shader support, and matching section-scoped keys are all enabled. |
+| NormalField diagnostic uniforms | `Dalashade_NormalDebugEnabled`, `Dalashade_NormalDebugMode`, `Dalashade_NormalFieldStrength`, `Dalashade_NormalDepthStrength`, `Dalashade_NormalDetailStrength` | Yes, only when NormalField, NormalField shader mapping, custom shader support, and matching section-scoped keys are all enabled. NormalDebug remains a manual diagnostic technique. |
 | Shader-owned controls | `Dalashade_EnableDepthAssist`, `Dalashade_DepthAssistStrength`, `Dalashade_DepthAssistConfidenceFloor`, `Dalashade_DepthConfidenceFloor`, MaterialDebug debug mode/opacity/strength controls | No active writes. These may be known or injected with default values, but users control them in ReShade. SceneGI debug controls are the exception: they can be written when `EnableDalashadeSceneGIShaderVariables` is enabled. |
 
 The generated WeatherAtmosphere section includes the weather shader intent variables Dalashade currently knows how to write: `Dalashade_Haze`, `Dalashade_Wetness`, `Dalashade_Cold`, `Dalashade_Heat`, `Dalashade_HighlightProtection`, `Dalashade_ShadowProtection`, `Dalashade_CombatPressure`, `Dalashade_Atmosphere`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_FoliageDensity`, `Dalashade_Readability`, `Dalashade_Night`, `Dalashade_Moonlight`, `Dalashade_ArtificialLight`, `Dalashade_AmbientDarkness`, `Dalashade_NightAtmosphere`, and `Dalashade_CinematicPermission`. When MaterialIntent shader mapping is enabled, WeatherAtmosphere may also receive `Dalashade_MaterialFoliage`, `Dalashade_MaterialSandDust`, `Dalashade_MaterialSnowIce`, `Dalashade_MaterialWaterSpecular`, `Dalashade_MaterialWaterPlane`, `Dalashade_MaterialSpecularGlint`, `Dalashade_WaterContext`, `Dalashade_CoastalContext`, `Dalashade_OpenOceanContext`, `Dalashade_ShallowWaterContext`, `Dalashade_WetSurfaceContext`, `Dalashade_MaterialCrystalAether`, and `Dalashade_MaterialSkyCloudFog`.
@@ -102,6 +105,8 @@ The generated SmartSharpen section includes the clarity shader intent variables 
 The generated AtmosphereBloom section includes the bloom shader intent variables Dalashade currently knows how to write: `Dalashade_Atmosphere`, `Dalashade_MagicGlow`, `Dalashade_NeonGlow`, `Dalashade_FoliageDensity`, `Dalashade_Wetness`, `Dalashade_Heat`, `Dalashade_Readability`, `Dalashade_HighlightProtection`, `Dalashade_Night`, `Dalashade_Moonlight`, `Dalashade_ArtificialLight`, `Dalashade_AmbientDarkness`, `Dalashade_NightAtmosphere`, `Dalashade_CombatPressure`, and `Dalashade_CinematicPermission`. When MaterialIntent shader mapping is enabled, AtmosphereBloom may also receive `Dalashade_MaterialWaterSpecular`, `Dalashade_MaterialWaterPlane`, `Dalashade_MaterialSpecularGlint`, `Dalashade_MaterialCrystalAether`, `Dalashade_MaterialNeonGlass`, `Dalashade_MaterialFireLavaHeat`, and `Dalashade_MaterialSkyCloudFog`.
 
 The generated MaterialDebug section contains MaterialIntent channel variables only. It may receive `Dalashade_MaterialFoliage`, `Dalashade_MaterialWaterSpecular`, `Dalashade_MaterialWaterPlane`, `Dalashade_MaterialSpecularGlint`, `Dalashade_MaterialSandDust`, `Dalashade_MaterialSnowIce`, `Dalashade_MaterialStoneRuins`, `Dalashade_MaterialMetalIndustrial`, `Dalashade_MaterialCrystalAether`, `Dalashade_MaterialNeonGlass`, `Dalashade_MaterialFireLavaHeat`, `Dalashade_MaterialSkyCloudFog`, `Dalashade_MaterialSkinProtection`, and `Dalashade_MaterialVoidDarkness` when MaterialIntent shader mapping is enabled. Debug mode, overlay mode, opacity, and strength stay in the `.fx` UI.
+
+The generated NormalDebug section is optional and diagnostic. It can receive the same MaterialIntent material/context variables as MaterialDebug when MaterialIntent shader mapping is enabled. It can also receive `Dalashade_NormalDebugEnabled`, `Dalashade_NormalDebugMode`, `Dalashade_NormalDebugBoost`, `Dalashade_NormalFieldStrength`, `Dalashade_NormalDepthStrength`, `Dalashade_NormalDetailStrength`, `Dalashade_NormalMaterialInfluence`, `Dalashade_NormalWaterSuppression`, `Dalashade_NormalSkinSuppression`, and `Dalashade_NormalSkySuppression` only when NormalField shader mapping is explicitly enabled. The technique is never auto-enabled.
 
 The generated SceneGI section includes conservative GI controls and `Dalashade_Intent*` aliases for the SceneIntent values the shader consumes. `EnableDalashadeSceneGIShaderVariables` controls whether Dalashade actively rewrites those GI controls during generation; technique activation remains manual. When MaterialIntent shader mapping is enabled, SceneGI may also receive `Dalashade_MaterialFoliage`, `Dalashade_MaterialWaterPlane`, `Dalashade_MaterialSpecularGlint`, `Dalashade_MaterialSandDust`, `Dalashade_MaterialSnowIce`, `Dalashade_MaterialStoneRuins`, `Dalashade_MaterialMetalIndustrial`, `Dalashade_MaterialCrystalAether`, `Dalashade_MaterialNeonGlass`, `Dalashade_MaterialFireLavaHeat`, `Dalashade_MaterialSkyCloudFog`, `Dalashade_MaterialSkinProtection`, and `Dalashade_MaterialVoidDarkness`.
 
@@ -150,9 +155,10 @@ Recommended gameplay order for a full Dalashade-aware stack:
 17. Dalashade_WeatherAtmosphere
 18. iMMERSE Sharpen
 19. Dalashade_SmartSharpen
-20. Dalashade_MaterialDebug
+20. Dalashade_NormalDebug
+21. Dalashade_MaterialDebug
 
-When debugging a first-party shader, temporarily put that shader last or near-last and use its full replacement or contribution-over-black debug output. Restore the gameplay order after tuning. `Dalashade_MaterialDebug` should remain a manual debug utility, not a normal production pass.
+When debugging a first-party shader, temporarily put that shader last or near-last and use its full replacement or contribution-over-black debug output. Restore the gameplay order after tuning. `Dalashade_NormalDebug` and `Dalashade_MaterialDebug` should remain manual debug utilities, not normal production passes.
 
 For `Dalashade_WeatherAtmosphere.fx`, use this order:
 
@@ -499,6 +505,12 @@ The shader uses two channels. Structural clarity uses broad, lower-frequency lum
 ## Material Debug Overlay
 
 `Dalashade_MaterialDebug.fx` is a dedicated diagnostic overlay. Copy both `Dalashade_MaterialDebug.fx` and `Dalashade_MaterialMasks.fxh` into a ReShade shader search folder, regenerate the preset with custom shader support, MaterialIntent, MaterialIntent shader mapping, material debug masks, and generated-preset section injection enabled, then enable the `Dalashade_MaterialDebug` technique manually in ReShade. Keep it last or near-last in the stack while debugging.
+
+## Normal Field Debug Overlay
+
+`Dalashade_NormalDebug.fx` is a dedicated NormalField diagnostic overlay. Copy `Dalashade_NormalDebug.fx`, `Dalashade_NormalField.fxh`, and `Dalashade_MaterialMasks.fxh` into a ReShade shader search folder, regenerate the preset with custom shader support and generated-preset section injection enabled, then enable `Dalashade_NormalDebug` manually in ReShade. For debugging, place `Dalashade_NormalDebug` near the bottom, usually before or beside `Dalashade_MaterialDebug`.
+
+NormalDebug visualizes inferred screen-space depth normals, detail normals, combined normals, ground/wall facing masks, normal confidence, shading receivers, reflection receivers, AO receivers, and safety suppression. It is not true game material normals, FFXIV G-buffer access, or real normal maps. Mode `0` and disabled `Dalashade_NormalDebugEnabled` are pass-through for normal gameplay.
 
 The overlay visualizes shader-side material heuristic influence. It is not true FFXIV engine material-ID detection, so false positives are expected. Scene-level MaterialProfile/MaterialIntent priors gate each pixel mask; high scene-level foliage, water, snow, or aether values do not tint the whole screen unless individual pixels also match the local color/luma/saturation/edge/depth heuristics.
 
