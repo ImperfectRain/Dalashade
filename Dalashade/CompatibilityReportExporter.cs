@@ -51,8 +51,8 @@ public sealed class CompatibilityReportExporter
             "Dalashade_AdaptiveGrade.fx",
             "Dalashade_AdaptiveGrade",
             "Scene-aware color/tone protection",
-            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialSkinProtection", "Dalashade_MaterialVoidDarkness", "Dalashade_EnableDepthAssist", "Dalashade_DepthAssistStrength", "Dalashade_DepthAssistConfidenceFloor", "Dalashade_DepthConfidenceFloor"),
-            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialSkinProtection", "Dalashade_MaterialVoidDarkness"),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_WaterContext", "Dalashade_CoastalContext", "Dalashade_OpenOceanContext", "Dalashade_ShallowWaterContext", "Dalashade_WetSurfaceContext", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection", "Dalashade_MaterialVoidDarkness", "Dalashade_EnableDepthAssist", "Dalashade_DepthAssistStrength", "Dalashade_DepthAssistConfidenceFloor", "Dalashade_DepthConfidenceFloor"),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_WaterContext", "Dalashade_CoastalContext", "Dalashade_OpenOceanContext", "Dalashade_ShallowWaterContext", "Dalashade_WetSurfaceContext", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection", "Dalashade_MaterialVoidDarkness"),
             Set()),
         new(
             "Dalashade_AtmosphereBloom.fx",

@@ -134,6 +134,27 @@ uniform float Dalashade_MaterialFoliage <
     ui_tooltip = "Inferred foliage likelihood. Supports richer greens while preserving dark trunks.";
 > = 0.0;
 
+uniform float Dalashade_MaterialWaterSpecular <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Water/Specular";
+    ui_tooltip = "Legacy inferred water/specular likelihood. Used as compatibility fallback for day highlight protection.";
+> = 0.0;
+
+uniform float Dalashade_MaterialWaterPlane <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Water Plane";
+    ui_tooltip = "Inferred broad water surface likelihood. Used for tonal protection, not reflection.";
+> = 0.0;
+
+uniform float Dalashade_MaterialSpecularGlint <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Specular Glint";
+    ui_tooltip = "Inferred thin glint likelihood. Used for highlight and chroma restraint.";
+> = 0.0;
+
 uniform float Dalashade_MaterialSandDust <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -162,6 +183,13 @@ uniform float Dalashade_MaterialCrystalAether <
     ui_tooltip = "Inferred crystal or aether likelihood. Protects saturated glow colors and supports subtle tint.";
 > = 0.0;
 
+uniform float Dalashade_MaterialSkyCloudFog <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Sky/Cloud/Fog";
+    ui_tooltip = "Inferred sky, cloud, fog, or atmosphere likelihood. Used for daytime highlight protection.";
+> = 0.0;
+
 uniform float Dalashade_MaterialSkinProtection <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -174,6 +202,41 @@ uniform float Dalashade_MaterialVoidDarkness <
     ui_min = 0.0; ui_max = 1.0;
     ui_label = "Dalashade Material Void/Darkness";
     ui_tooltip = "Inferred void or darkness likelihood. Preserves black depth and avoids gray wash.";
+> = 0.0;
+
+uniform float Dalashade_WaterContext <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Water Context";
+    ui_tooltip = "Scene-level water prior for shared water resolver tonal protection.";
+> = 0.0;
+
+uniform float Dalashade_CoastalContext <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Coastal Context";
+    ui_tooltip = "Scene-level coastal prior for shared water resolver tonal protection.";
+> = 0.0;
+
+uniform float Dalashade_OpenOceanContext <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Open Ocean Context";
+    ui_tooltip = "Scene-level open ocean prior for water/sky highlight handling.";
+> = 0.0;
+
+uniform float Dalashade_ShallowWaterContext <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Shallow Water Context";
+    ui_tooltip = "Scene-level shallow water prior for turquoise-water tonal protection.";
+> = 0.0;
+
+uniform float Dalashade_WetSurfaceContext <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Wet Surface Context";
+    ui_tooltip = "Scene-level wet surface prior. Used only for restraint/protection in AdaptiveGrade.";
 > = 0.0;
 
 uniform bool Dalashade_EnableDepthAssist <
@@ -242,6 +305,13 @@ uniform bool Dalashade_ShowDebugMask <
     ui_tooltip = "Red shows highlight rolloff, green shows shadow lift, blue shows cinematic grade pressure.";
 > = false;
 
+uniform int Dalashade_AdaptiveGradeDebugMode <
+    ui_type = "combo";
+    ui_items = "Normal\0Night masks\0Day masks\0Material protection masks\0Highlight rolloff\0Chroma restraint\0Skin protection\0Final grade delta\0";
+    ui_label = "AdaptiveGrade Debug Mode";
+    ui_tooltip = "Diagnostic replacement masks for AdaptiveGrade. These show heuristic influence, not engine material IDs.";
+> = 0;
+
 float Dalashade_Luma(float3 color)
 {
     return dot(color, float3(0.2126, 0.7152, 0.0722));
@@ -299,19 +369,28 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float dayReflection = saturate(Dalashade_DayReflection);
     float dayHighlightPressure = saturate(Dalashade_DayHighlightPressure);
     float materialFoliage = saturate(Dalashade_MaterialFoliage);
+    float materialWaterSpecular = saturate(Dalashade_MaterialWaterSpecular);
+    float materialWaterPlane = saturate(Dalashade_MaterialWaterPlane);
+    float materialSpecularGlint = saturate(Dalashade_MaterialSpecularGlint);
     float materialSandDust = saturate(Dalashade_MaterialSandDust);
     float materialSnowIce = saturate(Dalashade_MaterialSnowIce);
     float materialMetalIndustrial = saturate(Dalashade_MaterialMetalIndustrial);
     float materialCrystal = saturate(Dalashade_MaterialCrystalAether);
+    float materialSkyCloudFog = saturate(Dalashade_MaterialSkyCloudFog);
     float materialSkin = saturate(Dalashade_MaterialSkinProtection);
     float materialVoid = saturate(Dalashade_MaterialVoidDarkness);
+    float waterContext = saturate(Dalashade_WaterContext);
+    float coastalContext = saturate(Dalashade_CoastalContext);
+    float openOceanContext = saturate(Dalashade_OpenOceanContext);
+    float shallowWaterContext = saturate(Dalashade_ShallowWaterContext);
+    float wetSurfaceContext = saturate(Dalashade_WetSurfaceContext);
     Dalashade_MaterialResolve material = Dalashade_ResolveMaterials(
         source,
         texcoord,
         materialFoliage,
-        0.0,
-        0.0,
-        0.0,
+        materialWaterSpecular,
+        materialWaterPlane,
+        materialSpecularGlint,
         materialSandDust,
         materialSnowIce,
         0.0,
@@ -319,7 +398,7 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
         materialCrystal,
         0.0,
         0.0,
-        0.0,
+        materialSkyCloudFog,
         materialSkin,
         materialVoid,
         Dalashade_EnableDepthAssist ? 1.0 : 0.0,
@@ -328,11 +407,11 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     Dalashade_WaterResolve water = Dalashade_ResolveWater(
         source,
         texcoord,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
+        waterContext,
+        coastalContext,
+        openOceanContext,
+        shallowWaterContext,
+        wetSurfaceContext,
         material.WaterPlane,
         material.SpecularGlint,
         material.SandDust,
@@ -355,6 +434,9 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float materialSnowPixel = material.SnowIce;
     float materialMetalPixel = material.MetalIndustrial;
     float materialCrystalPixel = material.CrystalAether;
+    float materialWaterPixel = saturate(max(max(material.WaterPlane, material.WaterSpecular), water.WaterSurface));
+    float materialSpecularPixel = saturate(max(material.SpecularGlint, water.FoamOrEdge * 0.65));
+    float materialSkyPixel = saturate(max(material.SkyCloudFog, safetyResolve.SkyReject));
     float materialSkinPixel = saturate(max(material.SkinProtection, safetyResolve.SkinReject));
     float materialVoidPixel = material.VoidDarkness;
     float manualStrength = saturate(Dalashade_ManualStrength);
@@ -371,6 +453,35 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float luma = Dalashade_Luma(source);
     float highlightMask = smoothstep(0.62, 0.98, luma);
     float shadowMask = 1.0 - smoothstep(0.05, 0.34, luma);
+    float chroma = max(max(source.r, source.g), source.b) - min(min(source.r, source.g), source.b);
+    float brightDaySurface = saturate(max(
+        max(water.WaterSurface, water.WetShoreline),
+        max(max(materialSandPixel, materialSnowPixel), max(materialSkyPixel, materialSpecularPixel * 0.65))));
+    float daylightShoulder = saturate(
+        dayHighlightPressure
+        * highlightMask
+        * brightDaySurface
+        * (0.50 + openSkyLight * 0.35 + sunlight * 0.25 + dayReflection * 0.15));
+    float highSunChromaRestraint = saturate(
+        sunlight
+        * openSkyLight
+        * highlightMask
+        * chroma
+        * brightDaySurface
+        * (1.0 - materialSkinPixel * 0.85));
+    float dayShadowFill = saturate(
+        daylight
+        * openSkyLight
+        * shadowMask
+        * (1.0 - combat * 0.55)
+        * (1.0 - ambientDarkness * 0.70)
+        * (1.0 - max(materialVoid, materialVoidPixel) * 0.75)
+        * (1.0 - max(material.Foliage, materialFoliagePixel) * 0.20));
+    float coastalDayIdentity = saturate(daylight * (0.30 + dayReflection * 0.28 + openSkyLight * 0.24) * max(max(waterContext, coastalContext), materialWaterPixel));
+    float canopyDayIdentity = saturate(daylight * dayAtmosphere * max(foliage, max(materialFoliage, materialFoliagePixel)));
+    float desertDayIdentity = saturate(daylight * max(surfaceHeat, heat) * max(materialSandDust, materialSandPixel));
+    float snowDayIdentity = saturate(daylight * openSkyLight * max(coldIdentity, materialSnowPixel));
+    float highTechDayIdentity = saturate(daylight * max(industrial, materialMetalPixel) * (0.55 + max(neonGlow, materialCrystalPixel) * 0.35));
 
     // Build a mild intent-driven grade target. Manual controls add test pressure, not a new architecture path.
     float exposureTrim = Dalashade_ManualExposure
@@ -431,6 +542,19 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     graded = lerp(graded, graded * float3(0.982, 0.995, 1.025), materialMetalIndustrial * max(coolSignal, materialMetalPixel * 0.45) * 0.040 * safety);
     graded = lerp(graded, graded * float3(0.985, 0.978, 1.035), materialCrystal * max(max(coolSignal, greenSignal), materialCrystalPixel * 0.42) * 0.034 * safety);
 
+    // Daytime tonal identity is a contextual layer: it protects bright materials and nudges mids without acting like bloom, fog, or reflection.
+    float midtoneDayMask = smoothstep(0.18, 0.62, luma) * (1.0 - highlightMask * 0.62);
+    graded = lerp(graded, graded * float3(1.018, 1.006, 0.982), coastalDayIdentity * midtoneDayMask * 0.10 * safety);
+    graded = lerp(graded, graded * float3(0.978, 1.010, 1.028), coastalDayIdentity * max(materialWaterPixel, materialSkyPixel * 0.55) * 0.08 * (1.0 - materialSkinPixel * 0.80));
+    graded = lerp(graded, graded * float3(0.970, 1.038, 0.948), canopyDayIdentity * max(greenSignal, materialFoliagePixel) * 0.075 * safety * (1.0 - highlightMask * 0.45));
+    graded = lerp(graded, graded * float3(1.030, 1.006, 0.945), desertDayIdentity * warmSignal * midtoneDayMask * 0.075 * safety);
+    graded = lerp(graded, graded * float3(0.965, 0.986, 1.035), snowDayIdentity * max(materialSnowPixel, coolSignal) * 0.052 * safety * (1.0 - daylightShoulder * 0.35));
+    graded = lerp(graded, graded * float3(0.972, 0.988, 1.024), highTechDayIdentity * 0.045 * safety);
+    graded += dayShadowFill * 0.012 * manualStrength * (1.0 - source) * (1.0 - materialSkinPixel * 0.55);
+    float3 chromaRestrained = Dalashade_SafeSaturation(graded, -0.080 * highSunChromaRestraint);
+    chromaRestrained += Dalashade_Luma(graded) - Dalashade_Luma(chromaRestrained);
+    graded = lerp(graded, chromaRestrained, 0.40 * manualStrength);
+
     // Night light hierarchy: unlit regions deepen, moonlit mids cool gently, and artificial light affects bright local pools instead of lifting the frame.
     float moonlitSurface = moonlight * smoothstep(0.18, 0.66, luma) * (1.0 - highlightMask * 0.34) * safety;
     float artificialLightPool = artificialLight * smoothstep(0.42, 0.92, luma) * (0.55 + max(max(neonGlow, magicGlow), materialCrystal) * 0.45) * (1.0 - combat * 0.42);
@@ -453,7 +577,7 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     graded = lerp(graded, graded * cinematicTint, cinematicBias);
 
     // Highlight and shadow protection keep the grade usable in gameplay and bright weather.
-    float rolloff = min((highlightProtection * 0.17 + coldIdentity * 0.060 + heatIdentity * 0.040 + hardSurfaceIdentity * 0.018 + cosmic * 0.020) * highlightMask, 0.25);
+    float rolloff = min((highlightProtection * 0.17 + coldIdentity * 0.060 + heatIdentity * 0.040 + hardSurfaceIdentity * 0.018 + cosmic * 0.020) * highlightMask + daylightShoulder * 0.14, 0.30);
     graded = lerp(graded, graded / (1.0 + graded), rolloff * manualStrength);
 
     float selectiveShadowLift = (0.060 - night * 0.020 - combat * 0.022) * (1.0 - max(foliage, materialFoliage) * 0.38) * (1.0 - hardSurfaceIdentity * 0.22) * (1.0 - materialVoid * 0.52);
@@ -479,9 +603,39 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
 
     float3 result = lerp(source, graded, saturate(gradeStrength));
 
-    if (Dalashade_ShowDebugMask)
+    int debugMode = Dalashade_AdaptiveGradeDebugMode;
+    if (Dalashade_ShowDebugMask && debugMode == 0)
+    {
+        debugMode = 1;
+    }
+
+    if (debugMode == 1)
     {
         return float4(saturate(nightDarken * 8.0 + rolloff * 3.0), saturate(artificialLightPool + lift * 6.0), saturate(moonlitSurface + nightAtmosphere * 0.35 + cinematicBias * 8.0), 1.0);
+    }
+    if (debugMode == 2)
+    {
+        return float4(saturate(daylightShoulder * 4.0 + coastalDayIdentity * 0.55), saturate(dayShadowFill * 1.4 + canopyDayIdentity * 0.60 + desertDayIdentity * 0.35), saturate(highSunChromaRestraint * 2.8 + dayAtmosphere * 0.28 + dayReflection * 0.35), 1.0);
+    }
+    if (debugMode == 3)
+    {
+        return float4(saturate(max(materialWaterPixel, materialSkyPixel)), saturate(max(materialFoliagePixel, max(materialSandPixel, materialSnowPixel))), saturate(max(materialCrystalPixel, max(materialMetalPixel, materialVoidPixel))), 1.0);
+    }
+    if (debugMode == 4)
+    {
+        return float4(saturate(rolloff * 4.0), saturate(daylightShoulder * 4.0), saturate(highlightMask), 1.0);
+    }
+    if (debugMode == 5)
+    {
+        return float4(saturate(highSunChromaRestraint * 4.0), saturate(chroma * brightDaySurface), saturate(brightDaySurface), 1.0);
+    }
+    if (debugMode == 6)
+    {
+        return float4(saturate(materialSkinPixel), saturate(skinLikeMidtone), saturate(materialSkin), 1.0);
+    }
+    if (debugMode == 7)
+    {
+        return float4(saturate(abs(result - source) * 8.0), 1.0);
     }
 
     return float4(result, 1.0);

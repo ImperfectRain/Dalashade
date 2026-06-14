@@ -95,10 +95,19 @@ public sealed class PresetWriter
     private static readonly IReadOnlyList<string> AdaptiveGradeMaterialIntentShaderVariables =
     [
         "Dalashade_MaterialFoliage",
+        "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialWaterPlane",
+        "Dalashade_MaterialSpecularGlint",
+        "Dalashade_WaterContext",
+        "Dalashade_CoastalContext",
+        "Dalashade_OpenOceanContext",
+        "Dalashade_ShallowWaterContext",
+        "Dalashade_WetSurfaceContext",
         "Dalashade_MaterialSandDust",
         "Dalashade_MaterialSnowIce",
         "Dalashade_MaterialMetalIndustrial",
         "Dalashade_MaterialCrystalAether",
+        "Dalashade_MaterialSkyCloudFog",
         "Dalashade_MaterialSkinProtection",
         "Dalashade_MaterialVoidDarkness"
     ];
