@@ -13,11 +13,13 @@ Status meanings:
 
 | File path | Purpose | Runtime role | Inputs | Outputs | Main dependencies | Used by | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| `.editorconfig` | Repository editor formatting rules. | Tooling metadata. | Editor/IDE support. | Consistent indentation/line-ending behavior where supported. | EditorConfig-aware tools. | Contributors. | Stable. |
+| `.gitignore` | Git ignore rules. | Source control hygiene. | Local build/output artifacts. | Keeps generated/local files untracked. | Git. | Contributors. | Stable. |
+| `.github/workflows/pr-build.yml` | Pull request build workflow. | CI validation. | Repository checkout. | Restore/build result. | GitHub Actions, `dotnet`. | Pull requests. | Stable. |
 | `README.md` | User-facing project overview and setup notes. | Documentation only. | Current feature set. | Setup and scope guidance. | Docs pages. | Users/contributors. | Stable. |
 | `LICENSE.md` | License text. | Legal metadata. | None. | License terms. | None. | Repository. | Stable. |
 | `Dalashade.sln` | Visual Studio solution. | Build entry point. | C# project. | Build graph. | `Dalashade/Dalashade.csproj`. | `dotnet build`. | Stable. |
 | `repo.json` | Dalamud custom repository manifest. | Release metadata. | Release zip URL/version. | Dalamud repo entry. | `releases/`. | Plugin installers. | Release asset. |
-| `releases/*.zip` | Packaged plugin releases. | Release artifacts. | Built plugin output. | Installable zips. | Build/release process. | Users/Dalamud repo. | Release asset. |
 | `scripts/ValidateRelease.ps1` | Release validation helper. | Manual release check. | `repo.json`, release zips. | Validation output. | PowerShell. | Maintainers. | Stable. |
 
 ## C# Plugin Files
@@ -67,6 +69,7 @@ Status meanings:
 
 | File path | Purpose | Runtime role | Inputs | Outputs | Main dependencies | Used by | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| `shaders/.gitkeep` | Keeps the shader source folder present in empty checkouts. | Repository structure marker. | None. | Folder retention. | Git. | Contributors. | Stable. |
 | `shaders/Dalashade_MaterialMasks.fxh` | Shared material/water/safety resolver contract. | Converts color/depth/uniforms into material resolves and debug colors. | Backbuffer, depth, scene/material priors. | `MaterialResolve`, `WaterResolve`, `SafetyResolve`, debug colors. | `ReShade.fxh`. | All first-party shaders. | Experimental contract. |
 | `shaders/Dalashade_NormalField.fxh` | Optional inferred NormalField contract. | Produces depth/detail/combined normals and receiver candidates. | Backbuffer, depth, material/water/safety resolves, NormalField settings. | `Dalashade_NormalField`, debug colors. | `MaterialMasks.fxh`. | `Dalashade_NormalDebug.fx`, future production shaders. | Experimental/debug-first. |
 | `shaders/Dalashade_AdaptiveGrade.fx` | Base tonal adaptation shader. | Applies scene/day/night/material-aware tone and color adjustments. | Scene/material/day/night uniforms, shared resolvers. | Graded color and debug masks. | `MaterialMasks.fxh`. | ReShade technique `Dalashade_AdaptiveGrade`. | Production-oriented. |
@@ -116,9 +119,13 @@ Status meanings:
 
 | File path | Purpose | Runtime role | Inputs | Outputs | Used by | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| `test-presets/free-shader-fixtures/*.ini` | Representative free shader preset fixtures. | Test data. | Preset analyzer. | Regression output. | Regression harness. | Stable. |
+| `test-presets/free-shader-fixtures/Okami-like.ini` | Representative Okami-style free shader preset fixture. | Test data. | Preset analyzer. | Regression output. | Regression harness. | Stable. |
+| `test-presets/free-shader-fixtures/WiFi-like.ini` | Representative WiFi-style free shader preset fixture. | Test data. | Preset analyzer. | Regression output. | Regression harness. | Stable. |
+| `test-presets/free-shader-fixtures/ipsusuGameplay-like.ini` | Representative ipsusu gameplay-like preset fixture. | Test data. | Preset analyzer. | Regression output. | Regression harness. | Stable. |
+| `test-presets/free-shader-fixtures/ipsusuQuesting-like.ini` | Representative ipsusu questing-like preset fixture. | Test data. | Preset analyzer. | Regression output. | Regression harness. | Stable. |
 | `test-presets/custom-shader-fixtures/DalashadeWeatherAtmosphere.ini` | Custom shader fixture. | Test data. | Preset analyzer/writer. | Regression output. | Regression harness. | Stable. |
-| `.github/workflows/pr-build.yml` | PR build workflow if present. | CI. | Repository checkout. | Build result. | GitHub Actions. | Stable. |
+| `releases/Dalashade-v1.zip` | Packaged Dalashade v1 release artifact. | Release artifact. | Built plugin output. | Installable zip. | Users/Dalamud repo. | Release asset. |
+| `releases/Dalashade-v1.1.zip` | Packaged Dalashade v1.1 release artifact. | Release artifact. | Built plugin output. | Installable zip. | Users/Dalamud repo. | Release asset. |
 
 ## Common Tasks -> Files To Inspect First
 
