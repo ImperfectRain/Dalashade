@@ -179,8 +179,15 @@ public sealed class ConfigWindow : Window, IDisposable
             plugin.ExportCompatibilityReport();
         }
 
+        ImGui.SameLine();
+        if (ImGui.Button("Export Debug Bundle###ConfigExportDebugBundle"))
+        {
+            plugin.ExportDebugBundle();
+        }
+
         ImGui.TextWrapped(plugin.LastPresetAnalysis.Message);
         ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
+        ImGui.TextWrapped(plugin.LastDebugBundleExport.Message);
     }
 
     private string ShaderMatchingSummary()
@@ -410,6 +417,7 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TextWrapped(plugin.LastWriteResult.Message);
         ImGui.TextWrapped(plugin.LastReloadResult.Message);
         ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
+        ImGui.TextWrapped(plugin.LastDebugBundleExport.Message);
         ImGui.TextWrapped(plugin.LastShaderSupportScan.Message);
     }
 

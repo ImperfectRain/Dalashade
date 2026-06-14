@@ -36,6 +36,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly PresetWriter presetWriter = new();
     private readonly PresetAnalyzer presetAnalyzer = new();
     private readonly CompatibilityReportExporter compatibilityReportExporter = new();
+    private readonly DebugBundleExporter debugBundleExporter = new();
     private readonly PresetRegressionReportHarness presetRegressionReportHarness = new();
     private readonly ReShadeController reShadeController = new();
 
@@ -61,11 +62,13 @@ public sealed class Plugin : IDalamudPlugin
     public ShaderSupportScan LastShaderSupportScan { get; private set; } = ShaderSupportScan.Skipped("Shader support has not been scanned yet.");
     public PresetAnalysisResult LastPresetAnalysis { get; private set; } = PresetAnalysisResult.Skipped("Preset has not been analyzed yet.");
     public CompatibilityReportExportResult LastCompatibilityReportExport { get; private set; } = CompatibilityReportExportResult.Skipped("No compatibility report has been exported yet.");
+    public DebugBundleExportResult LastDebugBundleExport { get; private set; } = DebugBundleExportResult.Skipped("No debug bundle has been exported yet.");
     public PresetRegressionReportResult LastPresetRegressionReport { get; private set; } = PresetRegressionReportResult.Skipped("No preset regression report has been run yet.");
     public BasePresetLibraryScan LastBasePresetLibraryScan { get; private set; } = BasePresetLibraryScan.Skipped("Base presets have not been scanned yet.");
     public string DefaultBasePresetFolderPath => Path.Combine(PluginInterface.ConfigDirectory.FullName, "Base");
     public string DefaultGeneratedPresetPath => Path.Combine(PluginInterface.ConfigDirectory.FullName, "Generated", "Dalashade_Generated.ini");
     public string CompatibilityReportDirectory => Path.Combine(PluginInterface.ConfigDirectory.FullName, "CompatibilityReports");
+    public string DebugBundleDirectory => Path.Combine(PluginInterface.ConfigDirectory.FullName, "DebugBundles");
     public string PresetRegressionReportDirectory => Path.Combine(PluginInterface.ConfigDirectory.FullName, "PresetRegressionReports");
     public string DefaultScreenshotFolderPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
@@ -168,6 +171,37 @@ public sealed class Plugin : IDalamudPlugin
             ResolveEffectiveBasePresetPath(true),
             CompatibilityReportDirectory);
         return LastCompatibilityReportExport;
+    }
+
+    public DebugBundleExportResult ExportDebugBundle()
+    {
+        contextService.Refresh();
+        imageAnalysisService.Refresh(Configuration, true);
+        masterStyleService.Refresh(Configuration, CurrentImageAnalysis, true);
+        var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration, MasterStyleImageCount);
+        CurrentProfile = result.Profile;
+        CurrentRules = result.Rules;
+        CurrentMasterStyleDiagnostics = result.MasterStyleDiagnostics;
+        CurrentTagStackDiagnostics = result.TagStackDiagnostics;
+        var materialIntent = RefreshMaterialIntent();
+        ScanPresetCompatibility();
+        var freshReport = ExportCompatibilityReport();
+        LastDebugBundleExport = debugBundleExporter.Export(
+            Configuration,
+            CurrentContext,
+            CurrentTagStackDiagnostics,
+            CurrentImageAnalysis,
+            CurrentMasterStyle,
+            CurrentProfile,
+            materialIntent,
+            LastPresetAnalysis,
+            LastShaderSupportScan,
+            LastWriteResult,
+            freshReport,
+            ResolveEffectiveBasePresetPath(true),
+            DebugBundleDirectory,
+            PluginInterface.ConfigDirectory.FullName);
+        return LastDebugBundleExport;
     }
 
     public PresetRegressionReportResult RunPresetRegressionReports()

@@ -463,8 +463,15 @@ public sealed class MainWindow : Window, IDisposable
             plugin.ExportCompatibilityReport();
         }
 
+        ImGui.SameLine();
+        if (ImGui.Button("Export Debug Bundle###MainExportDebugBundle"))
+        {
+            plugin.ExportDebugBundle();
+        }
+
         ImGui.TextWrapped(analysis.Message);
         ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
+        ImGui.TextWrapped(plugin.LastDebugBundleExport.Message);
         ImGui.TextUnformatted($"Risk: {report.Level}");
         ImGui.TextUnformatted($"Selected mode: {PresetAnalyzer.FormatCompatibilityMode(plugin.Configuration.CompatibilityMode)}");
         ImGui.TextUnformatted($"Recommended mode: {PresetAnalyzer.FormatCompatibilityMode(report.RecommendedCompatibilityMode)}");
@@ -718,6 +725,7 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Dalashade custom shader support: {(plugin.Configuration.EnableDalashadeCustomShaders ? "enabled" : "disabled")}");
         DrawCustomShaderDiagnostics();
         ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
+        ImGui.TextWrapped(plugin.LastDebugBundleExport.Message);
         ImGui.TextWrapped("Dalashade only edits known variables present in generated preset content. Keep iMMERSE and any Pro/Ultimate shaders installed through ReShade; this plugin does not ship those files.");
 
         if (ImGui.TreeNode("Detected shader support###MainDetectedShaderSupport"))
