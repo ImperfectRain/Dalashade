@@ -65,32 +65,46 @@ public sealed class DebugBundleExporter
     {
         var included = new List<string>();
         var skipped = new List<string>();
+        var log = new List<string>();
+        var stage = "resolving debug bundle output root";
         try
         {
             var safePluginConfigDirectory = ResolveSafeDirectory(pluginConfigDirectory, GetDefaultPluginConfigDirectory(), string.Empty);
-            outputRoot = ResolveSafeDirectory(outputRoot, safePluginConfigDirectory, "DebugBundles");
+            outputRoot = ResolveDebugBundleRoot(outputRoot, safePluginConfigDirectory);
             Directory.CreateDirectory(outputRoot);
             var timestamp = DateTimeOffset.Now;
             var folderName = $"Dalashade_DebugBundle_{timestamp:yyyyMMdd_HHmmss}";
             var folderPath = Path.Combine(outputRoot, folderName);
+            stage = "creating debug bundle folder";
             Directory.CreateDirectory(folderPath);
+            log.Add($"timestamp: {timestamp:O}");
+            log.Add($"resolved output root: {outputRoot}");
+            log.Add($"folder path: {folderPath}");
 
-            CopyCompatibilityReport(folderPath, freshReport, included, skipped);
-            CopyOrExplain(effectiveBasePresetPath, Path.Combine(folderPath, "base-preset.ini"), Path.Combine(folderPath, "base-preset-missing.txt"), "Base preset", included, skipped);
-            CopyOrExplain(configuration.GeneratedPresetPath, Path.Combine(folderPath, "generated-preset.ini"), Path.Combine(folderPath, "generated-preset-missing.txt"), "Generated preset", included, skipped);
-            CopyActivePreset(configuration, folderPath, included, skipped);
+            TryBundleStep("copy compatibility report", () => CopyCompatibilityReport(folderPath, freshReport, included, skipped), log, skipped);
+            TryBundleStep("copy base preset", () => CopyOrExplain(effectiveBasePresetPath, Path.Combine(folderPath, "base-preset.ini"), Path.Combine(folderPath, "base-preset-missing.txt"), "Base preset", included, skipped), log, skipped);
+            TryBundleStep("copy generated preset", () => CopyOrExplain(configuration.GeneratedPresetPath, Path.Combine(folderPath, "generated-preset.ini"), Path.Combine(folderPath, "generated-preset-missing.txt"), "Generated preset", included, skipped), log, skipped);
+            TryBundleStep("copy active preset", () => CopyActivePreset(configuration, folderPath, included, skipped), log, skipped);
 
+            stage = "write plugin-config.json";
             WriteJson(Path.Combine(folderPath, "plugin-config.json"), configuration, included);
+            log.Add($"{stage}: ok");
+            stage = "write scene-context.json";
             WriteJson(Path.Combine(folderPath, "scene-context.json"), BuildSceneContextDump(context, diagnostics), included);
+            log.Add($"{stage}: ok");
+            stage = "write scene-intent.json";
             WriteJson(Path.Combine(folderPath, "scene-intent.json"), BuildSceneIntentDump(diagnostics.Intent), included);
-            WriteJson(Path.Combine(folderPath, "material-intent.json"), BuildMaterialIntentDump(diagnostics, imageAnalysis, materialIntent, writeResult), included);
-            WriteJson(Path.Combine(folderPath, "normal-field-diagnostics.json"), BuildNormalFieldDiagnosticsDump(configuration, analysis, writeResult), included);
-            WriteText(Path.Combine(folderPath, "material-parity-audit.md"), BuildMaterialParityAudit(freshReport), included);
-            WriteText(Path.Combine(folderPath, "shader-stack-summary.md"), BuildShaderStackSummary(analysis), included);
-            WriteText(Path.Combine(folderPath, "installed-dalashade-shaders.txt"), BuildInstalledShaderStatus(configuration, included, skipped), included);
-            WriteText(Path.Combine(folderPath, "paths-and-environment.txt"), BuildPathsAndEnvironment(configuration, safePluginConfigDirectory, timestamp), included);
-            WriteText(Path.Combine(folderPath, "README.txt"), BuildReadme(), included);
+            log.Add($"{stage}: ok");
 
+            TryBundleStep("write material-intent.json", () => WriteJson(Path.Combine(folderPath, "material-intent.json"), BuildMaterialIntentDump(diagnostics, imageAnalysis, materialIntent, writeResult), included), log, skipped);
+            TryBundleStep("write normal-field-diagnostics.json", () => WriteJson(Path.Combine(folderPath, "normal-field-diagnostics.json"), BuildNormalFieldDiagnosticsDump(configuration, analysis, writeResult), included), log, skipped);
+            TryBundleStep("write material-parity-audit.md", () => WriteText(Path.Combine(folderPath, "material-parity-audit.md"), BuildMaterialParityAudit(freshReport), included), log, skipped);
+            TryBundleStep("write shader-stack-summary.md", () => WriteText(Path.Combine(folderPath, "shader-stack-summary.md"), BuildShaderStackSummary(analysis), included), log, skipped);
+            TryBundleStep("write installed-dalashade-shaders.txt", () => WriteText(Path.Combine(folderPath, "installed-dalashade-shaders.txt"), BuildInstalledShaderStatus(configuration, included, skipped), included), log, skipped);
+            TryBundleStep("write paths-and-environment.txt", () => WriteText(Path.Combine(folderPath, "paths-and-environment.txt"), BuildPathsAndEnvironment(configuration, safePluginConfigDirectory, timestamp), included), log, skipped);
+            TryBundleStep("write README.txt", () => WriteText(Path.Combine(folderPath, "README.txt"), BuildReadme(), included), log, skipped);
+
+            TryBundleStep("write bundle-export-log.txt", () => WriteText(Path.Combine(folderPath, "bundle-export-log.txt"), BuildExportLog(log, skipped), included), log, skipped);
             var manifest = new
             {
                 GeneratedTimestamp = timestamp,
@@ -100,9 +114,12 @@ public sealed class DebugBundleExporter
                 IncludedFiles = included.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToArray(),
                 MissingOrSkipped = skipped.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToArray()
             };
+            stage = "write manifest.json";
             WriteJson(Path.Combine(folderPath, "manifest.json"), manifest, included);
+            log.Add($"{stage}: ok");
 
-            var zipPath = TryCreateZip(folderPath, skipped);
+            var zipPath = string.Empty;
+            TryBundleStep("create zip", () => zipPath = TryCreateZip(folderPath, skipped) ?? string.Empty, log, skipped);
             var targetText = string.IsNullOrWhiteSpace(zipPath)
                 ? folderPath
                 : $"{folderPath} and {zipPath}";
@@ -122,7 +139,7 @@ public sealed class DebugBundleExporter
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            return new DebugBundleExportResult(false, $"Debug bundle export failed: {ex.Message}", string.Empty, string.Empty, included.ToArray(), skipped.ToArray());
+            return new DebugBundleExportResult(false, $"Debug bundle export failed during {stage}: {ex.Message}", string.Empty, string.Empty, included.ToArray(), skipped.ToArray());
         }
     }
 
@@ -350,19 +367,48 @@ public sealed class DebugBundleExporter
 
     private static object BuildShaderFilePresence(string? path)
     {
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        if (string.IsNullOrWhiteSpace(path))
         {
             return new
             {
                 Present = false,
-                Path = path ?? string.Empty,
+                Path = string.Empty,
                 ModifiedUtc = string.Empty,
                 Size = 0L,
                 Sha256 = string.Empty
             };
         }
 
-        var info = new FileInfo(path);
+        string fullPath;
+        try
+        {
+            fullPath = Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return new
+            {
+                Present = false,
+                Path = path,
+                ModifiedUtc = string.Empty,
+                Size = 0L,
+                Sha256 = $"unavailable ({ex.Message})"
+            };
+        }
+
+        if (!File.Exists(fullPath))
+        {
+            return new
+            {
+                Present = false,
+                Path = fullPath,
+                ModifiedUtc = string.Empty,
+                Size = 0L,
+                Sha256 = string.Empty
+            };
+        }
+
+        var info = new FileInfo(fullPath);
         return new
         {
             Present = true,
@@ -479,8 +525,9 @@ public sealed class DebugBundleExporter
         foreach (var fileName in FirstPartyShaderFiles)
         {
             var found = shaderPaths
-                .Select(path => Path.Combine(path, fileName))
-                .FirstOrDefault(File.Exists);
+                .Select(path => TryCombine(path, fileName))
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .FirstOrDefault(path => File.Exists(path));
             if (string.IsNullOrWhiteSpace(found))
             {
                 builder.AppendLine($"{fileName}: missing");
@@ -488,12 +535,20 @@ public sealed class DebugBundleExporter
                 continue;
             }
 
-            var info = new FileInfo(found);
-            builder.AppendLine($"{fileName}: present");
-            builder.AppendLine($"  path: {info.FullName}");
-            builder.AppendLine($"  modified: {info.LastWriteTimeUtc:O}");
-            builder.AppendLine($"  size: {info.Length}");
-            builder.AppendLine($"  sha256: {Sha256(info.FullName)}");
+            try
+            {
+                var info = new FileInfo(found);
+                builder.AppendLine($"{fileName}: present");
+                builder.AppendLine($"  path: {info.FullName}");
+                builder.AppendLine($"  modified: {info.LastWriteTimeUtc:O}");
+                builder.AppendLine($"  size: {info.Length}");
+                builder.AppendLine($"  sha256: {Sha256(info.FullName)}");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            {
+                builder.AppendLine($"{fileName}: present, metadata unavailable ({ex.Message})");
+                skipped.Add($"installed-dalashade-shaders/{fileName}: metadata unavailable ({ex.Message})");
+            }
         }
 
         return builder.ToString();
@@ -502,8 +557,56 @@ public sealed class DebugBundleExporter
     private static string? FindFirstShaderFile(Configuration configuration, string fileName)
     {
         return FindReShadeShaderPaths(configuration)
-            .Select(path => Path.Combine(path, fileName))
-            .FirstOrDefault(File.Exists);
+            .Select(path => TryCombine(path, fileName))
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .FirstOrDefault(path => File.Exists(path));
+    }
+
+    private static void TryBundleStep(string stage, Action action, List<string> log, List<string> skipped)
+    {
+        try
+        {
+            action();
+            log.Add($"{stage}: ok");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or JsonException)
+        {
+            var message = $"{stage}: failed: {ex.GetType().Name}: {ex.Message}";
+            log.Add(message);
+            skipped.Add(message);
+        }
+    }
+
+    private static string BuildExportLog(IReadOnlyList<string> log, IReadOnlyList<string> skipped)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("Dalashade Debug Bundle Export Log");
+        builder.AppendLine();
+        foreach (var line in log)
+        {
+            builder.AppendLine(line);
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("Skipped/failures:");
+        if (skipped.Count == 0)
+        {
+            builder.AppendLine("- none");
+        }
+        else
+        {
+            foreach (var item in skipped)
+            {
+                builder.AppendLine($"- {item}");
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    private static string ResolveDebugBundleRoot(string? outputRoot, string pluginConfigDirectory)
+    {
+        return ResolveSafeDirectory(outputRoot, pluginConfigDirectory, "DebugBundles");
     }
 
     private static string ResolveSafeDirectory(string? candidate, string? fallbackDirectory, string childFolderName)
@@ -517,7 +620,7 @@ public sealed class DebugBundleExporter
             root = GetDefaultPluginConfigDirectory();
         }
 
-        var resolved = Path.GetFullPath(root);
+        var resolved = TryGetFullPath(root) ?? GetDefaultPluginConfigDirectory();
         if (string.IsNullOrWhiteSpace(candidate) && !string.IsNullOrWhiteSpace(childFolderName))
         {
             resolved = Path.Combine(resolved, MakeSafePathSegment(childFolderName));
@@ -596,9 +699,17 @@ Preset and plugin config files are included intentionally for debugging. Full Re
     private static void CopyActivePreset(Configuration configuration, string folderPath, List<string> included, List<string> skipped)
     {
         var activePresetPath = FindActivePresetPath(configuration);
+        var target = TryCombine(folderPath, "active-preset.ini");
+        var missingTarget = TryCombine(folderPath, "active-preset-unavailable.txt");
+        if (string.IsNullOrWhiteSpace(target) || string.IsNullOrWhiteSpace(missingTarget))
+        {
+            skipped.Add("active-preset.ini: destination path was empty");
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(activePresetPath) && File.Exists(activePresetPath))
         {
-            File.Copy(activePresetPath, Path.Combine(folderPath, "active-preset.ini"), true);
+            File.Copy(activePresetPath, target, true);
             included.Add("active-preset.ini");
             return;
         }
@@ -606,7 +717,7 @@ Preset and plugin config files are included intentionally for debugging. Full Re
         var reason = string.IsNullOrWhiteSpace(activePresetPath)
             ? "Dalashade could not determine the active/current ReShade preset from ReShade.ini."
             : $"Active/current ReShade preset was not found: {activePresetPath}";
-        File.WriteAllText(Path.Combine(folderPath, "active-preset-unavailable.txt"), reason, Encoding.UTF8);
+        File.WriteAllText(missingTarget, reason, Encoding.UTF8);
         included.Add("active-preset-unavailable.txt");
         skipped.Add($"active-preset.ini: {reason}");
     }
@@ -648,6 +759,12 @@ Preset and plugin config files are included intentionally for debugging. Full Re
 
     private static string? TryCreateZip(string folderPath, List<string> skipped)
     {
+        if (string.IsNullOrWhiteSpace(folderPath))
+        {
+            skipped.Add("zip: bundle folder path was empty");
+            return null;
+        }
+
         var zipPath = $"{folderPath}.zip";
         try
         {
@@ -901,9 +1018,21 @@ Preset and plugin config files are included intentionally for debugging. Full Re
 
     private static string Sha256(string path)
     {
-        using var stream = File.OpenRead(path);
-        var hash = SHA256.HashData(stream);
-        return Convert.ToHexString(hash).ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return "unavailable (path empty)";
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(path);
+            var hash = SHA256.HashData(stream);
+            return Convert.ToHexString(hash).ToLowerInvariant();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return $"unavailable ({ex.Message})";
+        }
     }
 
     private static string GetDefaultPluginConfigDirectory()
@@ -957,6 +1086,23 @@ Preset and plugin config files are included intentionally for debugging. Full Re
         return technique.Section.Contains(key, StringComparison.OrdinalIgnoreCase)
                || technique.TechniqueName.Contains(key, StringComparison.OrdinalIgnoreCase)
                || technique.ShaderFile.Contains(key, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? TryCombine(string? basePath, string childPath)
+    {
+        if (string.IsNullOrWhiteSpace(basePath) || string.IsNullOrWhiteSpace(childPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return Path.Combine(basePath, childPath);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+        {
+            return null;
+        }
     }
 
     private static string GetPluginVersion()
