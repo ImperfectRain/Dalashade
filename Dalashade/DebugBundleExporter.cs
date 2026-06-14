@@ -375,7 +375,8 @@ public sealed class DebugBundleExporter
                 Path = string.Empty,
                 ModifiedUtc = string.Empty,
                 Size = 0L,
-                Sha256 = string.Empty
+                Sha256 = string.Empty,
+                Reason = "path empty"
             };
         }
 
@@ -392,11 +393,12 @@ public sealed class DebugBundleExporter
                 Path = path,
                 ModifiedUtc = string.Empty,
                 Size = 0L,
-                Sha256 = $"unavailable ({ex.Message})"
+                Sha256 = string.Empty,
+                Reason = $"invalid path: {ex.Message}"
             };
         }
 
-        if (!File.Exists(fullPath))
+        if (!FileExistsSafe(fullPath))
         {
             return new
             {
@@ -404,19 +406,36 @@ public sealed class DebugBundleExporter
                 Path = fullPath,
                 ModifiedUtc = string.Empty,
                 Size = 0L,
-                Sha256 = string.Empty
+                Sha256 = string.Empty,
+                Reason = "file not found"
             };
         }
 
-        var info = new FileInfo(fullPath);
-        return new
+        try
         {
-            Present = true,
-            Path = info.FullName,
-            ModifiedUtc = info.LastWriteTimeUtc,
-            Size = info.Length,
-            Sha256 = Sha256(info.FullName)
-        };
+            var info = new FileInfo(fullPath);
+            return new
+            {
+                Present = true,
+                Path = info.FullName,
+                ModifiedUtc = info.LastWriteTimeUtc,
+                Size = info.Length,
+                Sha256 = Sha256(info.FullName),
+                Reason = string.Empty
+            };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return new
+            {
+                Present = false,
+                Path = fullPath,
+                ModifiedUtc = string.Empty,
+                Size = 0L,
+                Sha256 = string.Empty,
+                Reason = $"file info failed: {ex.Message}"
+            };
+        }
     }
 
     private static object[] BuildNormalFieldShaderConsumption()
@@ -425,7 +444,7 @@ public sealed class DebugBundleExporter
             .Where(fileName => fileName.EndsWith(".fx", StringComparison.OrdinalIgnoreCase))
             .Select(fileName =>
             {
-                var source = ReadLocalShaderSource(fileName);
+                var source = ReadLocalShaderSource(fileName, out var sourceStatus);
                 var sourceAvailable = !string.IsNullOrWhiteSpace(source);
                 var includesNormalField = sourceAvailable && source.Contains("Dalashade_NormalField.fxh", StringComparison.Ordinal);
                 var resolvesNormalField = sourceAvailable && source.Contains("Dalashade_ResolveNormalField", StringComparison.Ordinal);
@@ -435,6 +454,7 @@ public sealed class DebugBundleExporter
                 {
                     Shader = fileName,
                     SourceAvailable = sourceAvailable,
+                    SourceStatus = sourceStatus,
                     NormalFieldConsumed = includesNormalField || resolvesNormalField,
                     DepthNormalConsumed = usesDepthNormal,
                     DetailNormalConsumed = usesDetailNormal,
@@ -556,10 +576,15 @@ public sealed class DebugBundleExporter
 
     private static string? FindFirstShaderFile(Configuration configuration, string fileName)
     {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return null;
+        }
+
         return FindReShadeShaderPaths(configuration)
             .Select(path => TryCombine(path, fileName))
             .Where(path => !string.IsNullOrWhiteSpace(path))
-            .FirstOrDefault(path => File.Exists(path));
+            .FirstOrDefault(FileExistsSafe);
     }
 
     private static void TryBundleStep(string stage, Action action, List<string> log, List<string> skipped)
@@ -1029,7 +1054,7 @@ Preset and plugin config files are included intentionally for debugging. Full Re
             var hash = SHA256.HashData(stream);
             return Convert.ToHexString(hash).ToLowerInvariant();
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
         {
             return $"unavailable ({ex.Message})";
         }
@@ -1043,41 +1068,104 @@ Preset and plugin config files are included intentionally for debugging. Full Re
             : Path.Combine(appData, "XIVLauncher", "pluginConfigs", "Dalashade");
     }
 
-    private static string ReadLocalShaderSource(string fileName)
+    private static string ReadLocalShaderSource(string? fileName, out string status)
     {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            status = "source unavailable: file name empty";
+            return string.Empty;
+        }
+
         foreach (var root in CandidateSourceRoots())
         {
-            var path = Path.Combine(root, "shaders", fileName);
-            if (!File.Exists(path))
+            var shaderDirectory = TryCombine(root, "shaders");
+            var path = TryCombine(shaderDirectory, fileName);
+            if (string.IsNullOrWhiteSpace(path) || !FileExistsSafe(path))
             {
                 continue;
             }
 
             try
             {
+                status = $"source available: {path}";
                 return File.ReadAllText(path);
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
             {
+                status = $"source unavailable: read failed: {ex.Message}";
                 return string.Empty;
             }
         }
 
+        status = "source unavailable: file not found";
         return string.Empty;
     }
 
     private static IEnumerable<string> CandidateSourceRoots()
     {
-        var current = Directory.GetCurrentDirectory();
-        for (var directory = new DirectoryInfo(current); directory is not null; directory = directory.Parent)
+        foreach (var root in CandidateParentDirectories(TryGetCurrentDirectory()))
         {
-            yield return directory.FullName;
+            yield return root;
         }
 
-        var baseDirectory = AppContext.BaseDirectory;
-        for (var directory = new DirectoryInfo(baseDirectory); directory is not null; directory = directory.Parent)
+        foreach (var root in CandidateParentDirectories(AppContext.BaseDirectory))
         {
-            yield return directory.FullName;
+            yield return root;
+        }
+    }
+
+    private static string? TryGetCurrentDirectory()
+    {
+        try
+        {
+            return Directory.GetCurrentDirectory();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
+    }
+
+    private static IEnumerable<string> CandidateParentDirectories(string? root)
+    {
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            yield break;
+        }
+
+        DirectoryInfo? directory;
+        try
+        {
+            directory = new DirectoryInfo(root);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            yield break;
+        }
+
+        for (; directory is not null; directory = directory.Parent)
+        {
+            if (!string.IsNullOrWhiteSpace(directory.FullName))
+            {
+                yield return directory.FullName;
+            }
+        }
+    }
+
+    private static bool FileExistsSafe(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            return File.Exists(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
         }
     }
 
