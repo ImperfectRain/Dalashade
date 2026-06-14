@@ -366,6 +366,10 @@ public sealed class DebugBundleExporter
         builder.AppendLine($"Active ReShade preset path: {FindActivePresetPath(configuration) ?? "unknown"}");
         builder.AppendLine($"Dalashade config directory: {pluginConfigDirectory}");
         builder.AppendLine($"Dalamud plugin config directory: {pluginConfigDirectory}");
+        builder.AppendLine($"NormalField enabled: {configuration.EnableNormalField}");
+        builder.AppendLine($"NormalField diagnostics: {configuration.EnableNormalFieldDiagnostics}");
+        builder.AppendLine($"NormalField shader mapping: {configuration.EnableNormalFieldShaderMapping}");
+        builder.AppendLine($"NormalField strength/depth/detail/material: {configuration.NormalFieldStrength:0.###} / {configuration.NormalFieldDepthStrength:0.###} / {configuration.NormalFieldDetailStrength:0.###} / {configuration.NormalFieldMaterialInfluence:0.###}");
         builder.AppendLine($"OS: {RuntimeInformation.OSDescription}");
         builder.AppendLine($"Runtime: {RuntimeInformation.FrameworkDescription}");
         builder.AppendLine($"Process architecture: {RuntimeInformation.ProcessArchitecture}");

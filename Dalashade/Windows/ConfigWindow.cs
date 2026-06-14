@@ -32,6 +32,7 @@ public sealed class ConfigWindow : Window, IDisposable
         UiSection.Draw("ConfigBasePresetLibrary", "Base Preset Library", true, BaseLibrarySummary(), DrawBasePresetLibrary);
         UiSection.Draw("ConfigGenerationBehavior", "Generation Behavior", true, GenerationBehaviorSummary(), DrawGenerationBehavior);
         UiSection.Draw("ConfigMaterialIntent", "Material Intent", false, MaterialIntentSummary(), DrawMaterialIntent);
+        UiSection.Draw("ConfigNormalField", "Normal Field", false, NormalFieldSummary(), DrawNormalField);
         UiSection.Draw("ConfigCompatibilityMode", "Compatibility Mode", false, CompatibilitySummary(), DrawCompatibilityMode);
         UiSection.Draw("ConfigShaderMatching", "Shader Matching", false, ShaderMatchingSummary(), DrawShaderMatching, ShaderMatchingWarningColor());
         UiSection.Draw("ConfigReShadeReload", "ReShade Reload", false, ReShadeReloadSummary(), DrawReShadeReloadSection, ReShadeReloadWarningColor());
@@ -150,6 +151,53 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TextWrapped("Experimental/inferred: MaterialIntent estimates likely scene material families from tags and screenshot metrics. It is not true FFXIV engine material ID detection.");
         ImGui.TextWrapped("Shader mapping writes MaterialIntent variables only into matching known Dalashade custom shader sections when enabled. Missing uniforms are skipped safely.");
         ImGui.TextWrapped("Debug overlays are shader-owned: install the optional Dalashade .fx files, enable the desired technique manually in ReShade, and select debug modes from the ReShade shader UI.");
+    }
+
+    private string NormalFieldSummary()
+    {
+        if (!configuration.EnableNormalField)
+        {
+            return "Disabled, no shader writes";
+        }
+
+        var mapping = configuration.EnableNormalFieldShaderMapping ? "mapping toggle on" : "diagnostics only";
+        return $"Optional screen-space field, strength {configuration.NormalFieldStrength:0.##}, {mapping}";
+    }
+
+    private void DrawNormalField()
+    {
+        DrawCheckbox("Enable Normal Field", configuration.EnableNormalField, value => configuration.EnableNormalField = value);
+        DrawItemTooltip("Enables Dalashade's optional screen-space inferred normal/surface field. This is not true game material normals and does not access FFXIV's G-buffer.");
+
+        DrawCheckbox("Enable Normal Field Diagnostics", configuration.EnableNormalFieldDiagnostics, value => configuration.EnableNormalFieldDiagnostics = value);
+        DrawCheckbox("Enable Normal Field Shader Mapping", configuration.EnableNormalFieldShaderMapping, value => configuration.EnableNormalFieldShaderMapping = value);
+        DrawItemTooltip("Allows Dalashade to write NormalField uniforms into known first-party shader sections. Disabled by default.");
+
+        DrawFloatSlider("Normal Field Strength", configuration.NormalFieldStrength, 0f, 1f, value => configuration.NormalFieldStrength = value);
+        DrawItemTooltip("Global scale for the inferred normal field. 0 disables shader-side normal influence even if diagnostics are enabled.");
+
+        DrawFloatSlider("Depth Normal Strength", configuration.NormalFieldDepthStrength, 0f, 1f, value => configuration.NormalFieldDepthStrength = value);
+        DrawItemTooltip("Controls coarse surface normals reconstructed from ReShade depth. Requires valid depth to be useful.");
+
+        DrawFloatSlider("Detail Normal Strength", configuration.NormalFieldDetailStrength, 0f, 1f, value => configuration.NormalFieldDetailStrength = value);
+        DrawItemTooltip("Controls fake texture/detail normals from screen-space luminance/color gradients. Keep low to avoid embossed shimmer.");
+
+        DrawFloatSlider("Material Influence", configuration.NormalFieldMaterialInfluence, 0f, 1f, value => configuration.NormalFieldMaterialInfluence = value);
+        DrawFloatSlider("Water Suppression", configuration.NormalFieldWaterSuppression, 0f, 1f, value => configuration.NormalFieldWaterSuppression = value);
+        DrawFloatSlider("Skin Suppression", configuration.NormalFieldSkinSuppression, 0f, 1f, value => configuration.NormalFieldSkinSuppression = value);
+        DrawFloatSlider("Sky/Fog Suppression", configuration.NormalFieldSkySuppression, 0f, 1f, value => configuration.NormalFieldSkySuppression = value);
+
+        var debugMode = Math.Clamp(configuration.NormalFieldDebugMode, 0, 11);
+        if (ImGui.SliderInt("Normal Field Debug Mode", ref debugMode, 0, 11))
+        {
+            configuration.NormalFieldDebugMode = debugMode;
+            configuration.Save();
+        }
+
+        DrawFloatSlider("Normal Field Debug Boost", configuration.NormalFieldDebugBoost, 0.25f, 8f, value => configuration.NormalFieldDebugBoost = value);
+
+        ImGui.TextWrapped("NormalField is optional and inferred from screen-space depth, luma/color gradients, material context, water context, and safety gates. It is not true FFXIV material normal detection.");
+        ImGui.TextWrapped("When disabled, NormalField writes are skipped and production shader output is unchanged. Missing shader sections or uniforms are skipped safely.");
     }
 
     private string CompatibilitySummary()
@@ -529,6 +577,18 @@ public sealed class ConfigWindow : Window, IDisposable
             update(value);
             configuration.Save();
         }
+    }
+
+    private static void DrawItemTooltip(string text)
+    {
+        if (!ImGui.IsItemHovered())
+        {
+            return;
+        }
+
+        ImGui.BeginTooltip();
+        ImGui.TextWrapped(text);
+        ImGui.EndTooltip();
     }
 
     private void DrawMasterFloatSlider(string label, float currentValue, float min, float max, Action<float> update)

@@ -228,6 +228,7 @@ public sealed class CompatibilityReportExporter
         AppendLines(builder, "Multiple Authority Warnings", report.MultipleAuthorityWarnings);
         AppendTagStackDiagnostics(builder, tagStackDiagnostics);
         AppendMaterialIntentDiagnostics(builder, configuration, tagStackDiagnostics, currentImage, writeResult);
+        AppendNormalFieldDiagnostics(builder, configuration, writeResult);
         AppendMasterStyleDiagnostics(builder, configuration, masterDiagnostics);
         AppendColorFamilyAdjustments(builder, profile);
         AppendColorFamilyComparison(builder, currentImage, masterStyle, profile);
@@ -284,7 +285,7 @@ public sealed class CompatibilityReportExporter
         AppendSurfaceReflectionDiagnostics(builder, configuration, analysis, writeResult, tagStackDiagnostics, currentImage);
         builder.AppendLine("- Material debug controls: shader-owned in ReShade UI; Dalashade does not write debug mode, overlay mode, opacity, or strength.");
         builder.AppendLine($"- First-party custom shader status: {FormatFirstPartyCustomShaderStatus(analysis)}");
-        builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, SceneGI and SurfaceReflection debug controls can be written by their separate generated-variable toggles, and other shader-owned controls are recognized/injected but not actively written by Dalashade.");
+        builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, NormalField uniforms are Dalashade-controlled only when NormalField shader mapping is enabled, SceneGI and SurfaceReflection debug controls can be written by their separate generated-variable toggles, and other shader-owned controls are recognized/injected but not actively written by Dalashade.");
         builder.AppendLine("- Manual shader install/activation: Dalashade does not copy `.fx` files into ReShade or enable techniques. Install needed Dalashade `.fx` files in a ReShade shader search folder separately, then enable wanted custom shader techniques in ReShade.");
         builder.AppendLine("- Variable writes require matching Dalashade custom shader section/key lines in generated preset content. Those lines can come from the base preset or from generated-preset-only injection.");
         builder.AppendLine("- Static bridge status:");
@@ -640,6 +641,47 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("- First-party shader material responsibilities: SmartSharpen suppresses unsafe sharpening, AtmosphereBloom gates local glow, WeatherAtmosphere shapes air/haze, AdaptiveGrade applies subtle material protection, SceneGI provides optional screen-space AO/bounce/light-pooling, and MaterialDebug visualizes masks only when manually enabled.");
         builder.AppendLine("- Likely failure sources to inspect: scene profile plausibility, MaterialIntent strength/gating, raw pixel heuristic, final conflict suppression, optional depth assist, then the specific production shader debug view.");
 
+        builder.AppendLine();
+    }
+
+    private static void AppendNormalFieldDiagnostics(StringBuilder builder, Configuration configuration, PresetWriteResult writeResult)
+    {
+        builder.AppendLine("## Normal Field Diagnostics");
+        builder.AppendLine();
+        builder.AppendLine($"- Enabled: {(configuration.EnableNormalField ? "yes" : "no")}");
+        builder.AppendLine($"- Diagnostics enabled: {(configuration.EnableNormalFieldDiagnostics ? "yes" : "no")}");
+        builder.AppendLine($"- Shader mapping enabled: {(configuration.EnableNormalFieldShaderMapping ? "yes" : "no")}");
+        builder.AppendLine($"- Normal field strength: {Math.Clamp(configuration.NormalFieldStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- Depth strength: {Math.Clamp(configuration.NormalFieldDepthStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- Detail strength: {Math.Clamp(configuration.NormalFieldDetailStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- Material influence: {Math.Clamp(configuration.NormalFieldMaterialInfluence, 0f, 1f):0.###}");
+        builder.AppendLine($"- Water suppression: {Math.Clamp(configuration.NormalFieldWaterSuppression, 0f, 1f):0.###}");
+        builder.AppendLine($"- Skin suppression: {Math.Clamp(configuration.NormalFieldSkinSuppression, 0f, 1f):0.###}");
+        builder.AppendLine($"- Sky suppression: {Math.Clamp(configuration.NormalFieldSkySuppression, 0f, 1f):0.###}");
+        builder.AppendLine($"- Debug mode: {Math.Clamp(configuration.NormalFieldDebugMode, 0, 11)}");
+        builder.AppendLine($"- Debug boost: {Math.Clamp(configuration.NormalFieldDebugBoost, 0.25f, 8f):0.###}");
+        builder.AppendLine("- Current note: `NormalField shader files are not required unless the optional NormalDebug shader is installed/enabled.`");
+
+        if (!configuration.EnableNormalField)
+        {
+            builder.AppendLine("- NormalField is disabled. No production shader behavior changes and no generated NormalField variables are written.");
+        }
+        else if (!configuration.EnableNormalFieldShaderMapping)
+        {
+            builder.AppendLine("- Diagnostics only, no visual shader mapping. NormalField uniforms are skipped during generated preset writes.");
+        }
+        else if (configuration.NormalFieldStrength <= 0f)
+        {
+            builder.AppendLine("- Shader mapping is enabled but NormalField strength is 0.0, so shader-side normal influence remains disabled.");
+        }
+
+        var writtenUniforms = writeResult.Changes
+            .Where(change => string.Equals(change.ReasonCategory, CustomShaderVariableMapper.NormalFieldReasonCategory, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        builder.AppendLine($"- NormalField uniforms written: {(writtenUniforms.Length == 0 ? "none" : string.Join(", ", writtenUniforms.Select(change => $"`{change.Section}:{change.Key}`")))}");
+        builder.AppendLine("- NormalField is an inferred screen-space surface field from depth, luma/color gradients, material context, water context, and safety gates. It is not true FFXIV G-buffer or material normal access.");
         builder.AppendLine();
     }
 
@@ -1391,9 +1433,10 @@ public sealed class CompatibilityReportExporter
 
         var sceneIntent = uniqueKeys.Count(CustomShaderVariableMapper.IsKnownSceneIntentVariable);
         var materialIntent = uniqueKeys.Count(CustomShaderVariableMapper.IsKnownMaterialIntentVariable);
+        var normalField = uniqueKeys.Count(CustomShaderVariableMapper.IsKnownNormalFieldVariable);
         var shaderOwned = uniqueKeys.Count(CustomShaderVariableMapper.IsKnownShaderOwnedVariable);
-        var otherKnown = uniqueKeys.Length - sceneIntent - materialIntent - shaderOwned;
-        return $"SceneIntent={sceneIntent}, MaterialIntent={materialIntent}, shader-owned={shaderOwned}, other-known={Math.Max(0, otherKnown)}";
+        var otherKnown = uniqueKeys.Length - sceneIntent - materialIntent - normalField - shaderOwned;
+        return $"SceneIntent={sceneIntent}, MaterialIntent={materialIntent}, NormalField={normalField}, shader-owned={shaderOwned}, other-known={Math.Max(0, otherKnown)}";
     }
 
     private static string FormatFirstPartyShaderStatus(PresetAnalysisResult analysis, string label, string shaderKey)

@@ -44,6 +44,7 @@ public sealed class MainWindow : Window, IDisposable
         UiSection.Draw("MainCurrentStatus", "Current Status", true, CurrentStatusSummary(), DrawCurrentStatus);
         UiSection.Draw("MainSceneTags", "Scene Tags", true, SceneTagsSummary(), DrawSceneTags);
         UiSection.Draw("MainMaterialIntent", "Material Intent", false, MaterialIntentSummary(), DrawMaterialIntent);
+        UiSection.Draw("MainNormalField", "Normal Field", false, NormalFieldSummary(), DrawNormalField);
         UiSection.Draw("MainBasePreset", "Base Preset", true, BasePresetSummary(), DrawBasePreset, BasePresetWarningColor());
         UiSection.Draw("MainGeneration", "Generation", true, GenerationSummary(), DrawGeneration, GenerationWarningColor());
         UiSection.Draw("MainReShadeReload", "ReShade Reload", true, ReShadeReloadSummary(), DrawReShadeReload, ReShadeReloadWarningColor());
@@ -292,6 +293,32 @@ public sealed class MainWindow : Window, IDisposable
 
             ImGui.TreePop();
         }
+    }
+
+    private string NormalFieldSummary()
+    {
+        var configuration = plugin.Configuration;
+        if (!configuration.EnableNormalField)
+        {
+            return "Disabled";
+        }
+
+        return configuration.EnableNormalFieldShaderMapping
+            ? $"Enabled, mapping on, strength {configuration.NormalFieldStrength:0.##}"
+            : $"Enabled, diagnostics only, strength {configuration.NormalFieldStrength:0.##}";
+    }
+
+    private void DrawNormalField()
+    {
+        var configuration = plugin.Configuration;
+        ImGui.TextUnformatted($"Enabled: {(configuration.EnableNormalField ? "yes" : "no")}");
+        ImGui.TextUnformatted($"Diagnostics: {(configuration.EnableNormalFieldDiagnostics ? "enabled" : "disabled")}");
+        ImGui.TextUnformatted($"Shader mapping: {(configuration.EnableNormalFieldShaderMapping ? "enabled" : "disabled")}");
+        ImGui.TextUnformatted($"Strength: {configuration.NormalFieldStrength:0.###}");
+        ImGui.TextUnformatted($"Depth/detail/material: {configuration.NormalFieldDepthStrength:0.###} / {configuration.NormalFieldDetailStrength:0.###} / {configuration.NormalFieldMaterialInfluence:0.###}");
+        ImGui.TextUnformatted($"Suppression water/skin/sky: {configuration.NormalFieldWaterSuppression:0.###} / {configuration.NormalFieldSkinSuppression:0.###} / {configuration.NormalFieldSkySuppression:0.###}");
+        ImGui.TextUnformatted($"Debug mode/boost: {configuration.NormalFieldDebugMode} / {configuration.NormalFieldDebugBoost:0.###}");
+        ImGui.TextWrapped("NormalField is an optional screen-space inferred normal/surface field. It is not true game material normals and is zero-impact unless shader mapping is explicitly enabled and matching uniforms exist.");
     }
 
     private string BasePresetSummary()
