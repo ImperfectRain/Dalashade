@@ -63,6 +63,7 @@ public sealed class Plugin : IDalamudPlugin
     public PresetAnalysisResult LastPresetAnalysis { get; private set; } = PresetAnalysisResult.Skipped("Preset has not been analyzed yet.");
     public CompatibilityReportExportResult LastCompatibilityReportExport { get; private set; } = CompatibilityReportExportResult.Skipped("No compatibility report has been exported yet.");
     public DebugBundleExportResult LastDebugBundleExport { get; private set; } = DebugBundleExportResult.Skipped("No debug bundle has been exported yet.");
+    public string LastDiagnosticsExportMessage { get; private set; } = "No diagnostics export has been run yet.";
     public PresetRegressionReportResult LastPresetRegressionReport { get; private set; } = PresetRegressionReportResult.Skipped("No preset regression report has been run yet.");
     public BasePresetLibraryScan LastBasePresetLibraryScan { get; private set; } = BasePresetLibraryScan.Skipped("Base presets have not been scanned yet.");
     private string SafePluginConfigDirectory
@@ -187,6 +188,7 @@ public sealed class Plugin : IDalamudPlugin
             LastWriteResult,
             ResolveEffectiveBasePresetPath(true),
             CompatibilityReportDirectory);
+        LastDiagnosticsExportMessage = LastCompatibilityReportExport.Message;
         return LastCompatibilityReportExport;
     }
 
@@ -218,6 +220,7 @@ public sealed class Plugin : IDalamudPlugin
             ResolveEffectiveBasePresetPath(true),
             DebugBundleDirectory,
             SafePluginConfigDirectory);
+        LastDiagnosticsExportMessage = LastDebugBundleExport.Message;
         return LastDebugBundleExport;
     }
 

@@ -234,8 +234,7 @@ public sealed class ConfigWindow : Window, IDisposable
         }
 
         ImGui.TextWrapped(plugin.LastPresetAnalysis.Message);
-        ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
-        ImGui.TextWrapped(plugin.LastDebugBundleExport.Message);
+        ImGui.TextWrapped(plugin.LastDiagnosticsExportMessage);
     }
 
     private string ShaderMatchingSummary()
@@ -464,8 +463,7 @@ public sealed class ConfigWindow : Window, IDisposable
     {
         ImGui.TextWrapped(plugin.LastWriteResult.Message);
         ImGui.TextWrapped(plugin.LastReloadResult.Message);
-        ImGui.TextWrapped(plugin.LastCompatibilityReportExport.Message);
-        ImGui.TextWrapped(plugin.LastDebugBundleExport.Message);
+        ImGui.TextWrapped(plugin.LastDiagnosticsExportMessage);
         ImGui.TextWrapped(plugin.LastShaderSupportScan.Message);
     }
 

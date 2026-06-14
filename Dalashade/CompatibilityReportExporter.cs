@@ -180,16 +180,23 @@ public sealed class CompatibilityReportExporter
                 return CompatibilityReportExportResult.Skipped("Preset analysis has not succeeded yet.");
             }
 
-            var reportDirectory = ResolveSafeDirectory(outputDirectory, GetDefaultPluginConfigDirectory(), "Reports");
-            Directory.CreateDirectory(reportDirectory);
-            var presetName = string.IsNullOrWhiteSpace(effectiveBasePresetPath)
-                ? "UnknownPreset"
-                : Path.GetFileNameWithoutExtension(effectiveBasePresetPath);
-            var safePresetName = MakeSafeFileName(presetName);
             var timestamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss");
-            var path = ResolveSafeFilePath(null, reportDirectory, $"{safePresetName}-compatibility-{timestamp}.md");
+            var path = ResolveReportExportPath(outputDirectory, GetDefaultPluginConfigDirectory(), $"Dalashade_CompatibilityReport_{timestamp}.md");
+            var reportDirectory = Path.GetDirectoryName(path);
+            if (string.IsNullOrWhiteSpace(reportDirectory))
+            {
+                reportDirectory = ResolveSafeDirectory(null, GetDefaultPluginConfigDirectory(), "Reports");
+                path = Path.Combine(reportDirectory, Path.GetFileName(path));
+            }
+
+            Directory.CreateDirectory(reportDirectory);
 
             File.WriteAllText(path, BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, tagStackDiagnostics, currentImage, masterStyle, writeResult, effectiveBasePresetPath), Encoding.UTF8);
+            if (!File.Exists(path))
+            {
+                return CompatibilityReportExportResult.Skipped($"Compatibility report export failed: file was not created at {path}");
+            }
+
             return new CompatibilityReportExportResult(true, $"Compatibility report exported: {path}", path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
@@ -1769,18 +1776,27 @@ public sealed class CompatibilityReportExporter
         return resolved;
     }
 
-    private static string ResolveSafeFilePath(string? candidate, string fallbackDirectory, string defaultFileName)
+    private static string ResolveReportExportPath(string? candidatePath, string fallbackDirectory, string defaultFileName)
     {
-        var safeFallback = ResolveSafeDirectory(fallbackDirectory, GetDefaultPluginConfigDirectory(), string.Empty);
-        if (string.IsNullOrWhiteSpace(candidate))
+        var reportsDirectory = ResolveSafeDirectory(candidatePath, fallbackDirectory, "Reports");
+        if (string.IsNullOrWhiteSpace(candidatePath))
         {
-            return Path.Combine(safeFallback, MakeSafeFileName(defaultFileName));
+            return Path.Combine(reportsDirectory, MakeSafeFileName(defaultFileName));
         }
 
-        var trimmed = candidate.Trim();
-        return Path.IsPathRooted(trimmed)
+        var trimmed = candidatePath.Trim();
+        var rooted = Path.IsPathRooted(trimmed)
             ? Path.GetFullPath(trimmed)
-            : Path.GetFullPath(Path.Combine(safeFallback, trimmed));
+            : Path.GetFullPath(Path.Combine(ResolveSafeDirectory(fallbackDirectory, GetDefaultPluginConfigDirectory(), string.Empty), trimmed));
+
+        var extension = Path.GetExtension(rooted);
+        if (string.Equals(extension, ".md", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(extension, ".txt", StringComparison.OrdinalIgnoreCase))
+        {
+            return rooted;
+        }
+
+        return Path.Combine(rooted, MakeSafeFileName(defaultFileName));
     }
 
     private static string GetDefaultPluginConfigDirectory()

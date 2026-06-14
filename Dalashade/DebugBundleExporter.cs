@@ -103,12 +103,19 @@ public sealed class DebugBundleExporter
             WriteJson(Path.Combine(folderPath, "manifest.json"), manifest, included);
 
             var zipPath = TryCreateZip(folderPath, skipped);
-            var message = string.IsNullOrWhiteSpace(zipPath)
-                ? $"Debug bundle exported: {folderPath}"
-                : $"Debug bundle exported: {folderPath} and {zipPath}";
+            var targetText = string.IsNullOrWhiteSpace(zipPath)
+                ? folderPath
+                : $"{folderPath} and {zipPath}";
+            var message = skipped.Count == 0
+                ? $"Debug bundle exported: {targetText}"
+                : $"Debug bundle exported with skipped items: {targetText}. See manifest.json.";
             if (skipped.Count > 0)
             {
-                message += $" ({skipped.Count} skipped item(s); see manifest.json).";
+                var compatibilityReportSkipped = skipped.Any(item => item.StartsWith("compatibility-report.md:", StringComparison.OrdinalIgnoreCase));
+                if (compatibilityReportSkipped)
+                {
+                    message += " Compatibility report could not be generated; see compatibility-report-missing.txt.";
+                }
             }
 
             return new DebugBundleExportResult(true, message, folderPath, zipPath ?? string.Empty, included.ToArray(), skipped.ToArray());
