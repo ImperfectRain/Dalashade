@@ -498,6 +498,16 @@ Dalashade_MaterialCompetition Dalashade_ResolveMaterialCompetition(
     float waterProofBoost = saturate(
         strongWaterLocalProof
         * (0.48 + waterRegionBias * 0.32 + lowTexture * 0.20));
+    float constructedCyanReject = saturate(
+        gated.NeonGlass * 0.42
+        + gated.CrystalAether * 0.34
+        + gated.MetalIndustrial * 0.30
+        + raw.SurfaceHardTexture * 0.22
+        + gated.StoneRuins * 0.16);
+    float constructedWinsOverWater = saturate(
+        constructedCyanReject
+        * (1.0 - strongWaterLocalProof * 0.65)
+        * (1.0 - gated.WaterPlane * 0.45));
     float skyDominance = saturate(
         skyWins * 0.70
         + competition.SkyScore * skyRegionBias * 0.35
@@ -513,7 +523,8 @@ Dalashade_MaterialCompetition Dalashade_ResolveMaterialCompetition(
         waterLocalProof
         * (0.34 + waterWins * 0.54 + waterProofBoost * 0.24)
         * (1.0 - skyDominance * lerp(0.78, 0.58, waterProofBoost))
-        * (1.0 - horizonBand * competition.WaterSkyConflict * 0.34));
+        * (1.0 - horizonBand * competition.WaterSkyConflict * 0.34)
+        * (1.0 - constructedWinsOverWater * 0.72));
     competition.HorizonOnlyConfidence = saturate(
         horizonEvidence
         * competition.WaterSkyConflict
@@ -524,7 +535,8 @@ Dalashade_MaterialCompetition Dalashade_ResolveMaterialCompetition(
         competition.WaterPixelConfidence
         * (0.30 + gated.WaterPlane * 0.38 + lowTexture * 0.28 + waterProofBoost * 0.24)
         * (1.0 - competition.SkyPixelConfidence * lerp(0.92, 0.64, waterProofBoost))
-        * (1.0 - competition.HorizonOnlyConfidence * 0.84));
+        * (1.0 - competition.HorizonOnlyConfidence * 0.84)
+        * (1.0 - constructedWinsOverWater * 0.55));
 
     float nonSky = saturate(1.0 - competition.SkyPixelConfidence * 0.90 - gated.SkyCloudFog * 0.45);
     float nonSkin = saturate(1.0 - gated.SkinProtection * 0.85);
