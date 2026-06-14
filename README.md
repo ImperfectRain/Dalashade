@@ -137,6 +137,10 @@ The compatibility mode selector now controls the first small slice of ReGrade+ c
 
 This still does not disable techniques or broadly sanitize every color shader. The current sanitize behavior is limited to ReGrade+ scalar tonal color controls and ReGrade+ Colorista HSL vectors, so Rain/iMMERSE-style presets stay protected while heavier third-party presets can start becoming safer in balanced/gameplay modes.
 
+## Optional NormalField Diagnostics
+
+NormalField is optional and disabled by default. It is currently a diagnostic/shared-data layer for future first-party shader improvements, not true FFXIV material normals, G-buffer access, or texture normal maps. See `docs/NormalField.md` for configuration, debug modes, and the test plan.
+
 ## Scene Lock
 
 `Lock current generated preset` pauses automatic regeneration. Manual `Generate Now` still works. This is for the moments where the preset looks good and you want Dalashade to stop reacting to time, weather, screenshots, or combat for a while.

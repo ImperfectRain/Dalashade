@@ -21,6 +21,7 @@ These docs are for users who want to understand what Dalashade is doing, maintai
 | Generated preset write behavior | [PresetWriting.md](PresetWriting.md) |
 | Shader support and mappings | [ShaderMapping.md](ShaderMapping.md) |
 | Custom shader authoring scaffold | [ShaderAuthoring.md](ShaderAuthoring.md) |
+| Optional NormalField diagnostics and test plan | [NormalField.md](NormalField.md) |
 | Master style matching | [MasterStyle.md](MasterStyle.md) |
 | Compatibility reports and diagnostics | [CompatibilityAndDiagnostics.md](CompatibilityAndDiagnostics.md) |
 | ReShade reload behavior | [ReShadeReload.md](ReShadeReload.md) |
