@@ -394,7 +394,9 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
 
     float neighborLuma = Dalashade_SceneGILuma(neighbor);
     float lowFrequencySurface = saturate(Dalashade_RangeMask(neighborLuma, 0.08, 0.82) * (0.72 + shadow * 0.34));
-    float sharedMaterialConfidence = saturate(material.ReceiverConfidence + material.LightSourceConfidence * 0.35 + material.Foliage * 0.22 + material.SandDust * 0.18 + material.SnowIce * 0.18);
+    float aoReceiverConfidence = Dalashade_GetAOReceiver(material, water, safety);
+    float structureReceiverConfidence = Dalashade_GetStructureReceiver(material, water, safety);
+    float sharedMaterialConfidence = saturate(max(aoReceiverConfidence, structureReceiverConfidence) + material.LightSourceConfidence * 0.35 + material.Foliage * 0.22 + material.SandDust * 0.18 + material.SnowIce * 0.18);
     float lowFrequencyMaterialRegion = saturate(lowFrequencySurface * (sharedMaterialConfidence * 0.46 + hardSurface * 0.24 + material.Foliage * 0.18 + safety.FoliageNoiseReject * 0.08 + water.WaterSurface * 0.10 + material.SandDust * 0.12 + material.SnowIce * 0.10));
     lowFrequencyMaterialRegion *= 1.0 - skyReject * 0.86;
     lowFrequencyMaterialRegion *= 1.0 - skinProtect * 0.70;
@@ -485,7 +487,7 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
         {
             float materialInfluenceMask = materialInfluence;
             debugColor = lerp(materialInfluenceMask.xxx, Dalashade_GetMaterialDebugColor(material), 0.72);
-            debugMask = saturate(max(sharedMaterialConfidence, max(material.ReceiverConfidence, material.LightSourceConfidence)));
+            debugMask = saturate(max(sharedMaterialConfidence, max(max(aoReceiverConfidence, structureReceiverConfidence), material.LightSourceConfidence)));
         }
         else if (mode == 5)
         {

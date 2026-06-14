@@ -507,14 +507,16 @@ float4 Dalashade_MaterialDebugPass(float4 position : SV_Position, float2 texcoor
     }
     else if (mode == 49)
     {
-        float wetHardReceiver = saturate(material.ReceiverConfidence * max(Dalashade_WetSurfaceContext, water.WetShoreline) * (1.0 - safety.SkyReject) * (1.0 - safety.SkinReject));
-        float aetherReceiver = saturate((material.CrystalAether + material.NeonGlass) * material.SurfaceSmoothness * (1.0 - safety.SkyReject));
-        confidence = saturate(water.WaterReceiver + wetHardReceiver + aetherReceiver);
-        debugColor = saturate(water.WaterReceiver * float3(0.0, 0.85, 1.0) + wetHardReceiver * float3(0.28, 0.52, 0.78) + aetherReceiver * float3(0.70, 0.22, 1.0));
+        float reflectionReceiver = Dalashade_GetReflectionReceiver(material, water, safety);
+        float waterReceiver = Dalashade_GetWaterReceiverStrict(water, safety);
+        float wetHardReceiver = saturate(reflectionReceiver * max(Dalashade_WetSurfaceContext, water.WetShoreline) * (1.0 - waterReceiver * 0.25));
+        float aetherReceiver = saturate(reflectionReceiver * (material.CrystalAether + material.NeonGlass) * (0.35 + material.SurfaceSmoothness * 0.45));
+        confidence = saturate(max(waterReceiver, max(wetHardReceiver, aetherReceiver)));
+        debugColor = saturate(waterReceiver * float3(0.0, 0.85, 1.0) + wetHardReceiver * float3(0.28, 0.52, 0.78) + aetherReceiver * float3(0.70, 0.22, 1.0));
     }
     else if (mode == 50)
     {
-        float receiver = saturate(material.ReceiverConfidence * (1.0 - safety.SkyReject) * (1.0 - safety.SkinReject));
+        float receiver = saturate(max(Dalashade_GetAOReceiver(material, water, safety), Dalashade_GetStructureReceiver(material, water, safety)));
         float source = saturate(material.LightSourceConfidence + water.WaterSource * 0.35);
         confidence = max(receiver, source);
         debugColor = saturate(receiver * float3(0.08, 0.86, 0.26) + source * float3(1.0, 0.48, 0.08));

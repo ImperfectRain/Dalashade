@@ -37,7 +37,7 @@ MaterialDebug directly visualizes `Dalashade_MaterialMasks.fxh`. It does not con
 
 ## Debug modes
 
-The shader includes a broad mode list for raw materials, final materials, water resolver, shared safety, and production-consumer previews. Key current competition modes:
+The shader includes a broad mode list for raw materials, final materials, water resolver, shared safety, and production-consumer previews. The SurfaceReflection and SceneGI preview modes use shared receiver helpers so they remain aligned with the material contract instead of relying on the legacy broad receiver field. Key current competition modes:
 
 | Mode | Label | Meaning |
 | --- | --- | --- |

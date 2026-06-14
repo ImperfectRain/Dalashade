@@ -28,13 +28,13 @@ Normal output is source color plus conservative AO/bounce modifications. Debug m
 
 1. Resolve material, water, and safety masks.
 2. Build GI sources from light/glint/aether/neon/fire and local luminance.
-3. Build receivers from material hardness, structure, water/sky/skin gates, and scene context.
+3. Build receivers from shared AO/structure receiver helpers, material hardness, water/sky/skin gates, and scene context.
 4. Estimate local occlusion/bounce with small screen-space taps.
 5. Apply conservative darkening/lighting with safety clamps.
 
 ## Material/Water/Normal dependencies
 
-SceneGI consumes MaterialMasks shared resolves. NormalField is not a production dependency yet. Water surfaces suppress dirty AO; `WetShoreline` may support local light pooling.
+SceneGI consumes MaterialMasks shared resolves. NormalField is not a production dependency yet. The shared material confidence path prefers `Dalashade_GetAOReceiver(...)` and `Dalashade_GetStructureReceiver(...)` over legacy broad `ReceiverConfidence`; local material terms still shape the final GI role. Water surfaces suppress dirty AO; `WetShoreline` may support local light pooling.
 
 ## Debug modes
 

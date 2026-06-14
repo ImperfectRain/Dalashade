@@ -142,6 +142,18 @@ These are shared material masks after raw evidence, priors, and competition. Pro
 
 Use specialized receiver fields when available. Use `ReceiverConfidence` only as a broad compatibility fallback.
 
+## Shared Role Helpers
+
+`Dalashade_MaterialMasks.fxh` also exposes small helper functions for first-party shaders that need a consistent effect-role gate:
+
+- `Dalashade_GetReflectionReceiver(...)`: combines `ReflectionReceiverConfidence` and strict water receiver evidence with sky, skin, and foliage-noise safety. Use this for reflective-surface permission, not for source color.
+- `Dalashade_GetAOReceiver(...)`: uses `AOReceiverConfidence` with water/sky/skin/highlight rejection. Use this for AO/contact-like receivers.
+- `Dalashade_GetStructureReceiver(...)`: uses `StructureReceiverConfidence` with sky/skin/water suppression. Use this for broad stable structure support.
+- `Dalashade_GetWaterReceiverStrict(...)`: returns water receiver evidence after horizon, sky, and skin rejection. `WaterSource`, `SkySource`, and `HorizonOnlyConfidence` are intentionally excluded.
+- `Dalashade_GetSkyReceiverReject(...)`: centralizes sky receiver rejection from safety, material, and water resolves.
+
+These helpers are not new material IDs and should not replace shader-specific final shaping. They exist to keep source/receiver, AO/reflection, and legacy/specialized receiver semantics consistent.
+
 ## Dalashade_WaterResolve
 
 `Dalashade_WaterResolve` separates water-like evidence into receiver, source, and rejection roles:

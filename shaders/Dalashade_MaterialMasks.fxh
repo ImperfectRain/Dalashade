@@ -906,6 +906,66 @@ Dalashade_SafetyResolve Dalashade_ResolveSafety(
     return safety;
 }
 
+// Shared role helpers keep source/receiver semantics consistent across first-party shaders.
+// These are role-confidence gates, not new material IDs or visual strength controls.
+float Dalashade_GetReflectionReceiver(
+    Dalashade_MaterialResolve material,
+    Dalashade_WaterResolve water,
+    Dalashade_SafetyResolve safety)
+{
+    float receiver = max(material.ReflectionReceiverConfidence, water.WaterReceiver);
+    return saturate(
+        receiver
+        * (1.0 - safety.SkyReject * 0.95)
+        * (1.0 - safety.SkinReject * 0.90)
+        * (1.0 - safety.FoliageNoiseReject * 0.35));
+}
+
+float Dalashade_GetAOReceiver(
+    Dalashade_MaterialResolve material,
+    Dalashade_WaterResolve water,
+    Dalashade_SafetyResolve safety)
+{
+    float receiver = max(material.AOReceiverConfidence, material.ReceiverConfidence * 0.25);
+    float waterReject = max(safety.WaterAOReject, water.WaterReceiver);
+    return saturate(
+        receiver
+        * (1.0 - safety.SkyReject * 0.95)
+        * (1.0 - safety.SkinReject * 0.90)
+        * (1.0 - waterReject * 0.70)
+        * (1.0 - safety.HighlightProtect * 0.18));
+}
+
+float Dalashade_GetStructureReceiver(
+    Dalashade_MaterialResolve material,
+    Dalashade_WaterResolve water,
+    Dalashade_SafetyResolve safety)
+{
+    float receiver = max(material.StructureReceiverConfidence, material.ReceiverConfidence * 0.30);
+    return saturate(
+        receiver
+        * (1.0 - safety.SkyReject * 0.88)
+        * (1.0 - safety.SkinReject * 0.82)
+        * (1.0 - water.WaterReceiver * 0.35));
+}
+
+float Dalashade_GetWaterReceiverStrict(Dalashade_WaterResolve water, Dalashade_SafetyResolve safety)
+{
+    return saturate(
+        water.WaterReceiver
+        * (1.0 - water.HorizonOnlyConfidence * 0.85)
+        * (1.0 - safety.SkyReject * 0.95)
+        * (1.0 - safety.SkinReject * 0.95));
+}
+
+float Dalashade_GetSkyReceiverReject(
+    Dalashade_MaterialResolve material,
+    Dalashade_WaterResolve water,
+    Dalashade_SafetyResolve safety)
+{
+    return saturate(max(max(safety.SkyReject, material.SkyCloudFog), water.SkyReject));
+}
+
 float3 Dalashade_GetMaterialDebugColor(Dalashade_MaterialResolve material)
 {
     float3 color = float3(0.0, 0.0, 0.0);
