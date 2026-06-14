@@ -173,6 +173,7 @@ public sealed class CompatibilityReportExporter
         string effectiveBasePresetPath,
         string outputDirectory)
     {
+        var stage = "starting compatibility report export";
         try
         {
             if (!analysis.Success)
@@ -180,6 +181,7 @@ public sealed class CompatibilityReportExporter
                 return CompatibilityReportExportResult.Skipped("Preset analysis has not succeeded yet.");
             }
 
+            stage = "resolving report output path";
             var timestamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss");
             var path = ResolveReportExportPath(outputDirectory, GetDefaultPluginConfigDirectory(), $"Dalashade_CompatibilityReport_{timestamp}.md");
             var reportDirectory = Path.GetDirectoryName(path);
@@ -189,9 +191,13 @@ public sealed class CompatibilityReportExporter
                 path = Path.Combine(reportDirectory, Path.GetFileName(path));
             }
 
+            stage = "creating report output directory";
             Directory.CreateDirectory(reportDirectory);
 
-            File.WriteAllText(path, BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, tagStackDiagnostics, currentImage, masterStyle, writeResult, effectiveBasePresetPath), Encoding.UTF8);
+            stage = "building report content";
+            var reportContent = BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, tagStackDiagnostics, currentImage, masterStyle, writeResult, effectiveBasePresetPath);
+            stage = "writing report file";
+            File.WriteAllText(path, reportContent, Encoding.UTF8);
             if (!File.Exists(path))
             {
                 return CompatibilityReportExportResult.Skipped($"Compatibility report export failed: file was not created at {path}");
@@ -201,7 +207,7 @@ public sealed class CompatibilityReportExporter
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            return CompatibilityReportExportResult.Skipped($"Compatibility report export failed: {ex.Message}");
+            return CompatibilityReportExportResult.Skipped($"Compatibility report export failed while {stage}: {ex.Message}");
         }
     }
 
@@ -1121,23 +1127,33 @@ public sealed class CompatibilityReportExporter
 
     private static string ReadShaderSource(string fileName)
     {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return string.Empty;
+        }
+
         foreach (var root in CandidateSourceRoots())
         {
-            var path = Path.Combine(root, "shaders", fileName);
-            if (!File.Exists(path))
+            string path;
+            try
+            {
+                path = Path.Combine(root, "shaders", fileName);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
             {
                 continue;
             }
 
             try
             {
+                if (!File.Exists(path))
+                {
+                    continue;
+                }
+
                 return File.ReadAllText(path);
             }
-            catch (IOException)
-            {
-                return string.Empty;
-            }
-            catch (UnauthorizedAccessException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {
                 return string.Empty;
             }
@@ -1148,16 +1164,52 @@ public sealed class CompatibilityReportExporter
 
     private static IEnumerable<string> CandidateSourceRoots()
     {
-        var current = Directory.GetCurrentDirectory();
-        for (var directory = new DirectoryInfo(current); directory is not null; directory = directory.Parent)
+        foreach (var root in CandidateParentDirectories(TryGetCurrentDirectory()))
         {
-            yield return directory.FullName;
+            yield return root;
         }
 
-        var baseDirectory = AppContext.BaseDirectory;
-        for (var directory = new DirectoryInfo(baseDirectory); directory is not null; directory = directory.Parent)
+        foreach (var root in CandidateParentDirectories(AppContext.BaseDirectory))
         {
-            yield return directory.FullName;
+            yield return root;
+        }
+    }
+
+    private static string? TryGetCurrentDirectory()
+    {
+        try
+        {
+            return Directory.GetCurrentDirectory();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private static IEnumerable<string> CandidateParentDirectories(string? root)
+    {
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            yield break;
+        }
+
+        DirectoryInfo? directory;
+        try
+        {
+            directory = new DirectoryInfo(root);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+        {
+            yield break;
+        }
+
+        for (; directory is not null; directory = directory.Parent)
+        {
+            if (!string.IsNullOrWhiteSpace(directory.FullName))
+            {
+                yield return directory.FullName;
+            }
         }
     }
 
@@ -1778,9 +1830,9 @@ public sealed class CompatibilityReportExporter
 
     private static string ResolveReportExportPath(string? candidatePath, string fallbackDirectory, string defaultFileName)
     {
-        var reportsDirectory = ResolveSafeDirectory(candidatePath, fallbackDirectory, "Reports");
         if (string.IsNullOrWhiteSpace(candidatePath))
         {
+            var reportsDirectory = ResolveSafeDirectory(null, fallbackDirectory, "Reports");
             return Path.Combine(reportsDirectory, MakeSafeFileName(defaultFileName));
         }
 
