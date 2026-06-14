@@ -235,7 +235,7 @@ public sealed class CompatibilityReportExporter
         AppendLines(builder, "Multiple Authority Warnings", report.MultipleAuthorityWarnings);
         AppendTagStackDiagnostics(builder, tagStackDiagnostics);
         AppendMaterialIntentDiagnostics(builder, configuration, tagStackDiagnostics, currentImage, writeResult);
-        AppendNormalFieldDiagnostics(builder, configuration, writeResult);
+        AppendNormalFieldDiagnostics(builder, configuration, analysis, writeResult);
         AppendMasterStyleDiagnostics(builder, configuration, masterDiagnostics);
         AppendColorFamilyAdjustments(builder, profile);
         AppendColorFamilyComparison(builder, currentImage, masterStyle, profile);
@@ -364,9 +364,14 @@ public sealed class CompatibilityReportExporter
             var usesSharedResolver = sourceAvailable && UsesSharedMaterialResolver(source);
             var usesWaterResolver = sourceAvailable && source.Contains("Dalashade_ResolveWater", StringComparison.Ordinal);
             var usesSafetyResolver = sourceAvailable && source.Contains("Dalashade_ResolveSafety", StringComparison.Ordinal);
+            var includesNormalField = sourceAvailable && source.Contains("Dalashade_NormalField.fxh", StringComparison.Ordinal);
+            var usesNormalField = sourceAvailable && source.Contains("Dalashade_ResolveNormalField", StringComparison.Ordinal);
+            var usesDepthNormal = sourceAvailable && source.Contains("Dalashade_GetDepthNormal", StringComparison.Ordinal);
+            var usesDetailNormal = sourceAvailable && source.Contains("Dalashade_GetImageGradientNormal", StringComparison.Ordinal);
             var hasLocalMaterialLogic = sourceAvailable && HasLocalMaterialLogic(source, usesSharedResolver);
             var debugExposes = sourceAvailable
                                && (shader.Technique.Equals("Dalashade_MaterialDebug", StringComparison.OrdinalIgnoreCase)
+                                   || shader.Technique.Equals("Dalashade_NormalDebug", StringComparison.OrdinalIgnoreCase)
                                    || source.Contains("Dalashade_MaterialDebugMode", StringComparison.Ordinal)
                                    || source.Contains("DebugMode", StringComparison.Ordinal));
 
@@ -378,6 +383,9 @@ public sealed class CompatibilityReportExporter
             builder.AppendLine($"- Shared material resolver consumed: {(usesSharedResolver ? "yes" : sourceAvailable ? "no" : "unknown")}");
             builder.AppendLine($"- Water resolver consumed: {(usesWaterResolver ? "yes" : sourceAvailable ? "no" : "unknown")}");
             builder.AppendLine($"- Safety resolver consumed: {(usesSafetyResolver ? "yes" : sourceAvailable ? "no" : "unknown")}");
+            builder.AppendLine($"- Normal field consumed: {FormatSourceScanStatus(includesNormalField || usesNormalField, sourceAvailable)}");
+            builder.AppendLine($"- Depth normal consumed: {FormatSourceScanStatus(usesDepthNormal, sourceAvailable)}");
+            builder.AppendLine($"- Detail normal consumed: {FormatSourceScanStatus(usesDetailNormal, sourceAvailable)}");
             builder.AppendLine($"- Local material override logic: {(hasLocalMaterialLogic ? "yes" : sourceAvailable ? "no" : "unknown")}");
             builder.AppendLine($"- Debug view exposes consumed material result: {(debugExposes ? "yes" : "no")}");
             builder.AppendLine();
@@ -651,10 +659,12 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine();
     }
 
-    private static void AppendNormalFieldDiagnostics(StringBuilder builder, Configuration configuration, PresetWriteResult writeResult)
+    private static void AppendNormalFieldDiagnostics(StringBuilder builder, Configuration configuration, PresetAnalysisResult analysis, PresetWriteResult writeResult)
     {
         builder.AppendLine("## Normal Field Diagnostics");
         builder.AppendLine();
+        var normalDebug = FindFirstPartyTechnique(analysis, "Dalashade_NormalDebug");
+        var normalFieldIncludeAvailable = !string.IsNullOrWhiteSpace(ReadShaderSource("Dalashade_NormalField.fxh"));
         builder.AppendLine($"- Enabled: {(configuration.EnableNormalField ? "yes" : "no")}");
         builder.AppendLine($"- Diagnostics enabled: {(configuration.EnableNormalFieldDiagnostics ? "yes" : "no")}");
         builder.AppendLine($"- Shader mapping enabled: {(configuration.EnableNormalFieldShaderMapping ? "yes" : "no")}");
@@ -667,19 +677,26 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Sky suppression: {Math.Clamp(configuration.NormalFieldSkySuppression, 0f, 1f):0.###}");
         builder.AppendLine($"- Debug mode: {Math.Clamp(configuration.NormalFieldDebugMode, 0, 11)}");
         builder.AppendLine($"- Debug boost: {Math.Clamp(configuration.NormalFieldDebugBoost, 0.25f, 8f):0.###}");
+        builder.AppendLine($"- NormalDebug shader section present: {(normalDebug is null ? "no" : "yes")}");
+        builder.AppendLine($"- NormalDebug technique active: {(normalDebug?.ActivationState == TechniqueActivationState.Active ? "yes" : "no")}");
+        builder.AppendLine($"- NormalField include installed locally for diagnostics scan: {(normalFieldIncludeAvailable ? "yes" : "no")}");
         builder.AppendLine("- Current note: `NormalField shader files are not required unless the optional NormalDebug shader is installed/enabled.`");
 
         if (!configuration.EnableNormalField)
         {
-            builder.AppendLine("- NormalField is disabled. No production shader behavior changes and no generated NormalField variables are written.");
+            builder.AppendLine("- NormalField disabled; production shaders are unaffected.");
         }
         else if (!configuration.EnableNormalFieldShaderMapping)
         {
-            builder.AppendLine("- Diagnostics only, no visual shader mapping. NormalField uniforms are skipped during generated preset writes.");
+            builder.AppendLine("- NormalField diagnostics enabled, but generated-preset shader mapping is disabled.");
         }
         else if (configuration.NormalFieldStrength <= 0f)
         {
             builder.AppendLine("- Shader mapping is enabled but NormalField strength is 0.0, so shader-side normal influence remains disabled.");
+        }
+        if (normalDebug is null)
+        {
+            builder.AppendLine("- NormalDebug shader file not found. This is not an error unless you are trying to debug NormalField.");
         }
 
         var writtenUniforms = writeResult.Changes
@@ -689,6 +706,15 @@ public sealed class CompatibilityReportExporter
             .ToArray();
         builder.AppendLine($"- NormalField uniforms written: {(writtenUniforms.Length == 0 ? "none" : string.Join(", ", writtenUniforms.Select(change => $"`{change.Section}:{change.Key}`")))}");
         builder.AppendLine("- NormalField is an inferred screen-space surface field from depth, luma/color gradients, material context, water context, and safety gates. It is not true FFXIV G-buffer or material normal access.");
+        builder.AppendLine();
+        builder.AppendLine("### Production Shader Consumption");
+        builder.AppendLine();
+        builder.AppendLine($"- SceneGI: {FormatNormalFieldProductionConsumption("Dalashade_SceneGI.fx")}");
+        builder.AppendLine($"- SurfaceReflection: {FormatNormalFieldProductionConsumption("Dalashade_SurfaceReflection.fx")}");
+        builder.AppendLine($"- SmartSharpen: {FormatNormalFieldProductionConsumption("Dalashade_SmartSharpen.fx")}");
+        builder.AppendLine($"- WeatherAtmosphere: {FormatNormalFieldProductionConsumption("Dalashade_WeatherAtmosphere.fx")}");
+        builder.AppendLine($"- AdaptiveGrade: {FormatNormalFieldProductionConsumption("Dalashade_AdaptiveGrade.fx")}");
+        builder.AppendLine("- WeatherParticles/LightHierarchy/CombatClarity: not applicable unless present.");
         builder.AppendLine();
     }
 
@@ -1238,6 +1264,28 @@ public sealed class CompatibilityReportExporter
                || string.Equals(uniform, "Dalashade_DepthAssistStrength", StringComparison.Ordinal)
                || string.Equals(uniform, "Dalashade_DepthAssistConfidenceFloor", StringComparison.Ordinal)
                || string.Equals(uniform, "Dalashade_DepthConfidenceFloor", StringComparison.Ordinal);
+    }
+
+    private static string FormatSourceScanStatus(bool detected, bool sourceAvailable)
+    {
+        return detected ? "yes" : sourceAvailable ? "no" : "unknown";
+    }
+
+    private static string FormatNormalFieldProductionConsumption(string fileName)
+    {
+        var source = ReadShaderSource(fileName);
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return "unknown (source unavailable)";
+        }
+
+        var includesNormalField = source.Contains("Dalashade_NormalField.fxh", StringComparison.Ordinal);
+        var resolvesNormalField = source.Contains("Dalashade_ResolveNormalField", StringComparison.Ordinal);
+        var usesDepthNormal = source.Contains("Dalashade_GetDepthNormal", StringComparison.Ordinal);
+        var usesDetailNormal = source.Contains("Dalashade_GetImageGradientNormal", StringComparison.Ordinal);
+        return includesNormalField || resolvesNormalField || usesDepthNormal || usesDetailNormal
+            ? $"yes (include={YesNo(includesNormalField)}, resolve={YesNo(resolvesNormalField)}, depth={YesNo(usesDepthNormal)}, detail={YesNo(usesDetailNormal)})"
+            : "no, not yet";
     }
 
     private static string YesNo(bool value) => value ? "yes" : "no";

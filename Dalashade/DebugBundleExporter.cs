@@ -82,6 +82,7 @@ public sealed class DebugBundleExporter
             WriteJson(Path.Combine(folderPath, "scene-context.json"), BuildSceneContextDump(context, diagnostics), included);
             WriteJson(Path.Combine(folderPath, "scene-intent.json"), BuildSceneIntentDump(diagnostics.Intent), included);
             WriteJson(Path.Combine(folderPath, "material-intent.json"), BuildMaterialIntentDump(diagnostics, imageAnalysis, materialIntent, writeResult), included);
+            WriteJson(Path.Combine(folderPath, "normal-field-diagnostics.json"), BuildNormalFieldDiagnosticsDump(configuration, analysis, writeResult), included);
             WriteText(Path.Combine(folderPath, "material-parity-audit.md"), BuildMaterialParityAudit(freshReport), included);
             WriteText(Path.Combine(folderPath, "shader-stack-summary.md"), BuildShaderStackSummary(analysis), included);
             WriteText(Path.Combine(folderPath, "installed-dalashade-shaders.txt"), BuildInstalledShaderStatus(configuration, included, skipped), included);
@@ -253,6 +254,143 @@ public sealed class DebugBundleExporter
         return MaterialIntent.ChannelNames.ToDictionary(channel => channel, intent.ValueFor, StringComparer.OrdinalIgnoreCase);
     }
 
+    private static object BuildNormalFieldDiagnosticsDump(Configuration configuration, PresetAnalysisResult analysis, PresetWriteResult writeResult)
+    {
+        var normalDebugFile = FindFirstShaderFile(configuration, "Dalashade_NormalDebug.fx");
+        var normalFieldInclude = FindFirstShaderFile(configuration, "Dalashade_NormalField.fxh");
+        var normalDebugTechniques = analysis.Techniques
+            .Where(technique => TechniqueContains(technique, "Dalashade_NormalDebug"))
+            .Select(technique => new
+            {
+                technique.Section,
+                technique.TechniqueName,
+                technique.ShaderFile,
+                technique.ActivationState,
+                technique.Role,
+                technique.SupportLevel
+            })
+            .ToArray();
+        var skippedReasons = new List<string>();
+        if (!configuration.EnableNormalField)
+        {
+            skippedReasons.Add("NormalField disabled; production shaders are unaffected.");
+        }
+        else if (!configuration.EnableNormalFieldShaderMapping)
+        {
+            skippedReasons.Add("NormalField diagnostics enabled, but generated-preset shader mapping is disabled.");
+        }
+        else if (configuration.NormalFieldStrength <= 0f)
+        {
+            skippedReasons.Add("NormalField shader mapping is enabled, but NormalFieldStrength is 0.0.");
+        }
+
+        if (string.IsNullOrWhiteSpace(normalDebugFile))
+        {
+            skippedReasons.Add("NormalDebug shader file not found. This is not an error unless you are trying to debug NormalField.");
+        }
+
+        if (string.IsNullOrWhiteSpace(normalFieldInclude))
+        {
+            skippedReasons.Add("NormalField include file not found in detected ReShade shader paths.");
+        }
+
+        return new
+        {
+            Settings = new
+            {
+                configuration.EnableNormalField,
+                configuration.EnableNormalFieldDiagnostics,
+                configuration.EnableNormalFieldShaderMapping,
+                configuration.NormalFieldStrength,
+                configuration.NormalFieldDepthStrength,
+                configuration.NormalFieldDetailStrength,
+                configuration.NormalFieldMaterialInfluence,
+                configuration.NormalFieldWaterSuppression,
+                configuration.NormalFieldSkinSuppression,
+                configuration.NormalFieldSkySuppression,
+                configuration.NormalFieldDebugMode,
+                configuration.NormalFieldDebugBoost
+            },
+            ShaderFiles = new
+            {
+                NormalDebug = BuildShaderFilePresence(normalDebugFile),
+                NormalFieldInclude = BuildShaderFilePresence(normalFieldInclude)
+            },
+            NormalDebugTechniqueActive = normalDebugTechniques.Any(technique => technique.ActivationState == TechniqueActivationState.Active),
+            NormalDebugTechniques = normalDebugTechniques,
+            FirstPartyShaderConsumption = BuildNormalFieldShaderConsumption(),
+            Mapping = new
+            {
+                Enabled = configuration.EnableNormalField && configuration.EnableNormalFieldShaderMapping && configuration.NormalFieldStrength > 0f,
+                WrittenUniforms = writeResult.Changes
+                    .Where(change => string.Equals(change.ReasonCategory, CustomShaderVariableMapper.NormalFieldReasonCategory, StringComparison.OrdinalIgnoreCase))
+                    .Select(change => new
+                    {
+                        change.Section,
+                        change.Key,
+                        change.NewValue,
+                        change.ActivationState,
+                        change.Warning
+                    })
+                    .ToArray(),
+                SkippedReasons = skippedReasons.ToArray()
+            },
+            Note = "NormalField is optional and disabled by default. It is a shared screen-space inferred surface-normal layer, not true FFXIV engine normals or material normal maps."
+        };
+    }
+
+    private static object BuildShaderFilePresence(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return new
+            {
+                Present = false,
+                Path = path ?? string.Empty,
+                ModifiedUtc = string.Empty,
+                Size = 0L,
+                Sha256 = string.Empty
+            };
+        }
+
+        var info = new FileInfo(path);
+        return new
+        {
+            Present = true,
+            Path = info.FullName,
+            ModifiedUtc = info.LastWriteTimeUtc,
+            Size = info.Length,
+            Sha256 = Sha256(info.FullName)
+        };
+    }
+
+    private static object[] BuildNormalFieldShaderConsumption()
+    {
+        return FirstPartyShaderFiles
+            .Where(fileName => fileName.EndsWith(".fx", StringComparison.OrdinalIgnoreCase))
+            .Select(fileName =>
+            {
+                var source = ReadLocalShaderSource(fileName);
+                var sourceAvailable = !string.IsNullOrWhiteSpace(source);
+                var includesNormalField = sourceAvailable && source.Contains("Dalashade_NormalField.fxh", StringComparison.Ordinal);
+                var resolvesNormalField = sourceAvailable && source.Contains("Dalashade_ResolveNormalField", StringComparison.Ordinal);
+                var usesDepthNormal = sourceAvailable && source.Contains("Dalashade_GetDepthNormal", StringComparison.Ordinal);
+                var usesDetailNormal = sourceAvailable && source.Contains("Dalashade_GetImageGradientNormal", StringComparison.Ordinal);
+                return new
+                {
+                    Shader = fileName,
+                    SourceAvailable = sourceAvailable,
+                    NormalFieldConsumed = includesNormalField || resolvesNormalField,
+                    DepthNormalConsumed = usesDepthNormal,
+                    DetailNormalConsumed = usesDetailNormal,
+                    IncludesNormalField = includesNormalField,
+                    ResolvesNormalField = resolvesNormalField
+                };
+            })
+            .Cast<object>()
+            .ToArray();
+    }
+
     private static string BuildMaterialParityAudit(CompatibilityReportExportResult freshReport)
     {
         if (!freshReport.Success || string.IsNullOrWhiteSpace(freshReport.Path) || !File.Exists(freshReport.Path))
@@ -350,6 +488,13 @@ public sealed class DebugBundleExporter
         }
 
         return builder.ToString();
+    }
+
+    private static string? FindFirstShaderFile(Configuration configuration, string fileName)
+    {
+        return FindReShadeShaderPaths(configuration)
+            .Select(path => Path.Combine(path, fileName))
+            .FirstOrDefault(File.Exists);
     }
 
     private static string BuildPathsAndEnvironment(Configuration configuration, string pluginConfigDirectory, DateTimeOffset timestamp)
@@ -685,6 +830,51 @@ Preset and plugin config files are included intentionally for debugging. Full Re
         using var stream = File.OpenRead(path);
         var hash = SHA256.HashData(stream);
         return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private static string ReadLocalShaderSource(string fileName)
+    {
+        foreach (var root in CandidateSourceRoots())
+        {
+            var path = Path.Combine(root, "shaders", fileName);
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+
+            try
+            {
+                return File.ReadAllText(path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return string.Empty;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static IEnumerable<string> CandidateSourceRoots()
+    {
+        var current = Directory.GetCurrentDirectory();
+        for (var directory = new DirectoryInfo(current); directory is not null; directory = directory.Parent)
+        {
+            yield return directory.FullName;
+        }
+
+        var baseDirectory = AppContext.BaseDirectory;
+        for (var directory = new DirectoryInfo(baseDirectory); directory is not null; directory = directory.Parent)
+        {
+            yield return directory.FullName;
+        }
+    }
+
+    private static bool TechniqueContains(PresetTechnique technique, string key)
+    {
+        return technique.Section.Contains(key, StringComparison.OrdinalIgnoreCase)
+               || technique.TechniqueName.Contains(key, StringComparison.OrdinalIgnoreCase)
+               || technique.ShaderFile.Contains(key, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string GetPluginVersion()
