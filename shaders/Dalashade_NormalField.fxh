@@ -189,10 +189,46 @@ Dalashade_NormalField Dalashade_ResolveNormalField(
     field.EdgeDiscontinuity = saturate(edge * (0.55 + field.DepthConfidence * 0.45) + safety.UIDepthRisk * 0.45);
     field.DetailStrength = field.DetailConfidence * saturate(1.0 - field.EdgeDiscontinuity * 0.72);
     field.NormalConfidence = saturate(enabled * (field.DepthConfidence * 0.58 + field.DetailStrength * 0.42));
-    float orientationConfidence = saturate(field.DepthConfidence * 0.75 + field.DetailConfidence * 0.25);
+    float normalGroundTerm = smoothstep(0.58, 0.96, field.CombinedNormal.z);
+    float normalWallTerm = smoothstep(0.10, 0.62, 1.0 - abs(field.CombinedNormal.z));
+    float usableEdgeStructure = smoothstep(0.025, 0.22, edge) * (1.0 - smoothstep(0.58, 0.96, edge));
+    float usableDetailStructure = smoothstep(0.015, 0.20, detail) * (1.0 - smoothstep(0.62, 0.96, detail));
+    float hardStructure = saturate(
+        material.ReceiverConfidence * 0.34
+        + material.SurfaceHardness * 0.30
+        + material.StoneRuins * 0.22
+        + material.MetalIndustrial * 0.22
+        + material.CrystalAether * 0.08
+        + material.Foliage * 0.04);
+    float softOrientationTrust = saturate(
+        0.18
+        + field.DepthConfidence * 0.34
+        + field.DetailConfidence * 0.18
+        + hardStructure * 0.28
+        + material.ReceiverConfidence * 0.16);
+    float orientationConfidence = saturate(field.DepthConfidence * 0.55 + field.DetailConfidence * 0.20 + softOrientationTrust * 0.25);
     float skyGate = saturate(1.0 - safety.SkyReject * 0.85);
-    field.GroundFacing = saturate(smoothstep(0.58, 0.96, field.CombinedNormal.z) * orientationConfidence * skyGate);
-    field.WallFacing = saturate(smoothstep(0.18, 0.72, 1.0 - abs(field.CombinedNormal.z)) * orientationConfidence * skyGate);
+    float structuralWallTerm = saturate(
+        usableEdgeStructure * 0.42
+        + usableDetailStructure * 0.20
+        + hardStructure * 0.28);
+    float groundMaterialHint = saturate(
+        material.SandDust * 0.22
+        + material.SnowIce * 0.14
+        + water.WaterReceiver * 0.18
+        + material.ReceiverConfidence * 0.20);
+    field.GroundFacing = saturate(
+        (normalGroundTerm * 0.70 + groundMaterialHint * 0.35)
+        * softOrientationTrust
+        * skyGate
+        * (1.0 - safety.SkinReject * 0.80));
+    field.WallFacing = saturate(
+        (normalWallTerm * 0.45 + structuralWallTerm * 0.65)
+        * softOrientationTrust
+        * skyGate
+        * (1.0 - water.WaterReceiver * 0.55)
+        * (1.0 - safety.SkinReject * 0.80)
+        * (1.0 - safety.HighlightProtect * 0.25));
 
     float receiverSafety = saturate(1.0 - safety.SkyReject * skySuppression - safety.SkinReject * skinSuppression);
     float highlightSafety = saturate(1.0 - safety.HighlightProtect * 0.45 - safety.BrightSandProtect * 0.35 - safety.SnowProtect * 0.30);
@@ -217,9 +253,10 @@ Dalashade_NormalField Dalashade_ResolveNormalField(
         * (1.0 - material.Foliage * 0.35)
         * (1.0 - safety.FoliageNoiseReject * 0.30)
         * (1.0 - field.EdgeDiscontinuity * 0.45));
+    float orientationForAO = saturate(field.GroundFacing * 0.35 + field.WallFacing * 0.35 + material.ReceiverConfidence * 0.20 + material.SurfaceHardness * 0.15);
     field.AOReceiver = saturate(enabled
         * structuralReceiver
-        * orientationConfidence
+        * orientationForAO
         * (1.0 - water.WaterReceiver * waterSuppression)
         * receiverSafety
         * (1.0 - safety.SnowProtect * 0.45)
