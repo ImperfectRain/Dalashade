@@ -85,6 +85,7 @@ struct Dalashade_MaterialCompetition
     float StrongWaterLocalProof;
     float ConstructedCyanReject;
     float ConstructedWinsOverWater;
+    float ConstructedWinsOverSky;
     float SkyDominance;
     float WaterProofBoost;
 
@@ -515,10 +516,15 @@ Dalashade_MaterialCompetition Dalashade_ResolveMaterialCompetition(
         constructedCyanReject
         * (1.0 - strongWaterLocalProof * 0.65)
         * (1.0 - gated.WaterPlane * 0.45));
-    float skyDominance = saturate(
+    float constructedWinsOverSky = saturate(
+        constructedCyanReject
+        * (0.45 + raw.SurfaceHardTexture * 0.28 + max(gated.MetalIndustrial, max(gated.CrystalAether, gated.NeonGlass)) * 0.35)
+        * (1.0 - raw.SmoothAtmosphere * 0.35));
+    float rawSkyDominance = saturate(
         skyWins * 0.70
         + competition.SkyScore * skyRegionBias * 0.35
         + raw.SmoothAtmosphere * skyRegionBias * 0.25);
+    float skyDominance = saturate(rawSkyDominance * (1.0 - constructedWinsOverSky * 0.65));
     float horizonEvidence = saturate(
         horizonBand * 0.42
         + s.DepthFarConfidence * 0.24
@@ -529,14 +535,18 @@ Dalashade_MaterialCompetition Dalashade_ResolveMaterialCompetition(
     competition.StrongWaterLocalProof = strongWaterLocalProof;
     competition.ConstructedCyanReject = constructedCyanReject;
     competition.ConstructedWinsOverWater = constructedWinsOverWater;
+    competition.ConstructedWinsOverSky = constructedWinsOverSky;
     competition.SkyDominance = skyDominance;
     competition.WaterProofBoost = waterProofBoost;
 
-    competition.SkyPixelConfidence = saturate(skyWins * (1.0 - waterWins * 0.45));
+    competition.SkyPixelConfidence = saturate(
+        skyWins
+        * (1.0 - waterWins * 0.45)
+        * (1.0 - constructedWinsOverSky * 0.72));
     competition.WaterPixelConfidence = saturate(
         waterLocalProof
         * (0.34 + waterWins * 0.54 + waterProofBoost * 0.24)
-        * (1.0 - skyDominance * lerp(0.78, 0.58, waterProofBoost))
+        * (1.0 - rawSkyDominance * lerp(0.78, 0.58, waterProofBoost))
         * (1.0 - horizonBand * competition.WaterSkyConflict * 0.34)
         * (1.0 - constructedWinsOverWater * 0.72));
     competition.HorizonOnlyConfidence = saturate(
