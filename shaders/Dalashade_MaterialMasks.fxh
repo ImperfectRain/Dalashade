@@ -75,6 +75,22 @@ struct Dalashade_GatedMaterialCandidates
     float VoidDarkness;
 };
 
+struct Dalashade_MaterialCompetition
+{
+    float SkyScore;
+    float WaterScore;
+    float WaterSkyConflict;
+
+    float WaterPixelConfidence;
+    float SkyPixelConfidence;
+    float WaterReceiverConfidence;
+    float HorizonOnlyConfidence;
+
+    float ReflectionReceiverConfidence;
+    float AOReceiverConfidence;
+    float StructureReceiverConfidence;
+};
+
 struct Dalashade_FinalMaterialMasks
 {
     float FoliageStrong;
@@ -112,6 +128,9 @@ struct Dalashade_WaterResolve
     float SandReject;
     float SkinReject;
     float WaterCoherence;
+    float WaterPixelConfidence;
+    float HorizonOnlyConfidence;
+    float WaterSkyConflict;
     float Confidence;
 };
 
@@ -134,6 +153,9 @@ struct Dalashade_MaterialResolve
     float SurfaceSmoothness;
     float SurfaceHardness;
     float ReceiverConfidence;
+    float ReflectionReceiverConfidence;
+    float AOReceiverConfidence;
+    float StructureReceiverConfidence;
     float LightSourceConfidence;
 };
 
@@ -432,8 +454,95 @@ Dalashade_GatedMaterialCandidates Dalashade_GetGatedMaterialCandidates(
         sceneVoidDarkness);
 }
 
+Dalashade_MaterialCompetition Dalashade_ResolveMaterialCompetition(
+    Dalashade_MaterialSignals s,
+    Dalashade_RawMaterialCandidates raw,
+    Dalashade_GatedMaterialCandidates gated)
+{
+    Dalashade_MaterialCompetition competition;
+
+    float skyRegionBias = saturate(s.UpperScreen * 0.45 + s.DepthFarConfidence * 0.30 + s.DepthInvalidConfidence * 0.12);
+    float waterRegionBias = saturate(s.LowerScreen * 0.42 + (1.0 - s.UpperScreen) * 0.22 + s.CenterScreen * 0.08);
+    float horizonBand = smoothstep(0.20, 0.46, s.Uv.y) * (1.0 - smoothstep(0.48, 0.74, s.Uv.y));
+    float lowTexture = saturate(s.Smoothness * 0.64 + (1.0 - max(s.Edge, s.Detail)) * 0.36);
+
+    competition.SkyScore = saturate(
+        raw.SkyCloudFog * 0.55
+        + gated.SkyCloudFog * 0.45
+        + raw.SkyOpen * 0.24
+        + raw.CloudBright * 0.20
+        + raw.FogAtmosphere * 0.20
+        + raw.SmoothAtmosphere * skyRegionBias * 0.18);
+
+    competition.WaterScore = saturate(
+        raw.WaterPlane * 0.36
+        + gated.WaterPlane * 0.44
+        + raw.WaterSpecular * 0.18
+        + gated.WaterSpecular * 0.22
+        + gated.SpecularGlint * lowTexture * 0.08);
+
+    competition.WaterSkyConflict = saturate(competition.SkyScore * competition.WaterScore);
+
+    float skyWins = saturate(competition.SkyScore * (0.50 + skyRegionBias) * (1.0 - waterRegionBias * 0.35));
+    float waterWins = saturate(competition.WaterScore * (0.50 + waterRegionBias) * (1.0 - skyRegionBias * 0.35));
+    float waterTextureSupport = saturate(lowTexture * 0.62 + (1.0 - smoothstep(0.18, 0.48, max(s.Edge, s.Detail))) * 0.20 + gated.WaterPlane * 0.24);
+
+    competition.SkyPixelConfidence = saturate(skyWins * (1.0 - waterWins * 0.45));
+    competition.WaterPixelConfidence = saturate(waterWins * waterTextureSupport * (1.0 - skyWins * 0.65));
+    competition.HorizonOnlyConfidence = saturate(
+        horizonBand
+        * competition.WaterSkyConflict
+        * (0.35 + competition.SkyScore * 0.35 + competition.WaterScore * 0.30)
+        * (1.0 - competition.WaterPixelConfidence * 0.45));
+    competition.WaterReceiverConfidence = saturate(
+        competition.WaterPixelConfidence
+        * (0.46 + lowTexture * 0.34 + gated.WaterPlane * 0.28)
+        * (1.0 - competition.SkyPixelConfidence * 0.85)
+        * (1.0 - competition.HorizonOnlyConfidence * 0.70));
+
+    float nonSky = saturate(1.0 - competition.SkyPixelConfidence * 0.90 - gated.SkyCloudFog * 0.45);
+    float nonSkin = saturate(1.0 - gated.SkinProtection * 0.85);
+    float hardStructure = saturate(
+        raw.SurfaceHardTexture * 0.45
+        + gated.StoneRuins * 0.28
+        + gated.MetalIndustrial * 0.28
+        + gated.FoliageStrong * 0.08
+        + gated.OrganicGreenSurface * 0.05);
+
+    competition.StructureReceiverConfidence = saturate(
+        hardStructure
+        * nonSky
+        * nonSkin
+        * (1.0 - competition.WaterReceiverConfidence * 0.35));
+
+    competition.ReflectionReceiverConfidence = saturate(
+        (competition.WaterReceiverConfidence * 0.55
+            + gated.SpecularGlint * 0.26
+            + gated.MetalIndustrial * s.Smoothness * 0.22
+            + gated.SnowIce * s.Smoothness * 0.16
+            + gated.CrystalAether * s.Smoothness * 0.10
+            + gated.NeonGlass * s.Smoothness * 0.10)
+        * nonSky
+        * nonSkin
+        * (1.0 - gated.FoliageStrong * 0.30));
+
+    competition.AOReceiverConfidence = saturate(
+        (hardStructure * 0.58
+            + gated.StoneRuins * 0.18
+            + gated.MetalIndustrial * 0.16
+            + gated.SandDust * 0.08
+            + gated.FoliageStrong * 0.06)
+        * nonSky
+        * nonSkin
+        * (1.0 - competition.WaterReceiverConfidence * 0.70)
+        * (1.0 - gated.SnowIce * smoothstep(0.55, 0.95, s.Luma) * 0.35));
+
+    return competition;
+}
+
 Dalashade_FinalMaterialMasks Dalashade_ResolveFinalMaterialMasks(Dalashade_MaterialSignals s, Dalashade_RawMaterialCandidates raw, Dalashade_GatedMaterialCandidates gated)
 {
+    Dalashade_MaterialCompetition competition = Dalashade_ResolveMaterialCompetition(s, raw, gated);
     Dalashade_FinalMaterialMasks masks;
     masks.FoliageStrong = gated.FoliageStrong;
     masks.OrganicGreenSurface = gated.OrganicGreenSurface;
@@ -453,14 +562,18 @@ Dalashade_FinalMaterialMasks Dalashade_ResolveFinalMaterialMasks(Dalashade_Mater
 
     float depthSkyBoost = 1.0 + s.DepthFarConfidence * raw.SmoothAtmosphere * 0.24 + s.DepthInvalidConfidence * raw.SmoothAtmosphere * s.UpperScreen * 0.16;
     masks.SkyCloudFog *= depthSkyBoost;
+    masks.SkyCloudFog = saturate(max(masks.SkyCloudFog, competition.SkyPixelConfidence));
     masks.SkyCloudFog *= saturate(1.0 - masks.FoliageStrong * 0.72 - masks.StoneRuins * 0.55 - masks.MetalIndustrial * 0.35 - masks.WaterPlane * 0.45 - masks.SpecularGlint * 0.18);
     masks.FoliageStrong *= saturate(1.0 - masks.SkyCloudFog * 0.85 - masks.StoneRuins * 0.42 - raw.HardSurfaceGreenReject * 0.38);
     masks.OrganicGreenSurface *= saturate(1.0 - masks.SkyCloudFog * 0.68);
+    masks.WaterPlane *= saturate(0.45 + competition.WaterPixelConfidence * 0.75);
+    masks.WaterPlane *= saturate(1.0 - competition.SkyPixelConfidence * 0.70);
     masks.WaterPlane *= saturate(1.0 - masks.SkyCloudFog * (0.58 + s.UpperScreen * 0.26 + s.DepthFarConfidence * 0.20));
+    masks.SpecularGlint *= saturate(1.0 - competition.SkyPixelConfidence * 0.35);
     masks.SpecularGlint *= saturate(1.0 - masks.SkyCloudFog * (0.34 + s.UpperScreen * 0.20));
     masks.SandDust *= saturate(1.0 - masks.FireLavaHeat * 0.65 - masks.SkinProtection * 0.45 - masks.SkyCloudFog * 0.60);
     masks.SnowIce *= saturate(1.0 - masks.SkyCloudFog * (0.50 + s.UpperScreen * 0.25 + s.DepthFarConfidence * 0.15));
-    masks.WaterSpecular = saturate(max(masks.WaterPlane, masks.SpecularGlint * 0.88));
+    masks.WaterSpecular = saturate(max(masks.WaterPlane, masks.SpecularGlint * (1.0 - competition.SkyPixelConfidence * 0.45) * 0.88));
     masks.CrystalAether *= saturate(1.0 - masks.WaterPlane * 0.35 - masks.SpecularGlint * 0.16 - masks.NeonGlass * 0.30);
     masks.VoidDarkness *= saturate(1.0 - masks.SkyCloudFog * 0.24);
 
@@ -517,6 +630,23 @@ Dalashade_WaterResolve Dalashade_ResolveWater(
 {
     Dalashade_MaterialSignals s = Dalashade_GetMaterialSignals(color, uv, depthAssistEnabled, depthAssistStrength, depthConfidenceFloor);
     Dalashade_RawMaterialCandidates raw = Dalashade_GetRawMaterialCandidates(s);
+    Dalashade_GatedMaterialCandidates gated = Dalashade_GetGatedMaterialCandidatesWithWaterSplit(
+        raw,
+        0.0,
+        max(materialWaterPlane, materialSpecularGlint),
+        materialWaterPlane,
+        materialSpecularGlint,
+        materialSandDust,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        materialSkyCloudFog,
+        materialSkinProtection,
+        0.0);
+    Dalashade_MaterialCompetition competition = Dalashade_ResolveMaterialCompetition(s, raw, gated);
     Dalashade_WaterResolve water;
 
     float blueCyan = max(Dalashade_HueMask(s.Hue, 0.52, 0.13), Dalashade_HueMask(s.Hue, 0.60, 0.14));
@@ -534,7 +664,9 @@ Dalashade_WaterResolve Dalashade_ResolveWater(
 
     water.WaterCoherence = Dalashade_GetWaterCoherence(s);
     float lowerOrHorizon = saturate(s.LowerScreen * 0.56 + (1.0 - s.UpperScreen) * 0.30 + s.CenterScreen * 0.10 + s.DepthFarConfidence * 0.10);
-    water.SkyReject = saturate(raw.SkyCloudFog * max(materialSkyCloudFog, 0.36) * (0.72 + s.UpperScreen * 0.28) * (1.0 - waterSceneSupport * 0.28));
+    water.SkyReject = saturate(max(
+        raw.SkyCloudFog * max(materialSkyCloudFog, 0.36) * (0.72 + s.UpperScreen * 0.28) * (1.0 - waterSceneSupport * 0.28),
+        competition.SkyPixelConfidence * (0.70 + s.UpperScreen * 0.20)));
     water.SandReject = saturate(max(raw.SandDust, materialSandDust) * (0.52 + smoothstep(0.36, 0.88, s.Luma) * 0.34) + warm * smoothstep(0.12, 0.48, s.Saturation) * (1.0 - teal * 0.55));
     water.SkinReject = saturate(max(raw.SkinProtection, max(materialSkinProtection, skinLike)) * (0.72 + s.CenterScreen * 0.18));
 
@@ -571,17 +703,24 @@ Dalashade_WaterResolve Dalashade_ResolveWater(
 
     water.WaterSurface = saturate(max(water.ShallowWater, water.DeepWater)
         * (0.36 + water.WaterCoherence * 0.48 + smoothstep(0.42, 0.95, s.Smoothness) * 0.22)
+        * (0.44 + competition.WaterPixelConfidence * 0.66)
+        * (1.0 - competition.SkyPixelConfidence * 0.70)
         * (1.0 - water.SkyReject * 0.78)
         * (1.0 - water.SandReject * 0.50)
         * (1.0 - water.SkinReject * 0.95));
     water.SkySource = saturate(raw.SkyCloudFog * (0.35 + materialSkyCloudFog * 0.42 + sceneOpenOcean * 0.18) * (1.0 - water.SkinReject * 0.90));
     water.WaterReceiver = saturate(water.WaterSurface
+        * (0.46 + competition.WaterReceiverConfidence * 0.48)
         * (0.54 + waterSceneSupport * 0.38)
         * (0.54 + water.WaterCoherence * 0.46)
+        * (1.0 - competition.HorizonOnlyConfidence * 0.70)
         * (1.0 - water.SkyReject * 0.95)
         * (1.0 - water.SandReject * 0.72)
         * (1.0 - water.SkinReject * 0.98));
-    water.WaterSource = saturate(max(water.WaterSurface, max(water.WaterHorizon * 0.70, max(water.FoamOrEdge * 0.45, water.SkySource * sceneOpenOcean * 0.42))));
+    water.WaterSource = saturate(max(water.WaterSurface, max(max(water.WaterHorizon * 0.70, competition.HorizonOnlyConfidence * 0.45), max(water.FoamOrEdge * 0.45, water.SkySource * sceneOpenOcean * 0.42))));
+    water.WaterPixelConfidence = competition.WaterPixelConfidence;
+    water.HorizonOnlyConfidence = competition.HorizonOnlyConfidence;
+    water.WaterSkyConflict = competition.WaterSkyConflict;
     water.Confidence = saturate(water.WaterReceiver + water.WaterSource * 0.45 + water.WetShoreline * 0.50 + water.FoamOrEdge * 0.38);
 
     return water;
@@ -626,6 +765,7 @@ Dalashade_MaterialResolve Dalashade_ResolveMaterials(
         sceneSkyCloudFog,
         sceneSkinProtection,
         sceneVoidDarkness);
+    Dalashade_MaterialCompetition competition = Dalashade_ResolveMaterialCompetition(signals, raw, gated);
     Dalashade_FinalMaterialMasks masks = Dalashade_ResolveFinalMaterialMasks(signals, raw, gated);
 
     Dalashade_MaterialResolve material;
@@ -654,6 +794,9 @@ Dalashade_MaterialResolve Dalashade_ResolveMaterials(
             + material.StoneRuins * 0.22
             + material.MetalIndustrial * 0.22
             + material.Foliage * 0.12));
+    material.ReflectionReceiverConfidence = competition.ReflectionReceiverConfidence;
+    material.AOReceiverConfidence = competition.AOReceiverConfidence;
+    material.StructureReceiverConfidence = competition.StructureReceiverConfidence;
     material.LightSourceConfidence = saturate(
         material.SpecularGlint * 0.55
         + material.CrystalAether

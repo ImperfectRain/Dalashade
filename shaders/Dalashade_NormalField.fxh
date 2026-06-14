@@ -198,12 +198,16 @@ Dalashade_NormalField Dalashade_ResolveNormalField(
     field.EdgeDiscontinuity = saturate(edge * (0.55 + field.DepthConfidence * 0.45) + safety.UIDepthRisk * 0.45);
     field.DetailStrength = field.DetailConfidence * saturate(1.0 - field.EdgeDiscontinuity * 0.72);
     field.NormalConfidence = saturate(enabled * (field.DepthConfidence * 0.58 + field.DetailStrength * 0.42));
+    float structureReceiverConfidence = saturate(max(material.StructureReceiverConfidence, material.ReceiverConfidence * 0.35));
+    float reflectionReceiverConfidence = saturate(max(material.ReflectionReceiverConfidence, water.WaterReceiver * 0.45));
+    float aoReceiverConfidence = saturate(max(material.AOReceiverConfidence, material.ReceiverConfidence * 0.30));
     float normalGroundTerm = smoothstep(0.58, 0.96, field.CombinedNormal.z);
     float normalWallTerm = smoothstep(0.12, 0.62, 1.0 - abs(field.CombinedNormal.z));
     float usableEdgeStructure = smoothstep(0.025, 0.22, edge) * (1.0 - smoothstep(0.65, 0.96, edge));
     float usableDetailStructure = smoothstep(0.015, 0.20, detail) * (1.0 - smoothstep(0.62, 0.96, detail));
     float hardStructure = saturate(
-        material.ReceiverConfidence * 0.34
+        structureReceiverConfidence * 0.34
+        + material.ReceiverConfidence * 0.14
         + material.SurfaceHardness * 0.30
         + material.StoneRuins * 0.22
         + material.MetalIndustrial * 0.22
@@ -213,14 +217,15 @@ Dalashade_NormalField Dalashade_ResolveNormalField(
         field.DepthConfidence * 0.50
         + field.DetailConfidence * 0.16
         + hardStructure * 0.22
-        + material.ReceiverConfidence * 0.12);
+        + structureReceiverConfidence * 0.12);
     float softPlaneTrust = saturate(0.25 + field.OrientationConfidence * 0.75);
     float skyGate = saturate(1.0 - safety.SkyReject * 0.85);
     field.StructureCandidate = saturate(
         (usableEdgeStructure * 0.38
         + usableDetailStructure * 0.20
         + hardStructure * 0.34
-        + material.ReceiverConfidence * 0.20)
+        + structureReceiverConfidence * 0.24
+        + material.ReceiverConfidence * 0.08)
         * skyGate
         * (1.0 - water.WaterReceiver * 0.45)
         * (1.0 - safety.SkinReject * 0.80)
@@ -229,7 +234,8 @@ Dalashade_NormalField Dalashade_ResolveNormalField(
         material.SandDust * 0.22
         + material.SnowIce * 0.12
         + water.WaterReceiver * 0.18
-        + material.ReceiverConfidence * 0.18);
+        + structureReceiverConfidence * 0.10
+        + material.ReceiverConfidence * 0.10);
     field.GroundPlaneCandidate = saturate(
         (normalGroundTerm * 0.54 + groundMaterialHint * 0.36)
         * softPlaneTrust
@@ -251,19 +257,21 @@ Dalashade_NormalField Dalashade_ResolveNormalField(
     float hardSmoothReceiver = saturate((material.MetalIndustrial * 0.32 + material.StoneRuins * 0.20 + material.SurfaceHardness * 0.30) * smoothness);
     float glintReceiver = saturate(material.SpecularGlint * (0.35 + material.MetalIndustrial * 0.20 + material.SnowIce * 0.12));
     float iceReceiver = saturate(material.SnowIce * smoothness * highlightSafety * 0.24);
-    float reflectionSupport = saturate(waterReceiver + hardSmoothReceiver + glintReceiver + iceReceiver);
+    float reflectionSupport = saturate(reflectionReceiverConfidence * 0.42 + waterReceiver + hardSmoothReceiver + glintReceiver + iceReceiver);
 
     float shadingCandidate = saturate(
         field.StructureCandidate * 0.38
         + field.GroundPlaneCandidate * 0.26
         + field.WallPlaneCandidate * 0.12
-        + material.ReceiverConfidence * 0.24
+        + structureReceiverConfidence * 0.22
+        + material.ReceiverConfidence * 0.10
         + material.SurfaceHardness * 0.18);
     float shadingTrust = saturate(
         0.28
         + field.NormalConfidence * 0.32
         + field.OrientationConfidence * 0.20
-        + material.ReceiverConfidence * 0.20);
+        + structureReceiverConfidence * 0.18
+        + material.ReceiverConfidence * 0.08);
     field.ShadingReceiver = saturate(enabled
         * shadingCandidate
         * shadingTrust
@@ -282,13 +290,15 @@ Dalashade_NormalField Dalashade_ResolveNormalField(
         field.GroundPlaneCandidate * 0.28
         + field.WallPlaneCandidate * 0.18
         + field.StructureCandidate * 0.34
-        + material.ReceiverConfidence * 0.20
+        + aoReceiverConfidence * 0.18
+        + material.ReceiverConfidence * 0.08
         + material.SurfaceHardness * 0.16);
     float aoCandidate = saturate(
         field.StructureCandidate * 0.42
         + field.GroundPlaneCandidate * 0.24
         + field.WallPlaneCandidate * 0.10
-        + material.ReceiverConfidence * 0.24
+        + aoReceiverConfidence * 0.30
+        + material.ReceiverConfidence * 0.08
         + material.SurfaceHardness * 0.18
         + material.StoneRuins * 0.12
         + material.MetalIndustrial * 0.10);
@@ -296,7 +306,8 @@ Dalashade_NormalField Dalashade_ResolveNormalField(
         0.24
         + field.NormalConfidence * 0.28
         + field.OrientationConfidence * 0.18
-        + material.ReceiverConfidence * 0.20
+        + aoReceiverConfidence * 0.18
+        + material.ReceiverConfidence * 0.08
         + material.SurfaceHardness * 0.10);
     float aoSafety = saturate(
         1.0
