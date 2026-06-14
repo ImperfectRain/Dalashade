@@ -378,6 +378,10 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float hardSurfaceHint = saturate(material.MetalIndustrial * 0.55 + midtone * smoothness * 0.24 + material.SpecularGlint * 0.16);
     float waterSpecificReceiver = saturate(water.WaterReceiver);
     float sharedReflectionReceiver = saturate(material.ReflectionReceiverConfidence);
+    float nonSkyGate = saturate(1.0 - safety.SkyReject * 0.95);
+    float nonSkinGate = saturate(1.0 - safety.SkinReject * 0.90);
+    float foliageGate = saturate(1.0 - safety.FoliageNoiseReject * 0.45 - material.Foliage * 0.25);
+    float receiverSafety = nonSkyGate * nonSkinGate * foliageGate * gameplayDampen;
     float sharedReceiverSupport = saturate(
         sharedReflectionReceiver
         * (1.0 - safety.SkyReject * 0.88)
@@ -451,8 +455,32 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float iceReceiver = material.SnowIce * smoothstep(0.44, 0.96, smoothness) * midtone * safeSurface * (1.0 - bright * 0.70) * (1.0 - skyReject * 0.95);
     float3 iceSheen = float3(0.46, 0.72, 1.0) * iceReceiver * (skyColorSource * 0.35 + specularGlintSource * 0.24 + 0.18) * Dalashade_IceSheenStrength * 1.38;
 
+    float waterSurfaceReceiver = saturate(
+        waterReceiver
+        * receiverSafety
+        * (1.0 - water.HorizonOnlyConfidence * 0.85));
+    float wetMetalGlassReceiver = saturate(
+        sharedReflectionReceiver
+        * receiverSafety
+        * (1.0 - waterSpecificReceiver * 0.25)
+        * (material.MetalIndustrial * 0.22
+            + material.SpecularGlint * 0.16
+            + material.NeonGlass * 0.18
+            + material.CrystalAether * 0.12
+            + material.SnowIce * 0.08
+            + smoothness * hardSurfaceHint * 0.16));
+    float screenReflectionReceiver = saturate(waterSurfaceReceiver + wetMetalGlassReceiver * 0.65);
+    float waterSourceColorSupport = saturate(0.24 + water.SkySource * 0.30 + water.WaterSource * 0.24 + water.WaterPixelConfidence * 0.28);
+    float3 waterSimulationColor = lerp(color, lerp(reflectedVertical, reflectedSoft, 0.56) * lerp(float3(0.72, 0.98, 1.0), cyanSheen + 0.22, 0.30), 0.58);
+    float3 hardSimulationColor = lerp(color, lerp(reflectedVertical, reflectedStreak, 0.34), 0.36);
+    float waterSimulationStrength = waterSurfaceReceiver * waterSourceColorSupport * Dalashade_WaterReflectionStrength * 0.105;
+    float hardSimulationStrength = wetMetalGlassReceiver * (0.38 + localSourceEnergy * 0.34 + specularGlintSource * 0.20) * max(Dalashade_WetReflectionStrength, Dalashade_SpecularReflectionStrength) * 0.052;
+    float3 screenReflectionTarget = lerp(waterSimulationColor, hardSimulationColor, saturate(wetMetalGlassReceiver * (1.0 - waterSurfaceReceiver * 0.55)));
+    float3 screenReflectionContribution = (screenReflectionTarget - color) * saturate(waterSimulationStrength + hardSimulationStrength) * (1.0 - highlightSafety * 0.42);
+
     float nightBoost = 1.0 + Dalashade_Night * (0.18 + Dalashade_ArtificialLight * 0.30) + Dalashade_DayReflection * waterReceiver * 0.12 + Dalashade_CinematicPermission * 0.10;
     float3 contribution = (waterSheen + waterReflection + specularGlint + specularReflection + wetReflection + aetherNeonReflection + iceSheen) * Dalashade_SurfaceReflectionStrength * nightBoost;
+    contribution += screenReflectionContribution * Dalashade_SurfaceReflectionStrength * nightBoost;
     contribution *= 1.0 - highlightSafety * 0.56;
 
     float waterSheenAllowance = water.WaterReceiver * (0.110 + Dalashade_Wetness * 0.035);
@@ -462,12 +490,13 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float reflectionPositiveAllowance = 0.050 + waterSheenAllowance + glintAllowance + wetAllowance + aetherNeonAllowance + material.SnowIce * 0.030;
     reflectionPositiveAllowance *= 1.0 - saturate(highlightSafety * 0.38 + Dalashade_CombatPressure * 0.22 + Dalashade_Readability * 0.10);
     float positiveLimit = reflectionPositiveAllowance;
-    float3 result = saturate(color + min(contribution, positiveLimit.xxx));
+    float negativeLimit = 0.010 + waterSurfaceReceiver * 0.018 + wetMetalGlassReceiver * 0.012;
+    float3 result = saturate(color + clamp(contribution, float3(-negativeLimit, -negativeLimit, -negativeLimit), positiveLimit.xxx));
     float reflectionSourceMask = saturate(waterSource * 0.48 + specularGlintSource * 0.70 + aetherNeonSource + fireLampSource * 0.72 + skyColorSource * waterReceiver * 0.38);
-    float reflectionReceiverCombined = saturate(waterReceiver + wetHardSurfaceReceiver + metalReceiver + aetherGlassReceiver + iceReceiver);
+    float reflectionReceiverCombined = saturate(waterReceiver + wetHardSurfaceReceiver + metalReceiver + aetherGlassReceiver + iceReceiver + screenReflectionReceiver);
     float reflectionReceiverRejected = saturate(skyReject + skinProtect + warmDryReject * (1.0 - waterReceiver) + material.SandDust * bright * 0.45);
     float reflectionReceiverMask = reflectionReceiverCombined * (1.0 - reflectionReceiverRejected * 0.78);
-    float finalMask = saturate(Dalashade_SurfaceReflectionLuma(abs(result - color)) * 18.0 + waterReflectionMask * 0.42 + specularGlintSource * 0.34 + wetHardSurfaceReceiver * 0.34 + emissiveReflectionMask * 0.42 + iceReceiver * 0.24);
+    float finalMask = saturate(Dalashade_SurfaceReflectionLuma(abs(result - color)) * 18.0 + waterReflectionMask * 0.42 + specularGlintSource * 0.34 + wetHardSurfaceReceiver * 0.34 + emissiveReflectionMask * 0.42 + iceReceiver * 0.24 + screenReflectionReceiver * 0.22);
 
     int mode = Dalashade_SurfaceReflectionDebugMode;
     if (mode > 0)
@@ -516,7 +545,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
         }
         else if (mode == 10)
         {
-            debugColor = saturate(waterReceiver * float3(0.0, 0.78, 1.0) + water.WetShoreline * float3(0.62, 1.0, 1.0) + wetHardSurfaceReceiver * float3(0.28, 0.52, 0.78) + metalReceiver * float3(0.35, 0.55, 0.78) + aetherGlassReceiver * float3(0.74, 0.28, 1.0) + iceReceiver * float3(0.70, 0.88, 1.0) + reflectionReceiverRejected * float3(0.90, 0.06, 0.04));
+            debugColor = saturate(waterSurfaceReceiver * float3(0.0, 0.78, 1.0) + water.HorizonOnlyConfidence * float3(0.06, 0.16, 0.88) + wetMetalGlassReceiver * float3(0.18, 0.80, 0.32) + wetHardSurfaceReceiver * float3(0.28, 0.52, 0.78) + metalReceiver * float3(0.35, 0.55, 0.78) + aetherGlassReceiver * float3(0.74, 0.28, 1.0) + iceReceiver * float3(0.70, 0.88, 1.0) + reflectionReceiverRejected * float3(0.90, 0.06, 0.04));
             debugMask = reflectionReceiverMask;
         }
 
