@@ -376,6 +376,15 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
 
     float warmDryReject = saturate(water.SandReject + material.SandDust * (0.22 + bright * 0.42));
     float hardSurfaceHint = saturate(material.MetalIndustrial * 0.55 + midtone * smoothness * 0.24 + material.SpecularGlint * 0.16);
+    float waterSpecificReceiver = saturate(water.WaterReceiver);
+    float sharedReflectionReceiver = saturate(material.ReflectionReceiverConfidence);
+    float sharedReceiverSupport = saturate(
+        sharedReflectionReceiver
+        * (1.0 - safety.SkyReject * 0.88)
+        * (1.0 - safety.SkinReject * 0.88)
+        * (1.0 - safety.FoliageNoiseReject * 0.35)
+        * (1.0 - safety.HighlightProtect * 0.18)
+        * safeSurface);
 
     float3 sheenSample = Dalashade_SurfaceReflectionDirectionalSheen(texcoord, Dalashade_WaterSheenRadius, depth);
     float3 cyanSheen = lerp(float3(0.04, 0.20, 0.24), float3(0.12, 0.58, 0.68), saturate(saturation + water.ShallowWater + material.WaterPlane));
@@ -383,6 +392,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
         * surfaceFacing
         * verticalDepthContinuity
         * safeSurface;
+    waterReceiver = saturate(waterReceiver + sharedReceiverSupport * waterSpecificReceiver * surfaceFacing * verticalDepthContinuity * 0.12);
     float3 waterSheen = lerp(cyanSheen, sheenSample, 0.46) * waterReceiver * Dalashade_WaterSheenStrength * 1.62;
     float reflectedWaterLuma = Dalashade_SurfaceReflectionLuma(reflectedVertical);
     float skyColorSource = saturate(max(water.SkySource, smoothstep(0.16, 0.88, reflectedWaterLuma + Dalashade_GetSaturation(reflectedVertical) * 0.36) * (0.28 + water.WaterHorizon * 0.30 + Dalashade_OpenSkyLight * 0.18)));
@@ -414,6 +424,13 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
         * (1.0 - material.SandDust * bright * 0.72)
         * (1.0 - material.SnowIce * bright * 0.56)
         * (1.0 - waterReceiver * 0.55);
+    wetHardSurfaceReceiver = saturate(
+        wetHardSurfaceReceiver
+        + sharedReceiverSupport
+            * hardSurfaceHint
+            * smoothstep(0.30, 0.92, smoothness)
+            * (1.0 - waterSpecificReceiver * 0.35)
+            * 0.12);
     float3 wetReflection = lerp(sheenSample, reflectedVertical, 0.58) * wetHardSurfaceReceiver * (specularGlintSource * 0.55 + Dalashade_Wetness * 0.42) * Dalashade_WetReflectionStrength * 1.78;
 
     float3 localSource = Dalashade_SurfaceReflectionLocalSource(texcoord, depth, max(Dalashade_WaterSheenRadius, 0.75) * (1.25 + Dalashade_Night * 0.45));
