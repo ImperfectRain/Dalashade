@@ -479,8 +479,8 @@ public sealed class CustomShaderVariableMapper
             || string.Equals(key, "Dalashade_NormalDebugMode", StringComparison.OrdinalIgnoreCase))
         {
             var rounded = (int)MathF.Round(value);
-            var clamped = Math.Min(11, Math.Max(0, rounded));
-            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 11);
+            var clamped = Math.Min(12, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 12);
         }
 
         if (string.Equals(key, "Dalashade_NormalFieldDebugBoost", StringComparison.OrdinalIgnoreCase)

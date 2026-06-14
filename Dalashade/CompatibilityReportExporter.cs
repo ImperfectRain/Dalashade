@@ -689,7 +689,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Water suppression: {Math.Clamp(configuration.NormalFieldWaterSuppression, 0f, 1f):0.###}");
         builder.AppendLine($"- Skin suppression: {Math.Clamp(configuration.NormalFieldSkinSuppression, 0f, 1f):0.###}");
         builder.AppendLine($"- Sky suppression: {Math.Clamp(configuration.NormalFieldSkySuppression, 0f, 1f):0.###}");
-        builder.AppendLine($"- Debug mode: {Math.Clamp(configuration.NormalFieldDebugMode, 0, 11)}");
+        builder.AppendLine($"- Debug mode: {Math.Clamp(configuration.NormalFieldDebugMode, 0, 12)}");
         builder.AppendLine($"- Debug boost: {Math.Clamp(configuration.NormalFieldDebugBoost, 0.25f, 8f):0.###}");
         builder.AppendLine($"- NormalDebug shader section present: {(normalDebug is null ? "no" : "yes")}");
         builder.AppendLine($"- NormalDebug technique active: {(normalDebug?.ActivationState == TechniqueActivationState.Active ? "yes" : "no")}");

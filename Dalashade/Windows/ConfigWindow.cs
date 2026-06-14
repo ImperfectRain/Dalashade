@@ -187,8 +187,8 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawFloatSlider("Skin Suppression", configuration.NormalFieldSkinSuppression, 0f, 1f, value => configuration.NormalFieldSkinSuppression = value);
         DrawFloatSlider("Sky/Fog Suppression", configuration.NormalFieldSkySuppression, 0f, 1f, value => configuration.NormalFieldSkySuppression = value);
 
-        var debugMode = Math.Clamp(configuration.NormalFieldDebugMode, 0, 11);
-        if (ImGui.SliderInt("Normal Field Debug Mode", ref debugMode, 0, 11))
+        var debugMode = Math.Clamp(configuration.NormalFieldDebugMode, 0, 12);
+        if (ImGui.SliderInt("Normal Field Debug Mode", ref debugMode, 0, 12))
         {
             configuration.NormalFieldDebugMode = debugMode;
             configuration.Save();

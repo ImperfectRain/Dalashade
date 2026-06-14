@@ -44,16 +44,19 @@ Default behavior is neutral: `EnableNormalField` is false and production shader 
 | `1` | Depth normal RGB |
 | `2` | Detail normal RGB |
 | `3` | Combined normal RGB |
-| `4` | Ground-facing mask |
-| `5` | Wall-facing mask |
-| `6` | Detail eligibility |
-| `7` | Normal confidence |
-| `8` | Shading receiver |
-| `9` | Reflection receiver |
-| `10` | AO receiver |
-| `11` | Safety suppression |
+| `4` | Ground/plane candidate |
+| `5` | Wall-plane candidate |
+| `6` | Structure candidate |
+| `7` | Detail eligibility |
+| `8` | Normal confidence |
+| `9` | Shading receiver |
+| `10` | Reflection receiver |
+| `11` | AO receiver |
+| `12` | Safety suppression |
 
 Normal RGB views encode normals as `normal * 0.5 + 0.5`. Mask views use grayscale or simple false color depending on the helper output.
+
+`Ground/plane candidate` and `Wall-plane candidate` are compatibility views for the existing `GroundFacing` and `WallFacing` fields, but they are now backed by explicit plane candidates. `Structure candidate` is the broader screen-space geometry/edge/hard-surface confidence mask. Future production shaders should generally prefer `StructureCandidate` for AO or broad shading support and use `WallPlaneCandidate` only when vertical-orientation evidence matters.
 
 ## Recommended Debugging Order
 
@@ -120,19 +123,28 @@ Expected:
 - There is no strong relief-map or embossed look.
 - Material and safety suppression visibly restrain risky regions.
 
-### Ground-Facing Mask
+### Ground/Plane Candidate
 
 Expected:
 
 - Floors, terrain, and broad water surfaces are mostly visible.
 - Walls and vertical objects are reduced.
 
-### Wall-Facing Mask
+### Wall-Plane Candidate
 
 Expected:
 
-- Walls, trunks, structures, and vertical surfaces are visible.
+- Walls, trunks, structures, and vertical surfaces are visible when depth/normal evidence supports them.
 - Flat ground is reduced.
+- This view may be dimmer than the structure candidate because it is stricter about physical-ish orientation.
+
+### Structure Candidate
+
+Expected:
+
+- Railings, posts, hut/boat/building structures, cliffs, silhouettes, and hard-surface detail are visible.
+- This view may look like a geometry/edge map. That is intentional: it is structural evidence, not a true wall-orientation mask.
+- Sky, water, skin, and high-risk highlights are reduced.
 
 ### Reflection Receiver
 
