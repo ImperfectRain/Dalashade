@@ -103,6 +103,7 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextWrapped($"Biome reason: {diagnostics.BiomeReason}");
         ImGui.TextWrapped($"Secondary tags: {FormatTagList(diagnostics.SecondaryTags)}");
         ImGui.TextWrapped($"Night tags: {FormatTagList(diagnostics.SecondaryTags.Concat(diagnostics.ArtDirectionTags).Where(IsNightTag).Distinct(StringComparer.OrdinalIgnoreCase).ToArray())}");
+        ImGui.TextWrapped($"Day tags: {FormatTagList(diagnostics.SecondaryTags.Concat(diagnostics.ArtDirectionTags).Where(IsDayTag).Distinct(StringComparer.OrdinalIgnoreCase).ToArray())}");
         ImGui.TextWrapped($"Mood tags: {(diagnostics.MoodTags.Count == 0 ? "none" : string.Join(", ", diagnostics.MoodTags))}");
         ImGui.TextWrapped($"Material tags: {FormatTagList(diagnostics.MaterialTags)}");
         ImGui.TextWrapped($"Area/context tags: {FormatTagList(diagnostics.AreaContextTags)}");
@@ -135,6 +136,13 @@ public sealed class MainWindow : Window, IDisposable
             ImGui.TextUnformatted($"Artificial Light: {diagnostics.Intent.ArtificialLight:0.###}");
             ImGui.TextUnformatted($"Ambient Darkness: {diagnostics.Intent.AmbientDarkness:0.###}");
             ImGui.TextUnformatted($"Night Atmosphere: {diagnostics.Intent.NightAtmosphere:0.###}");
+            ImGui.TextUnformatted($"Daylight: {diagnostics.Intent.Daylight:0.###}");
+            ImGui.TextUnformatted($"Sunlight: {diagnostics.Intent.Sunlight:0.###}");
+            ImGui.TextUnformatted($"Open Sky Light: {diagnostics.Intent.OpenSkyLight:0.###}");
+            ImGui.TextUnformatted($"Surface Heat: {diagnostics.Intent.SurfaceHeat:0.###}");
+            ImGui.TextUnformatted($"Day Atmosphere: {diagnostics.Intent.DayAtmosphere:0.###}");
+            ImGui.TextUnformatted($"Day Reflection: {diagnostics.Intent.DayReflection:0.###}");
+            ImGui.TextUnformatted($"Day Highlight Pressure: {diagnostics.Intent.DayHighlightPressure:0.###}");
             ImGui.TextUnformatted($"Combat Pressure: {diagnostics.Intent.CombatPressure:0.###}");
             ImGui.TextUnformatted($"Cinematic Permission: {diagnostics.Intent.CinematicPermission:0.###}");
             ImGui.TreePop();
@@ -187,6 +195,12 @@ public sealed class MainWindow : Window, IDisposable
     {
         return tag.Contains("Night", StringComparison.OrdinalIgnoreCase)
             || string.Equals(tag, "night", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsDayTag(string tag)
+    {
+        return tag.Contains("Day", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(tag, "day", StringComparison.OrdinalIgnoreCase);
     }
 
     private string MaterialIntentSummary()

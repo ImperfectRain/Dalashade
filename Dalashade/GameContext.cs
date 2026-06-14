@@ -97,6 +97,8 @@ public sealed record SceneTags(
 {
     public static SceneTags Empty { get; } = new(false, false, false, false, false, false, false, false, false, false, false, true, false, false, false, false, false, false, false, true, "unknown", 0f, "No scene tags have been classified yet.", Array.Empty<string>());
 
+    public bool IsDay => !IsNight && !IsDawnOrDusk;
+
     public bool NeedsGameplayClarity => NeedsCombatClarity || NeedsDutyReadability;
 
     public string WeatherKey

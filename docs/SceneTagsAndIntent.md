@@ -60,6 +60,33 @@ Night sub-tags include:
 
 The matching `SceneIntent` channels are `Night`, `Moonlight`, `ArtificialLight`, `AmbientDarkness`, and `NightAtmosphere`. These are additive diagnostics and shader inputs. `Readability` gets only a mild night contribution; nighttime readability should come mainly from light hierarchy, local structure, and protected highlights instead of broad midtone lifting.
 
+## Daytime Layer
+
+Day is now implemented as the same kind of contextual layer as night. It does not replace the biome, weather, material, or area identity, and it is not a global brightness boost. Day tags describe daylight context so shaders can make safer decisions about highlights, reflections, open-sky light, warm surface heat, and daytime atmosphere.
+
+Day sub-tags include:
+
+| Tag | Typical trigger | Visual meaning |
+| --- | --- | --- |
+| `sunlitDay` | Clear, fair, sunlit, colorful, clean, or warm daytime scenes | Direct sunlight can shape tone and highlights without lifting the whole frame. |
+| `openSkyDay` | Field/open-sky coast, desert, snow, steppe, lunar, cosmic, or similar exterior scenes | Sky light can influence water, snow, sand, and open-field materials. |
+| `coastalDay` | Coastal, tropical, seaside, beach, water, or specular daytime scenes | Water/sand/specular highlight restraint and valid water reflection support. |
+| `canopyDay` | Forest, jungle, swamp, rainforest, or canopy-light daytime scenes | Canopy light is local and foliage-aware, avoiding gray wash. |
+| `settlementDay` | City, town, settlement, urban, high-tech, or imperial daytime scenes | Built light and surface polish stay grounded and readable. |
+| `industrialDay` | Imperial, industrial, metallic, high-tech, magitek, or neon daytime scenes | Hard-surface structure and controlled metal/glass highlights. |
+| `snowDay` / `coldDay` | Snow, alpine, ice, cold daytime scenes | Protected white highlights and crisp cool sky light. |
+| `desertDay` / `heatDay` | Desert, badlands, dry, dust, or heat daytime scenes | Warm surface heat, distance-weighted dust/air, and sand highlight protection. |
+| `mistyDay` | Fog or mist daytime scenes | Day air/fog atmosphere without inheriting night gloom. |
+| `stormDay` | Rain, storm, thunder, or gales during day | Wet highlights and storm diffusion while preserving gameplay readability. |
+| `aetherDay` | Aetherial, fae, cosmic, lunar, magical, crystal, or luminous daytime scenes | Selective magical/aether material preservation without full-screen bloom. |
+| `highTechDay` | High-tech, neon, electrope, Solution Nine/Alexandria/Heritage-style daytime scenes | Clean glass/neon/metal identity with controlled highlights. |
+| `interiorDay` | Interior daytime context | Prevents exterior sky/sun logic from over-asserting indoors. |
+| `dungeonDay` | Dungeon/raid/duty daytime context | Keeps day context subordinate to readability and local sources. |
+| `goldenDay` | Warm clear daylight in coastal, tropical, desert, or explicitly warm/sunlit scenes | Warm sun identity with highlight protection, not orange wash. |
+| `overcastDay` | Cloudy or overcast daytime scenes without storm | Reduced direct sun pressure with preserved day atmosphere. |
+
+The matching `SceneIntent` channels are `Daylight`, `Sunlight`, `OpenSkyLight`, `SurfaceHeat`, `DayAtmosphere`, `DayReflection`, and `DayHighlightPressure`. These channels are additive diagnostics and shader inputs. `Daylight` is only a context flag; visual changes should come from material-aware reflection, highlight rolloff, weather air, GI receiver/source logic, and sharpening restraint rather than global exposure lift.
+
 ## Material Profile And Intent Diagnostics
 
 `MaterialProfile` is the scene-level plausibility layer between SceneTags/MaterialIntent and shader-side MaterialMasks. It estimates which material families are plausible in the current scene before any `.fx` shader tries per-pixel heuristics. It is not true FFXIV engine material ID detection.
@@ -290,6 +317,13 @@ All intent values are normalized from `0` to `1`.
 | `ArtificialLight` | Local lamp, window, neon, fire, crystal, or settlement light pressure. |
 | `AmbientDarkness` | Unlit nighttime baseline darkness and black-depth preservation. |
 | `NightAtmosphere` | Night weather/air pressure such as mist, storm, coastal air, moonlit depth, or canopy humidity. |
+| `Daylight` | Whether daytime contextual logic is active; not a brightness boost by itself. |
+| `Sunlight` | Direct sun pressure for tone hierarchy and highlight restraint. |
+| `OpenSkyLight` | Daytime sky/ambient light available to water, snow, sand, and open fields. |
+| `SurfaceHeat` | Sunlit hot-surface support for desert, coastal, volcanic, or heat-shimmer contexts. |
+| `DayAtmosphere` | Daytime air pressure such as clean open air, mist, storm diffusion, dust, or coastal air. |
+| `DayReflection` | Daytime reflection/sheens for valid water, wet, snow/ice, or polished material receivers. |
+| `DayHighlightPressure` | Daytime bright-surface protection for beach, snow, water, sky, and high-noon surfaces. |
 | `CombatPressure` | How much combat should dominate visual safety. |
 | `CinematicPermission` | How much cinematic treatment is allowed. |
 

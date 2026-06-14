@@ -102,6 +102,13 @@ uniform float Dalashade_IntentNeonGlow < ui_type = "slider"; ui_min = 0.0; ui_ma
 uniform float Dalashade_IntentFoliageDensity < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Foliage Density"; > = 0.0;
 uniform float Dalashade_IntentIndustrialHardness < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Industrial Hardness"; > = 0.0;
 uniform float Dalashade_IntentCosmicMood < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Cosmic Mood"; > = 0.0;
+uniform float Dalashade_Daylight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Daylight"; > = 0.0;
+uniform float Dalashade_Sunlight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Sunlight"; > = 0.0;
+uniform float Dalashade_OpenSkyLight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Open Sky Light"; > = 0.0;
+uniform float Dalashade_SurfaceHeat < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Surface Heat"; > = 0.0;
+uniform float Dalashade_DayAtmosphere < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Day Atmosphere"; > = 0.0;
+uniform float Dalashade_DayReflection < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Day Reflection"; > = 0.0;
+uniform float Dalashade_DayHighlightPressure < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Day Highlight Pressure"; > = 0.0;
 uniform float Dalashade_IntentCombatPressure < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Combat Pressure"; > = 0.0;
 uniform float Dalashade_IntentCinematicPermission < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Cinematic Permission"; > = 0.0;
 
@@ -348,7 +355,8 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     float skinProtect = saturate(safety.SkinReject * Dalashade_GISkinProtect);
     float combatDampen = 1.0 - saturate(Dalashade_IntentCombatPressure * 0.58 + Dalashade_IntentReadability * 0.16);
     float readabilityDampen = 1.0 - saturate(Dalashade_IntentReadability * 0.24 + Dalashade_IntentCombatPressure * 0.38);
-    float highlightGuard = saturate(safety.HighlightProtect + material.SnowIce * bright * 0.42 + material.SandDust * bright * 0.20);
+    float dayPush = saturate(Dalashade_Daylight * 0.20 + Dalashade_Sunlight * 0.25 + Dalashade_OpenSkyLight * 0.18 + Dalashade_DayReflection * 0.20);
+    float highlightGuard = saturate(safety.HighlightProtect + Dalashade_DayHighlightPressure * bright * 0.55 + material.SnowIce * bright * 0.42 + material.SandDust * bright * 0.20);
     float hardSurface = saturate(material.StoneRuins * 0.58 + material.MetalIndustrial * 0.50 + Dalashade_IntentIndustrialHardness * 0.34);
     float emissiveMaterial = saturate(material.FireLavaHeat * 0.72 + material.CrystalAether * 0.72 + material.NeonGlass * 0.70 + material.SpecularGlint * 0.34 + Dalashade_IntentMagicGlow * 0.20 + Dalashade_IntentNeonGlow * 0.18);
     float emissiveSourceMask = Dalashade_SceneGIEmissiveCandidate(color, emissiveMaterial);
@@ -374,7 +382,7 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     float3 materialTint = float3(0.0, 0.0, 0.0);
     materialTint += material.Foliage * float3(0.16, 0.34, 0.10);
     materialTint += safety.FoliageNoiseReject * float3(0.08, 0.16, 0.05);
-    materialTint += material.SandDust * float3(0.48, 0.30, 0.08);
+    materialTint += material.SandDust * float3(0.48, 0.30, 0.08) * (1.0 + Dalashade_SurfaceHeat * 0.18);
     materialTint += material.SnowIce * float3(0.20, 0.29, 0.42);
     materialTint += material.WaterPlane * float3(0.03, 0.27, 0.34);
     materialTint += material.FireLavaHeat * float3(0.68, 0.22, 0.04);
@@ -393,7 +401,7 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     lowFrequencyMaterialRegion *= 1.0 - bright * (0.24 + highlightGuard * 0.34);
 
     float materialInfluence = saturate(Dalashade_GIMaterialInfluence * (sharedMaterialConfidence * 0.72 + lowFrequencyMaterialRegion * 0.48));
-    float materialBounceAllowance = saturate(material.Foliage * 0.30 + material.SandDust * 0.26 + material.SnowIce * 0.20 + water.WetShoreline * 0.18 + material.StoneRuins * 0.22 + material.MetalIndustrial * 0.18 + material.CrystalAether * 0.44 + material.NeonGlass * 0.42 + material.FireLavaHeat * 0.54);
+    float materialBounceAllowance = saturate(material.Foliage * 0.30 + material.SandDust * 0.26 + material.SnowIce * 0.20 + water.WetShoreline * 0.18 + material.StoneRuins * 0.22 + material.MetalIndustrial * 0.18 + material.CrystalAether * 0.44 + material.NeonGlass * 0.42 + material.FireLavaHeat * 0.54 + dayPush * 0.12);
     float bounceReceiverMask = saturate(midtone * (0.36 + shadow * 0.55) + lowFrequencyMaterialRegion * 0.30 + material.Foliage * 0.16 + material.StoneRuins * 0.16 + material.MetalIndustrial * 0.10 + material.SandDust * 0.12 + material.SnowIce * 0.10 + water.WetShoreline * 0.08);
     bounceReceiverMask *= saturate(0.55 + normalConfidence * 0.25 + max(normal.z, 0.0) * 0.20);
     bounceReceiverMask *= 1.0 - skyReject;
@@ -408,7 +416,7 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     float3 sourceTint = lerp(neighbor * (0.42 + materialBounceAllowance * 0.20), propagatedSource, saturate(propagatedSourceMask * 0.72 + emissiveMaterial * 0.28));
     float3 bounceTint = lerp(sourceTint, materialTint + propagatedSource * 0.38, saturate(materialInfluence * 1.18));
     float3 materialBounce = bounceTint * bounceMask * bounceReceiverMask * Dalashade_GIBounceStrength * combatDampen;
-    materialBounce *= 0.90 + Dalashade_IntentAtmosphere * 0.30 + Dalashade_IntentCinematicPermission * 0.28 + materialBounceAllowance * 0.44 + propagatedSourceMask * 0.48;
+    materialBounce *= 0.90 + Dalashade_IntentAtmosphere * 0.30 + Dalashade_DayAtmosphere * 0.10 + Dalashade_IntentCinematicPermission * 0.28 + materialBounceAllowance * 0.44 + propagatedSourceMask * 0.48;
     float3 bounce = materialBounce;
 
     float localLight = smoothstep(0.46, 0.95, luma) * smoothstep(0.025, 0.38, saturatedAccent + material.SpecularGlint * 0.42);
@@ -434,7 +442,7 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     result *= 1.0 - saturate(ao * strength);
     result += (bounce + nightLight) * strength;
     float nightAllowance = saturate(nightContext * 0.70 + shadow * 0.18);
-    float scenePush = saturate(Dalashade_IntentAtmosphere * 0.34 + Dalashade_IntentCinematicPermission * 0.44 + nightAllowance * 0.52);
+    float scenePush = saturate(Dalashade_IntentAtmosphere * 0.34 + Dalashade_DayAtmosphere * 0.14 + Dalashade_IntentCinematicPermission * 0.44 + nightAllowance * 0.52 + dayPush * 0.16);
     float materialPush = saturate(materialBounceAllowance * 0.48 + emissiveMaterial * 0.76 + propagatedSourceMask * 0.45 + lowFrequencyMaterialRegion * 0.30 + hardSurface * 0.22);
     float highlightSafety = saturate(highlightGuard + skyReject * 0.80 + skinProtect * 0.76 + material.SnowIce * bright * 0.62 + material.WaterPlane * bright * 0.34);
     float positiveGIAllowance = 0.105 + scenePush * 0.145 + materialPush * 0.170;

@@ -119,6 +119,14 @@ uniform float Dalashade_NightAtmosphere <
     ui_tooltip = "Scene-driven nighttime air/mist/storm atmosphere without generic gray wash.";
 > = 0.0;
 
+uniform float Dalashade_Daylight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Daylight"; ui_tooltip = "Scene-driven daytime context. Does not directly lift exposure."; > = 0.0;
+uniform float Dalashade_Sunlight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Sunlight"; ui_tooltip = "Scene-driven direct sunlight pressure for tone and highlights."; > = 0.0;
+uniform float Dalashade_OpenSkyLight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Open Sky Light"; ui_tooltip = "Scene-driven open-sky daylight for broad material protection."; > = 0.0;
+uniform float Dalashade_SurfaceHeat < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Surface Heat"; ui_tooltip = "Scene-driven sunlit surface heat for desert/coastal/volcanic identity."; > = 0.0;
+uniform float Dalashade_DayAtmosphere < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Day Atmosphere"; ui_tooltip = "Scene-driven daytime air, mist, storm, or coastal diffusion."; > = 0.0;
+uniform float Dalashade_DayReflection < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Day Reflection"; ui_tooltip = "Scene-driven daytime reflection permission for valid material receivers."; > = 0.0;
+uniform float Dalashade_DayHighlightPressure < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Day Highlight Pressure"; ui_tooltip = "Scene-driven daytime bright-surface protection."; > = 0.0;
+
 uniform float Dalashade_MaterialFoliage <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -283,6 +291,13 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float artificialLight = saturate(Dalashade_ArtificialLight);
     float ambientDarkness = saturate(Dalashade_AmbientDarkness);
     float nightAtmosphere = saturate(Dalashade_NightAtmosphere);
+    float daylight = saturate(Dalashade_Daylight);
+    float sunlight = saturate(Dalashade_Sunlight);
+    float openSkyLight = saturate(Dalashade_OpenSkyLight);
+    float surfaceHeat = saturate(Dalashade_SurfaceHeat);
+    float dayAtmosphere = saturate(Dalashade_DayAtmosphere);
+    float dayReflection = saturate(Dalashade_DayReflection);
+    float dayHighlightPressure = saturate(Dalashade_DayHighlightPressure);
     float materialFoliage = saturate(Dalashade_MaterialFoliage);
     float materialSandDust = saturate(Dalashade_MaterialSandDust);
     float materialSnowIce = saturate(Dalashade_MaterialSnowIce);
@@ -350,7 +365,8 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float hardSurfaceIdentity = max(industrial, materialMetalIndustrial);
     float aetherIdentity = max(magicGlow, materialCrystal);
     float authoredIdentity = max(max(foliage, max(heat, cold)), max(max(neonGlow, magicGlow), max(industrial, cosmic)));
-    float gradeStrength = manualStrength * (0.44 + atmosphere * 0.18 + cinematic * 0.18 + authoredIdentity * 0.08 + night * 0.06) * (0.55 + safety * 0.45);
+    float dayIdentity = saturate(daylight * 0.18 + sunlight * 0.16 + openSkyLight * 0.10 + dayAtmosphere * 0.12 + dayReflection * 0.08);
+    float gradeStrength = manualStrength * (0.44 + atmosphere * 0.18 + cinematic * 0.18 + authoredIdentity * 0.08 + night * 0.06 + dayIdentity * 0.04) * (0.55 + safety * 0.45);
 
     float luma = Dalashade_Luma(source);
     float highlightMask = smoothstep(0.62, 0.98, luma);
@@ -359,6 +375,8 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     // Build a mild intent-driven grade target. Manual controls add test pressure, not a new architecture path.
     float exposureTrim = Dalashade_ManualExposure
         + (shadowProtection * 0.020)
+        - dayHighlightPressure * highlightMask * 0.012
+        + sunlight * (1.0 - highlightMask) * 0.004
         - (highlightProtection * 0.026)
         - (combat * 0.010)
         - (hardSurfaceIdentity * 0.006)

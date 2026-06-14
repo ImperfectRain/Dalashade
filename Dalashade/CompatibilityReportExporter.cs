@@ -113,6 +113,13 @@ public sealed class CompatibilityReportExporter
         nameof(SceneIntent.ArtificialLight),
         nameof(SceneIntent.AmbientDarkness),
         nameof(SceneIntent.NightAtmosphere),
+        nameof(SceneIntent.Daylight),
+        nameof(SceneIntent.Sunlight),
+        nameof(SceneIntent.OpenSkyLight),
+        nameof(SceneIntent.SurfaceHeat),
+        nameof(SceneIntent.DayAtmosphere),
+        nameof(SceneIntent.DayReflection),
+        nameof(SceneIntent.DayHighlightPressure),
         nameof(SceneIntent.CombatPressure),
         nameof(SceneIntent.CinematicPermission)
     };
@@ -649,6 +656,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Biome reason: {diagnostics.BiomeReason}");
         builder.AppendLine($"- Secondary tags: {FormatPlainList(diagnostics.SecondaryTags)}");
         builder.AppendLine($"- Night tags: {FormatPlainList(diagnostics.SecondaryTags.Concat(diagnostics.ArtDirectionTags).Where(IsNightTag).Distinct(StringComparer.OrdinalIgnoreCase).ToArray())}");
+        builder.AppendLine($"- Day tags: {FormatPlainList(diagnostics.SecondaryTags.Concat(diagnostics.ArtDirectionTags).Where(IsDayTag).Distinct(StringComparer.OrdinalIgnoreCase).ToArray())}");
         builder.AppendLine($"- Mood tags: {(diagnostics.MoodTags.Count == 0 ? "none" : string.Join(", ", diagnostics.MoodTags))}");
         builder.AppendLine($"- Material tags: {FormatPlainList(diagnostics.MaterialTags)}");
         builder.AppendLine($"- Area/context tags: {FormatPlainList(diagnostics.AreaContextTags)}");
@@ -681,6 +689,13 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Artificial light: {diagnostics.Intent.ArtificialLight:0.###}");
         builder.AppendLine($"- Ambient darkness: {diagnostics.Intent.AmbientDarkness:0.###}");
         builder.AppendLine($"- Night atmosphere: {diagnostics.Intent.NightAtmosphere:0.###}");
+        builder.AppendLine($"- Daylight: {diagnostics.Intent.Daylight:0.###}");
+        builder.AppendLine($"- Sunlight: {diagnostics.Intent.Sunlight:0.###}");
+        builder.AppendLine($"- Open sky light: {diagnostics.Intent.OpenSkyLight:0.###}");
+        builder.AppendLine($"- Surface heat: {diagnostics.Intent.SurfaceHeat:0.###}");
+        builder.AppendLine($"- Day atmosphere: {diagnostics.Intent.DayAtmosphere:0.###}");
+        builder.AppendLine($"- Day reflection: {diagnostics.Intent.DayReflection:0.###}");
+        builder.AppendLine($"- Day highlight pressure: {diagnostics.Intent.DayHighlightPressure:0.###}");
         builder.AppendLine($"- Combat pressure: {diagnostics.Intent.CombatPressure:0.###}");
         builder.AppendLine($"- Cinematic permission: {diagnostics.Intent.CinematicPermission:0.###}");
         builder.AppendLine();
@@ -1259,6 +1274,12 @@ public sealed class CompatibilityReportExporter
                || string.Equals(tag, "night", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsDayTag(string tag)
+    {
+        return tag.Contains("Day", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(tag, "day", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static int ClampInt(int value, int min, int max) => Math.Min(max, Math.Max(min, value));
 
     private static string FormatSceneGIDebugMode(int mode)
@@ -1539,7 +1560,7 @@ public sealed class CompatibilityReportExporter
             return "biome, material, and art-direction tags";
         }
 
-        if (source.Contains("Night", StringComparison.OrdinalIgnoreCase) || source.Contains("Dawn", StringComparison.OrdinalIgnoreCase))
+        if (source.Contains("Night", StringComparison.OrdinalIgnoreCase) || source.Contains("Day", StringComparison.OrdinalIgnoreCase) || source.Contains("Dawn", StringComparison.OrdinalIgnoreCase))
         {
             return "time-of-day tags";
         }

@@ -338,6 +338,7 @@ Dalashade-driven controls:
 | `Dalashade_GIDebugOpacity` | Debug overlay opacity. Default `0.75`. |
 | `Dalashade_GIDebugBoost` | Debug-only amplification/gamma helper for low and mid-strength GI masks. Default `2.50`; it does not affect normal SceneGI output. |
 | `Dalashade_Intent*` aliases | SceneIntent inputs for readability, atmosphere, highlight/shadow protection, haze, weather, glow, foliage density, industrial/cosmic mood, combat pressure, and cinematic permission. |
+| `Dalashade_Daylight`, `Dalashade_Sunlight`, `Dalashade_OpenSkyLight`, `Dalashade_SurfaceHeat`, `Dalashade_DayAtmosphere`, `Dalashade_DayReflection`, `Dalashade_DayHighlightPressure` | Daytime context inputs. They are not exposure boosts; use them to steer highlight rolloff, open-sky reflection, daytime atmosphere, surface heat, GI receiver/source permission, and sharpening restraint. |
 | `Dalashade_Material*` channels | Section-scoped MaterialIntent inputs for foliage, water plane, specular glints, sand/dust, snow/ice, stone/ruins, metal/industrial, crystal/aether, neon/glass, fire/heat, sky/fog, skin protection, and void/darkness. |
 
 SceneGI uses cheap local screen-space samples, depth, depth-normal confidence, SceneIntent, and MaterialIntent masks to provide a stronger but still bounded GI-style lighting layer. Contact AO is layered into micro contact, medium crevice, and broad grounding responses; it is stronger on stone, ruins, industrial, foliage, and hard-surface areas, and reduced on sky/fog, skin, broad water, snow, bright sand, combat-heavy scenes, and high-highlight regions. Emissive source detection now gives saturated aether/crystal, neon, fire, lamp-like highlights, and specular glints more influence even when they are not pure white, then uses nearby local samples to spread restrained color onto plausible receiver surfaces such as grass, paths, trunks, stone, water planes, and structures. SceneGI separates high-frequency glints/detail from a lower-frequency material region term so broad GI receiver eligibility and material color influence are less edge-only. Bounce is restrained to shadows and midtones and uses material masks for foliage, sand, snow, water plane, fire, aether, neon, metal, stone, and void behavior. Night light pooling looks for localized lamp/fire/aether/neon/specular/moonlit candidates instead of globally lifting dark scenes. The final output uses adaptive positive/negative contribution limits rather than a fixed narrow clamp, so night, cinematic, emissive, ruin, industrial, and aetherial scenes can show more GI while beaches, snow, sky/fog, skin, water, combat, and readability-heavy scenes stay restrained. Debug output mode `0` returns replacement diagnostics instead of tinting the beautified scene, and `Dalashade_GIDebugBoost` makes low and mid-strength AO, bounce, night light, material, sky rejection, skin protection, final influence, depth-normal confidence, emissive source, receiver, safety, and layered-AO masks easier to inspect.
@@ -619,7 +620,7 @@ SceneIntent values are normalized `0.0` to `1.0`. `Dalashade_SharpenAuthority` i
 
 `Dalashade_SmartSharpen.fx` currently consumes `Readability`, `Haze`, `Wetness`, `FoliageDensity`, `CombatPressure`, `HighlightProtection`, `Night`, `AmbientDarkness`, `ArtificialLight`, preset-derived `SharpenAuthority`, and the SmartSharpen-only MaterialIntent dampening channels listed above.
 
-`Dalashade_SceneGI.fx` currently consumes `Dalashade_Intent*` aliases for `Readability`, `Atmosphere`, `HighlightProtection`, `ShadowProtection`, `Haze`, `Wetness`, `Cold`, `Heat`, `MagicGlow`, `NeonGlow`, `FoliageDensity`, `IndustrialHardness`, `CosmicMood`, `CombatPressure`, and `CinematicPermission`, plus SceneGI controls and the SceneGI-only MaterialIntent channels listed above.
+`Dalashade_SceneGI.fx` currently consumes `Dalashade_Intent*` aliases for `Readability`, `Atmosphere`, `HighlightProtection`, `ShadowProtection`, `Haze`, `Wetness`, `Cold`, `Heat`, `MagicGlow`, `NeonGlow`, `FoliageDensity`, `IndustrialHardness`, `CosmicMood`, `CombatPressure`, and `CinematicPermission`; the daytime aliases `Dalashade_Daylight`, `Dalashade_Sunlight`, `Dalashade_OpenSkyLight`, `Dalashade_SurfaceHeat`, `Dalashade_DayAtmosphere`, `Dalashade_DayReflection`, and `Dalashade_DayHighlightPressure`; plus SceneGI controls and the SceneGI-only MaterialIntent channels listed above.
 
 `Dalashade_SurfaceReflection.fx` currently consumes `Wetness`, `HighlightProtection`, `Readability`, `CombatPressure`, `MagicGlow`, `NeonGlow`, `Night`, `ArtificialLight`, `CinematicPermission`, SurfaceReflection controls, and the SurfaceReflection-only MaterialIntent channels listed above.
 
@@ -780,6 +781,13 @@ Dalashade_IntentNeonGlow=0.000000
 Dalashade_IntentFoliageDensity=0.000000
 Dalashade_IntentIndustrialHardness=0.000000
 Dalashade_IntentCosmicMood=0.000000
+Dalashade_Daylight=0.000000
+Dalashade_Sunlight=0.000000
+Dalashade_OpenSkyLight=0.000000
+Dalashade_SurfaceHeat=0.000000
+Dalashade_DayAtmosphere=0.000000
+Dalashade_DayReflection=0.000000
+Dalashade_DayHighlightPressure=0.000000
 Dalashade_IntentCombatPressure=0.000000
 Dalashade_IntentCinematicPermission=0.000000
 

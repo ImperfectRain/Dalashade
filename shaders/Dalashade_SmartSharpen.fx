@@ -64,6 +64,10 @@ uniform float Dalashade_ArtificialLight <
     ui_tooltip = "Scene-driven local light-pool influence. Higher values preserves lit structural edges.";
 > = 0.0;
 
+uniform float Dalashade_Daylight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Daylight"; ui_tooltip = "Scene-driven daytime context for sharpen safety."; > = 0.0;
+uniform float Dalashade_OpenSkyLight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Open Sky Light"; ui_tooltip = "Scene-driven open-sky daylight; protects sky, water, and bright surfaces from crunch."; > = 0.0;
+uniform float Dalashade_DayHighlightPressure < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Day Highlight Pressure"; ui_tooltip = "Scene-driven daytime bright-surface halo protection."; > = 0.0;
+
 uniform float Dalashade_MaterialFoliage <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -306,6 +310,9 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float night = saturate(Dalashade_Night);
     float ambientDarkness = saturate(Dalashade_AmbientDarkness);
     float artificialLight = saturate(Dalashade_ArtificialLight);
+    float daylight = saturate(Dalashade_Daylight);
+    float openSkyLight = saturate(Dalashade_OpenSkyLight);
+    float dayHighlightPressure = saturate(Dalashade_DayHighlightPressure);
     float authority = saturate(Dalashade_SharpenAuthority * 0.5);
     float materialFoliage = saturate(Dalashade_MaterialFoliage);
     float materialWaterSpecular = saturate(Dalashade_MaterialWaterSpecular);
@@ -355,7 +362,7 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
         texcoord,
         material,
         water,
-        highlightProtection,
+        max(highlightProtection, dayHighlightPressure),
         Dalashade_EnableDepthAssist ? 1.0 : 0.0,
         Dalashade_DepthAssistStrength,
         max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
@@ -397,7 +404,7 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float hazePressure = saturate(max(haze, wetness * 0.72) * HazeDampenStrength);
     float foliageTexturePressure = saturate(foliage * FoliageDampenStrength * (0.42 + textureDetailMask * 0.72 + farDepthMask * 0.24));
     float foliageStructurePressure = saturate(foliage * 0.22 * (1.0 - structuralEdgeMask * 0.45));
-    float highlightPressure = saturate((highlightProtection * 0.72 + wetness * 0.22 + veryBrightMask * 0.36) * specularEdgeMask * HighlightDampenStrength);
+    float highlightPressure = saturate((max(highlightProtection, dayHighlightPressure) * 0.72 + wetness * 0.22 + veryBrightMask * 0.36 + openSkyLight * daylight * 0.10) * specularEdgeMask * HighlightDampenStrength);
     float haloPressure = saturate((veryBrightMask * 0.42 + specularEdgeMask * 0.58) * HaloDampenStrength);
     float depthTexturePressure = saturate((midDepthMask * DepthDampenStrength * 0.35 + farDepthMask * FarDepthDampenStrength) * (0.45 + haze * 0.55));
     float skyPressure = saturate(skyGradientMask * SkyDampenStrength);

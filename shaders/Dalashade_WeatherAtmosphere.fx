@@ -121,6 +121,14 @@ uniform float Dalashade_NightAtmosphere <
     ui_tooltip = "Scene-driven nighttime weather/air mood without generic haze.";
 > = 0.0;
 
+uniform float Dalashade_Daylight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Daylight"; ui_tooltip = "Scene-driven daytime context. Does not globally brighten."; > = 0.0;
+uniform float Dalashade_Sunlight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Sunlight"; ui_tooltip = "Scene-driven direct sunlight pressure."; > = 0.0;
+uniform float Dalashade_OpenSkyLight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Open Sky Light"; ui_tooltip = "Scene-driven open-sky daylight for sky, water, snow, and sand."; > = 0.0;
+uniform float Dalashade_SurfaceHeat < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Surface Heat"; ui_tooltip = "Scene-driven sunlit heat and warm surface air."; > = 0.0;
+uniform float Dalashade_DayAtmosphere < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Day Atmosphere"; ui_tooltip = "Scene-driven daylight air, mist, storm, coastal, or dust atmosphere."; > = 0.0;
+uniform float Dalashade_DayReflection < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Day Reflection"; ui_tooltip = "Scene-driven daytime reflection context for valid material receivers."; > = 0.0;
+uniform float Dalashade_DayHighlightPressure < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Day Highlight Pressure"; ui_tooltip = "Scene-driven daytime bright-surface protection."; > = 0.0;
+
 uniform float Dalashade_MaterialFoliage <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -325,6 +333,13 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float artificialLight = Dalashade_Saturate(Dalashade_ArtificialLight);
     float ambientDarkness = Dalashade_Saturate(Dalashade_AmbientDarkness);
     float nightAtmosphere = Dalashade_Saturate(Dalashade_NightAtmosphere);
+    float daylight = Dalashade_Saturate(Dalashade_Daylight);
+    float sunlight = Dalashade_Saturate(Dalashade_Sunlight);
+    float openSkyLight = Dalashade_Saturate(Dalashade_OpenSkyLight);
+    float surfaceHeat = Dalashade_Saturate(Dalashade_SurfaceHeat);
+    float dayAtmosphere = Dalashade_Saturate(Dalashade_DayAtmosphere);
+    float dayReflection = Dalashade_Saturate(Dalashade_DayReflection);
+    float dayHighlightPressure = Dalashade_Saturate(Dalashade_DayHighlightPressure);
     float manualStrength = Dalashade_Saturate(Dalashade_ManualStrength);
     float manualMood = Dalashade_Saturate(Dalashade_ManualMood);
     float manualGlow = Dalashade_Saturate(Dalashade_ManualGlowBoost);
@@ -403,11 +418,11 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
 
     // Atmospheric perspective: fog/mist and dust thicken with distance; foreground gameplay space stays mostly untouched.
     float realFogWeather = saturate(max(haze, materialSkyFog * haze));
-    float waterMist = materialWaterPlane * max(wetness, haze * 0.34 + nightAtmosphere * night * 0.12) * smoothstep(0.18, 0.92, depth);
-    float dustAir = max(heat, materialSandDust) * (0.42 + haze * 0.18) * smoothstep(0.22, 0.98, depth);
+    float waterMist = materialWaterPlane * max(max(wetness, dayReflection * 0.22), haze * 0.34 + nightAtmosphere * night * 0.12 + dayAtmosphere * 0.10) * smoothstep(0.18, 0.92, depth);
+    float dustAir = max(max(heat, materialSandDust), surfaceHeat * 0.70) * (0.42 + haze * 0.18 + dayAtmosphere * 0.08) * smoothstep(0.22, 0.98, depth);
     float snowAir = max(cold, materialSnowIce) * (0.34 + haze * 0.18) * smoothstep(0.10, 0.92, depth);
     float aetherAir = materialCrystal * max(magicGlow, atmosphere * 0.45) * smoothstep(0.18, 0.96, depth);
-    float skyFogAir = materialSkyFog * max(realFogWeather, nightAtmosphere * moonlight * 0.20) * smoothstep(0.12, 0.94, depth);
+    float skyFogAir = materialSkyFog * max(max(realFogWeather, dayAtmosphere * openSkyLight * 0.22), nightAtmosphere * moonlight * 0.20) * smoothstep(0.12, 0.94, depth);
     float humidAir = max(foliage, materialFoliage) * atmosphere * (0.20 + wetness * 0.16 + haze * 0.10 + nightAtmosphere * night * 0.08) * smoothstep(0.12, 0.78, depth);
     float weatherAmount = max(max(realFogWeather, wetness * 0.62 + waterMist * 0.28), max(max(cold, materialSnowIce) * 0.58, max(heat, materialSandDust) * 0.68));
     float dustSoftness = max(heat, materialSandDust) * (0.50 + haze * 0.28);
@@ -417,13 +432,14 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float foliageHazeRestraint = 1.0 - max(foliage, materialFoliage) * atmosphere * 0.50;
     float depthHaze = distanceWeight * weatherAmount * foliageHazeRestraint;
     depthHaze += dustAir * 0.035 + snowAir * 0.026 + waterMist * 0.020 + aetherAir * 0.026 + skyFogAir * 0.035 + humidAir * 0.012;
-    depthHaze *= (0.15 + atmosphere * 0.16 + fogLike * 0.07 + dustSoftness * 0.08 + nightAtmosphere * 0.035) * gameplayDampen * cinematicBoost;
+    depthHaze *= (0.15 + atmosphere * 0.16 + fogLike * 0.07 + dustSoftness * 0.08 + nightAtmosphere * 0.035 + dayAtmosphere * 0.030) * gameplayDampen * cinematicBoost;
     depthHaze *= 1.0 - ambientDarkness * night * (0.22 + max(foliage, materialFoliage) * 0.20);
     depthHaze = min(depthHaze, lerp(0.22, 0.32, saturate(fogLike + max(heat, materialSandDust) * 0.45 + materialSkyFog * haze * 0.30)));
 
     float3 hazeTint = float3(0.63, 0.68, 0.72);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.78, 0.87, 1.00), max(cold, materialSnowIce) * 0.42);
-    hazeTint = Dalashade_SafeLerp(hazeTint, float3(1.00, 0.76, 0.50), max(heat, materialSandDust) * 0.42);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(1.00, 0.76, 0.50), max(max(heat, materialSandDust), surfaceHeat) * 0.42);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.75, 0.86, 1.00), openSkyLight * daylight * 0.10);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.70, 0.82, 0.68), humidAir * 0.80);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.62, 0.70, 0.92), materialCrystal * magicGlow * 0.32);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.50, 0.60, 0.82), moonlight * night * 0.22);

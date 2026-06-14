@@ -106,6 +106,11 @@ uniform float Dalashade_NightAtmosphere <
     ui_tooltip = "Scene-driven nighttime air/mist/storm atmosphere.";
 > = 0.0;
 
+uniform float Dalashade_Daylight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Daylight"; ui_tooltip = "Scene-driven daytime context for bloom restraint."; > = 0.0;
+uniform float Dalashade_Sunlight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Sunlight"; ui_tooltip = "Scene-driven direct sunlight pressure for highlight-safe bloom."; > = 0.0;
+uniform float Dalashade_DayAtmosphere < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Day Atmosphere"; ui_tooltip = "Scene-driven daytime air, mist, storm, or coastal diffusion."; > = 0.0;
+uniform float Dalashade_DayHighlightPressure < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalashade Day Highlight Pressure"; ui_tooltip = "Scene-driven daytime bright-surface bloom restraint."; > = 0.0;
+
 uniform float Dalashade_MaterialWaterSpecular <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -298,7 +303,11 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
     float artificialLight = saturate(Dalashade_ArtificialLight);
     float ambientDarkness = saturate(Dalashade_AmbientDarkness);
     float nightAtmosphere = saturate(Dalashade_NightAtmosphere);
-    float canopyGlow = foliage * atmosphere * (1.0 - combat * 0.55);
+    float daylight = saturate(Dalashade_Daylight);
+    float sunlight = saturate(Dalashade_Sunlight);
+    float dayAtmosphere = saturate(Dalashade_DayAtmosphere);
+    float dayHighlightPressure = saturate(Dalashade_DayHighlightPressure);
+    float canopyGlow = foliage * (atmosphere + dayAtmosphere * 0.22) * (1.0 - combat * 0.55);
     float materialWater = saturate(Dalashade_MaterialWaterSpecular);
     float materialWaterPlane = saturate(max(materialWater, Dalashade_MaterialWaterPlane));
     float materialSpecularGlint = saturate(max(materialWater, Dalashade_MaterialSpecularGlint));
@@ -360,13 +369,13 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
     materialFire = material.FireLavaHeat;
     materialSky = saturate(max(material.SkyCloudFog, safety.SkyReject));
 
-    float threshold = BloomThreshold + highlightProtection * 0.135 + combat * 0.040 + readability * 0.030 + ambientDarkness * night * 0.035;
+    float threshold = BloomThreshold + max(highlightProtection, dayHighlightPressure) * 0.135 + combat * 0.040 + readability * 0.030 + ambientDarkness * night * 0.035 + sunlight * daylight * 0.025;
     threshold -= max(max(magicGlow, neonGlow), max(materialCrystal, materialNeon) * 0.72) * 0.030;
     threshold -= artificialLight * 0.018;
     threshold -= moonlight * nightAtmosphere * 0.010;
     threshold -= max(wetness, materialWaterGate) * 0.018;
     threshold -= max(heat, materialFire) * 0.010;
-    threshold += materialSky * highlightProtection * 0.020;
+    threshold += materialSky * max(highlightProtection, dayHighlightPressure) * 0.020;
     threshold = clamp(threshold, 0.58, 0.94);
 
     float2 texel = BUFFER_PIXEL_SIZE;
@@ -402,7 +411,7 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
     float cinematicBoost = 1.0 + cinematic * CinematicBoostStrength * (1.0 - combat * 0.65) * (0.86 + max(max(materialCrystal, materialNeon), materialFire) * 0.14);
     float readabilityDampen = 1.0 - readability * 0.22;
     float materialSelective = materialWaterGate * 0.04 + materialCrystal * 0.08 + materialNeon * 0.08 + materialFire * 0.05 + materialSky * 0.03;
-    float intentStrength = 0.40 + atmosphere * 0.20 + magicGlow * 0.22 + neonGlow * 0.22 + canopyGlow * 0.10 + wetness * 0.08 + heat * 0.05 + artificialLight * 0.08 + moonlight * nightAtmosphere * 0.04 + materialSelective;
+    float intentStrength = 0.40 + atmosphere * 0.20 + magicGlow * 0.22 + neonGlow * 0.22 + canopyGlow * 0.10 + wetness * 0.08 + heat * 0.05 + artificialLight * 0.08 + moonlight * nightAtmosphere * 0.04 + dayAtmosphere * 0.04 + materialSelective;
     float strength = BloomStrength * intentStrength * combatDampen * cinematicBoost;
     strength *= readabilityDampen * (1.0 - saturate((highlightProtection + ambientDarkness * night * 0.20 + materialSky * 0.18 + materialWaterGate * 0.08 + materialNeon * 0.08) * HighlightRestraint * 0.52));
     strength = clamp(strength, 0.0, 0.32);

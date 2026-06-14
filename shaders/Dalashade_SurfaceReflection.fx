@@ -134,6 +134,9 @@ uniform float Dalashade_MagicGlow < ui_type = "slider"; ui_min = 0.0; ui_max = 1
 uniform float Dalashade_NeonGlow < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Neon Glow"; > = 0.0;
 uniform float Dalashade_Night < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Night"; > = 0.0;
 uniform float Dalashade_ArtificialLight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Artificial Light"; > = 0.0;
+uniform float Dalashade_OpenSkyLight < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Open Sky Light"; > = 0.0;
+uniform float Dalashade_DayReflection < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Day Reflection"; > = 0.0;
+uniform float Dalashade_DayHighlightPressure < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Day Highlight Pressure"; > = 0.0;
 uniform float Dalashade_CinematicPermission < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Intent Cinematic Permission"; > = 0.0;
 
 uniform float Dalashade_WaterContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Water Context"; > = 0.0;
@@ -369,7 +372,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     skyReject = saturate(max(skyReject, safety.SkyReject * Dalashade_SurfaceReflectionSkyReject));
     skinProtect = saturate(max(skinProtect, safety.SkinReject * Dalashade_SurfaceReflectionSkinProtect));
     safeSurface = (1.0 - skyReject) * (1.0 - skinProtect * 0.92) * gameplayDampen;
-    highlightSafety = saturate(max(highlightSafety, safety.HighlightProtect));
+    highlightSafety = saturate(max(max(highlightSafety, Dalashade_DayHighlightPressure), safety.HighlightProtect));
 
     float warmDryReject = saturate(water.SandReject + material.SandDust * (0.22 + bright * 0.42));
     float hardSurfaceHint = saturate(material.MetalIndustrial * 0.55 + midtone * smoothness * 0.24 + material.SpecularGlint * 0.16);
@@ -382,9 +385,9 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
         * safeSurface;
     float3 waterSheen = lerp(cyanSheen, sheenSample, 0.46) * waterReceiver * Dalashade_WaterSheenStrength * 1.62;
     float reflectedWaterLuma = Dalashade_SurfaceReflectionLuma(reflectedVertical);
-    float skyColorSource = saturate(max(water.SkySource, smoothstep(0.16, 0.88, reflectedWaterLuma + Dalashade_GetSaturation(reflectedVertical) * 0.36) * (0.28 + water.WaterHorizon * 0.30)));
+    float skyColorSource = saturate(max(water.SkySource, smoothstep(0.16, 0.88, reflectedWaterLuma + Dalashade_GetSaturation(reflectedVertical) * 0.36) * (0.28 + water.WaterHorizon * 0.30 + Dalashade_OpenSkyLight * 0.18)));
     float waterSource = saturate(max(water.WaterSource, water.WetShoreline * 0.35) + skyColorSource * water.WaterReceiver * 0.32);
-    float waterReflectionMask = waterReceiver * saturate(waterSource + skyColorSource * 0.25) * (1.0 - bright * 0.26);
+    float waterReflectionMask = waterReceiver * saturate(waterSource + skyColorSource * (0.25 + Dalashade_DayReflection * 0.18)) * (1.0 - bright * 0.26);
     float3 waterReflection = lerp(reflectedVertical, reflectedSoft, reflectionSoftness * 0.42) * lerp(float3(0.68, 0.98, 1.0), cyanSheen + 0.18, 0.34) * waterReflectionMask * Dalashade_WaterReflectionStrength;
     float shorelineSheenMask = saturate((water.WetShoreline * 0.72 + water.FoamOrEdge * 0.42) * safeSurface * (1.0 - skinProtect * 0.92));
     waterSheen += lerp(float3(0.26, 0.72, 0.86), sheenSample, 0.30) * shorelineSheenMask * Dalashade_WaterSheenStrength * 0.72;
@@ -431,7 +434,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float iceReceiver = material.SnowIce * smoothstep(0.44, 0.96, smoothness) * midtone * safeSurface * (1.0 - bright * 0.70) * (1.0 - skyReject * 0.95);
     float3 iceSheen = float3(0.46, 0.72, 1.0) * iceReceiver * (skyColorSource * 0.35 + specularGlintSource * 0.24 + 0.18) * Dalashade_IceSheenStrength * 1.38;
 
-    float nightBoost = 1.0 + Dalashade_Night * (0.18 + Dalashade_ArtificialLight * 0.30) + Dalashade_CinematicPermission * 0.10;
+    float nightBoost = 1.0 + Dalashade_Night * (0.18 + Dalashade_ArtificialLight * 0.30) + Dalashade_DayReflection * waterReceiver * 0.12 + Dalashade_CinematicPermission * 0.10;
     float3 contribution = (waterSheen + waterReflection + specularGlint + specularReflection + wetReflection + aetherNeonReflection + iceSheen) * Dalashade_SurfaceReflectionStrength * nightBoost;
     contribution *= 1.0 - highlightSafety * 0.56;
 

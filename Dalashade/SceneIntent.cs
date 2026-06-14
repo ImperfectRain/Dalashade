@@ -23,6 +23,13 @@ public sealed record SceneIntent(
     float ArtificialLight,
     float AmbientDarkness,
     float NightAtmosphere,
+    float Daylight,
+    float Sunlight,
+    float OpenSkyLight,
+    float SurfaceHeat,
+    float DayAtmosphere,
+    float DayReflection,
+    float DayHighlightPressure,
     float CombatPressure,
     float CinematicPermission,
     IReadOnlyList<SceneIntentContribution> Contributions)
@@ -30,7 +37,8 @@ public sealed record SceneIntent(
     public static SceneIntent Neutral { get; } = new(
         0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
         0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
-        0f, 0f, 0f, 0f,
+        0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f,
+        0f, 0f, 0f,
         Array.Empty<SceneIntentContribution>());
 }
 
@@ -57,6 +65,13 @@ public sealed class SceneIntentBuilder
     private float artificialLight;
     private float ambientDarkness;
     private float nightAtmosphere;
+    private float daylight;
+    private float sunlight;
+    private float openSkyLight;
+    private float surfaceHeat;
+    private float dayAtmosphere;
+    private float dayReflection;
+    private float dayHighlightPressure;
     private float combatPressure;
     private float cinematicPermission;
 
@@ -94,6 +109,13 @@ public sealed class SceneIntentBuilder
             Clamp01(artificialLight),
             Clamp01(ambientDarkness),
             Clamp01(nightAtmosphere),
+            Clamp01(daylight),
+            Clamp01(sunlight),
+            Clamp01(openSkyLight),
+            Clamp01(surfaceHeat),
+            Clamp01(dayAtmosphere),
+            Clamp01(dayReflection),
+            Clamp01(dayHighlightPressure),
             Clamp01(combatPressure),
             Clamp01(cinematicPermission),
             contributions.ToArray());
@@ -192,6 +214,82 @@ public sealed class SceneIntentBuilder
             {
                 Add("Desert night", nameof(SceneIntent.AmbientDarkness), 0.10f, "Desert nights stay darker than daytime heat scenes.");
                 Add("Desert night", nameof(SceneIntent.Moonlight), 0.12f, "Open desert nights can carry cool sky separation while heat remains a material/weather signal.");
+            }
+        }
+
+        if (configuration.AutoAdjustAtNight && tags.IsDay)
+        {
+            Add("Day", nameof(SceneIntent.Daylight), 1.00f, "Day is a global context layer, not a brightness lift.");
+            Add("Day", nameof(SceneIntent.DayAtmosphere), 0.10f, "Day scenes can preserve clean air and weather identity.");
+
+            if (SupportsSunlitDay(tags))
+            {
+                Add("Sunlit day", nameof(SceneIntent.Sunlight), 0.42f, "Clear daytime scenes can use direct-sun hierarchy without global exposure lift.");
+                Add("Sunlit day", nameof(SceneIntent.DayHighlightPressure), 0.18f, "Bright daylight needs highlight and bloom restraint before adding glow.");
+            }
+
+            if (SupportsOpenSkyDay(tags))
+            {
+                Add("Open-sky day", nameof(SceneIntent.OpenSkyLight), 0.42f, "Open daytime scenes expose sky light for water, snow, sand, and field materials.");
+                Add("Open-sky day", nameof(SceneIntent.DayReflection), 0.16f, "Open sky can support reflection and sheen only on valid receivers.");
+            }
+
+            if (SupportsCoastalDay(tags))
+            {
+                Add("Coastal day", nameof(SceneIntent.DayReflection), 0.28f, "Coastal daylight supports water and specular response on validated water surfaces.");
+                Add("Coastal day", nameof(SceneIntent.DayHighlightPressure), 0.18f, "Water, sand, and white coastal surfaces need restrained highlights.");
+                Add("Coastal day", nameof(SceneIntent.DayAtmosphere), 0.08f, "Coastal daytime air should stay clean and open rather than hazy.");
+            }
+
+            if (tags.BiomeKey is "forest" or "jungle" or "swamp")
+            {
+                Add("Canopy day", nameof(SceneIntent.OpenSkyLight), 0.16f, "Canopy daylight should arrive as sky openings rather than full-frame lift.");
+                Add("Canopy day", nameof(SceneIntent.DayAtmosphere), 0.10f, "Forest and jungle daylight keeps humid/canopy air local and controlled.");
+                Add("Canopy day", nameof(SceneIntent.FoliageDensity), 0.06f, "Daytime foliage still needs material-aware restraint.");
+            }
+
+            if (tags.BiomeKey is "desert" or "wasteland" || tags.MoodTags.Any(tag => tag is "heat" or "dry" or "badlands"))
+            {
+                Add("Desert day", nameof(SceneIntent.SurfaceHeat), 0.42f, "Sunlit dry terrain supports heat shimmer and dust on distance-weighted materials.");
+                Add("Desert day", nameof(SceneIntent.DayHighlightPressure), 0.18f, "Sand and dry sky need highlight protection.");
+                Add("Desert day", nameof(SceneIntent.DayAtmosphere), 0.08f, "Dry daytime scenes can carry warm air without fog-like wash.");
+            }
+
+            if (tags.BiomeKey is "snow" or "alpine" || tags.MoodTags.Any(tag => tag is "snow" or "ice" or "cold"))
+            {
+                Add("Snow day", nameof(SceneIntent.OpenSkyLight), 0.22f, "Snow daylight receives broad sky light but must protect whites.");
+                Add("Snow day", nameof(SceneIntent.DayHighlightPressure), 0.32f, "Daylit snow and ice need strong white protection.");
+                Add("Snow day", nameof(SceneIntent.DayReflection), 0.10f, "Snow and ice can support crisp sheen only where material masks agree.");
+            }
+
+            if (tags.BiomeKey is "highTech" or "imperial" || tags.MoodTags.Any(tag => tag is "industrial" or "metallic" or "neon" or "highTech"))
+            {
+                Add("Industrial day", nameof(SceneIntent.DayReflection), 0.12f, "Constructed daytime surfaces can keep controlled polish without generic gloss.");
+                Add("Industrial day", nameof(SceneIntent.DayHighlightPressure), 0.12f, "Glass, metal, and neon daylight need highlight control.");
+            }
+
+            if (tags.BiomeKey is "aetherial" or "fae" or "cosmic" or "lunar" || tags.MoodTags.Any(tag => tag is "aetherial" or "magical" or "crystal" or "luminous" or "neon"))
+            {
+                Add("Aether day", nameof(SceneIntent.DayReflection), 0.10f, "Aetherial daylight preserves luminous material identity without broad bloom.");
+                Add("Aether day", nameof(SceneIntent.DayAtmosphere), 0.08f, "Magical daytime spaces can carry subtle atmospheric color.");
+            }
+
+            if (tags.IsFog || tags.IsOvercast || tags.IsCloudy)
+            {
+                Add(tags.IsOvercast ? "Overcast day" : "Misty day", nameof(SceneIntent.DayAtmosphere), tags.IsFog ? 0.24f : 0.16f, "Fog, mist, and overcast daylight shape air without becoming night fog.");
+                Add(tags.IsOvercast ? "Overcast day" : "Misty day", nameof(SceneIntent.Sunlight), -0.16f, "Cloud cover reduces direct sun pressure while preserving day context.");
+            }
+
+            if (tags.IsRain || tags.IsStorm)
+            {
+                Add("Storm day", nameof(SceneIntent.DayAtmosphere), 0.18f, "Rain and storm daylight add wet diffusion while keeping readability.");
+                Add("Storm day", nameof(SceneIntent.DayReflection), 0.18f, "Wet daytime surfaces can receive reflection only through wet/material masks.");
+            }
+
+            if (tags.IsInteriorLike || tags.IsDungeonLike || tags.IsRaidLike)
+            {
+                Add(tags.IsDungeonLike || tags.IsRaidLike ? "Dungeon day" : "Interior day", nameof(SceneIntent.OpenSkyLight), -0.30f, "Interior and duty daytime should not over-assert exterior sky light.");
+                Add(tags.IsDungeonLike || tags.IsRaidLike ? "Dungeon day" : "Interior day", nameof(SceneIntent.Sunlight), -0.22f, "Interior and dungeon day context avoids generic sunlit grading.");
             }
         }
 
@@ -476,6 +574,27 @@ public sealed class SceneIntentBuilder
             case nameof(SceneIntent.NightAtmosphere):
                 nightAtmosphere += amount;
                 break;
+            case nameof(SceneIntent.Daylight):
+                daylight += amount;
+                break;
+            case nameof(SceneIntent.Sunlight):
+                sunlight += amount;
+                break;
+            case nameof(SceneIntent.OpenSkyLight):
+                openSkyLight += amount;
+                break;
+            case nameof(SceneIntent.SurfaceHeat):
+                surfaceHeat += amount;
+                break;
+            case nameof(SceneIntent.DayAtmosphere):
+                dayAtmosphere += amount;
+                break;
+            case nameof(SceneIntent.DayReflection):
+                dayReflection += amount;
+                break;
+            case nameof(SceneIntent.DayHighlightPressure):
+                dayHighlightPressure += amount;
+                break;
             case nameof(SceneIntent.CombatPressure):
                 combatPressure += amount;
                 break;
@@ -492,6 +611,26 @@ public sealed class SceneIntentBuilder
     private static float Scale01(float value, float range) => Clamp01(value / range);
 
     private static float BiomeStyleScale(SceneTags tags) => 0.55f + (Clamp01(tags.BiomeConfidence) * 0.45f);
+
+    private static bool SupportsSunlitDay(SceneTags tags)
+    {
+        return tags.IsClear
+               || tags.MoodTags.Any(tag => tag is "sunlit" or "clean" or "colorful" or "warm")
+               || tags.BiomeKey is "coastal" or "tropical" or "desert" or "wasteland";
+    }
+
+    private static bool SupportsOpenSkyDay(SceneTags tags)
+    {
+        return tags.BiomeKey is "coastal" or "tropical" or "desert" or "wasteland" or "snow" or "alpine" or "lunar" or "cosmic" or "steppe"
+               || (tags.IsFieldLike && tags.BiomeKey is not "forest" and not "jungle" and not "swamp" and not "cave")
+               || tags.MoodTags.Any(tag => tag is "coastal" or "seaside" or "water" or "moonlit" or "cosmic");
+    }
+
+    private static bool SupportsCoastalDay(SceneTags tags)
+    {
+        return tags.BiomeKey is "coastal" or "tropical"
+               || tags.MoodTags.Any(tag => tag is "coastal" or "seaside" or "water" or "specular" or "beach");
+    }
 
     private static bool SupportsOpenSkyNight(SceneTags tags)
     {
@@ -603,6 +742,7 @@ public sealed record TagStackDiagnostics(
     {
         var result = new List<string>();
         if (tags.IsNight) result.Add("Night");
+        if (tags.IsDay) result.Add("Day");
         if (tags.IsDawnOrDusk) result.Add("DawnDusk");
         if (tags.IsRain) result.Add("RainWeather");
         if (tags.IsFog) result.Add("FogWeather");
@@ -618,6 +758,7 @@ public sealed record TagStackDiagnostics(
             result.Add($"{mood}Mood");
         }
         result.AddRange(BuildNightTags(tags));
+        result.AddRange(BuildDayTags(tags));
         if (tags.IsCityLike) result.Add("City");
         if (tags.IsDungeonLike) result.Add("Dungeon");
         if (tags.IsRaidLike) result.Add("Raid");
@@ -650,6 +791,7 @@ public sealed record TagStackDiagnostics(
         if (tags.BiomeKey is "ancient") result.AddRange(new[] { "ruins", "stone" });
         result.AddRange(tags.MoodTags.Where(IsSecondaryMoodTag));
         result.AddRange(BuildNightTags(tags));
+        result.AddRange(BuildDayTags(tags));
         return NormalizeTags(result);
     }
 
@@ -692,8 +834,109 @@ public sealed record TagStackDiagnostics(
         result.AddRange(tags.MoodTags.Where(IsArtDirectionTag));
         if (tags.IsNight) result.Add("night");
         result.AddRange(BuildNightTags(tags));
+        if (tags.IsDay) result.Add("day");
+        result.AddRange(BuildDayTags(tags));
         if (tags.IsDawnOrDusk) result.Add("goldenHour");
         if (tags.IsGloom) result.Add("haunted");
+        return NormalizeTags(result);
+    }
+
+    private static IReadOnlyList<string> BuildDayTags(SceneTags tags)
+    {
+        if (!tags.IsDay)
+        {
+            return Array.Empty<string>();
+        }
+
+        var result = new List<string>();
+        var openSky = tags.BiomeKey is "coastal" or "tropical" or "desert" or "wasteland" or "snow" or "alpine" or "lunar" or "cosmic" or "steppe"
+                      || (tags.IsFieldLike && tags.BiomeKey is not "forest" and not "jungle" and not "swamp" and not "cave");
+        var canopy = tags.BiomeKey is "forest" or "jungle" or "swamp" || tags.MoodTags.Contains("canopyLight", StringComparer.OrdinalIgnoreCase);
+        var settlement = tags.IsCityLike || tags.BiomeKey is "highTech" or "imperial" || tags.MoodTags.Contains("urban", StringComparer.OrdinalIgnoreCase);
+        var sunlit = tags.IsClear || tags.MoodTags.Any(tag => tag is "sunlit" or "clean" or "colorful" or "warm");
+
+        if (sunlit)
+        {
+            result.Add("sunlitDay");
+        }
+
+        if (openSky)
+        {
+            result.Add("openSkyDay");
+        }
+
+        if (tags.BiomeKey is "coastal" or "tropical" || tags.MoodTags.Any(tag => tag is "coastal" or "seaside" or "water" or "specular" or "beach"))
+        {
+            result.Add("coastalDay");
+        }
+
+        if (canopy)
+        {
+            result.Add("canopyDay");
+        }
+
+        if (settlement)
+        {
+            result.Add("settlementDay");
+        }
+
+        if (tags.BiomeKey is "highTech" or "imperial" || tags.MoodTags.Any(tag => tag is "industrial" or "metallic" or "neon" or "highTech"))
+        {
+            result.Add("industrialDay");
+        }
+
+        if (tags.BiomeKey is "snow" or "alpine" || tags.MoodTags.Any(tag => tag is "snow" or "alpine" or "ice" or "cold"))
+        {
+            result.Add("snowDay");
+            result.Add("coldDay");
+        }
+
+        if (tags.BiomeKey is "desert" or "wasteland" || tags.MoodTags.Any(tag => tag is "desert" or "badlands" or "dry" or "heat"))
+        {
+            result.Add("desertDay");
+            result.Add("heatDay");
+        }
+
+        if (tags.IsFog || tags.MoodTags.Contains("mist", StringComparer.OrdinalIgnoreCase))
+        {
+            result.Add("mistyDay");
+        }
+
+        if (tags.IsOvercast || tags.IsCloudy)
+        {
+            result.Add("overcastDay");
+        }
+
+        if (tags.IsStorm || tags.IsRain)
+        {
+            result.Add("stormDay");
+        }
+
+        if (tags.BiomeKey is "aetherial" or "fae" or "cosmic" or "lunar" || tags.MoodTags.Any(tag => tag is "aetherial" or "magical" or "crystal" or "luminous"))
+        {
+            result.Add("aetherDay");
+        }
+
+        if (tags.BiomeKey is "highTech" || tags.MoodTags.Any(tag => tag is "neon" or "highTech"))
+        {
+            result.Add("highTechDay");
+        }
+
+        if (tags.IsInteriorLike)
+        {
+            result.Add("interiorDay");
+        }
+
+        if (tags.IsDungeonLike || tags.IsRaidLike)
+        {
+            result.Add("dungeonDay");
+        }
+
+        if (sunlit && (tags.BiomeKey is "coastal" or "tropical" or "desert" or "wasteland" || tags.MoodTags.Any(tag => tag is "sunlit" or "warm")))
+        {
+            result.Add("goldenDay");
+        }
+
         return NormalizeTags(result);
     }
 

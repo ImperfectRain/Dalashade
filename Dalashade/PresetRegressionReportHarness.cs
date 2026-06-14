@@ -146,13 +146,21 @@ public sealed class PresetRegressionReportHarness
             0.58f,
             0.50f,
             0.36f,
+            0.64f,
+            0.48f,
+            0.44f,
+            0.22f,
+            0.31f,
+            0.28f,
+            0.52f,
             0.52f,
             0.44f,
             new[]
             {
                 new SceneIntentContribution("Regression harness", nameof(SceneIntent.Readability), 0.62f, "Synthetic intent used to verify custom shader variable writes."),
                 new SceneIntentContribution("Regression harness", nameof(SceneIntent.HighlightProtection), 0.71f, "Synthetic intent used to verify custom shader variable writes."),
-                new SceneIntentContribution("Regression harness", nameof(SceneIntent.Night), 0.82f, "Synthetic night intent used to verify custom shader variable writes.")
+                new SceneIntentContribution("Regression harness", nameof(SceneIntent.Night), 0.82f, "Synthetic night intent used to verify custom shader variable writes."),
+                new SceneIntentContribution("Regression harness", nameof(SceneIntent.Daylight), 0.64f, "Synthetic day intent used to verify custom shader variable writes.")
             });
     }
 
