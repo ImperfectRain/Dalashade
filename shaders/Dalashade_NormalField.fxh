@@ -11,6 +11,7 @@
 // is broader screen-space structural evidence. Production shaders should
 // prefer StructureCandidate for AO/shading support and WallPlaneCandidate only
 // when true vertical orientation matters.
+// WallPlaneCandidate should not be the primary structure mask.
 
 struct Dalashade_NormalField
 {
@@ -252,13 +253,23 @@ Dalashade_NormalField Dalashade_ResolveNormalField(
     float iceReceiver = saturate(material.SnowIce * smoothness * highlightSafety * 0.24);
     float reflectionSupport = saturate(waterReceiver + hardSmoothReceiver + glintReceiver + iceReceiver);
 
-    float structuralReceiver = saturate(
-        material.ReceiverConfidence * 0.45
-        + field.GroundPlaneCandidate * 0.22
-        + field.StructureCandidate * 0.28
-        + material.SurfaceHardness * 0.20);
-
-    field.ShadingReceiver = saturate(enabled * saturate(field.OrientationConfidence + field.StructureCandidate * 0.35) * material.ReceiverConfidence * receiverSafety * (0.35 + field.NormalConfidence * 0.65));
+    float shadingCandidate = saturate(
+        field.StructureCandidate * 0.38
+        + field.GroundPlaneCandidate * 0.26
+        + field.WallPlaneCandidate * 0.12
+        + material.ReceiverConfidence * 0.24
+        + material.SurfaceHardness * 0.18);
+    float shadingTrust = saturate(
+        0.28
+        + field.NormalConfidence * 0.32
+        + field.OrientationConfidence * 0.20
+        + material.ReceiverConfidence * 0.20);
+    field.ShadingReceiver = saturate(enabled
+        * shadingCandidate
+        * shadingTrust
+        * receiverSafety
+        * (1.0 - water.WaterReceiver * waterSuppression * 0.45)
+        * (1.0 - safety.HighlightProtect * 0.20));
     field.ReflectionReceiver = saturate(enabled
         * reflectionSupport
         * receiverSafety
@@ -273,15 +284,35 @@ Dalashade_NormalField Dalashade_ResolveNormalField(
         + field.StructureCandidate * 0.34
         + material.ReceiverConfidence * 0.20
         + material.SurfaceHardness * 0.16);
+    float aoCandidate = saturate(
+        field.StructureCandidate * 0.42
+        + field.GroundPlaneCandidate * 0.24
+        + field.WallPlaneCandidate * 0.10
+        + material.ReceiverConfidence * 0.24
+        + material.SurfaceHardness * 0.18
+        + material.StoneRuins * 0.12
+        + material.MetalIndustrial * 0.10);
+    float aoTrust = saturate(
+        0.24
+        + field.NormalConfidence * 0.28
+        + field.OrientationConfidence * 0.18
+        + material.ReceiverConfidence * 0.20
+        + material.SurfaceHardness * 0.10);
+    float aoSafety = saturate(
+        1.0
+        - safety.SkyReject * skySuppression
+        - safety.SkinReject * skinSuppression
+        - water.WaterReceiver * waterSuppression * 0.75
+        - safety.HighlightProtect * 0.18
+        - safety.FoliageNoiseReject * 0.25
+        - field.EdgeDiscontinuity * 0.20);
     field.AOReceiver = saturate(enabled
-        * structuralReceiver
+        * aoCandidate
+        * aoTrust
         * orientationForAO
-        * (1.0 - water.WaterReceiver * waterSuppression)
-        * receiverSafety
+        * aoSafety
         * (1.0 - safety.SnowProtect * 0.45)
-        * (1.0 - safety.BrightSandProtect * 0.35)
-        * (1.0 - safety.FoliageNoiseReject * 0.45)
-        * (1.0 - field.EdgeDiscontinuity * 0.35));
+        * (1.0 - safety.BrightSandProtect * 0.35));
 
     field.SafetySkySuppression = saturate(safety.SkyReject * skySuppression);
     field.SafetySkinHighlightSuppression = saturate(safety.SkinReject * skinSuppression + safety.HighlightProtect * 0.35 + safety.BrightSandProtect * 0.20 + safety.SnowProtect * 0.15);
@@ -352,7 +383,7 @@ float3 Dalashade_GetNormalDebugColor(Dalashade_NormalField field, int mode, floa
     }
     if (mode == 9)
     {
-        return float3(0.18, 0.65, 1.0) * saturate(field.ShadingReceiver * debugBoost);
+        return float3(0.18, 0.65, 1.0) * saturate(sqrt(saturate(field.ShadingReceiver)) * debugBoost);
     }
     if (mode == 10)
     {
@@ -360,7 +391,7 @@ float3 Dalashade_GetNormalDebugColor(Dalashade_NormalField field, int mode, floa
     }
     if (mode == 11)
     {
-        return float3(0.75, 0.75, 0.75) * saturate(field.AOReceiver * debugBoost);
+        return float3(0.75, 0.75, 0.75) * saturate(sqrt(saturate(field.AOReceiver)) * debugBoost);
     }
     if (mode == 12)
     {
