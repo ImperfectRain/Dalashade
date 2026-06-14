@@ -67,6 +67,8 @@ public sealed class DebugBundleExporter
         var skipped = new List<string>();
         try
         {
+            var safePluginConfigDirectory = ResolveSafeDirectory(pluginConfigDirectory, GetDefaultPluginConfigDirectory(), string.Empty);
+            outputRoot = ResolveSafeDirectory(outputRoot, safePluginConfigDirectory, "DebugBundles");
             Directory.CreateDirectory(outputRoot);
             var timestamp = DateTimeOffset.Now;
             var folderName = $"Dalashade_DebugBundle_{timestamp:yyyyMMdd_HHmmss}";
@@ -86,7 +88,7 @@ public sealed class DebugBundleExporter
             WriteText(Path.Combine(folderPath, "material-parity-audit.md"), BuildMaterialParityAudit(freshReport), included);
             WriteText(Path.Combine(folderPath, "shader-stack-summary.md"), BuildShaderStackSummary(analysis), included);
             WriteText(Path.Combine(folderPath, "installed-dalashade-shaders.txt"), BuildInstalledShaderStatus(configuration, included, skipped), included);
-            WriteText(Path.Combine(folderPath, "paths-and-environment.txt"), BuildPathsAndEnvironment(configuration, pluginConfigDirectory, timestamp), included);
+            WriteText(Path.Combine(folderPath, "paths-and-environment.txt"), BuildPathsAndEnvironment(configuration, safePluginConfigDirectory, timestamp), included);
             WriteText(Path.Combine(folderPath, "README.txt"), BuildReadme(), included);
 
             var manifest = new
@@ -497,6 +499,33 @@ public sealed class DebugBundleExporter
             .FirstOrDefault(File.Exists);
     }
 
+    private static string ResolveSafeDirectory(string? candidate, string? fallbackDirectory, string childFolderName)
+    {
+        var root = !string.IsNullOrWhiteSpace(candidate)
+            ? candidate.Trim()
+            : fallbackDirectory;
+
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            root = GetDefaultPluginConfigDirectory();
+        }
+
+        var resolved = Path.GetFullPath(root);
+        if (string.IsNullOrWhiteSpace(candidate) && !string.IsNullOrWhiteSpace(childFolderName))
+        {
+            resolved = Path.Combine(resolved, MakeSafePathSegment(childFolderName));
+        }
+
+        return resolved;
+    }
+
+    private static string MakeSafePathSegment(string value)
+    {
+        var invalid = Path.GetInvalidFileNameChars().ToHashSet();
+        var safe = new string(value.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray());
+        return string.IsNullOrWhiteSpace(safe) ? "Dalashade" : safe;
+    }
+
     private static string BuildPathsAndEnvironment(Configuration configuration, string pluginConfigDirectory, DateTimeOffset timestamp)
     {
         var reShadeIniPath = FindReShadeIni(configuration);
@@ -538,6 +567,12 @@ Preset and plugin config files are included intentionally for debugging. Full Re
 
     private static void CopyCompatibilityReport(string folderPath, CompatibilityReportExportResult freshReport, List<string> included, List<string> skipped)
     {
+        if (string.IsNullOrWhiteSpace(folderPath))
+        {
+            skipped.Add("compatibility-report.md: debug bundle folder path was empty");
+            return;
+        }
+
         var target = Path.Combine(folderPath, "compatibility-report.md");
         if (freshReport.Success && !string.IsNullOrWhiteSpace(freshReport.Path) && File.Exists(freshReport.Path))
         {
@@ -546,8 +581,8 @@ Preset and plugin config files are included intentionally for debugging. Full Re
             return;
         }
 
-        File.WriteAllText(target, $"Compatibility report unavailable: {freshReport.Message}", Encoding.UTF8);
-        included.Add("compatibility-report.md");
+        File.WriteAllText(Path.Combine(folderPath, "compatibility-report-missing.txt"), $"Compatibility report unavailable: {freshReport.Message}", Encoding.UTF8);
+        included.Add("compatibility-report-missing.txt");
         skipped.Add($"compatibility-report.md: {freshReport.Message}");
     }
 
@@ -571,6 +606,12 @@ Preset and plugin config files are included intentionally for debugging. Full Re
 
     private static void CopyOrExplain(string sourcePath, string targetPath, string missingPath, string label, List<string> included, List<string> skipped)
     {
+        if (string.IsNullOrWhiteSpace(targetPath) || string.IsNullOrWhiteSpace(missingPath))
+        {
+            skipped.Add($"{label}: destination path was empty");
+            return;
+        }
+
         if (!string.IsNullOrWhiteSpace(sourcePath) && File.Exists(sourcePath))
         {
             File.Copy(sourcePath, targetPath, true);
@@ -830,6 +871,14 @@ Preset and plugin config files are included intentionally for debugging. Full Re
         using var stream = File.OpenRead(path);
         var hash = SHA256.HashData(stream);
         return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private static string GetDefaultPluginConfigDirectory()
+    {
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        return string.IsNullOrWhiteSpace(appData)
+            ? Path.Combine(Environment.CurrentDirectory, "Dalashade")
+            : Path.Combine(appData, "XIVLauncher", "pluginConfigs", "Dalashade");
     }
 
     private static string ReadLocalShaderSource(string fileName)

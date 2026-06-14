@@ -65,11 +65,28 @@ public sealed class Plugin : IDalamudPlugin
     public DebugBundleExportResult LastDebugBundleExport { get; private set; } = DebugBundleExportResult.Skipped("No debug bundle has been exported yet.");
     public PresetRegressionReportResult LastPresetRegressionReport { get; private set; } = PresetRegressionReportResult.Skipped("No preset regression report has been run yet.");
     public BasePresetLibraryScan LastBasePresetLibraryScan { get; private set; } = BasePresetLibraryScan.Skipped("Base presets have not been scanned yet.");
-    public string DefaultBasePresetFolderPath => Path.Combine(PluginInterface.ConfigDirectory.FullName, "Base");
-    public string DefaultGeneratedPresetPath => Path.Combine(PluginInterface.ConfigDirectory.FullName, "Generated", "Dalashade_Generated.ini");
-    public string CompatibilityReportDirectory => Path.Combine(PluginInterface.ConfigDirectory.FullName, "CompatibilityReports");
-    public string DebugBundleDirectory => Path.Combine(PluginInterface.ConfigDirectory.FullName, "DebugBundles");
-    public string PresetRegressionReportDirectory => Path.Combine(PluginInterface.ConfigDirectory.FullName, "PresetRegressionReports");
+    private string SafePluginConfigDirectory
+    {
+        get
+        {
+            var configured = PluginInterface.ConfigDirectory.FullName;
+            if (!string.IsNullOrWhiteSpace(configured))
+            {
+                return configured;
+            }
+
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            return string.IsNullOrWhiteSpace(appData)
+                ? Path.Combine(Environment.CurrentDirectory, "Dalashade")
+                : Path.Combine(appData, "XIVLauncher", "pluginConfigs", "Dalashade");
+        }
+    }
+
+    public string DefaultBasePresetFolderPath => Path.Combine(SafePluginConfigDirectory, "Base");
+    public string DefaultGeneratedPresetPath => Path.Combine(SafePluginConfigDirectory, "Generated", "Dalashade_Generated.ini");
+    public string CompatibilityReportDirectory => Path.Combine(SafePluginConfigDirectory, "Reports");
+    public string DebugBundleDirectory => Path.Combine(SafePluginConfigDirectory, "DebugBundles");
+    public string PresetRegressionReportDirectory => Path.Combine(SafePluginConfigDirectory, "PresetRegressionReports");
     public string DefaultScreenshotFolderPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
         "My Games",
@@ -200,7 +217,7 @@ public sealed class Plugin : IDalamudPlugin
             freshReport,
             ResolveEffectiveBasePresetPath(true),
             DebugBundleDirectory,
-            PluginInterface.ConfigDirectory.FullName);
+            SafePluginConfigDirectory);
         return LastDebugBundleExport;
     }
 
@@ -290,7 +307,7 @@ public sealed class Plugin : IDalamudPlugin
 
             var browseTarget = !string.IsNullOrWhiteSpace(path) && File.Exists(path)
                 ? $"/select,\"{path}\""
-                : PluginInterface.ConfigDirectory.FullName;
+                : SafePluginConfigDirectory;
 
             Process.Start(new ProcessStartInfo
             {

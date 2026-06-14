@@ -180,18 +180,19 @@ public sealed class CompatibilityReportExporter
                 return CompatibilityReportExportResult.Skipped("Preset analysis has not succeeded yet.");
             }
 
-            Directory.CreateDirectory(outputDirectory);
+            var reportDirectory = ResolveSafeDirectory(outputDirectory, GetDefaultPluginConfigDirectory(), "Reports");
+            Directory.CreateDirectory(reportDirectory);
             var presetName = string.IsNullOrWhiteSpace(effectiveBasePresetPath)
                 ? "UnknownPreset"
                 : Path.GetFileNameWithoutExtension(effectiveBasePresetPath);
             var safePresetName = MakeSafeFileName(presetName);
             var timestamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss");
-            var path = Path.Combine(outputDirectory, $"{safePresetName}-compatibility-{timestamp}.md");
+            var path = ResolveSafeFilePath(null, reportDirectory, $"{safePresetName}-compatibility-{timestamp}.md");
 
             File.WriteAllText(path, BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, tagStackDiagnostics, currentImage, masterStyle, writeResult, effectiveBasePresetPath), Encoding.UTF8);
             return new CompatibilityReportExportResult(true, $"Compatibility report exported: {path}", path);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             return CompatibilityReportExportResult.Skipped($"Compatibility report export failed: {ex.Message}");
         }
@@ -1746,6 +1747,48 @@ public sealed class CompatibilityReportExporter
         var invalid = Path.GetInvalidFileNameChars().ToHashSet();
         var safe = new string(fileName.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray());
         return string.IsNullOrWhiteSpace(safe) ? "UnknownPreset" : safe;
+    }
+
+    private static string ResolveSafeDirectory(string? candidate, string? fallbackDirectory, string childFolderName)
+    {
+        var root = !string.IsNullOrWhiteSpace(candidate)
+            ? candidate.Trim()
+            : fallbackDirectory;
+
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            root = GetDefaultPluginConfigDirectory();
+        }
+
+        var resolved = Path.GetFullPath(root);
+        if (string.IsNullOrWhiteSpace(candidate) && !string.IsNullOrWhiteSpace(childFolderName))
+        {
+            resolved = Path.Combine(resolved, MakeSafeFileName(childFolderName));
+        }
+
+        return resolved;
+    }
+
+    private static string ResolveSafeFilePath(string? candidate, string fallbackDirectory, string defaultFileName)
+    {
+        var safeFallback = ResolveSafeDirectory(fallbackDirectory, GetDefaultPluginConfigDirectory(), string.Empty);
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return Path.Combine(safeFallback, MakeSafeFileName(defaultFileName));
+        }
+
+        var trimmed = candidate.Trim();
+        return Path.IsPathRooted(trimmed)
+            ? Path.GetFullPath(trimmed)
+            : Path.GetFullPath(Path.Combine(safeFallback, trimmed));
+    }
+
+    private static string GetDefaultPluginConfigDirectory()
+    {
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        return string.IsNullOrWhiteSpace(appData)
+            ? Path.Combine(Environment.CurrentDirectory, "Dalashade")
+            : Path.Combine(appData, "XIVLauncher", "pluginConfigs", "Dalashade");
     }
 
     private static IEnumerable<PresetTechnique> DeduplicateTechniques(IEnumerable<PresetTechnique> techniques)
