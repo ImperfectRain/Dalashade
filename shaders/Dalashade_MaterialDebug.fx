@@ -99,7 +99,7 @@ uniform float Dalashade_WetSurfaceContext < ui_type = "slider"; ui_min = 0.0; ui
 
 uniform int Dalashade_MaterialDebugMode <
     ui_type = "combo";
-    ui_items = "Off/pass-through\0Overview final masks\0Combined confidence\0Raw sky/fog\0Gated sky/fog\0Final sky/fog\0Raw foliage strong\0Organic green surface\0Final foliage influence\0Raw water/specular combined\0Gated water/specular combined\0Final water/specular combined\0Raw snow/ice\0Gated snow/ice\0Final snow/ice\0Raw sand/dust\0Gated sand/dust\0Final sand/dust\0Depth confidence\0Depth-assisted sky/fog\0Stone/ruins\0Metal/industrial\0Crystal/aether\0Neon/glass\0Fire/lava/heat\0Skin-protection\0Void/darkness\0Raw water plane\0Gated water plane\0Final water plane\0Raw specular glint\0Gated specular glint\0Final specular glint\0Water resolver overview\0Raw cyan water\0Raw deep water\0Shallow water\0Deep water\0Water horizon\0Wet shoreline\0Foam/edge\0Water receiver\0Water source\0Sky source vs reject\0Sand/skin reject\0Water coherence\0Shared safety overview\0Shared receiver confidence\0Shared light source confidence\0SurfaceReflection receiver preview\0SceneGI receiver/source preview\0AtmosphereBloom eligibility preview\0WeatherAtmosphere air influence preview\0SmartSharpen dampening preview\0AdaptiveGrade protection preview\0Water/sky conflict\0Water pixel confidence\0Sky pixel confidence\0Water receiver vs horizon\0Receiver confidence split\0";
+    ui_items = "Off/pass-through\0Overview final masks\0Combined confidence\0Raw sky/fog\0Gated sky/fog\0Final sky/fog\0Raw foliage strong\0Organic green surface\0Final foliage influence\0Raw water/specular combined\0Gated water/specular combined\0Final water/specular combined\0Raw snow/ice\0Gated snow/ice\0Final snow/ice\0Raw sand/dust\0Gated sand/dust\0Final sand/dust\0Depth confidence\0Depth-assisted sky/fog\0Stone/ruins\0Metal/industrial\0Crystal/aether\0Neon/glass\0Fire/lava/heat\0Skin-protection\0Void/darkness\0Raw water plane\0Gated water plane\0Final water plane\0Raw specular glint\0Gated specular glint\0Final specular glint\0Water resolver overview\0Raw cyan water\0Raw deep water\0Shallow water\0Deep water\0Water horizon\0Wet shoreline\0Foam/edge\0Water receiver\0Water source\0Sky source vs reject\0Sand/skin reject\0Water coherence\0Shared safety overview\0Shared receiver confidence\0Shared light source confidence\0SurfaceReflection receiver preview\0SceneGI receiver/source preview\0AtmosphereBloom eligibility preview\0WeatherAtmosphere air influence preview\0SmartSharpen dampening preview\0AdaptiveGrade protection preview\0Water/sky conflict\0Water pixel confidence\0Sky pixel confidence\0Water receiver vs horizon\0Receiver confidence split\0Water local proof\0Strong water proof\0Constructed/aether reject\0Sky dominance\0Water proof boost\0Competition internals overview\0";
     ui_label = "Dalashade Material Debug Mode";
     ui_tooltip = "False-color material heuristic visualizer. Raw modes show pixel evidence, gated modes show scene-scaled evidence, and final modes show conflict-resolved masks. These are not true engine material IDs.";
 > = 0;
@@ -571,6 +571,41 @@ float4 Dalashade_MaterialDebugPass(float4 position : SV_Position, float2 texcoor
         // Specialized receiver split: cyan = reflection, green = structure, yellow = AO, faint gray = legacy receiver.
         confidence = max(material.ReflectionReceiverConfidence, max(material.AOReceiverConfidence, max(material.StructureReceiverConfidence, material.ReceiverConfidence * 0.35)));
         debugColor = Dalashade_GetReceiverSplitDebugColor(material);
+    }
+    // Modes 60-65 expose internal MaterialCompetition inputs.
+    // They are diagnostic views for explaining water/sky/constructed-surface arbitration.
+    // They do not represent final material masks or production receiver outputs.
+    else if (mode == 60)
+    {
+        confidence = competition.WaterLocalProof;
+        debugColor = Dalashade_GetWaterLocalProofDebugColor(competition);
+    }
+    else if (mode == 61)
+    {
+        confidence = competition.StrongWaterLocalProof;
+        debugColor = Dalashade_GetStrongWaterProofDebugColor(competition);
+    }
+    else if (mode == 62)
+    {
+        confidence = max(competition.ConstructedCyanReject, competition.ConstructedWinsOverWater);
+        debugColor = Dalashade_GetConstructedRejectDebugColor(competition);
+    }
+    else if (mode == 63)
+    {
+        confidence = competition.SkyDominance;
+        debugColor = Dalashade_GetSkyDominanceDebugColor(competition);
+    }
+    else if (mode == 64)
+    {
+        confidence = competition.WaterProofBoost;
+        debugColor = Dalashade_GetWaterProofBoostDebugColor(competition);
+    }
+    else if (mode == 65)
+    {
+        confidence = max(
+            max(competition.SkyDominance, competition.StrongWaterLocalProof),
+            max(competition.ConstructedCyanReject, competition.WaterSkyConflict));
+        debugColor = Dalashade_GetCompetitionInternalsDebugColor(competition);
     }
 
     return float4(Dalashade_ApplyDebugOverlay(source, saturate(debugColor), confidence), 1.0);

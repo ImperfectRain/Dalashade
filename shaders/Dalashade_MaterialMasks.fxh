@@ -81,6 +81,13 @@ struct Dalashade_MaterialCompetition
     float WaterScore;
     float WaterSkyConflict;
 
+    float WaterLocalProof;
+    float StrongWaterLocalProof;
+    float ConstructedCyanReject;
+    float ConstructedWinsOverWater;
+    float SkyDominance;
+    float WaterProofBoost;
+
     float WaterPixelConfidence;
     float SkyPixelConfidence;
     float WaterReceiverConfidence;
@@ -518,6 +525,13 @@ Dalashade_MaterialCompetition Dalashade_ResolveMaterialCompetition(
         + raw.SmoothAtmosphere * 0.18
         + lowTexture * 0.16);
 
+    competition.WaterLocalProof = waterLocalProof;
+    competition.StrongWaterLocalProof = strongWaterLocalProof;
+    competition.ConstructedCyanReject = constructedCyanReject;
+    competition.ConstructedWinsOverWater = constructedWinsOverWater;
+    competition.SkyDominance = skyDominance;
+    competition.WaterProofBoost = waterProofBoost;
+
     competition.SkyPixelConfidence = saturate(skyWins * (1.0 - waterWins * 0.45));
     competition.WaterPixelConfidence = saturate(
         waterLocalProof
@@ -954,6 +968,49 @@ float3 Dalashade_GetReceiverSplitDebugColor(Dalashade_MaterialResolve material)
         + sqrt(saturate(material.StructureReceiverConfidence)) * float3(0.16, 0.92, 0.24)
         + sqrt(saturate(material.AOReceiverConfidence)) * float3(0.75, 0.86, 0.32)
         + sqrt(saturate(material.ReceiverConfidence)) * float3(0.35, 0.35, 0.35) * 0.35);
+}
+
+float3 Dalashade_GetWaterLocalProofDebugColor(Dalashade_MaterialCompetition competition)
+{
+    float waterProof = sqrt(saturate(competition.WaterLocalProof));
+    return float3(0.0, 0.78, 1.0) * waterProof;
+}
+
+float3 Dalashade_GetStrongWaterProofDebugColor(Dalashade_MaterialCompetition competition)
+{
+    float waterProof = sqrt(saturate(competition.StrongWaterLocalProof));
+    return float3(0.15, 1.0, 1.0) * waterProof;
+}
+
+float3 Dalashade_GetConstructedRejectDebugColor(Dalashade_MaterialCompetition competition)
+{
+    float constructedReject = sqrt(saturate(competition.ConstructedCyanReject));
+    float constructedWins = sqrt(saturate(competition.ConstructedWinsOverWater));
+
+    return saturate(
+        constructedReject * float3(0.58, 0.10, 0.80)
+        + constructedWins * float3(0.95, 0.15, 1.0));
+}
+
+float3 Dalashade_GetSkyDominanceDebugColor(Dalashade_MaterialCompetition competition)
+{
+    float skyDominance = sqrt(saturate(competition.SkyDominance));
+    return float3(1.0, 0.28, 0.04) * skyDominance;
+}
+
+float3 Dalashade_GetWaterProofBoostDebugColor(Dalashade_MaterialCompetition competition)
+{
+    float waterBoost = sqrt(saturate(competition.WaterProofBoost));
+    return float3(0.55, 1.0, 1.0) * waterBoost;
+}
+
+float3 Dalashade_GetCompetitionInternalsDebugColor(Dalashade_MaterialCompetition competition)
+{
+    return saturate(
+        sqrt(saturate(competition.SkyDominance)) * float3(1.0, 0.08, 0.02)
+        + sqrt(saturate(competition.StrongWaterLocalProof)) * float3(0.0, 0.82, 1.0)
+        + sqrt(saturate(competition.ConstructedCyanReject)) * float3(0.85, 0.10, 1.0)
+        + sqrt(saturate(competition.WaterSkyConflict)) * float3(0.95, 0.78, 0.08));
 }
 
 float3 Dalashade_GetSafetyDebugColor(Dalashade_SafetyResolve safety)
