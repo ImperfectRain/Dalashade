@@ -108,9 +108,10 @@ Current implementation status:
 
 - C# plumbing exists in `Configuration.cs`, `Windows/ConfigWindow.cs`, `CustomShaderVariableMapper.cs`, and `PresetWriter.cs`.
 - `Dalashade_StandaloneStrength` is declared in AdaptiveGrade, SceneGI, SurfaceReflection, AtmosphereBloom, WeatherAtmosphere, and SmartSharpen.
-- Standalone mode currently applies conservative, safety-gated headroom. It is not yet a fully transformative visual profile system.
+- Standalone mode currently applies conservative, safety-gated headroom across the first-party stack.
+- `Dalashade_AdaptiveGrade.fx` now has the first Standalone identity-lane pass for coastal day, coastal night, desert/heat, snow/cold, forest/canopy, aether/Allagan/high-tech, and dungeon/interior tone/color shaping.
 
-Next development should treat this as clean mode plumbing plus a modest first shader-side response. If the goal is a more transformative standalone look, implement it as shader-specific scene identity lanes, not as broad global multipliers.
+Next development should validate the AdaptiveGrade lane behavior before expanding Standalone identity to other shaders. Keep future work shader-specific and scene-lane driven, not broad global multipliers.
 
 ## Material, Water, Receiver, and NormalField Contract
 
@@ -145,12 +146,13 @@ Avoid unrelated refactors. Visual behavior changes can be hard to validate, so k
 
 ## Recommended Next Agent Starting Point
 
-The next sensible visual task is a narrow AdaptiveGrade standalone identity pass:
+The next sensible visual task is to validate and tune the AdaptiveGrade standalone identity pass before moving identity responsibility into other shaders:
 
 1. Read `docs/Shaders/ShaderSystemOverview.md`, `docs/Shaders/AdaptiveGrade.md`, `docs/Shaders/MaterialMasks.md`, and `docs/Shaders/NormalField.md`.
 2. Inspect `shaders/Dalashade_AdaptiveGrade.fx`, `Dalashade/CustomShaderVariableMapper.cs`, and `Dalashade/PresetWriter.cs`.
 3. Keep Supportive mode visually equivalent to current behavior.
 4. Use `Dalashade_StandaloneStrength` only for Standalone-specific scene identity shaping.
-5. Prefer explicit scene lanes over blunt multipliers: coastal day/night, desert, snow/cold, forest/canopy, aether/Allagan, and interiors/dungeons.
-6. Do not touch MaterialMasks, NormalField, debug shader behavior, shader stack order, source/receiver separation, or generated preset safety unless the prompt explicitly asks for it.
-7. Run `dotnet build Dalashade.sln` and `git diff --check`.
+5. Validate Supportive versus Standalone screenshots for coastal day/night, desert/heat, snow/cold, forest/canopy, aether/Allagan, dungeon/interior, and combat/readability.
+6. Use AdaptiveGrade debug modes 2-7 and MaterialDebug modes 55-65 for coastal/aether ambiguity before tuning.
+7. Do not touch MaterialMasks, NormalField, debug shader behavior, shader stack order, source/receiver separation, or generated preset safety unless the prompt explicitly asks for it.
+8. Run `dotnet build Dalashade.sln` and `git diff --check`.

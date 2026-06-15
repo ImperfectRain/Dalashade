@@ -10,7 +10,7 @@ AdaptiveGrade should remain the stable tonal foundation before GI, reflections, 
 
 ## Current implementation summary
 
-The shader samples the backbuffer, resolves shared materials, water, and safety masks through `Dalashade_MaterialMasks.fxh`, then applies conservative grade adjustments. Daytime inputs add shoulder/highlight restraint, chroma restraint, small material-aware identity lanes, and tiny day shadow fill. Night inputs preserve the existing moonlight/artificial-light/ambient-darkness behavior. When NormalField mapping is enabled, AdaptiveGrade may also resolve `Dalashade_NormalField` for very small structure/detail protection; it does not use NormalField as material identity.
+The shader samples the backbuffer, resolves shared materials, water, and safety masks through `Dalashade_MaterialMasks.fxh`, then applies conservative grade adjustments. Daytime inputs add shoulder/highlight restraint, chroma restraint, small material-aware identity lanes, and tiny day shadow fill. Night inputs preserve the existing moonlight/artificial-light/ambient-darkness behavior. Standalone mode now adds bounded scene identity lanes inside the same grade path so AdaptiveGrade can carry more of the first-party stack's tonal identity without becoming a LUT, fog, bloom, reflection, GI, or sharpening pass. When NormalField mapping is enabled, AdaptiveGrade may also resolve `Dalashade_NormalField` for very small structure/detail protection; it does not use NormalField as material identity.
 
 ## Inputs
 
@@ -43,7 +43,23 @@ NormalField is optional and secondary. When `Dalashade_NormalFieldEnabled` and t
 
 ## First-party shader mode
 
-`Dalashade_StandaloneStrength` is `0` in Supportive mode and `1` in Standalone mode. AdaptiveGrade uses it to modestly increase scene grade authority, contrast, saturation, day/night identity, and material-aware tone shaping behind existing combat/readability and material protection gates. It does not add exposure lift, fog, bloom, reflection, GI, or fake lighting.
+`Dalashade_StandaloneStrength` is `0` in Supportive mode and `1` in Standalone mode. Supportive keeps the existing conservative base-preset enhancement path: the standalone identity lanes evaluate to zero and the shader defaults also leave them inactive. Standalone routes additional scene identity through `standaloneSafe`, which is dampened by combat/readability and material safety before it reaches color temperature, contrast, saturation, highlight shoulder, black depth, material preservation, and source-relative delta caps.
+
+Standalone identity starts in AdaptiveGrade because this shader owns the broad tone/color foundation before GI, reflections, bloom, weather, and sharpening. Later standalone work can expand to WeatherAtmosphere air-layer identity, AtmosphereBloom source-class response, and only then SurfaceReflection or SceneGI after receiver validation.
+
+## Standalone identity lanes
+
+Each lane is Standalone-weighted, uses existing SceneIntent/MaterialIntent uniforms plus shared material/water/safety resolves, and remains bounded by the current clamp and source-relative delta guardrails.
+
+| Lane | Inputs | Behavior | Must not do |
+| --- | --- | --- | --- |
+| Coastal day | Daylight, day reflection, open sky, coastal/water context, water pixel confidence, water receiver, sand, sky/fog, bright sand protection. | Preserves blue/cyan water, separates sky/water/sand, gently restrains bright coastal highlights. | Turn all sky cyan, make water reflective, or alter SurfaceReflection. |
+| Coastal night | Night, moonlight, artificial light, ambient darkness, night atmosphere, coastal/water context, water pixel confidence, warm/aether light materials. | Cools moonlit coastal surfaces, preserves subtle water blues, protects warm lamps, deepens shadows without void crush. | Overcool skin, add reflection behavior, or make night pure void. |
+| Desert / heat | Sand/dust, surface heat, heat, fire/heat material, bright sand protection. | Warms dry midtones, preserves sand detail, strengthens bright sand rolloff, slightly separates shadows. | Over-yellow skin, blow highlights, or add generic haze. |
+| Snow / cold | Snow/ice, snow protection, cold, daylight/open sky, sky/cloud/fog. | Adds cold clarity, protects white detail, restrains oversaturated highlights, preserves snow/cloud transitions. | Gray out snow, crush blue shadows, or overdarken sky/clouds. |
+| Forest / canopy | Foliage, day atmosphere, ambient darkness, foliage noise rejection. | Richens greens, adds canopy depth, preserves dark green readability, keeps shimmer-safe restraint. | Make foliage neon, sharpen foliage, or crush shaded greens. |
+| Aether / Allagan / high-tech | Crystal/aether, neon/glass, metal/industrial, magic/neon glow, light source confidence, reflection receiver confidence as surface support only. | Preserves cyan/violet identity, adds controlled local contrast, keeps metallic coolness and black depth. | Classify aether as water, add bloom/reflection, or wash the frame purple/cyan. |
+| Dungeon / interior | Ambient darkness, night, artificial light, stone/hard surface, metal, void/darkness, sky rejection. | Adds grounded contrast, controlled shadow richness, and readable warm pools. | Muddy the scene, crush black detail, globally lift shadows, or over-warm skin. |
 
 ## Debug modes
 
@@ -56,13 +72,21 @@ NormalField is optional and secondary. When `Dalashade_NormalFieldEnabled` and t
 | 4 | Highlight rolloff | Combined highlight rolloff and day shoulder. |
 | 5 | Chroma restraint | High-sun chroma restraint. |
 | 6 | Skin protection | Skin/tint restraint. |
-| 7 | Final grade delta | Amplified difference between graded and source color. |
+| 7 | Final grade delta / standalone lanes | Amplified difference between graded and source color plus a Standalone lane overlay: coastal cyan, coastal night blue, desert orange, snow pale blue, forest green, aether/high-tech purple, interior warm gray/brown. |
 
 `Dalashade_ShowDebugMask` remains a compatibility path for older debug behavior.
 
 ## Safety and suppression rules
 
-Skin protection restrains tint and harsh sharpening-like contrast. Highlight protection prevents beach, sky, water, snow, sand, and specular areas from clipping. Water, sky/fog, snow, sand, aether/neon, fire/heat, and void material fields restrain only the grade components that would damage those identities. Combat/readability dampening keeps heavy grading from interfering with gameplay. If NormalField is disabled or unmapped, the NormalField shaping terms remain zero.
+Skin protection restrains tint and harsh sharpening-like contrast. Highlight protection prevents beach, sky, water, snow, sand, and specular areas from clipping. Water, sky/fog, snow, sand, aether/neon, fire/heat, and void material fields restrain only the grade components that would damage those identities. Combat/readability dampening keeps heavy grading from interfering with gameplay and gates all Standalone identity lanes. Source-relative delta caps tighten under Standalone highlight, skin, sky/fog, snow, forest, and readability pressure. If NormalField is disabled or unmapped, the NormalField shaping terms remain zero; this pass does not add new NormalField dependence.
+
+`WaterSource`, `SkySource`, and `HorizonOnlyConfidence` are not used as identity proof, receiver proof, or material proof. `ReflectionReceiverConfidence` is used only as weak aether/high-tech surface support for tonal shaping, not as reflection permission.
+
+## Validation screenshots
+
+For the Standalone identity pass, capture Supportive versus Standalone pairs for coastal day, coastal night, desert/heat, snow/cold, forest/canopy, aether/Allagan, dungeon/interior, and one combat/readability scene. Expected Standalone differences are stronger tonal identity with preserved water/sky/sand separation, protected warm night lamps, warm dry desert midtones, cold snow clarity, richer but non-neon canopy greens, preserved cyan/violet aether identity without water confusion, grounded interior depth, and dampened influence during combat.
+
+Also capture AdaptiveGrade debug modes 2, 3, 4, 5, 6, and 7. For coastal/aether ambiguity, capture MaterialDebug modes 55-65 before tuning material formulas.
 
 ## Current limitations
 
