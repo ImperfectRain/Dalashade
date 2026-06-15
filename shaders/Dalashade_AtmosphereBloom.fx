@@ -268,6 +268,13 @@ uniform float BloomStrength <
     ui_tooltip = "Manual overall bloom strength. Defaults are intentionally conservative.";
 > = 0.32;
 
+uniform float Dalashade_StandaloneStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Standalone Stack Strength";
+    ui_tooltip = "0 keeps AtmosphereBloom supportive for an existing preset. 1 makes qualified glow sources more visible while preserving skin/highlight safety.";
+> = 0.0;
+
 uniform float BloomThreshold <
     ui_type = "slider";
     ui_min = 0.45; ui_max = 1.0;
@@ -529,20 +536,24 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
     float combatDampen = 1.0 - saturate(combat * CombatDampenStrength);
     float cinematicBoost = 1.0 + cinematic * CinematicBoostStrength * (1.0 - combat * 0.65) * (0.86 + max(max(materialCrystal, materialNeon), materialFire) * 0.14);
     float readabilityDampen = 1.0 - readability * 0.22;
+    float standaloneStrength = saturate(Dalashade_StandaloneStrength);
+    float standaloneBloom = saturate(standaloneStrength * combatDampen * readabilityDampen * sourceSafety);
     float materialSelective = materialWaterGate * 0.04 + materialCrystal * 0.08 + materialNeon * 0.08 + materialFire * 0.05 + materialSky * 0.03 + materialLightSource * 0.035;
     float intentStrength = 0.40 + atmosphere * 0.20 + magicGlow * 0.22 + neonGlow * 0.22 + canopyGlow * 0.10 + wetness * 0.08 + heat * 0.05 + artificialLight * 0.08 + moonlight * nightAtmosphere * 0.04 + dayAtmosphere * 0.04 + materialSelective;
+    intentStrength *= lerp(1.0, 1.16, standaloneBloom);
     float strength = BloomStrength * intentStrength * combatDampen * cinematicBoost;
     strength *= readabilityDampen * (1.0 - saturate((highlightProtection + ambientDarkness * night * 0.20 + materialSky * 0.18 + materialWaterGate * 0.08 + materialNeon * 0.08 + safetySourceRestraint * 0.22 + normalHaloRisk * 0.18) * HighlightRestraint * 0.52));
-    strength = clamp(strength, 0.0, 0.32);
+    strength = clamp(strength, 0.0, 0.32 * lerp(1.0, 1.10, standaloneBloom));
 
     float luma = Dalashade_AtmosphereBloomLuma(color);
     float brightWashGuard = 1.0 - smoothstep(0.72, 1.0, luma) * saturate(highlightProtection * 0.50 + materialWaterGate * 0.12 + materialNeon * 0.16 + materialSky * 0.14 + safetySourceRestraint * 0.20);
     float3 glow = bloom * glowTint * strength * brightWashGuard;
     glow *= saturate(1.0 - normalHaloRisk * 0.28 + normalStability * 0.04);
-    glow = min(glow, 0.18 + max(max(magicGlow, neonGlow), max(materialCrystal, materialNeon)) * 0.05);
+    glow *= lerp(1.0, 1.18, standaloneBloom * saturate(materialLightSource + materialCrystal + materialNeon + materialFire + materialSpecularGlint));
+    glow = min(glow, (0.18 + max(max(magicGlow, neonGlow), max(materialCrystal, materialNeon)) * 0.05) * lerp(1.0, 1.12, standaloneBloom));
 
     float3 result = color + glow * (1.0 - color * 0.45);
-    result = min(result, color + 0.16);
+    result = min(result, color + 0.16 * lerp(1.0, 1.10, standaloneBloom));
     result = saturate(result);
 
     if (ShowDebugMask)

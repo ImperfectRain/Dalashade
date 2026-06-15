@@ -39,6 +39,10 @@ Consumes `MaterialResolve`, `WaterResolve`, and `SafetyResolve`. Water/coastal c
 
 Optional NormalField support uses `GroundPlaneCandidate` for mild fog/dust/wetness grounding, `StructureCandidate` for subtle structure silhouette anchoring, `NormalConfidence` as a small stability gate, and `EdgeDiscontinuity` to avoid outline/halo buildup. NormalField does not classify water, sky, weather, or material identity.
 
+## First-party shader mode
+
+`Dalashade_StandaloneStrength` is `0` in Supportive mode and `1` in Standalone mode. WeatherAtmosphere uses it to slightly increase depth haze, glow, canopy light, storm mood, and final guardrail headroom after gameplay, skin, highlight, foliage, and NormalField edge safety. It does not change weather detection, turn all sky/fog into haze, or apply dampness uniformly.
+
 ## Debug modes
 
 `Dalashade_MaterialDebugMode` is used when `Dalashade_ShowDebugMask` is enabled:

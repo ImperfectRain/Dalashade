@@ -39,6 +39,10 @@ Consumes `MaterialResolve`, `WaterResolve`, and `SafetyResolve`. `material.Light
 
 When NormalField mapping is enabled, AtmosphereBloom resolves `Dalashade_NormalField` and uses `StructureCandidate`, `NormalConfidence`, and `EdgeDiscontinuity` only to reduce unstable halos. NormalField never creates glow sources and does not classify materials.
 
+## First-party shader mode
+
+`Dalashade_StandaloneStrength` is `0` in Supportive mode and `1` in Standalone mode. AtmosphereBloom uses it to slightly increase qualified source glow and clamp headroom after source safety, combat/readability dampening, and material highlight protection have already agreed. It does not lower bloom thresholds globally and does not make NormalField, water, sky, skin, or broad highlights into new glow sources.
+
 ## Debug modes
 
 | Mode | Label | Meaning |

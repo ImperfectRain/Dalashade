@@ -1,6 +1,6 @@
 # Codex Session Handoff
 
-Latest verified baseline: `master` at commit `2cd52c3`. `dotnet build` passed with 0 warnings and 0 errors.
+Latest verified baseline: `master` after the first-party shader mode pass. `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors. `git diff --check` passed functionally with only Git line-ending normalization warnings.
 
 This guide is for future Codex sessions. It summarizes the current repository shape only; source code remains the implementation authority.
 
@@ -79,9 +79,51 @@ When adding shader support:
 
 ## Custom Dalashade Shader Philosophy
 
-Custom Dalashade shader support is optional and manual. `shaders/Dalashade_WeatherAtmosphere.fx`, `shaders/Dalashade_AdaptiveGrade.fx`, `shaders/Dalashade_AtmosphereBloom.fx`, and `shaders/Dalashade_SmartSharpen.fx` are prototype shaders, and normal operation does not require them.
+Custom Dalashade shader support is optional and manual. The current production first-party shader set is:
+
+- `shaders/Dalashade_AdaptiveGrade.fx`
+- `shaders/Dalashade_SceneGI.fx`
+- `shaders/Dalashade_SurfaceReflection.fx`
+- `shaders/Dalashade_AtmosphereBloom.fx`
+- `shaders/Dalashade_WeatherAtmosphere.fx`
+- `shaders/Dalashade_SmartSharpen.fx`
+
+Diagnostic first-party shaders are:
+
+- `shaders/Dalashade_MaterialDebug.fx`
+- `shaders/Dalashade_NormalDebug.fx`
 
 `CustomShaderVariableMapper` writes normalized `SceneIntent` values only when generated preset content contains matching Dalashade custom shader sections and keys. Optional generated-preset-only injection can add known sections and variables, but the plugin does not mutate the base preset, copy `.fx` files, auto-install shaders, or require a custom shader path for normal generation.
+
+## First-Party Shader Mode State
+
+`Configuration.FirstPartyShaderMode` controls how production first-party shaders behave:
+
+- `Supportive` is the default and writes `Dalashade_StandaloneStrength=0`.
+- `Standalone` writes `Dalashade_StandaloneStrength=1` to known production first-party shader sections that declare the key.
+
+The mode is user-facing, not a debug mode. It does not affect `MaterialDebug` or `NormalDebug`, does not change shader order, and does not weaken source/receiver or material/safety contracts.
+
+Current implementation status:
+
+- C# plumbing exists in `Configuration.cs`, `Windows/ConfigWindow.cs`, `CustomShaderVariableMapper.cs`, and `PresetWriter.cs`.
+- `Dalashade_StandaloneStrength` is declared in AdaptiveGrade, SceneGI, SurfaceReflection, AtmosphereBloom, WeatherAtmosphere, and SmartSharpen.
+- Standalone mode currently applies conservative, safety-gated headroom. It is not yet a fully transformative visual profile system.
+
+Next development should treat this as clean mode plumbing plus a modest first shader-side response. If the goal is a more transformative standalone look, implement it as shader-specific scene identity lanes, not as broad global multipliers.
+
+## Material, Water, Receiver, and NormalField Contract
+
+Use `Dalashade_MaterialMasks.fxh` as the shared material/water/safety contract. Do not redefine water, sky, receiver, or source semantics locally unless the shader has an effect-specific shaping reason.
+
+Important distinctions:
+
+- `WaterPixelConfidence` means likely actual water pixel.
+- `WaterReceiver` means water can receive reflection/wet response.
+- `WaterSource`, `SkySource`, and `HorizonOnlyConfidence` are source/context terms, not receiver masks.
+- `ReflectionReceiverConfidence`, `AOReceiverConfidence`, and `StructureReceiverConfidence` are role-specific confidence fields.
+- `ReceiverConfidence` is legacy broad fallback only.
+- `NormalField` is inferred screen-space support, not true FFXIV normals, material normals, roughness, metallic, motion vectors, or a G-buffer.
 
 ## Refactor Constraints
 
@@ -100,3 +142,15 @@ Avoid unrelated refactors. Visual behavior changes can be hard to validate, so k
 7. Update docs when behavior or architecture changes.
 8. Run `dotnet build` after meaningful changes.
 9. For release tasks only, run `scripts/ValidateRelease.ps1` after release artifacts and manifest links exist.
+
+## Recommended Next Agent Starting Point
+
+The next sensible visual task is a narrow AdaptiveGrade standalone identity pass:
+
+1. Read `docs/Shaders/ShaderSystemOverview.md`, `docs/Shaders/AdaptiveGrade.md`, `docs/Shaders/MaterialMasks.md`, and `docs/Shaders/NormalField.md`.
+2. Inspect `shaders/Dalashade_AdaptiveGrade.fx`, `Dalashade/CustomShaderVariableMapper.cs`, and `Dalashade/PresetWriter.cs`.
+3. Keep Supportive mode visually equivalent to current behavior.
+4. Use `Dalashade_StandaloneStrength` only for Standalone-specific scene identity shaping.
+5. Prefer explicit scene lanes over blunt multipliers: coastal day/night, desert, snow/cold, forest/canopy, aether/Allagan, and interiors/dungeons.
+6. Do not touch MaterialMasks, NormalField, debug shader behavior, shader stack order, source/receiver separation, or generated preset safety unless the prompt explicitly asks for it.
+7. Run `dotnet build Dalashade.sln` and `git diff --check`.

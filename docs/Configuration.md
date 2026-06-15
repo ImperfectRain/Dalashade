@@ -9,6 +9,7 @@
 | Paths | Base preset, generated preset, ReShade ini, shader path, screenshot folders, master style folders. |
 | Generation | Target style, performance budget, compatibility mode, backup count, generation behavior. |
 | Shader mapping | Known shader matching mode, inactive writes, iMMERSE Pro/Ultimate support, custom shader support. |
+| First-party shader mode | Supportive vs standalone behavior for production Dalashade shaders. |
 | Scene and style | Screenshot analysis, master style mode, tuning preset, style strengths. |
 | MaterialIntent | Material profile/intent diagnostics and shader mapping controls. |
 | NormalField | Optional inferred normal/surface-field diagnostics and shader mapping controls. |
@@ -44,6 +45,13 @@ When `EnableNormalField` is false, production output and generated preset variab
 
 First-party custom shaders are optional. Dalashade may inject known generated-preset sections and write known uniforms when enabled, but it should not copy shader files, install shader packs, or append techniques to `Techniques=`.
 
+`FirstPartyShaderMode` controls how strongly production first-party Dalashade shaders participate once custom shader variable writing is enabled:
+
+- `Supportive` is the default. It writes `Dalashade_StandaloneStrength=0` and keeps AdaptiveGrade, SceneGI, SurfaceReflection, AtmosphereBloom, WeatherAtmosphere, and SmartSharpen close to their conservative base-preset enhancement behavior.
+- `Standalone` writes `Dalashade_StandaloneStrength=1` to those production shader sections when the section declares the key. The shaders use it as a small multiplier behind existing material/safety gates so first-party Dalashade shaders can carry more of the stack without weakening sky, skin, water, foliage, snow, sand, highlight, or source/receiver protections.
+
+Debug shaders are intentionally unaffected by `FirstPartyShaderMode`.
+
 ## Path Safety
 
 Exporters and writers must resolve safe defaults before calling path APIs. Empty configured paths should fall back to the plugin config directory:
@@ -59,5 +67,6 @@ Exporters and writers must resolve safe defaults before calling path APIs. Empty
 
 - Do not remove serialized fields without a migration.
 - Do not make experimental systems enabled by default.
+- Do not change the default `FirstPartyShaderMode` away from `Supportive` without a migration and explicit review.
 - Do not write NormalField or MaterialIntent shader variables unless their mapping settings allow it.
 - Do not store sensitive external paths beyond what the user configured.

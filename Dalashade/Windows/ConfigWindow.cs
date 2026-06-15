@@ -239,7 +239,7 @@ public sealed class ConfigWindow : Window, IDisposable
 
     private string ShaderMatchingSummary()
     {
-        return $"{configuration.ShaderMatchingMode}, inactive writes {configuration.InactiveShaderWriteMode}, custom shaders {(configuration.EnableDalashadeCustomShaders ? "on" : "off")}, injection {(configuration.AutoInjectDalashadeCustomShaderSections ? "on" : "off")}";
+        return $"{configuration.ShaderMatchingMode}, inactive writes {configuration.InactiveShaderWriteMode}, custom shaders {(configuration.EnableDalashadeCustomShaders ? "on" : "off")}, mode {FormatFirstPartyShaderMode(configuration.FirstPartyShaderMode)}, injection {(configuration.AutoInjectDalashadeCustomShaderSections ? "on" : "off")}";
     }
 
     private Vector4? ShaderMatchingWarningColor()
@@ -269,6 +269,13 @@ public sealed class ConfigWindow : Window, IDisposable
         }
 
         DrawCheckbox("Enable Dalashade custom shader variables", configuration.EnableDalashadeCustomShaders, value => configuration.EnableDalashadeCustomShaders = value);
+        var firstPartyMode = (int)configuration.FirstPartyShaderMode;
+        if (ImGui.Combo("Dalashade shader mode", ref firstPartyMode, "Supportive / Enhance Base Preset\0Standalone / First-Party Stack\0"))
+        {
+            configuration.FirstPartyShaderMode = (FirstPartyShaderMode)firstPartyMode;
+            configuration.Save();
+        }
+        DrawItemTooltip("Supportive keeps Dalashade shaders conservative so they enhance an existing preset. Standalone lets Dalashade's first-party shaders carry more of the full visual style when used without a heavy base preset.");
         DrawCheckbox("Auto-inject known Dalashade shader sections into generated preset", configuration.AutoInjectDalashadeCustomShaderSections, value => configuration.AutoInjectDalashadeCustomShaderSections = value);
         ImGui.TextWrapped("When enabled with custom shader variables, Dalashade can add known Dalashade custom shader sections and variables to the generated preset only. The base preset is never modified.");
         ImGui.TextWrapped("This does not install .fx shader files. Install needed Dalashade shaders in ReShade separately so ReShade can compile injected generated-preset sections.");
@@ -587,6 +594,11 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.BeginTooltip();
         ImGui.TextWrapped(text);
         ImGui.EndTooltip();
+    }
+
+    private static string FormatFirstPartyShaderMode(FirstPartyShaderMode mode)
+    {
+        return mode == FirstPartyShaderMode.Standalone ? "Standalone" : "Supportive";
     }
 
     private void DrawMasterFloatSlider(string label, float currentValue, float min, float max, Action<float> update)

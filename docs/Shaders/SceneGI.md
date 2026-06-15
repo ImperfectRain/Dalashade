@@ -40,6 +40,10 @@ SceneGI consumes MaterialMasks shared resolves. The shared material confidence p
 
 Optional NormalField support uses `StructureCandidate` as mild structure grounding, `AOReceiver` as mild AO/contact support, `GroundPlaneCandidate` as mild ground/contact shaping, `EdgeDiscontinuity` as localized contact support only under safety gates, and `NormalConfidence`/`OrientationConfidence` as stability terms. NormalField cannot override sky, skin, water AO, or material safety rejects.
 
+## First-party shader mode
+
+`Dalashade_StandaloneStrength` is `0` in Supportive mode and `1` in Standalone mode. SceneGI uses it to modestly increase AO/contact, bounce, night light pooling, and final contribution allowances after combat/readability and material/safety gates. It does not make reflection receivers into AO receivers, dirty water, or create GI where sky/skin/water safety rejects it.
+
 ## Debug modes
 
 SceneGI debug modes are intended to show shared material usage, sources, receivers, AO, bounce, and final influence. Treat them as effect diagnostics, not material truth; use MaterialDebug for base material classification.

@@ -341,6 +341,13 @@ uniform float Dalashade_ManualStrength <
     ui_tooltip = "Manual fallback strength for testing without Dalashade. Defaults are intentionally subtle.";
 > = 0.35;
 
+uniform float Dalashade_StandaloneStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Standalone Stack Strength";
+    ui_tooltip = "0 keeps AdaptiveGrade supportive for an existing preset. 1 lets it carry more tone/color responsibility while preserving material safety.";
+> = 0.0;
+
 uniform float Dalashade_ManualExposure <
     ui_type = "slider";
     ui_min = -0.20; ui_max = 0.20;
@@ -537,6 +544,8 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float normalDetailProtection = saturate(normalFieldInfluence * normalField.DetailStrength * (1.0 - normalField.EdgeDiscontinuity * 0.45) * (1.0 - materialSkinPixel * 0.60));
     float manualStrength = saturate(Dalashade_ManualStrength);
     float safety = 1.0 - saturate(readability * 0.42 + combat * 0.58);
+    float standaloneStrength = saturate(Dalashade_StandaloneStrength);
+    float standaloneSafe = saturate(standaloneStrength * safety * (1.0 - combat * 0.30));
     float foliageRichness = max(foliage, materialFoliage) * atmosphere * safety;
     float heatIdentity = max(heat, materialSandDust);
     float coldIdentity = max(cold, materialSnowIce);
@@ -546,6 +555,7 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float authoredIdentity = max(max(foliage, max(heat, cold)), max(max(neonGlow, magicGlow), max(industrial, cosmic)));
     float dayIdentity = saturate(daylight * 0.18 + sunlight * 0.16 + openSkyLight * 0.10 + dayAtmosphere * 0.12 + dayReflection * 0.08);
     float gradeStrength = manualStrength * (0.44 + atmosphere * 0.18 + cinematic * 0.18 + authoredIdentity * 0.08 + night * 0.06 + dayIdentity * 0.04) * (0.55 + safety * 0.45);
+    gradeStrength *= lerp(1.0, 1.18, standaloneSafe);
 
     float luma = Dalashade_Luma(source);
     float highlightMask = smoothstep(0.62, 0.98, luma);
@@ -614,6 +624,11 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
         - normalUnstableEdge * 0.010;
     float temperature = Dalashade_ManualTemperature + (max(heatIdentity, fireIdentity) * 0.074) - (coldIdentity * 0.065) - (cosmic * 0.040) - (hardSurfaceIdentity * 0.018) - (moonlight * 0.048) + (artificialLight * 0.022);
     float tint = Dalashade_ManualTint + (aetherIdentity * 0.030) - (max(neonGlow, material.NeonGlass) * 0.012) + (cosmic * 0.020) - (hardSurfaceIdentity * 0.010) + (moonlight * 0.010);
+
+    contrastAmount += standaloneSafe * (0.010 + night * 0.006 + daylight * 0.004 + hardSurfaceIdentity * 0.004);
+    saturationAmount += standaloneSafe * (0.008 + aetherIdentity * 0.004 + foliageRichness * 0.004 - readability * 0.004);
+    temperature += standaloneSafe * (heatIdentity * 0.010 - coldIdentity * 0.008);
+    tint += standaloneSafe * (aetherIdentity * 0.006 - hardSurfaceIdentity * 0.003);
 
     float skinTintGuard = 1.0 - max(materialSkin * 0.34, materialSkinPixel * 0.45);
     saturationAmount *= 1.0 - max(materialSkin * 0.24, materialSkinPixel * 0.34);

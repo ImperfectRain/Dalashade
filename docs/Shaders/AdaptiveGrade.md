@@ -41,6 +41,10 @@ AdaptiveGrade consumes material and water resolves for protection and color pres
 
 NormalField is optional and secondary. When `Dalashade_NormalFieldEnabled` and the generated NormalField uniforms are active, AdaptiveGrade uses `StructureCandidate`, `NormalConfidence`, `DetailStrength`, and `EdgeDiscontinuity` as mild structure/detail protection. It does not classify water, sky, metal, skin, or foliage from NormalField, and it does not create lighting or geometry effects from inferred normals.
 
+## First-party shader mode
+
+`Dalashade_StandaloneStrength` is `0` in Supportive mode and `1` in Standalone mode. AdaptiveGrade uses it to modestly increase scene grade authority, contrast, saturation, day/night identity, and material-aware tone shaping behind existing combat/readability and material protection gates. It does not add exposure lift, fog, bloom, reflection, GI, or fake lighting.
+
 ## Debug modes
 
 | Mode | Label | Meaning |

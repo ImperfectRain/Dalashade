@@ -253,6 +253,13 @@ uniform float SharpenStrength <
     ui_tooltip = "Overall conservative sharpen strength. This is clarity sharpening, not anti-aliasing.";
 > = 0.36;
 
+uniform float Dalashade_StandaloneStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Standalone Stack Strength";
+    ui_tooltip = "0 keeps SmartSharpen supportive for an existing preset. 1 adds modest stable-structure clarity while increasing unsafe-material dampening.";
+> = 0.0;
+
 uniform float EdgeClarityStrength <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -406,6 +413,8 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float openSkyLight = saturate(Dalashade_OpenSkyLight);
     float dayHighlightPressure = saturate(Dalashade_DayHighlightPressure);
     float authority = saturate(Dalashade_SharpenAuthority * 0.5);
+    float standaloneStrength = saturate(Dalashade_StandaloneStrength);
+    float standaloneSharpen = saturate(standaloneStrength * authority * (1.0 - combat * 0.45));
     float materialFoliage = saturate(Dalashade_MaterialFoliage);
     float materialWaterSpecular = saturate(Dalashade_MaterialWaterSpecular);
     float materialWaterPlaneScene = saturate(Dalashade_MaterialWaterPlane);
@@ -556,20 +565,25 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
 
     float structuralDampen = saturate(hazePressure * 0.36 + highlightPressure * 0.52 + haloPressure * 0.44 + skyPressure + materialSkyPressure * 0.60 + materialSnowPressure * 0.20 + materialSandPressure * 0.16 + materialAetherNeonPressure * 0.22 + materialSkinPressure * 0.22 + foliageStructurePressure + normalHaloRisk * 0.32 + deepShadowMask * 0.46 + secondaryAuthorityPressure * 0.24);
     float textureDampen = saturate(hazePressure * 0.78 + wetness * 0.25 + foliageTexturePressure + materialFoliagePressure + depthTexturePressure + highlightPressure + haloPressure * 0.74 + skyPressure + materialWaterPressure + materialGlintPressure + materialSandPressure + materialSnowPressure + materialSkyPressure + materialAetherNeonPressure * 0.70 + materialSkinPressure * 0.78 + safetyPressure * 0.35 + normalHaloRisk * 0.42 + normalDetailNoiseRisk * 0.55 + deepShadowMask * 0.82 + secondaryAuthorityPressure * 0.58);
+    float standaloneUnsafeMaterial = max(max(materialWaterPressure, materialSkyPressure), max(max(materialFoliagePressure, materialSkinPressure), max(materialGlintPressure, max(materialSnowPressure, materialSandPressure))));
+    structuralDampen = saturate(structuralDampen + standaloneSharpen * standaloneUnsafeMaterial * 0.03);
+    textureDampen = saturate(textureDampen + standaloneSharpen * standaloneUnsafeMaterial * 0.05);
     float dampen = saturate(max(structuralDampen * 0.72, textureDampen));
 
     // Structural clarity uses broader low-frequency luma edges: silhouettes, trunks, rocks, buildings, armor, and readable geometry.
     float structuralBoost = (StructuralClarityStrength + EdgeClarityStrength * 0.34) * structuralEdgeMask;
     structuralBoost *= 0.62 + readability * 0.18 + combat * 0.12 + litStructureMask * 0.12 + hardStructureSupport * 0.07 + normalStableStructure * 0.05;
+    structuralBoost *= lerp(1.0, 1.12, standaloneSharpen * (1.0 - structuralDampen * 0.55));
     structuralBoost *= 1.0 - structuralDampen * 0.78;
 
     // Texture detail is a separate, much smaller channel. Foliage, haze, wetness, far depth, and secondary authority suppress it hard.
     float textureBoost = TextureDetailStrength * textureDetailMask;
+    textureBoost *= lerp(1.0, 1.04, standaloneSharpen * (1.0 - textureDampen * 0.80));
     textureBoost *= 1.0 - textureDampen * 0.94;
     textureBoost *= 1.0 - saturate(foliage * 0.62 + farDepthMask * 0.42 + deepShadowMask * 0.56 + normalDetailNoiseRisk * 0.32);
 
-    float structuralAmount = clamp(SharpenStrength * structuralBoost * authority, 0.0, 0.145);
-    float textureAmount = clamp(SharpenStrength * textureBoost * authority, 0.0, 0.052);
+    float structuralAmount = clamp(SharpenStrength * structuralBoost * authority, 0.0, lerp(0.145, 0.160, standaloneSharpen));
+    float textureAmount = clamp(SharpenStrength * textureBoost * authority, 0.0, lerp(0.052, 0.056, standaloneSharpen));
     float sharpenAmount = structuralAmount + textureAmount;
 
     float3 structuralDetail = center - wideBlur;
@@ -592,7 +606,7 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float3 sharpened = center + detail;
 
     // Final delta guardrail keeps SmartSharpen secondary-safe even when another sharpener or Clarity is active.
-    float deltaLimit = lerp(0.026, 0.065, authority) * (1.0 - saturate(foliage * 0.18 + farDepthMask * 0.16 + veryBrightMask * 0.10));
+    float deltaLimit = lerp(0.026, 0.065 * lerp(1.0, 1.08, standaloneSharpen), authority) * (1.0 - saturate(foliage * 0.18 + farDepthMask * 0.16 + veryBrightMask * 0.10));
     sharpened = min(sharpened, center + deltaLimit);
     sharpened = max(sharpened, center - deltaLimit);
     sharpened = saturate(sharpened);

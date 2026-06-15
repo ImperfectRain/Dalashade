@@ -12,6 +12,7 @@ public sealed class CustomShaderVariableMapper
     public const string SceneGIReasonCategory = "Dalashade custom shader SceneGI tuning";
     public const string SurfaceReflectionReasonCategory = "Dalashade custom shader SurfaceReflection tuning";
     public const string NormalFieldReasonCategory = "Dalashade custom shader NormalField tuning";
+    public const string FirstPartyModeReasonCategory = "Dalashade first-party shader mode";
 
     private static readonly IReadOnlyDictionary<string, Func<SceneIntent, float>> Variables =
         new Dictionary<string, Func<SceneIntent, float>>(StringComparer.OrdinalIgnoreCase)
@@ -59,6 +60,13 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_IntentCombatPressure"] = intent => intent.CombatPressure,
             ["Dalashade_CinematicPermission"] = intent => intent.CinematicPermission,
             ["Dalashade_IntentCinematicPermission"] = intent => intent.CinematicPermission
+        };
+
+    private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> FirstPartyModeVariables =
+        new Dictionary<string, Func<Configuration, float>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Dalashade_StandaloneStrength"] = configuration => configuration.FirstPartyShaderMode == FirstPartyShaderMode.Standalone ? 1f : 0f,
+            ["Dalashade_FirstPartyMode"] = configuration => configuration.FirstPartyShaderMode == FirstPartyShaderMode.Standalone ? 1f : 0f
         };
 
     private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> SceneGIVariables =
@@ -300,6 +308,7 @@ public sealed class CustomShaderVariableMapper
     ];
 
     public static IReadOnlyCollection<string> KnownVariableNames => Variables.Keys
+        .Concat(FirstPartyModeVariables.Keys)
         .Concat(SceneGIVariables.Keys)
         .Concat(SurfaceReflectionVariables.Keys)
         .Concat(NormalFieldVariables.Keys)
@@ -322,6 +331,17 @@ public sealed class CustomShaderVariableMapper
             adjustment = new ShaderAdjustment(
                 _ => new ShaderAdjustmentResult(Format(Clamp01(valueAccessor(intent))), false, false),
                 ReasonCategory,
+                EffectRole.UiUtility,
+                1f);
+            return true;
+        }
+
+        if (IsFirstPartyProductionSection(section)
+            && FirstPartyModeVariables.TryGetValue(key, out var firstPartyModeAccessor))
+        {
+            adjustment = new ShaderAdjustment(
+                _ => new ShaderAdjustmentResult(Format(Clamp01(firstPartyModeAccessor(configuration))), false, false),
+                FirstPartyModeReasonCategory,
                 EffectRole.UiUtility,
                 1f);
             return true;
@@ -404,6 +424,7 @@ public sealed class CustomShaderVariableMapper
     {
         return !string.IsNullOrWhiteSpace(key)
                && (Variables.ContainsKey(key)
+                   || FirstPartyModeVariables.ContainsKey(key)
                    || SceneGIVariables.ContainsKey(key)
                    || SurfaceReflectionVariables.ContainsKey(key)
                    || NormalFieldVariables.ContainsKey(key)
@@ -600,6 +621,16 @@ public sealed class CustomShaderVariableMapper
                    || IsSurfaceReflectionSection(section)
                    || IsNormalDebugSection(section)
                    || IsMaterialDebugSection(section));
+    }
+
+    private static bool IsFirstPartyProductionSection(string section)
+    {
+        return SmartSharpenAuthority.IsSmartSharpenSection(section)
+               || IsWeatherAtmosphereSection(section)
+               || IsAtmosphereBloomSection(section)
+               || IsAdaptiveGradeSection(section)
+               || IsSceneGISection(section)
+               || IsSurfaceReflectionSection(section);
     }
 
     private static bool IsWeatherAtmosphereSection(string section)

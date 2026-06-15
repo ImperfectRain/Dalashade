@@ -68,6 +68,12 @@ public enum MasterStyleTuningPreset
     Custom
 }
 
+public enum FirstPartyShaderMode
+{
+    Supportive,
+    Standalone
+}
+
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
@@ -100,6 +106,7 @@ public class Configuration : IPluginConfiguration
     public bool AutoAdjustInCutscenes { get; set; } = true;
     public bool UsePremiumImmerseEffects { get; set; } = false;
     public bool EnableDalashadeCustomShaders { get; set; } = false;
+    public FirstPartyShaderMode FirstPartyShaderMode { get; set; } = FirstPartyShaderMode.Supportive;
     public bool AutoInjectDalashadeCustomShaderSections { get; set; } = false;
     public bool EnableDalashadeSceneGIShaderVariables { get; set; } = false;
     public float DalashadeSceneGIStrength { get; set; } = 0.35f;

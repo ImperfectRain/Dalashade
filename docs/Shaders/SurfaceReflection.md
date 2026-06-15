@@ -68,6 +68,10 @@ This shader depends on strict separation:
 
 Never use source-only color fields as receiver masks. Horizon water may color water reflection but must not become a reflective surface.
 
+## First-party shader mode
+
+`Dalashade_StandaloneStrength` is `0` in Supportive mode and `1` in Standalone mode. SurfaceReflection uses it to make existing valid water, wet hard-surface, metal/glass/aether, and pseudo-SSR contributions modestly more visible while preserving source/receiver separation. It never lets `WaterSource`, `SkySource`, `HorizonOnlyConfidence`, sky/fog, skin, foliage noise, or NormalField alone grant receiver permission.
+
 ## Debug modes
 
 | Mode | Label | Meaning |

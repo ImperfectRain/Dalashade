@@ -39,6 +39,10 @@ Consumes `MaterialResolve`, `WaterResolve`, and `SafetyResolve`. Unsafe sharpeni
 
 Stable structure support comes from `material.StructureReceiverConfidence`, `SurfaceHardness`, `StoneRuins`, and `MetalIndustrial`. Optional NormalField support uses `StructureCandidate`, `NormalConfidence`, and `OrientationConfidence` as small stability gates, while `EdgeDiscontinuity` and risky `DetailStrength` suppress halos/noisy texture. NormalField does not authorize sharpening water, foliage, skin, or sky.
 
+## First-party shader mode
+
+`Dalashade_StandaloneStrength` is `0` in Supportive mode and `1` in Standalone mode. SmartSharpen uses it to add a modest stable-structure boost and slightly higher safe delta limits while also increasing unsafe material dampening. It does not increase sharpening on sky, water shimmer, foliage noise, skin, snow/sand highlights, glints, or aether/neon halos.
+
 ## Debug modes
 
 `Dalashade_MaterialDebugMode` is used when `ShowDebugMask` is enabled:

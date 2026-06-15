@@ -48,6 +48,15 @@ Dalashade_NormalDebug
 
 Production shaders may apply role-specific gates after the shared resolves, but should not reinvent base water, sky, skin, sand, specular, foliage, or receiver classification independently.
 
+## First-Party Shader Mode
+
+`FirstPartyShaderMode` is a user-facing plugin setting for production first-party shaders:
+
+- `Supportive / Enhance Base Preset` is the default. The generated value `Dalashade_StandaloneStrength` is `0`, so first-party shaders keep their current conservative role as coordinated support for an existing base preset or external shader stack.
+- `Standalone / First-Party Stack` writes `Dalashade_StandaloneStrength=1` to AdaptiveGrade, SceneGI, SurfaceReflection, AtmosphereBloom, WeatherAtmosphere, and SmartSharpen when those sections declare the key. Each shader interprets it as a small, safety-gated contribution multiplier rather than a new classifier or debug mode.
+
+Standalone mode does not affect `Dalashade_MaterialDebug.fx` or `Dalashade_NormalDebug.fx`, does not change shader order, and does not weaken the shared material, water, safety, source/receiver, or NormalField contracts.
+
 ## Debug Interpretation
 
 Debug modes are diagnostic views, not material IDs. A cyan mask in one mode does not mean the pixel is water in every context. For example:

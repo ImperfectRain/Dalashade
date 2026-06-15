@@ -20,6 +20,13 @@ uniform float Dalashade_SurfaceReflectionStrength <
     ui_label = "Surface Reflection Strength";
 > = 0.32;
 
+uniform float Dalashade_StandaloneStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Standalone Stack Strength";
+    ui_tooltip = "0 keeps SurfaceReflection supportive for an existing preset. 1 makes valid water, wet, metal, and aether receivers more visible without weakening source/receiver safety.";
+> = 0.0;
+
 uniform float Dalashade_WaterSheenStrength <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -570,6 +577,8 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float nonSkinGate = saturate(1.0 - safety.SkinReject * 0.90);
     float foliageGate = saturate(1.0 - safety.FoliageNoiseReject * 0.45 - material.Foliage * 0.25);
     float receiverSafety = nonSkyGate * nonSkinGate * foliageGate * gameplayDampen;
+    float standaloneStrength = saturate(Dalashade_StandaloneStrength);
+    float standaloneReflection = saturate(standaloneStrength * receiverSafety * (1.0 - highlightSafety * 0.35));
     float sharedReceiverSupport = saturate(
         sharedReflectionReceiver
         * (1.0 - safety.SkyReject * 0.88)
@@ -588,14 +597,14 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
         waterReceiver
         + sharedReceiverSupport * waterSpecificReceiver * surfaceFacing * verticalDepthContinuity * 0.12
         + normalReflectionSupport * waterSpecificReceiver * verticalDepthContinuity * 0.055);
-    float3 waterSheen = lerp(cyanSheen, sheenSample, 0.46) * waterReceiver * Dalashade_WaterSheenStrength * 1.62;
+    float3 waterSheen = lerp(cyanSheen, sheenSample, 0.46) * waterReceiver * Dalashade_WaterSheenStrength * 1.62 * lerp(1.0, 1.16, standaloneReflection);
     float reflectedWaterLuma = Dalashade_SurfaceReflectionLuma(reflectedVertical);
     float skyColorSource = saturate(max(water.SkySource, smoothstep(0.16, 0.88, reflectedWaterLuma + Dalashade_GetSaturation(reflectedVertical) * 0.36) * (0.28 + water.WaterHorizon * 0.30 + Dalashade_OpenSkyLight * 0.18)));
     float waterSource = saturate(max(water.WaterSource, water.WetShoreline * 0.35) + skyColorSource * water.WaterReceiver * 0.32);
     float waterReflectionMask = waterReceiver * saturate(waterSource + skyColorSource * (0.25 + Dalashade_DayReflection * 0.18)) * (1.0 - bright * 0.26);
-    float3 waterReflection = lerp(reflectedVertical, reflectedSoft, reflectionSoftness * 0.42) * lerp(float3(0.68, 0.98, 1.0), cyanSheen + 0.18, 0.34) * waterReflectionMask * Dalashade_WaterReflectionStrength;
+    float3 waterReflection = lerp(reflectedVertical, reflectedSoft, reflectionSoftness * 0.42) * lerp(float3(0.68, 0.98, 1.0), cyanSheen + 0.18, 0.34) * waterReflectionMask * Dalashade_WaterReflectionStrength * lerp(1.0, 1.20, standaloneReflection);
     float shorelineSheenMask = saturate((water.WetShoreline * 0.72 + water.FoamOrEdge * 0.42) * safeSurface * (1.0 - skinProtect * 0.92));
-    waterSheen += lerp(float3(0.26, 0.72, 0.86), sheenSample, 0.30) * shorelineSheenMask * Dalashade_WaterSheenStrength * 0.72;
+    waterSheen += lerp(float3(0.26, 0.72, 0.86), sheenSample, 0.30) * shorelineSheenMask * Dalashade_WaterSheenStrength * 0.72 * lerp(1.0, 1.14, standaloneReflection);
 
     float glintShape = smoothstep(0.44, 0.98, luma) * smoothstep(0.025, 0.32, edge) * (1.0 - smoothness * 0.48);
     float specularGlintSource = saturate(max(material.SpecularGlint * glintShape, water.FoamOrEdge * 0.38) * streakDepthContinuity * (1.0 - waterReceiver * 0.16) * (1.0 - skinProtect * 0.80) * (1.0 - skyReject * 0.78) * (1.0 - warmDryReject * 0.28));
@@ -606,7 +615,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
         * (1.0 - waterReceiver * 0.85)
         * (1.0 - skyReject * 0.96);
     float3 specularGlint = lerp(float3(0.65, 0.86, 1.0), max(color + 0.26, reflectedStreak), 0.42) * specularGlintSource * Dalashade_SpecularGlintStrength * 1.54;
-    float3 specularReflection = reflectedStreak * specularGlintSource * max(metalReceiver, waterReceiver * 0.35) * Dalashade_SpecularReflectionStrength * 0.86;
+    float3 specularReflection = reflectedStreak * specularGlintSource * max(metalReceiver, waterReceiver * 0.35) * Dalashade_SpecularReflectionStrength * 0.86 * lerp(1.0, 1.14, standaloneReflection);
 
     float receiverWetness = max(Dalashade_Wetness, Dalashade_WetSurfaceContext);
     float wetHardSurfaceReceiver = receiverWetness
@@ -631,7 +640,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
             * saturate(hardSurfaceHint * 0.42 + sharedReflectionReceiver * 0.38 + structureHardReceiver * 0.20)
             * (1.0 - waterSpecificReceiver * 0.42)
             * (0.040 + normalGroundStability * 0.045 + receiverWetness * 0.040));
-    float3 wetReflection = lerp(sheenSample, reflectedVertical, 0.58) * wetHardSurfaceReceiver * (specularGlintSource * 0.55 + Dalashade_Wetness * 0.42) * Dalashade_WetReflectionStrength * 1.78;
+    float3 wetReflection = lerp(sheenSample, reflectedVertical, 0.58) * wetHardSurfaceReceiver * (specularGlintSource * 0.55 + Dalashade_Wetness * 0.42) * Dalashade_WetReflectionStrength * 1.78 * lerp(1.0, 1.18, standaloneReflection);
 
     float3 localSource = Dalashade_SurfaceReflectionLocalSource(texcoord, depth, max(Dalashade_WaterSheenRadius, 0.75) * (1.25 + Dalashade_Night * 0.45));
     float localSourceEnergy = smoothstep(0.18, 0.96, Dalashade_SurfaceReflectionLuma(localSource) + Dalashade_GetSaturation(localSource) * 0.62);
@@ -646,7 +655,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     aetherNeonColor += material.NeonGlass * float3(0.48, 0.22, 1.0) * Dalashade_NeonReflectionStrength;
     aetherNeonColor += material.FireLavaHeat * float3(1.0, 0.30, 0.06) * 0.42;
     float3 aetherStreak = lerp(localSource, reflectedStreak, 0.55);
-    float3 aetherNeonReflection = saturate(aetherNeonColor + aetherStreak * 0.58 + reflectedSoft * 0.12) * emissiveReflectionMask * 1.82;
+    float3 aetherNeonReflection = saturate(aetherNeonColor + aetherStreak * 0.58 + reflectedSoft * 0.12) * emissiveReflectionMask * 1.82 * lerp(1.0, 1.16, standaloneReflection);
 
     float iceReceiver = material.SnowIce * smoothstep(0.44, 0.96, smoothness) * midtone * safeSurface * (1.0 - bright * 0.70) * (1.0 - skyReject * 0.95);
     float3 iceSheen = float3(0.46, 0.72, 1.0) * iceReceiver * (skyColorSource * 0.35 + specularGlintSource * 0.24 + 0.18) * Dalashade_IceSheenStrength * 1.38;
@@ -694,9 +703,9 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float waterProjectionAgreement = saturate(waterSurfaceReceiver * (0.24 + waterSourceColorSupport * 0.48 + projectedWaterEnergy * 0.34));
     float wetProjectionAgreement = saturate(wetFloorProjectionReceiver * (0.20 + max(projectedWetEnergy, hardSourceEnergy) * 0.58 + receiverWetness * 0.18));
     float hardProjectionAgreement = saturate(hardAetherProjectionReceiver * (0.18 + max(projectedHardEnergy, qualifiedHardEnergy) * 0.62 + aetherNeonSource * 0.20 + specularGlintSource * 0.12));
-    float waterProjectionStrength = waterProjectionAgreement * Dalashade_WaterReflectionStrength * 0.240 * normalProjectionStability;
-    float wetProjectionStrength = wetProjectionAgreement * Dalashade_WetReflectionStrength * 0.130 * normalProjectionStability;
-    float hardProjectionStrength = hardProjectionAgreement * max(max(Dalashade_SpecularReflectionStrength, Dalashade_AetherReflectionStrength), Dalashade_NeonReflectionStrength) * 0.105 * normalProjectionStability;
+    float waterProjectionStrength = waterProjectionAgreement * Dalashade_WaterReflectionStrength * 0.240 * normalProjectionStability * lerp(1.0, 1.22, standaloneReflection);
+    float wetProjectionStrength = wetProjectionAgreement * Dalashade_WetReflectionStrength * 0.130 * normalProjectionStability * lerp(1.0, 1.18, standaloneReflection);
+    float hardProjectionStrength = hardProjectionAgreement * max(max(Dalashade_SpecularReflectionStrength, Dalashade_AetherReflectionStrength), Dalashade_NeonReflectionStrength) * 0.105 * normalProjectionStability * lerp(1.0, 1.16, standaloneReflection);
     float3 waterProjectedReflection = (lerp(color, projectedWaterColor, 0.62) - color) * waterProjectionStrength;
     float3 wetProjectedReflection = (lerp(color, projectedWetFloorColor, 0.42) - color) * wetProjectionStrength;
     float3 hardProjectedReflection = (lerp(color, projectedHardAetherColor, 0.38) - color) * hardProjectionStrength;
@@ -714,9 +723,9 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float pseudoWaterMask = saturate(waterSurfaceReceiver * pseudoWaterSample.a * (0.42 + waterSourceColorSupport * 0.34 + projectedWaterEnergy * 0.14 + waterStructureSourceBias * 0.28));
     float pseudoWetMask = saturate(wetFloorProjectionReceiver * pseudoWetSample.a * (0.28 + receiverWetness * 0.24 + max(projectedWetEnergy, hardSourceEnergy) * 0.34));
     float pseudoHardMask = saturate(hardAetherProjectionReceiver * pseudoHardSample.a * (0.26 + aetherNeonSource * 0.28 + specularGlintSource * 0.18 + qualifiedHardEnergy * 0.24));
-    float3 pseudoWaterReflection = (lerp(color, pseudoWaterSample.rgb * lerp(float3(0.78, 0.98, 1.0), cyanSheen + 0.18, 0.18), 0.66) - color) * pseudoWaterMask * Dalashade_WaterReflectionStrength * 0.240;
-    float3 pseudoWetReflection = (lerp(color, lerp(pseudoWetSample.rgb, hardSourceColor, 0.22), 0.34) - color) * pseudoWetMask * Dalashade_WetReflectionStrength * 0.120;
-    float3 pseudoHardReflection = (lerp(color, lerp(pseudoHardSample.rgb, hardSourceColor, 0.36), 0.30) - color) * pseudoHardMask * max(max(Dalashade_SpecularReflectionStrength, Dalashade_AetherReflectionStrength), Dalashade_NeonReflectionStrength) * 0.110;
+    float3 pseudoWaterReflection = (lerp(color, pseudoWaterSample.rgb * lerp(float3(0.78, 0.98, 1.0), cyanSheen + 0.18, 0.18), 0.66) - color) * pseudoWaterMask * Dalashade_WaterReflectionStrength * 0.240 * lerp(1.0, 1.18, standaloneReflection);
+    float3 pseudoWetReflection = (lerp(color, lerp(pseudoWetSample.rgb, hardSourceColor, 0.22), 0.34) - color) * pseudoWetMask * Dalashade_WetReflectionStrength * 0.120 * lerp(1.0, 1.14, standaloneReflection);
+    float3 pseudoHardReflection = (lerp(color, lerp(pseudoHardSample.rgb, hardSourceColor, 0.36), 0.30) - color) * pseudoHardMask * max(max(Dalashade_SpecularReflectionStrength, Dalashade_AetherReflectionStrength), Dalashade_NeonReflectionStrength) * 0.110 * lerp(1.0, 1.12, standaloneReflection);
     float pseudoSSRMask = saturate(pseudoWaterMask * 0.70 + pseudoWetMask * 0.55 + pseudoHardMask * 0.62);
     float3 pseudoSSRContribution = (pseudoWaterReflection + pseudoWetReflection + pseudoHardReflection)
         * (0.72 + pseudoSourceBias * 0.28)
@@ -737,6 +746,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float projectionAllowance = saturate(waterProjectionStrength * 0.18 + wetProjectionStrength * 0.14 + hardProjectionStrength * 0.12 + pseudoSSRMask * 0.030);
     float reflectionPositiveAllowance = 0.050 + waterSheenAllowance + glintAllowance + wetAllowance + aetherNeonAllowance + projectionAllowance + material.SnowIce * 0.030;
     reflectionPositiveAllowance *= 1.0 - saturate(highlightSafety * 0.38 + Dalashade_CombatPressure * 0.22 + Dalashade_Readability * 0.10);
+    reflectionPositiveAllowance *= lerp(1.0, 1.10, standaloneReflection);
     float positiveLimit = reflectionPositiveAllowance;
     float negativeLimit = 0.010 + waterSurfaceReceiver * 0.030 + wetMetalGlassReceiver * 0.012 + projectionAllowance * 0.40;
     float3 result = saturate(color + clamp(contribution, float3(-negativeLimit, -negativeLimit, -negativeLimit), positiveLimit.xxx));

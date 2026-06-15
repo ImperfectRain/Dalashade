@@ -161,6 +161,11 @@ public sealed class PresetWriter
         "Dalashade_NormalSkySuppression"
     ];
 
+    private static readonly IReadOnlyList<string> FirstPartyShaderModeVariables =
+    [
+        "Dalashade_StandaloneStrength"
+    ];
+
     private static readonly IReadOnlyList<string> SceneGIMaterialIntentShaderVariables =
     [
         "Dalashade_MaterialFoliage",
@@ -251,6 +256,7 @@ public sealed class PresetWriter
                 "Dalashade_DepthAssistStrength",
                 "Dalashade_DepthAssistConfidenceFloor",
                 "Dalashade_DepthConfidenceFloor")
+                .Concat(FirstPartyShaderModeVariables)
                 .Concat(NormalFieldShaderVariables)
                 .ToArray()),
         new(
@@ -288,6 +294,7 @@ public sealed class PresetWriter
                 "Dalashade_DepthAssistStrength",
                 "Dalashade_DepthAssistConfidenceFloor",
                 "Dalashade_DepthConfidenceFloor")
+                .Concat(FirstPartyShaderModeVariables)
                 .Concat(NormalFieldShaderVariables)
                 .ToArray()),
         new(
@@ -321,11 +328,15 @@ public sealed class PresetWriter
                 "SkyDampenStrength",
                 "HazeDampenStrength",
                 "CombatDampenStrength",
-                "LumaOnlyStrength",
+                "LumaOnlyStrength")
+                .Concat(FirstPartyShaderModeVariables)
+                .Concat(NormalFieldShaderVariables)
+                .Concat([
                 "Dalashade_EnableDepthAssist",
                 "Dalashade_DepthAssistStrength",
                 "Dalashade_DepthAssistConfidenceFloor",
-                "Dalashade_DepthConfidenceFloor")),
+                "Dalashade_DepthConfidenceFloor"])
+                .ToArray()),
         new(
             "Dalashade_AtmosphereBloom.fx",
             "Dalashade_AtmosphereBloom",
@@ -354,7 +365,10 @@ public sealed class PresetWriter
                 "Dalashade_EnableDepthAssist",
                 "Dalashade_DepthAssistStrength",
                 "Dalashade_DepthAssistConfidenceFloor",
-                "Dalashade_DepthConfidenceFloor")),
+                "Dalashade_DepthConfidenceFloor")
+                .Concat(FirstPartyShaderModeVariables)
+                .Concat(NormalFieldShaderVariables)
+                .ToArray()),
         new(
             "Dalashade_MaterialDebug.fx",
             "Dalashade_MaterialDebug",
@@ -410,6 +424,7 @@ public sealed class PresetWriter
                 "Dalashade_DayHighlightPressure",
                 "Dalashade_IntentCombatPressure",
                 "Dalashade_IntentCinematicPermission")
+                .Concat(FirstPartyShaderModeVariables)
                 .Concat(NormalFieldShaderVariables)
                 .ToArray()),
         new(
@@ -455,6 +470,7 @@ public sealed class PresetWriter
                 "Dalashade_DayReflection",
                 "Dalashade_DayHighlightPressure",
                 "Dalashade_CinematicPermission")
+                .Concat(FirstPartyShaderModeVariables)
                 .Concat(NormalFieldShaderVariables)
                 .ToArray())
     ];
