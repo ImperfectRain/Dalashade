@@ -10,14 +10,15 @@ WeatherAtmosphere should own atmospheric mood and air behavior. It should not cr
 
 ## Current implementation summary
 
-The shader samples color/depth, resolves shared material/water/safety masks, and applies depth-aware atmospheric influence according to weather, day/night, sky/fog, water/coastal context, sand/dust, snow/ice, foliage, wetness, and heat.
+The shader samples color/depth, resolves shared material/water/safety masks, and applies depth-aware atmospheric influence according to weather, day/night, sky/fog, water/coastal context, sand/dust, snow/ice, foliage, wetness, heat, aether/neon, and fire/heat cues. Optional NormalField data can mildly anchor air to plausible ground/structure and suppress edge buildup; it does not choose weather type.
 
 ## Inputs
 
 - Backbuffer color and depth.
 - Scene intent: weather, rain/storm, fog/mist, day atmosphere, night atmosphere, open sky, surface heat, coastal/water context, combat/duty.
-- Material uniforms: sky/fog, sand/dust, snow/ice, foliage, water/wet, crystal/aether.
+- Material uniforms: sky/fog, sand/dust, snow/ice, foliage, water/wet, crystal/aether, neon/glass, fire/lava/heat, and skin protection.
 - Shared material/water/safety resolvers.
+- Optional NormalField resolver for ground/structure anchoring and edge-discontinuity restraint.
 - Weather atmosphere strength, depth, dampening, and debug controls.
 
 ## Outputs
@@ -28,13 +29,15 @@ Normal output is source color with restrained atmospheric modification. Debug mo
 
 1. Resolve material/water/safety masks.
 2. Build air influence from sky/fog, depth, weather, and scene context.
-3. Add material-specific air lanes for coastal dampness, storm/rain, sand/dust heat, snow/cold clarity, foliage humidity, and aether veil.
-4. Apply safety gates for skin, highlights, sky/non-sky effects, and combat readability.
+3. Add material-specific air lanes for coastal dampness, storm/rain, sand/dust heat, snow/cold clarity, foliage humidity, aether/neon veil, and warm heat-source air.
+4. Apply safety gates for skin, highlights, foliage noise, sky/non-sky effects, and combat readability.
 5. Blend a conservative atmospheric result.
 
 ## Material/Water/Normal dependencies
 
-Consumes MaterialMasks shared resolves. Does not use NormalField. Water/coastal context affects air/shoreline humidity, not literal reflection.
+Consumes `MaterialResolve`, `WaterResolve`, and `SafetyResolve`. Water/coastal context affects air/shoreline humidity, not literal reflection: `water.WaterSource` is only atmosphere/source context, while `water.WaterPixelConfidence`, `WaterReceiver`, and `WetShoreline` are used for local water/wet plausibility. Skin and highlight safety come from `safety.SkinReject`, `HighlightProtect`, `FoliageNoiseReject`, `BrightSandProtect`, and `SnowProtect`.
+
+Optional NormalField support uses `GroundPlaneCandidate` for mild fog/dust/wetness grounding, `StructureCandidate` for subtle structure silhouette anchoring, `NormalConfidence` as a small stability gate, and `EdgeDiscontinuity` to avoid outline/halo buildup. NormalField does not classify water, sky, weather, or material identity.
 
 ## Debug modes
 
@@ -67,7 +70,7 @@ Consumes MaterialMasks shared resolves. Does not use NormalField. Water/coastal 
 
 ## Safety and suppression rules
 
-Avoid gray haze wash. Do not treat water pixels as reflection. Do not apply non-air effects to sky. Protect skin and important combat readability. Depth-assisted effects should weaken when depth confidence is poor.
+Avoid gray haze wash. Do not treat water source/context as a receiver. Do not apply non-air effects to sky. Protect skin, bright sand/snow, glints, and important combat readability. Depth-assisted and NormalField-assisted effects should weaken when confidence is poor.
 
 ## Current limitations
 
@@ -77,10 +80,11 @@ Avoid gray haze wash. Do not treat water pixels as reflection. Do not apply non-
 
 ## Future direction
 
-Refine day/night/coastal/storm/desert/snow lanes through screenshot comparisons. If NormalField is used later, only broad structure/ground hints should inform haze placement.
+Refine day/night/coastal/storm/desert/snow lanes through screenshot comparisons. NormalField should remain a secondary placement/stability hint only; if stronger weather anchoring is needed, validate it first with debug screenshots.
 
 ## Do not do
 
 - Do not add reflection, water shimmer, particles, or bloom here.
 - Do not globally lift or gray-wash the scene.
 - Do not let sky/fog masks dirty non-air material behavior.
+- Do not use NormalField wall/ground/detail as hard weather truth.

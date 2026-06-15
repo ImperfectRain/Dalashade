@@ -10,14 +10,15 @@ SmartSharpen should be the final Dalashade clarity pass. It should improve reada
 
 ## Current implementation summary
 
-The shader separates structural edges from microtexture detail, resolves shared material/safety masks, applies dampening for unsafe regions, then blends a restrained sharpened result.
+The shader separates structural edges from microtexture detail, resolves shared material/water/safety masks, applies dampening for unsafe regions, then blends a restrained sharpened result. Optional NormalField data can add mild stable-structure support and suppress unstable haloing, but it never classifies materials or creates new edges.
 
 ## Inputs
 
 - Backbuffer color and depth.
 - Scene intent uniforms for combat, day highlight pressure, open sky, fog/weather, and readability.
-- Material uniforms for foliage, water, specular glint, sky/fog, skin, snow/ice.
+- Material uniforms for foliage, water, specular glint, sand/dust, snow/ice, stone/ruins, metal/industrial, crystal/aether, neon/glass, sky/fog, and skin.
 - Shared material/water/safety resolvers.
+- Optional NormalField resolver for stable-structure and edge-discontinuity shaping.
 - Sharpen strength, radius, threshold, dampening, and debug controls.
 
 ## Outputs
@@ -29,12 +30,14 @@ Normal output is source color with controlled clarity. Debug modes show edge/det
 1. Sample source and local neighborhood.
 2. Estimate structural edges and microtexture detail.
 3. Resolve material/water/safety masks.
-4. Dampening suppresses sky/fog, water texture, foliage shimmer, skin, snow, and specular halos.
+4. Dampening suppresses sky/fog, water shimmer, foliage shimmer, skin, snow/sand highlights, specular glints, and aether/neon halos.
 5. Apply sharpen contribution with source-relative guardrails.
 
 ## Material/Water/Normal dependencies
 
-Consumes MaterialMasks shared resolves. Does not currently consume NormalField. Future NormalField use should be limited to structure/detail gating.
+Consumes `MaterialResolve`, `WaterResolve`, and `SafetyResolve`. Unsafe sharpening is dampened through `safety.SkyReject`, `SkinReject`, `FoliageNoiseReject`, `HighlightProtect`, `BrightSandProtect`, and `SnowProtect`; `water.WaterPixelConfidence` and `water.WaterReceiver`; and material fields including `Foliage`, `SpecularGlint`, `CrystalAether`, `NeonGlass`, and `SkyCloudFog`.
+
+Stable structure support comes from `material.StructureReceiverConfidence`, `SurfaceHardness`, `StoneRuins`, and `MetalIndustrial`. Optional NormalField support uses `StructureCandidate`, `NormalConfidence`, and `OrientationConfidence` as small stability gates, while `EdgeDiscontinuity` and risky `DetailStrength` suppress halos/noisy texture. NormalField does not authorize sharpening water, foliage, skin, or sky.
 
 ## Debug modes
 
@@ -67,20 +70,22 @@ Consumes MaterialMasks shared resolves. Does not currently consume NormalField. 
 
 ## Safety and suppression rules
 
-Sky/fog is strongly dampened. Skin avoids harsh contrast. Water suppresses texture crunch but keeps shoreline/large structure. Specular glints get halo protection. Foliage suppresses micro-shimmer. Snow/ice avoids grainy white texture.
+Sky/fog is strongly dampened. Skin avoids harsh contrast. Water suppresses shimmer and texture crunch but keeps large structure. Specular glints and aether/neon halos get halo protection. Foliage suppresses micro-shimmer. Snow/ice and bright sand avoid grainy high-contrast texture. NormalField edge discontinuity reduces halo risk rather than increasing sharpening.
 
 ## Current limitations
 
 - It cannot know true object scale.
 - It depends on prior stack order and existing external sharpeners.
 - It can only infer UI/depth risk indirectly.
+- NormalField data is screen-space inferred and can be wrong on foliage, water, transparency, and silhouettes.
 
 ## Future direction
 
-Use NormalField `StructureCandidate` and `DetailStrength` only after NormalDebug proves stable across foliage, water, snow, and combat scenes.
+Continue validating NormalField shaping across foliage, water, snow, city, and combat scenes before increasing its influence. Any future use should remain secondary to shared material/safety suppression.
 
 ## Do not do
 
 - Do not sharpen sky, fog, skin, or water texture aggressively.
 - Do not compensate for soft reflections or GI by increasing sharpen.
 - Do not become a second broad color/contrast grade.
+- Do not use NormalField detail as permission to sharpen foliage, water shimmer, or sky gradients.

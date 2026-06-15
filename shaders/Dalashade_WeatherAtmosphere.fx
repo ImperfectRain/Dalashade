@@ -1,5 +1,6 @@
 #include "ReShade.fxh"
 #include "Dalashade_MaterialMasks.fxh"
+#include "Dalashade_NormalField.fxh"
 
 uniform float Dalashade_Haze <
     ui_type = "slider";
@@ -210,11 +211,32 @@ uniform float Dalashade_MaterialCrystalAether <
     ui_tooltip = "Inferred crystal or aether likelihood. Supports subtle cosmic/aetherial depth veil.";
 > = 0.0;
 
+uniform float Dalashade_MaterialNeonGlass <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Neon/Glass";
+    ui_tooltip = "Inferred neon or glass likelihood. Restrains saturated atmosphere while allowing subtle city/aether air.";
+> = 0.0;
+
+uniform float Dalashade_MaterialFireLavaHeat <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Fire/Lava/Heat";
+    ui_tooltip = "Inferred fire, lava, or heat likelihood. Supports warm air without becoming bloom.";
+> = 0.0;
+
 uniform float Dalashade_MaterialSkyCloudFog <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
     ui_label = "Dalashade Material Sky/Cloud/Fog";
     ui_tooltip = "Inferred sky, cloud, fog, or atmosphere likelihood. Controls actual fog/mist/sky depth behavior.";
+> = 0.0;
+
+uniform float Dalashade_MaterialSkinProtection <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Skin Protection";
+    ui_tooltip = "Inferred skin/character protection. Restrains atmosphere tinting on skin-like areas.";
 > = 0.0;
 
 uniform int Dalashade_MaterialDebugMode <
@@ -253,6 +275,62 @@ uniform float Dalashade_DepthConfidenceFloor <
     ui_label = "Depth Confidence Floor";
     ui_tooltip = "Alias for generated presets that use the shorter depth-confidence name.";
 > = 0.0;
+
+uniform float Dalashade_NormalFieldEnabled <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Enabled";
+    ui_tooltip = "Optional inferred normal/surface field gate. WeatherAtmosphere uses this only for subtle atmosphere anchoring.";
+> = 0.0;
+
+uniform float Dalashade_NormalFieldStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Strength";
+    ui_tooltip = "Global scale for optional NormalField weather shaping.";
+> = 0.0;
+
+uniform float Dalashade_NormalDepthStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Depth Strength";
+    ui_tooltip = "Depth-normal contribution for optional atmosphere anchoring.";
+> = 0.0;
+
+uniform float Dalashade_NormalDetailStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Detail Strength";
+    ui_tooltip = "Detail-normal contribution for optional atmosphere anchoring.";
+> = 0.0;
+
+uniform float Dalashade_NormalMaterialInfluence <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Material Influence";
+    ui_tooltip = "Material-aware scale for optional NormalField weather shaping.";
+> = 0.0;
+
+uniform float Dalashade_NormalWaterSuppression <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Water Suppression";
+    ui_tooltip = "Suppresses fake detail normals on water-like areas.";
+> = 0.80;
+
+uniform float Dalashade_NormalSkinSuppression <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Skin Suppression";
+    ui_tooltip = "Suppresses fake detail normals on skin-like areas.";
+> = 0.90;
+
+uniform float Dalashade_NormalSkySuppression <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Sky/Fog Suppression";
+    ui_tooltip = "Suppresses fake detail normals on sky, fog, and atmosphere.";
+> = 0.95;
 
 uniform float Dalashade_ManualStrength <
     ui_type = "slider";
@@ -351,7 +429,10 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float materialSpecularGlint = Dalashade_Saturate(max(materialWater, Dalashade_MaterialSpecularGlint));
     float materialWaterGate = Dalashade_Saturate(max(materialWaterPlane, materialSpecularGlint));
     float materialCrystal = Dalashade_Saturate(Dalashade_MaterialCrystalAether);
+    float materialNeonGlass = Dalashade_Saturate(Dalashade_MaterialNeonGlass);
+    float materialFireHeat = Dalashade_Saturate(Dalashade_MaterialFireLavaHeat);
     float materialSkyFog = Dalashade_Saturate(Dalashade_MaterialSkyCloudFog);
+    float materialSkin = Dalashade_Saturate(Dalashade_MaterialSkinProtection);
 
     float luma = dot(color, float3(0.2126, 0.7152, 0.0722));
     Dalashade_MaterialResolve material = Dalashade_ResolveMaterials(
@@ -366,10 +447,10 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         0.0,
         0.0,
         materialCrystal,
-        0.0,
-        0.0,
+        materialNeonGlass,
+        materialFireHeat,
         materialSkyFog,
-        0.0,
+        materialSkin,
         0.0,
         Dalashade_EnableDepthAssist ? 1.0 : 0.0,
         Dalashade_DepthAssistStrength,
@@ -399,14 +480,52 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         Dalashade_EnableDepthAssist ? 1.0 : 0.0,
         Dalashade_DepthAssistStrength,
         max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
+    Dalashade_NormalField normalField = Dalashade_ResolveNormalField(
+        color,
+        texcoord,
+        material,
+        water,
+        safety,
+        Dalashade_NormalFieldEnabled,
+        Dalashade_NormalFieldStrength,
+        Dalashade_NormalDepthStrength,
+        Dalashade_NormalDetailStrength,
+        Dalashade_NormalMaterialInfluence,
+        Dalashade_NormalWaterSuppression,
+        Dalashade_NormalSkinSuppression,
+        Dalashade_NormalSkySuppression);
     materialFoliage = max(materialFoliage, material.Foliage);
     materialSandDust = max(materialSandDust, material.SandDust);
     materialSnowIce = max(materialSnowIce, material.SnowIce);
-    materialWaterPlane = max(materialWaterPlane, max(water.WetShoreline * 0.55, max(Dalashade_WaterContext, Dalashade_CoastalContext) * 0.45));
+    float waterAtmosphereContext = Dalashade_Saturate(max(water.WaterPixelConfidence, max(water.WaterReceiver, max(water.WetShoreline * 0.72, water.WaterSource * 0.34))));
+    materialWaterPlane = max(materialWaterPlane, max(waterAtmosphereContext * 0.74, max(Dalashade_WaterContext, Dalashade_CoastalContext) * 0.34));
     materialSpecularGlint = max(materialSpecularGlint, material.SpecularGlint);
     materialWaterGate = Dalashade_Saturate(max(materialWaterPlane, materialSpecularGlint));
     materialCrystal = max(materialCrystal, material.CrystalAether);
+    materialNeonGlass = max(materialNeonGlass, material.NeonGlass);
+    materialFireHeat = max(materialFireHeat, material.FireLavaHeat);
     materialSkyFog = max(materialSkyFog, max(material.SkyCloudFog, safety.SkyReject));
+    float materialAetherNeon = Dalashade_Saturate(max(materialCrystal, materialNeonGlass));
+    float skinAtmosphereProtect = Dalashade_Saturate(max(materialSkin, safety.SkinReject));
+    float highlightAtmosphereProtect = Dalashade_Saturate(max(safety.HighlightProtect, max(safety.BrightSandProtect, safety.SnowProtect) * 0.55));
+    float foliageNoiseProtect = Dalashade_Saturate(safety.FoliageNoiseReject);
+    float normalFieldInfluence = Dalashade_Saturate(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence);
+    float normalGroundAnchor = Dalashade_Saturate(
+        normalFieldInfluence
+        * normalField.GroundPlaneCandidate
+        * (0.35 + normalField.NormalConfidence * 0.35 + normalField.OrientationConfidence * 0.20)
+        * (1.0 - materialSkyFog * 0.72)
+        * (1.0 - skinAtmosphereProtect * 0.80));
+    float normalStructureAnchor = Dalashade_Saturate(
+        normalFieldInfluence
+        * normalField.StructureCandidate
+        * (0.30 + normalField.NormalConfidence * 0.32)
+        * (1.0 - max(materialWaterGate, materialSkyFog) * 0.55)
+        * (1.0 - skinAtmosphereProtect * 0.82));
+    float normalEdgeSafety = Dalashade_Saturate(
+        normalFieldInfluence
+        * normalField.EdgeDiscontinuity
+        * (0.35 + (1.0 - normalField.NormalConfidence) * 0.35 + highlightAtmosphereProtect * 0.20));
 
     float brightMask = smoothstep(0.54, 0.96, luma);
     float specularMask = smoothstep(0.72, 1.0, luma);
@@ -419,11 +538,12 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     // Atmospheric perspective: fog/mist and dust thicken with distance; foreground gameplay space stays mostly untouched.
     float realFogWeather = saturate(max(haze, materialSkyFog * haze));
     float waterMist = materialWaterPlane * max(max(wetness, dayReflection * 0.22), haze * 0.34 + nightAtmosphere * night * 0.12 + dayAtmosphere * 0.10) * smoothstep(0.18, 0.92, depth);
-    float dustAir = max(max(heat, materialSandDust), surfaceHeat * 0.70) * (0.42 + haze * 0.18 + dayAtmosphere * 0.08) * smoothstep(0.22, 0.98, depth);
-    float snowAir = max(cold, materialSnowIce) * (0.34 + haze * 0.18) * smoothstep(0.10, 0.92, depth);
-    float aetherAir = materialCrystal * max(magicGlow, atmosphere * 0.45) * smoothstep(0.18, 0.96, depth);
+    waterMist *= 1.0 + normalGroundAnchor * 0.08;
+    float dustAir = max(max(max(heat, materialSandDust), surfaceHeat * 0.70), materialFireHeat * 0.45) * (0.42 + haze * 0.18 + dayAtmosphere * 0.08 + normalGroundAnchor * 0.04) * smoothstep(0.22, 0.98, depth);
+    float snowAir = max(cold, materialSnowIce) * (0.34 + haze * 0.18 + normalGroundAnchor * 0.03) * smoothstep(0.10, 0.92, depth);
+    float aetherAir = materialAetherNeon * max(max(magicGlow, atmosphere * 0.45), neonGlow * 0.32) * smoothstep(0.18, 0.96, depth);
     float skyFogAir = materialSkyFog * max(max(realFogWeather, dayAtmosphere * openSkyLight * 0.22), nightAtmosphere * moonlight * 0.20) * smoothstep(0.12, 0.94, depth);
-    float humidAir = max(foliage, materialFoliage) * atmosphere * (0.20 + wetness * 0.16 + haze * 0.10 + nightAtmosphere * night * 0.08) * smoothstep(0.12, 0.78, depth);
+    float humidAir = max(foliage, materialFoliage) * atmosphere * (0.20 + wetness * 0.16 + haze * 0.10 + nightAtmosphere * night * 0.08 + normalStructureAnchor * 0.03) * smoothstep(0.12, 0.78, depth);
     float weatherAmount = max(max(realFogWeather, wetness * 0.62 + waterMist * 0.28), max(max(cold, materialSnowIce) * 0.58, max(heat, materialSandDust) * 0.68));
     float dustSoftness = max(heat, materialSandDust) * (0.50 + haze * 0.28);
     float fogLike = saturate(realFogWeather * (1.0 - max(heat, materialSandDust) * 0.28));
@@ -434,6 +554,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     depthHaze += dustAir * 0.035 + snowAir * 0.026 + waterMist * 0.020 + aetherAir * 0.026 + skyFogAir * 0.035 + humidAir * 0.012;
     depthHaze *= (0.15 + atmosphere * 0.16 + fogLike * 0.07 + dustSoftness * 0.08 + nightAtmosphere * 0.035 + dayAtmosphere * 0.030) * gameplayDampen * cinematicBoost;
     depthHaze *= 1.0 - ambientDarkness * night * (0.22 + max(foliage, materialFoliage) * 0.20);
+    depthHaze *= 1.0 - Dalashade_Saturate(skinAtmosphereProtect * 0.45 + highlightAtmosphereProtect * 0.20 + foliageNoiseProtect * 0.10 + normalEdgeSafety * 0.12);
     depthHaze = min(depthHaze, lerp(0.22, 0.32, saturate(fogLike + max(heat, materialSandDust) * 0.45 + materialSkyFog * haze * 0.30)));
 
     float3 hazeTint = float3(0.63, 0.68, 0.72);
@@ -442,6 +563,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.75, 0.86, 1.00), openSkyLight * daylight * 0.10);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.70, 0.82, 0.68), humidAir * 0.80);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.62, 0.70, 0.92), materialCrystal * magicGlow * 0.32);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.58, 0.74, 0.92), materialNeonGlass * neonGlow * 0.16);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.50, 0.60, 0.82), moonlight * night * 0.22);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.54, 0.57, 0.66), manualMood * 0.40);
 

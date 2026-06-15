@@ -59,7 +59,12 @@ public sealed class PresetWriter
         "Dalashade_MaterialWaterSpecular",
         "Dalashade_MaterialWaterPlane",
         "Dalashade_MaterialSpecularGlint",
+        "Dalashade_MaterialSandDust",
         "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialStoneRuins",
+        "Dalashade_MaterialMetalIndustrial",
+        "Dalashade_MaterialCrystalAether",
+        "Dalashade_MaterialNeonGlass",
         "Dalashade_MaterialSkyCloudFog",
         "Dalashade_MaterialSkinProtection"
     ];
@@ -78,7 +83,10 @@ public sealed class PresetWriter
         "Dalashade_ShallowWaterContext",
         "Dalashade_WetSurfaceContext",
         "Dalashade_MaterialCrystalAether",
-        "Dalashade_MaterialSkyCloudFog"
+        "Dalashade_MaterialNeonGlass",
+        "Dalashade_MaterialFireLavaHeat",
+        "Dalashade_MaterialSkyCloudFog",
+        "Dalashade_MaterialSkinProtection"
     ];
 
     private static readonly IReadOnlyList<string> AtmosphereBloomMaterialIntentShaderVariables =
@@ -89,7 +97,8 @@ public sealed class PresetWriter
         "Dalashade_MaterialCrystalAether",
         "Dalashade_MaterialNeonGlass",
         "Dalashade_MaterialFireLavaHeat",
-        "Dalashade_MaterialSkyCloudFog"
+        "Dalashade_MaterialSkyCloudFog",
+        "Dalashade_MaterialSkinProtection"
     ];
 
     private static readonly IReadOnlyList<string> AdaptiveGradeMaterialIntentShaderVariables =
@@ -107,6 +116,8 @@ public sealed class PresetWriter
         "Dalashade_MaterialSnowIce",
         "Dalashade_MaterialMetalIndustrial",
         "Dalashade_MaterialCrystalAether",
+        "Dalashade_MaterialNeonGlass",
+        "Dalashade_MaterialFireLavaHeat",
         "Dalashade_MaterialSkyCloudFog",
         "Dalashade_MaterialSkinProtection",
         "Dalashade_MaterialVoidDarkness"
@@ -140,6 +151,7 @@ public sealed class PresetWriter
         "Dalashade_NormalDebugEnabled",
         "Dalashade_NormalDebugMode",
         "Dalashade_NormalDebugBoost",
+        "Dalashade_NormalFieldEnabled",
         "Dalashade_NormalFieldStrength",
         "Dalashade_NormalDepthStrength",
         "Dalashade_NormalDetailStrength",
@@ -154,6 +166,11 @@ public sealed class PresetWriter
         "Dalashade_MaterialFoliage",
         "Dalashade_MaterialWaterPlane",
         "Dalashade_MaterialSpecularGlint",
+        "Dalashade_WaterContext",
+        "Dalashade_CoastalContext",
+        "Dalashade_OpenOceanContext",
+        "Dalashade_ShallowWaterContext",
+        "Dalashade_WetSurfaceContext",
         "Dalashade_MaterialSandDust",
         "Dalashade_MaterialSnowIce",
         "Dalashade_MaterialStoneRuins",
@@ -168,6 +185,8 @@ public sealed class PresetWriter
 
     private static readonly IReadOnlyList<string> SurfaceReflectionMaterialIntentShaderVariables =
     [
+        "Dalashade_MaterialFoliage",
+        "Dalashade_MaterialWaterSpecular",
         "Dalashade_MaterialWaterPlane",
         "Dalashade_MaterialSpecularGlint",
         "Dalashade_WaterContext",
@@ -177,12 +196,14 @@ public sealed class PresetWriter
         "Dalashade_WetSurfaceContext",
         "Dalashade_MaterialSandDust",
         "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialStoneRuins",
         "Dalashade_MaterialMetalIndustrial",
         "Dalashade_MaterialCrystalAether",
         "Dalashade_MaterialNeonGlass",
         "Dalashade_MaterialFireLavaHeat",
         "Dalashade_MaterialSkyCloudFog",
-        "Dalashade_MaterialSkinProtection"
+        "Dalashade_MaterialSkinProtection",
+        "Dalashade_MaterialVoidDarkness"
     ];
 
     private static readonly IReadOnlyList<string> DepthAssistShaderOwnedVariables =
@@ -229,7 +250,9 @@ public sealed class PresetWriter
                 "Dalashade_EnableDepthAssist",
                 "Dalashade_DepthAssistStrength",
                 "Dalashade_DepthAssistConfidenceFloor",
-                "Dalashade_DepthConfidenceFloor")),
+                "Dalashade_DepthConfidenceFloor")
+                .Concat(NormalFieldShaderVariables)
+                .ToArray()),
         new(
             "Dalashade_AdaptiveGrade.fx",
             "Dalashade_AdaptiveGrade",
@@ -264,7 +287,9 @@ public sealed class PresetWriter
                 "Dalashade_EnableDepthAssist",
                 "Dalashade_DepthAssistStrength",
                 "Dalashade_DepthAssistConfidenceFloor",
-                "Dalashade_DepthConfidenceFloor")),
+                "Dalashade_DepthConfidenceFloor")
+                .Concat(NormalFieldShaderVariables)
+                .ToArray()),
         new(
             "Dalashade_SmartSharpen.fx",
             "Dalashade_SmartSharpen",
@@ -384,7 +409,9 @@ public sealed class PresetWriter
                 "Dalashade_DayReflection",
                 "Dalashade_DayHighlightPressure",
                 "Dalashade_IntentCombatPressure",
-                "Dalashade_IntentCinematicPermission")),
+                "Dalashade_IntentCinematicPermission")
+                .Concat(NormalFieldShaderVariables)
+                .ToArray()),
         new(
             "Dalashade_SurfaceReflection.fx",
             "Dalashade_SurfaceReflection",
@@ -427,7 +454,9 @@ public sealed class PresetWriter
                 "Dalashade_OpenSkyLight",
                 "Dalashade_DayReflection",
                 "Dalashade_DayHighlightPressure",
-                "Dalashade_CinematicPermission"))
+                "Dalashade_CinematicPermission")
+                .Concat(NormalFieldShaderVariables)
+                .ToArray())
     ];
 
     private readonly ShaderVariableMapper mapper = new();

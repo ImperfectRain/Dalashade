@@ -10,13 +10,14 @@ AdaptiveGrade should remain the stable tonal foundation before GI, reflections, 
 
 ## Current implementation summary
 
-The shader samples the backbuffer, resolves shared materials, water, and safety masks through `Dalashade_MaterialMasks.fxh`, then applies conservative grade adjustments. Daytime inputs add shoulder/highlight restraint, chroma restraint, small material-aware identity lanes, and tiny day shadow fill. Night inputs preserve the existing moonlight/artificial-light/ambient-darkness behavior.
+The shader samples the backbuffer, resolves shared materials, water, and safety masks through `Dalashade_MaterialMasks.fxh`, then applies conservative grade adjustments. Daytime inputs add shoulder/highlight restraint, chroma restraint, small material-aware identity lanes, and tiny day shadow fill. Night inputs preserve the existing moonlight/artificial-light/ambient-darkness behavior. When NormalField mapping is enabled, AdaptiveGrade may also resolve `Dalashade_NormalField` for very small structure/detail protection; it does not use NormalField as material identity.
 
 ## Inputs
 
 - Scene intent uniforms: night/day, weather, combat, duty, GPose, atmosphere, heat, cold, water/coastal context.
-- Material uniforms: water, specular, sky/fog, sand, snow, foliage, metal, crystal/aether, neon, skin, void.
+- Material uniforms: water, specular, sky/fog, sand, snow, foliage, metal, crystal/aether, neon/glass, fire/lava/heat, skin, void.
 - Shared resolvers: `Dalashade_ResolveMaterials`, `Dalashade_ResolveWater`, `Dalashade_ResolveSafety`.
+- Optional NormalField resolver: `Dalashade_ResolveNormalField` when NormalField is enabled and mapped.
 - User controls: grade strength and debug controls.
 - Backbuffer color and optional depth assist.
 
@@ -36,7 +37,9 @@ The output is a graded backbuffer color plus debug visualizations. It does not e
 
 ## Material/Water/Normal dependencies
 
-AdaptiveGrade consumes material and water resolves for protection and color preservation only. It does not use NormalField and should not use water/normal data to create reflection, fog, bloom, or geometry effects.
+AdaptiveGrade consumes material and water resolves for protection and color preservation only. Material influence protects skin, water, foliage, sand, snow/ice, sky/fog, aether/neon/glass, fire/lava/heat, and void/darkness from harsh tonal drift. It uses `WaterPixelConfidence` and `WaterReceiver` as tonal-protection inputs only; `WaterSource`, `SkySource`, and horizon/source-only evidence are not receiver or identity masks here.
+
+NormalField is optional and secondary. When `Dalashade_NormalFieldEnabled` and the generated NormalField uniforms are active, AdaptiveGrade uses `StructureCandidate`, `NormalConfidence`, `DetailStrength`, and `EdgeDiscontinuity` as mild structure/detail protection. It does not classify water, sky, metal, skin, or foliage from NormalField, and it does not create lighting or geometry effects from inferred normals.
 
 ## Debug modes
 
@@ -55,17 +58,18 @@ AdaptiveGrade consumes material and water resolves for protection and color pres
 
 ## Safety and suppression rules
 
-Skin protection restrains tint and harsh sharpening-like contrast. Highlight protection prevents beach, sky, water, snow, sand, and specular areas from clipping. Combat/readability dampening keeps heavy grading from interfering with gameplay.
+Skin protection restrains tint and harsh sharpening-like contrast. Highlight protection prevents beach, sky, water, snow, sand, and specular areas from clipping. Water, sky/fog, snow, sand, aether/neon, fire/heat, and void material fields restrain only the grade components that would damage those identities. Combat/readability dampening keeps heavy grading from interfering with gameplay. If NormalField is disabled or unmapped, the NormalField shaping terms remain zero.
 
 ## Current limitations
 
 - It relies on post-process color/depth heuristics, not true material IDs.
 - The day layer is broad and should not be used to simulate sunlight rays, haze, bloom, or reflection.
 - Material preservation can only protect detected pixels.
+- NormalField protection depends on inferred screen-space confidence and is intentionally too weak to act as a standalone effect.
 
 ## Future direction
 
-Improve broad material identity only after the shared material debug views prove stable. Any future NormalField use should be limited to extremely broad protection, not detail shading.
+Improve broad material identity only after the shared material debug views prove stable. Any future NormalField use should remain limited to broad protection and should not become detail shading, AO, reflection, or material classification.
 
 ## Do not do
 
@@ -73,3 +77,4 @@ Improve broad material identity only after the shared material debug views prove
 - Do not globally lift daylight exposure.
 - Do not make day/night tags replace biome/material identity.
 - Do not use pixel-level material logic more detailed than the shared resolver contract.
+- Do not use NormalField as a material classifier or source of fake lighting.

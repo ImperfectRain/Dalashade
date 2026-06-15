@@ -20,6 +20,7 @@ This is pseudo-SSR. It does not reconstruct full world-space rays and it has no 
 - Scene uniforms for water/coastal/open ocean/shallow water/wet surface/rain/day/night/aether.
 - Material uniforms for water plane, water specular, specular glint, metal, crystal/aether, neon, fire/heat, sky/fog, skin, sand, snow/ice, foliage.
 - Shared `Dalashade_MaterialResolve`, `Dalashade_WaterResolve`, and `Dalashade_SafetyResolve`.
+- Optional `Dalashade_NormalField` for receiver-valid projection shaping, edge leak suppression, and roughness/stability hints.
 - User sliders for water sheen/reflection, specular glint/reflection, wet reflection, aether/neon/ice strength, sampling radius, softness, depth tolerance, and debug mode.
 
 ## Outputs
@@ -29,28 +30,30 @@ Normal output is source color plus clamped reflection contribution. Debug modes 
 ## Core algorithm
 
 1. Resolve shared material, water, and safety masks.
-2. Build receiver categories:
+2. Resolve optional NormalField data. NormalField can only support already-valid receiver classes; it does not create water, metal, or wet-surface identity.
+3. Build receiver categories:
    - water receiver from `water.WaterReceiver`
    - wet hard-surface receiver from wet context, smoothness, hard material, and safety gates
    - metal/glass/aether receiver from `material.ReflectionReceiverConfidence`, metal, neon, crystal/aether, glints, and safety gates
-3. Build source categories:
+4. Build source categories:
    - water/sky color sources for water
    - specular/glint/fire/lamp sources
    - aether/neon sources
    - structure-biased pseudo-SSR sources
-4. Sample projected offsets:
+5. Sample projected offsets:
    - water vertical projection
    - wet hard-surface short projection
    - metal/aether tight streak projection
    - pseudo-SSR structure reflection sample
-5. Apply sample safety:
+6. Apply sample safety:
    - UV bounds
    - depth continuity
    - silhouette/edge risk
    - sky/skin/foliage risk
    - source energy/source type qualification
-6. Combine positive contribution with conservative caps and small negative/contrast shaping where appropriate.
-7. Return normal output or selected debug mode.
+   - NormalField edge-discontinuity risk when enabled
+7. Combine positive contribution with conservative caps and small negative/contrast shaping where appropriate.
+8. Return normal output or selected debug mode.
 
 ## Receiver/source separation
 
@@ -58,6 +61,7 @@ This shader depends on strict separation:
 
 - `WaterReceiver` is receiver evidence.
 - `MaterialResolve.ReflectionReceiverConfidence` is shared reflection receiver support.
+- `NormalField.ReflectionReceiver` is small receiver-valid support, never a receiver class by itself.
 - `WaterSource` is reflection source-color/context eligibility, not a water-surface receiver mask.
 - `SkySource` is source color only.
 - `HorizonOnlyConfidence` is source/context only.
@@ -96,7 +100,7 @@ Never use source-only color fields as receiver masks. Horizon water may color wa
 
 ## Safety and suppression rules
 
-Sky is source-only and must not receive reflection. Skin is rejected. UI/depth-risk regions are suppressed through depth/safety heuristics. Foliage and matte terrain are dampened. Reflection contribution is clamped to prevent full-screen gloss, broad fogging, and dark ghost silhouettes.
+Sky is source-only and must not receive reflection. Skin is rejected. UI/depth-risk regions are suppressed through depth/safety heuristics. Foliage and matte terrain are dampened. When NormalField is enabled, `EdgeDiscontinuity` further suppresses pseudo-SSR ghosting and silhouette leaks, while `NormalConfidence`, `OrientationConfidence`, `StructureCandidate`, and `GroundPlaneCandidate` only shape projection stability inside existing receiver-valid regions. Reflection contribution is clamped to prevent full-screen gloss, broad fogging, and dark ghost silhouettes.
 
 ## Current limitations
 
@@ -105,6 +109,7 @@ Sky is source-only and must not receive reflection. Skin is rejected. UI/depth-r
 - Depth continuity is approximate and can fail with ReShade depth issues.
 - Dark scenes may show little visible reflected object shape unless source energy is present.
 - Projection offsets are heuristic and receiver-type-specific.
+- NormalField improves shape/stability hints only when configured and mapped; disabled NormalField keeps the shader on the material/water/safety path.
 
 ## Future direction
 
@@ -115,7 +120,7 @@ Next useful work should be guided by debug modes:
 - If projection is too weak, tune receiver-type projection weights, not material classification.
 - If ghosting returns, tighten sample safety before increasing strength.
 
-NormalField may later help shape reflection roughness/projection, but material receiver truth should remain primary.
+NormalField can shape reflection roughness/projection and dampen edge leaks, but material/water receiver truth remains primary.
 
 ## Do not do
 
@@ -124,3 +129,4 @@ NormalField may later help shape reflection roughness/projection, but material r
 - Do not make all smooth/cyan surfaces reflective.
 - Do not use reflection source-color fields such as `WaterSource`, `SkySource`, or horizon evidence as receiver masks.
 - Do not use broad `ReceiverConfidence` as a major reflection boost.
+- Do not use NormalField as material identity or let it create reflective surfaces without `water.WaterReceiver` or `material.ReflectionReceiverConfidence` support.

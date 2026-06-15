@@ -10,7 +10,7 @@ SceneGI should own conservative contact shading, low-frequency material bounce, 
 
 ## Current implementation summary
 
-The shader samples nearby color/depth, builds receiver/source masks from shared material/water/safety resolves, then applies layered AO and restrained bounce/light pooling. Water and sky are protected from dirty AO; aether/neon/fire/glint sources can contribute localized light.
+The shader samples nearby color/depth, builds receiver/source masks from shared material/water/safety resolves, then applies layered AO and restrained bounce/light pooling. Water and sky are protected from dirty AO; aether/neon/fire/glint sources can contribute localized light. Optional NormalField support adds small contact/structure grounding only after material and safety gates allow it.
 
 ## Inputs
 
@@ -18,6 +18,7 @@ The shader samples nearby color/depth, builds receiver/source masks from shared 
 - Scene intent uniforms for night, moonlight, artificial light, ambient darkness, day/open sky, combat, duty, weather, and atmosphere.
 - Material uniforms and water context.
 - Shared material/water/safety resolvers.
+- Optional NormalField resolver for conservative contact/structure shaping.
 - GI/AO strength/radius/debug controls.
 
 ## Outputs
@@ -29,12 +30,15 @@ Normal output is source color plus conservative AO/bounce modifications. Debug m
 1. Resolve material, water, and safety masks.
 2. Build GI sources from light/glint/aether/neon/fire and local luminance.
 3. Build receivers from shared AO/structure receiver helpers, material hardness, water/sky/skin gates, and scene context.
-4. Estimate local occlusion/bounce with small screen-space taps.
-5. Apply conservative darkening/lighting with safety clamps.
+4. Optionally add small NormalField structure, AO, ground/contact, and edge-discontinuity support behind the same safety gates.
+5. Estimate local occlusion/bounce with small screen-space taps.
+6. Apply conservative darkening/lighting with safety clamps.
 
 ## Material/Water/Normal dependencies
 
-SceneGI consumes MaterialMasks shared resolves. NormalField is not a production dependency yet. The shared material confidence path prefers `Dalashade_GetAOReceiver(...)` and `Dalashade_GetStructureReceiver(...)` over legacy broad `ReceiverConfidence`; local material terms still shape the final GI role. Water surfaces suppress dirty AO; `WetShoreline` may support local light pooling.
+SceneGI consumes MaterialMasks shared resolves. The shared material confidence path prefers `Dalashade_GetAOReceiver(...)` and `Dalashade_GetStructureReceiver(...)` over legacy broad `ReceiverConfidence`; local material terms still shape the final GI role. Water surfaces suppress dirty AO; `WetShoreline` may support local light pooling.
+
+Optional NormalField support uses `StructureCandidate` as mild structure grounding, `AOReceiver` as mild AO/contact support, `GroundPlaneCandidate` as mild ground/contact shaping, `EdgeDiscontinuity` as localized contact support only under safety gates, and `NormalConfidence`/`OrientationConfidence` as stability terms. NormalField cannot override sky, skin, water AO, or material safety rejects.
 
 ## Debug modes
 
@@ -48,15 +52,15 @@ SceneGI debug modes are intended to show shared material usage, sources, receive
 | 1 | AO only | Layered AO mask. |
 | 2 | Bounce only | Material bounce contribution. |
 | 3 | Night light pooling | Local night/emissive pooling. |
-| 4 | Material influence | Shared material receiver/source influence. |
+| 4 | Material influence | Shared material receiver/source influence, with NormalField support shown subtly when enabled. |
 | 5 | Sky rejection | Sky/fog safety rejection. |
 | 6 | Skin protection | Skin safety rejection. |
 | 7 | Final GI influence | Final combined GI/AO influence. |
-| 8 | Depth-normal confidence | Depth normal and confidence support. |
+| 8 | Depth-normal confidence | Depth normal and confidence support, including NormalField confidence when enabled. |
 | 9 | Emissive source | Local/aether/neon/fire/glint source confidence. |
 | 10 | Bounce receiver | Final bounce receiver mask. |
 | 11 | Adaptive limits/safety | Positive/negative contribution and safety clamps. |
-| 12 | Layered AO breakdown | Micro/medium/broad AO channels. |
+| 12 | Layered AO breakdown | Micro/medium/broad AO channels plus NormalField contact support when enabled. |
 
 `Dalashade_GIDebugOutputMode`:
 
@@ -70,7 +74,7 @@ SceneGI debug modes are intended to show shared material usage, sources, receive
 
 ## Safety and suppression rules
 
-Sky rejects AO/GI. Skin rejects dirty AO/tinting. Water suppresses dirty AO. Foliage uses foliage/noise damping. Combat/readability dampens heavy output. Snow and bright sand are protected from muddy darkening.
+Sky rejects AO/GI. Skin rejects dirty AO/tinting. Water suppresses dirty AO. Foliage uses foliage/noise damping. Combat/readability dampens heavy output. Snow and bright sand are protected from muddy darkening. NormalField is multiplied by the same sky/skin/water safety gates and remains a secondary shaping input.
 
 ## Current limitations
 
@@ -81,10 +85,11 @@ Sky rejects AO/GI. Skin rejects dirty AO/tinting. Water suppresses dirty AO. Fol
 
 ## Future direction
 
-If NormalField becomes stable, use `StructureCandidate` and `AOReceiver` as minor shaping inputs. Keep material source/receiver separation explicit.
+Validate NormalField-assisted contact in dock, ruin, city, snow, desert, foliage, and combat scenes before increasing weights. Keep material source/receiver separation explicit.
 
 ## Do not do
 
 - Do not add expensive ray marching or temporal accumulation.
 - Do not dirty sky, skin, water, or snow.
 - Do not treat specular glints as broad diffuse bounce.
+- Do not let NormalField create AO where material/safety rejects it.

@@ -1,5 +1,6 @@
 #include "ReShade.fxh"
 #include "Dalashade_MaterialMasks.fxh"
+#include "Dalashade_NormalField.fxh"
 
 // Dalashade SurfaceReflection is a lightweight material-aware reflection
 // impression pass. It includes a restrained pseudo-SSR contribution, but it is
@@ -160,6 +161,15 @@ uniform float Dalashade_MaterialFireLavaHeat < ui_type = "slider"; ui_min = 0.0;
 uniform float Dalashade_MaterialSkyCloudFog < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Material Sky Cloud Fog"; > = 0.0;
 uniform float Dalashade_MaterialSkinProtection < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Material Skin Protection"; > = 0.0;
 uniform float Dalashade_MaterialVoidDarkness < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Material Void Darkness"; > = 0.0;
+
+uniform float Dalashade_NormalFieldEnabled < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Enabled"; > = 0.0;
+uniform float Dalashade_NormalFieldStrength < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Strength"; > = 0.0;
+uniform float Dalashade_NormalDepthStrength < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Depth Strength"; > = 0.0;
+uniform float Dalashade_NormalDetailStrength < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Detail Strength"; > = 0.0;
+uniform float Dalashade_NormalMaterialInfluence < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Material Influence"; > = 0.0;
+uniform float Dalashade_NormalWaterSuppression < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Water Suppression"; > = 0.80;
+uniform float Dalashade_NormalSkinSuppression < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Skin Suppression"; > = 0.90;
+uniform float Dalashade_NormalSkySuppression < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Sky/Fog Suppression"; > = 0.95;
 
 uniform bool Dalashade_EnableDepthAssist < ui_label = "Enable Depth Assist"; > = false;
 uniform float Dalashade_DepthAssistStrength < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Depth Assist Strength"; > = 0.0;
@@ -494,6 +504,47 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     safeSurface = (1.0 - skyReject) * (1.0 - skinProtect * 0.92) * gameplayDampen;
     highlightSafety = saturate(max(max(highlightSafety, Dalashade_DayHighlightPressure), safety.HighlightProtect));
 
+    Dalashade_NormalField normalField = Dalashade_ResolveNormalField(
+        color,
+        texcoord,
+        material,
+        water,
+        safety,
+        Dalashade_NormalFieldEnabled,
+        Dalashade_NormalFieldStrength,
+        Dalashade_NormalDepthStrength,
+        Dalashade_NormalDetailStrength,
+        Dalashade_NormalMaterialInfluence,
+        Dalashade_NormalWaterSuppression,
+        Dalashade_NormalSkinSuppression,
+        Dalashade_NormalSkySuppression);
+    float normalFieldInfluence = saturate(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence);
+    float normalReceiverSafety = saturate(
+        safeSurface
+        * (1.0 - safety.SkyReject * 0.96)
+        * (1.0 - safety.SkinReject * 0.92)
+        * (1.0 - safety.FoliageNoiseReject * 0.48)
+        * (1.0 - water.HorizonOnlyConfidence * 0.82));
+    float normalReflectionSupport = saturate(
+        normalFieldInfluence
+        * normalField.ReflectionReceiver
+        * (0.34 + normalField.NormalConfidence * 0.24 + normalField.OrientationConfidence * 0.18)
+        * normalReceiverSafety);
+    float normalStructureSupport = saturate(
+        normalFieldInfluence
+        * normalField.StructureCandidate
+        * (0.24 + normalField.NormalConfidence * 0.20)
+        * normalReceiverSafety);
+    float normalGroundStability = saturate(
+        normalFieldInfluence
+        * normalField.GroundPlaneCandidate
+        * (0.24 + normalField.NormalConfidence * 0.16 + normalField.OrientationConfidence * 0.14)
+        * normalReceiverSafety);
+    float normalEdgeLeakRisk = saturate(
+        normalFieldInfluence
+        * normalField.EdgeDiscontinuity
+        * (0.35 + (1.0 - normalField.NormalConfidence) * 0.32 + safety.HighlightProtect * 0.22));
+
     float warmDryReject = saturate(water.SandReject + material.SandDust * (0.22 + bright * 0.42));
     float structureHardReceiver = saturate(
         material.StructureReceiverConfidence * 0.34
@@ -533,7 +584,10 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
         * surfaceFacing
         * verticalDepthContinuity
         * safeSurface;
-    waterReceiver = saturate(waterReceiver + sharedReceiverSupport * waterSpecificReceiver * surfaceFacing * verticalDepthContinuity * 0.12);
+    waterReceiver = saturate(
+        waterReceiver
+        + sharedReceiverSupport * waterSpecificReceiver * surfaceFacing * verticalDepthContinuity * 0.12
+        + normalReflectionSupport * waterSpecificReceiver * verticalDepthContinuity * 0.055);
     float3 waterSheen = lerp(cyanSheen, sheenSample, 0.46) * waterReceiver * Dalashade_WaterSheenStrength * 1.62;
     float reflectedWaterLuma = Dalashade_SurfaceReflectionLuma(reflectedVertical);
     float skyColorSource = saturate(max(water.SkySource, smoothstep(0.16, 0.88, reflectedWaterLuma + Dalashade_GetSaturation(reflectedVertical) * 0.36) * (0.28 + water.WaterHorizon * 0.30 + Dalashade_OpenSkyLight * 0.18)));
@@ -547,7 +601,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float specularGlintSource = saturate(max(material.SpecularGlint * glintShape, water.FoamOrEdge * 0.38) * streakDepthContinuity * (1.0 - waterReceiver * 0.16) * (1.0 - skinProtect * 0.80) * (1.0 - skyReject * 0.78) * (1.0 - warmDryReject * 0.28));
     float metalReceiver = material.MetalIndustrial
         * hardSurfaceHint
-        * (0.22 + sharedReflectionReceiver * 0.44 + smoothstep(0.02, 0.34, edge) * 0.26 + specularGlintSource * 0.32)
+        * (0.22 + sharedReflectionReceiver * 0.44 + normalReflectionSupport * 0.10 + smoothstep(0.02, 0.34, edge) * 0.26 + specularGlintSource * 0.32)
         * safeSurface
         * (1.0 - waterReceiver * 0.85)
         * (1.0 - skyReject * 0.96);
@@ -572,7 +626,11 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
             * smoothstep(0.30, 0.92, smoothness)
             * (0.36 + material.StoneRuins * 0.24 + structureHardReceiver * 0.20)
             * (1.0 - waterSpecificReceiver * 0.35)
-            * 0.12);
+            * 0.12
+        + normalReflectionSupport
+            * saturate(hardSurfaceHint * 0.42 + sharedReflectionReceiver * 0.38 + structureHardReceiver * 0.20)
+            * (1.0 - waterSpecificReceiver * 0.42)
+            * (0.040 + normalGroundStability * 0.045 + receiverWetness * 0.040));
     float3 wetReflection = lerp(sheenSample, reflectedVertical, 0.58) * wetHardSurfaceReceiver * (specularGlintSource * 0.55 + Dalashade_Wetness * 0.42) * Dalashade_WetReflectionStrength * 1.78;
 
     float3 localSource = Dalashade_SurfaceReflectionLocalSource(texcoord, depth, max(Dalashade_WaterSheenRadius, 0.75) * (1.25 + Dalashade_Night * 0.45));
@@ -582,7 +640,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float fireMask = saturate(material.FireLavaHeat * smoothstep(0.20, 0.88, luma + saturation * 0.42));
     float aetherNeonSource = saturate(aetherMask + neonMask + localSourceEnergy * (material.CrystalAether + material.NeonGlass) * 0.42);
     float fireLampSource = saturate(fireMask + localSourceEnergy * material.FireLavaHeat * 0.38 + Dalashade_ArtificialLight * specularGlintSource * 0.22);
-    float aetherGlassReceiver = saturate((material.CrystalAether + material.NeonGlass) * (smoothness * 0.42 + hardSurfaceHint * 0.36 + metalReceiver * 0.28 + sharedReflectionReceiver * 0.18) * safeSurface * (1.0 - skyReject * 0.96) * (1.0 - waterReceiver * 0.42));
+    float aetherGlassReceiver = saturate((material.CrystalAether + material.NeonGlass) * (smoothness * 0.42 + hardSurfaceHint * 0.36 + metalReceiver * 0.28 + sharedReflectionReceiver * 0.18 + normalReflectionSupport * 0.08) * safeSurface * (1.0 - skyReject * 0.96) * (1.0 - waterReceiver * 0.42));
     float emissiveReflectionMask = saturate((aetherNeonSource + fireLampSource * 0.72) * (aetherGlassReceiver + metalReceiver * 0.46 + wetHardSurfaceReceiver * 0.32 + waterReceiver * 0.18));
     float3 aetherNeonColor = material.CrystalAether * float3(0.16, 0.44, 1.0) * Dalashade_AetherReflectionStrength;
     aetherNeonColor += material.NeonGlass * float3(0.48, 0.22, 1.0) * Dalashade_NeonReflectionStrength;
@@ -603,7 +661,8 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
         * (1.0 - waterSpecificReceiver * 0.25)
         * (hardReflectionFamily * 0.58
             + smoothness * hardSurfaceHint * 0.18
-            + receiverWetness * structureHardReceiver * 0.16));
+            + receiverWetness * structureHardReceiver * 0.16
+            + normalReflectionSupport * 0.08));
     float screenReflectionReceiver = saturate(waterSurfaceReceiver + wetMetalGlassReceiver * 0.65);
     float waterSourceColorSupport = saturate(0.24 + water.SkySource * 0.30 + water.WaterSource * 0.24 + water.WaterPixelConfidence * 0.28);
     float waterQualifiedSourceBias = saturate(water.SkySource * 0.36 + water.WaterSource * 0.30 + water.HorizonOnlyConfidence * 0.22 + water.WaterPixelConfidence * 0.22);
@@ -615,8 +674,9 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float3 qualifiedHardSourceColor = Dalashade_SampleQualifiedReflectionSource(texcoord, depth, glintStreakDirection, reflectionOffset * 1.28, saturate(reflectionSoftness * 0.72), reflectionDepthReject, 0.08, hardQualifiedSourceBias, aetherQualifiedSourceBias, fireQualifiedSourceBias);
     float qualifiedWaterEnergy = Dalashade_SurfaceReflectionSourceEnergy(qualifiedWaterSourceColor, waterQualifiedSourceBias, 0.10, 0.08, 0.04);
     float qualifiedHardEnergy = Dalashade_SurfaceReflectionSourceEnergy(qualifiedHardSourceColor, 0.08, hardQualifiedSourceBias, aetherQualifiedSourceBias, fireQualifiedSourceBias);
-    float2 wetFloorDirection = normalize(float2(normal.x * 0.18, -0.62 - normal.y * 0.08));
-    float2 hardProjectionDirection = normalize(float2(0.92 + normal.x * 0.22, -0.22 - normal.y * 0.18));
+    float normalProjectionStability = saturate(0.82 + normalFieldInfluence * (normalField.NormalConfidence * 0.10 + normalField.OrientationConfidence * 0.08 - normalEdgeLeakRisk * 0.18));
+    float2 wetFloorDirection = normalize(float2(normal.x * (0.18 + normalGroundStability * 0.05), -0.62 - normal.y * 0.08));
+    float2 hardProjectionDirection = normalize(float2(0.92 + normal.x * (0.22 + normalStructureSupport * 0.04), -0.22 - normal.y * 0.18));
     float3 projectedWaterNear = Dalashade_SampleQualifiedReflectionSource(texcoord, depth, verticalReflectDirection, reflectionOffset * 1.20, reflectionSoftness, reflectionDepthReject, waterQualifiedSourceBias, 0.08, 0.06, 0.03);
     float3 projectedWaterFar = Dalashade_SampleQualifiedReflectionSource(texcoord, depth, verticalReflectDirection, reflectionOffset * 2.35, saturate(reflectionSoftness + 0.18), reflectionDepthReject, waterQualifiedSourceBias, 0.06, 0.06, 0.03);
     float3 projectedWetFloorSource = Dalashade_SampleQualifiedReflectionSource(texcoord, depth, wetFloorDirection, reflectionOffset * 0.78, saturate(reflectionSoftness * 0.78), reflectionDepthReject, 0.06, hardQualifiedSourceBias, aetherQualifiedSourceBias * 0.55, fireQualifiedSourceBias * 0.55);
@@ -626,17 +686,17 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float projectedHardEnergy = Dalashade_SurfaceReflectionSourceEnergy(projectedHardAetherSource, 0.04, hardQualifiedSourceBias, aetherQualifiedSourceBias, fireQualifiedSourceBias);
     float3 hardSourceColor = lerp(qualifiedHardSourceColor, reflectedStreak, saturate(specularGlintSource * 0.24));
     hardSourceColor = lerp(hardSourceColor, max(localSource, hardSourceColor), hardSourceEnergy * 0.48);
-    float wetFloorProjectionReceiver = saturate((wetHardSurfaceReceiver + wetMetalGlassReceiver * receiverWetness * 0.42) * (1.0 - waterSurfaceReceiver * 0.45));
-    float hardAetherProjectionReceiver = saturate((metalReceiver + aetherGlassReceiver + wetMetalGlassReceiver * (material.MetalIndustrial + material.CrystalAether + material.NeonGlass) * 0.34) * (1.0 - waterSurfaceReceiver * 0.35));
+    float wetFloorProjectionReceiver = saturate((wetHardSurfaceReceiver + wetMetalGlassReceiver * receiverWetness * 0.42 + normalGroundStability * wetHardSurfaceReceiver * 0.045) * (1.0 - waterSurfaceReceiver * 0.45));
+    float hardAetherProjectionReceiver = saturate((metalReceiver + aetherGlassReceiver + wetMetalGlassReceiver * (material.MetalIndustrial + material.CrystalAether + material.NeonGlass) * 0.34 + normalStructureSupport * (metalReceiver + aetherGlassReceiver) * 0.045) * (1.0 - waterSurfaceReceiver * 0.35));
     float3 projectedWaterColor = lerp(projectedWaterNear, projectedWaterFar, 0.42) * lerp(float3(0.72, 0.98, 1.0), cyanSheen + 0.22, 0.28);
     float3 projectedWetFloorColor = lerp(projectedWetFloorSource, hardSourceColor, 0.28);
     float3 projectedHardAetherColor = lerp(projectedHardAetherSource, hardSourceColor, saturate(specularGlintSource * 0.22 + aetherNeonSource * 0.24));
     float waterProjectionAgreement = saturate(waterSurfaceReceiver * (0.24 + waterSourceColorSupport * 0.48 + projectedWaterEnergy * 0.34));
     float wetProjectionAgreement = saturate(wetFloorProjectionReceiver * (0.20 + max(projectedWetEnergy, hardSourceEnergy) * 0.58 + receiverWetness * 0.18));
     float hardProjectionAgreement = saturate(hardAetherProjectionReceiver * (0.18 + max(projectedHardEnergy, qualifiedHardEnergy) * 0.62 + aetherNeonSource * 0.20 + specularGlintSource * 0.12));
-    float waterProjectionStrength = waterProjectionAgreement * Dalashade_WaterReflectionStrength * 0.240;
-    float wetProjectionStrength = wetProjectionAgreement * Dalashade_WetReflectionStrength * 0.130;
-    float hardProjectionStrength = hardProjectionAgreement * max(max(Dalashade_SpecularReflectionStrength, Dalashade_AetherReflectionStrength), Dalashade_NeonReflectionStrength) * 0.105;
+    float waterProjectionStrength = waterProjectionAgreement * Dalashade_WaterReflectionStrength * 0.240 * normalProjectionStability;
+    float wetProjectionStrength = wetProjectionAgreement * Dalashade_WetReflectionStrength * 0.130 * normalProjectionStability;
+    float hardProjectionStrength = hardProjectionAgreement * max(max(Dalashade_SpecularReflectionStrength, Dalashade_AetherReflectionStrength), Dalashade_NeonReflectionStrength) * 0.105 * normalProjectionStability;
     float3 waterProjectedReflection = (lerp(color, projectedWaterColor, 0.62) - color) * waterProjectionStrength;
     float3 wetProjectedReflection = (lerp(color, projectedWetFloorColor, 0.42) - color) * wetProjectionStrength;
     float3 hardProjectedReflection = (lerp(color, projectedHardAetherColor, 0.38) - color) * hardProjectionStrength;
@@ -645,9 +705,9 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
         + hardQualifiedSourceBias * wetMetalGlassReceiver * 0.34
         + aetherQualifiedSourceBias * hardAetherProjectionReceiver * 0.28
         + fireQualifiedSourceBias * hardAetherProjectionReceiver * 0.18);
-    float waterStructureSourceBias = saturate(waterSurfaceReceiver * (0.34 + material.StructureReceiverConfidence * 0.18 + material.MetalIndustrial * 0.12 + water.WaterPixelConfidence * 0.18));
-    float wetStructureSourceBias = saturate(wetFloorProjectionReceiver * (0.18 + material.StructureReceiverConfidence * 0.20 + material.MetalIndustrial * 0.14));
-    float hardStructureSourceBias = saturate(hardAetherProjectionReceiver * (0.12 + material.StructureReceiverConfidence * 0.12 + material.MetalIndustrial * 0.18));
+    float waterStructureSourceBias = saturate(waterSurfaceReceiver * (0.34 + material.StructureReceiverConfidence * 0.18 + material.MetalIndustrial * 0.12 + water.WaterPixelConfidence * 0.18 + normalStructureSupport * 0.10));
+    float wetStructureSourceBias = saturate(wetFloorProjectionReceiver * (0.18 + material.StructureReceiverConfidence * 0.20 + material.MetalIndustrial * 0.14 + normalStructureSupport * 0.12));
+    float hardStructureSourceBias = saturate(hardAetherProjectionReceiver * (0.12 + material.StructureReceiverConfidence * 0.12 + material.MetalIndustrial * 0.18 + normalStructureSupport * 0.12));
     float4 pseudoWaterSample = Dalashade_SamplePseudoSSR(texcoord, depth, verticalReflectDirection, reflectionOffset * 1.34, reflectionDepthReject, saturate(waterQualifiedSourceBias + water.WaterPixelConfidence * 0.28), waterStructureSourceBias);
     float4 pseudoWetSample = Dalashade_SamplePseudoSSR(texcoord, depth, wetFloorDirection, reflectionOffset * 0.92, reflectionDepthReject, saturate(hardQualifiedSourceBias + receiverWetness * 0.22), wetStructureSourceBias);
     float4 pseudoHardSample = Dalashade_SamplePseudoSSR(texcoord, depth, hardProjectionDirection, reflectionOffset * 1.10, reflectionDepthReject, saturate(aetherQualifiedSourceBias + hardQualifiedSourceBias * 0.42), hardStructureSourceBias);
@@ -661,6 +721,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float3 pseudoSSRContribution = (pseudoWaterReflection + pseudoWetReflection + pseudoHardReflection)
         * (0.72 + pseudoSourceBias * 0.28)
         * (1.0 - highlightSafety * 0.48)
+        * (1.0 - normalEdgeLeakRisk * 0.34)
         * receiverSafety;
     float3 screenReflectionContribution = (waterProjectedReflection + wetProjectedReflection + hardProjectedReflection + pseudoSSRContribution) * (1.0 - highlightSafety * 0.42);
 
@@ -682,7 +743,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float projectedReflectionMask = saturate(waterProjectionStrength * 4.2 + wetProjectionStrength * 6.0 + hardProjectionStrength * 7.0 + pseudoSSRMask * 0.72);
     float qualifiedSourceMask = saturate(qualifiedWaterEnergy * waterSurfaceReceiver * 0.42 + qualifiedHardEnergy * wetMetalGlassReceiver * 0.54 + projectedReflectionMask * 0.24);
     float reflectionSourceMask = saturate(waterSource * 0.48 + specularGlintSource * 0.70 + aetherNeonSource + fireLampSource * 0.72 + skyColorSource * waterSurfaceReceiver * 0.38 + hardSourceEnergy * wetMetalGlassReceiver * 0.34 + qualifiedSourceMask);
-    float reflectionReceiverCombined = saturate(waterSurfaceReceiver + wetHardSurfaceReceiver + metalReceiver + aetherGlassReceiver + iceReceiver + wetMetalGlassReceiver + wetFloorProjectionReceiver + hardAetherProjectionReceiver);
+    float reflectionReceiverCombined = saturate(waterSurfaceReceiver + wetHardSurfaceReceiver + metalReceiver + aetherGlassReceiver + iceReceiver + wetMetalGlassReceiver + wetFloorProjectionReceiver + hardAetherProjectionReceiver + normalReflectionSupport * 0.35);
     float reflectionReceiverRejected = saturate(skyReject + skinProtect + warmDryReject * (1.0 - waterSurfaceReceiver) + material.SandDust * bright * 0.45);
     float reflectionReceiverMask = reflectionReceiverCombined * (1.0 - reflectionReceiverRejected * 0.78);
     float finalMask = saturate(Dalashade_SurfaceReflectionLuma(abs(result - color)) * 18.0 + waterReflectionMask * 0.42 + specularGlintSource * 0.34 + wetHardSurfaceReceiver * 0.34 + emissiveReflectionMask * 0.42 + iceReceiver * 0.24 + screenReflectionReceiver * 0.22 + projectedReflectionMask * 0.30 + pseudoSSRMask * 0.26);
@@ -734,7 +795,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
         }
         else if (mode == 10)
         {
-            debugColor = saturate(waterSurfaceReceiver * float3(0.0, 0.78, 1.0) + water.HorizonOnlyConfidence * float3(0.06, 0.16, 0.88) + wetMetalGlassReceiver * float3(0.18, 0.80, 0.32) + wetHardSurfaceReceiver * float3(0.28, 0.52, 0.78) + metalReceiver * float3(0.35, 0.55, 0.78) + aetherGlassReceiver * float3(0.74, 0.28, 1.0) + iceReceiver * float3(0.70, 0.88, 1.0) + reflectionReceiverRejected * float3(0.90, 0.06, 0.04));
+            debugColor = saturate(waterSurfaceReceiver * float3(0.0, 0.78, 1.0) + water.HorizonOnlyConfidence * float3(0.06, 0.16, 0.88) + wetMetalGlassReceiver * float3(0.18, 0.80, 0.32) + wetHardSurfaceReceiver * float3(0.28, 0.52, 0.78) + metalReceiver * float3(0.35, 0.55, 0.78) + aetherGlassReceiver * float3(0.74, 0.28, 1.0) + iceReceiver * float3(0.70, 0.88, 1.0) + normalReflectionSupport * float3(0.0, 0.95, 0.72) + normalEdgeLeakRisk * float3(0.95, 0.16, 0.02) + reflectionReceiverRejected * float3(0.90, 0.06, 0.04));
             debugMask = reflectionReceiverMask;
         }
         else if (mode == 11)
@@ -764,6 +825,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
                 pseudoWaterView * float3(0.0, 0.78, 1.0)
                 + pseudoWetView * float3(0.18, 0.86, 0.42)
                 + pseudoHardView * float3(0.82, 0.30, 1.0)
+                + normalEdgeLeakRisk * float3(0.95, 0.16, 0.02)
                 + abs(pseudoSSRContribution) * 34.0);
             debugMask = saturate(max(max(pseudoWaterView, pseudoWetView), pseudoHardView));
         }

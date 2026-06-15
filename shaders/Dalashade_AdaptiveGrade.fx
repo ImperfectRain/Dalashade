@@ -1,5 +1,6 @@
 #include "ReShade.fxh"
 #include "Dalashade_MaterialMasks.fxh"
+#include "Dalashade_NormalField.fxh"
 
 uniform float Dalashade_Readability <
     ui_type = "slider";
@@ -183,6 +184,20 @@ uniform float Dalashade_MaterialCrystalAether <
     ui_tooltip = "Inferred crystal or aether likelihood. Protects saturated glow colors and supports subtle tint.";
 > = 0.0;
 
+uniform float Dalashade_MaterialNeonGlass <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Neon/Glass";
+    ui_tooltip = "Inferred neon or glass likelihood. Protects cyan/blue/violet identity without creating bloom.";
+> = 0.0;
+
+uniform float Dalashade_MaterialFireLavaHeat <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Fire/Lava/Heat";
+    ui_tooltip = "Inferred fire, lava, or heat likelihood. Preserves warm glow color without creating light.";
+> = 0.0;
+
 uniform float Dalashade_MaterialSkyCloudFog <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -262,6 +277,62 @@ uniform float Dalashade_DepthConfidenceFloor <
     ui_label = "Depth Confidence Floor";
     ui_tooltip = "Alias for generated presets that use the shorter depth-confidence name.";
 > = 0.0;
+
+uniform float Dalashade_NormalFieldEnabled <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Enabled";
+    ui_tooltip = "Optional inferred normal/surface field gate. AdaptiveGrade uses this only for mild tonal-detail protection.";
+> = 0.0;
+
+uniform float Dalashade_NormalFieldStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Strength";
+    ui_tooltip = "Global scale for optional NormalField influence.";
+> = 0.0;
+
+uniform float Dalashade_NormalDepthStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Depth Strength";
+    ui_tooltip = "Depth-normal contribution for optional structure/detail protection.";
+> = 0.0;
+
+uniform float Dalashade_NormalDetailStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Detail Strength";
+    ui_tooltip = "Detail-normal contribution for optional structure/detail protection.";
+> = 0.0;
+
+uniform float Dalashade_NormalMaterialInfluence <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Material Influence";
+    ui_tooltip = "Material-aware scaling for optional NormalField protection.";
+> = 0.0;
+
+uniform float Dalashade_NormalWaterSuppression <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Water Suppression";
+    ui_tooltip = "Suppresses fake detail normals on water-like areas.";
+> = 0.80;
+
+uniform float Dalashade_NormalSkinSuppression <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Skin Suppression";
+    ui_tooltip = "Suppresses fake detail normals on skin-like areas.";
+> = 0.90;
+
+uniform float Dalashade_NormalSkySuppression <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "NormalField Sky/Fog Suppression";
+    ui_tooltip = "Suppresses fake detail normals on sky, fog, and atmosphere.";
+> = 0.95;
 
 uniform float Dalashade_ManualStrength <
     ui_type = "slider";
@@ -376,6 +447,8 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float materialSnowIce = saturate(Dalashade_MaterialSnowIce);
     float materialMetalIndustrial = saturate(Dalashade_MaterialMetalIndustrial);
     float materialCrystal = saturate(Dalashade_MaterialCrystalAether);
+    float materialNeonGlass = saturate(Dalashade_MaterialNeonGlass);
+    float materialFireHeat = saturate(Dalashade_MaterialFireLavaHeat);
     float materialSkyCloudFog = saturate(Dalashade_MaterialSkyCloudFog);
     float materialSkin = saturate(Dalashade_MaterialSkinProtection);
     float materialVoid = saturate(Dalashade_MaterialVoidDarkness);
@@ -396,8 +469,8 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
         0.0,
         materialMetalIndustrial,
         materialCrystal,
-        0.0,
-        0.0,
+        materialNeonGlass,
+        materialFireHeat,
         materialSkyCloudFog,
         materialSkin,
         materialVoid,
@@ -429,23 +502,47 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
         Dalashade_EnableDepthAssist ? 1.0 : 0.0,
         Dalashade_DepthAssistStrength,
         max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
+    Dalashade_NormalField normalField = Dalashade_ResolveNormalField(
+        source,
+        texcoord,
+        material,
+        water,
+        safetyResolve,
+        Dalashade_NormalFieldEnabled,
+        Dalashade_NormalFieldStrength,
+        Dalashade_NormalDepthStrength,
+        Dalashade_NormalDetailStrength,
+        Dalashade_NormalMaterialInfluence,
+        Dalashade_NormalWaterSuppression,
+        Dalashade_NormalSkinSuppression,
+        Dalashade_NormalSkySuppression);
     float materialFoliagePixel = material.Foliage;
     float materialSandPixel = material.SandDust;
     float materialSnowPixel = material.SnowIce;
     float materialMetalPixel = material.MetalIndustrial;
-    float materialCrystalPixel = material.CrystalAether;
-    float materialWaterPixel = saturate(max(max(material.WaterPlane, material.WaterSpecular), water.WaterSurface));
+    float materialCrystalPixel = saturate(max(material.CrystalAether, max(material.NeonGlass, material.FireLavaHeat * 0.65)));
+    float materialWaterPixel = saturate(max(max(material.WaterPlane, water.WaterPixelConfidence), water.WaterSurface));
     float materialSpecularPixel = saturate(max(material.SpecularGlint, water.FoamOrEdge * 0.65));
     float materialSkyPixel = saturate(max(material.SkyCloudFog, safetyResolve.SkyReject));
     float materialSkinPixel = saturate(max(material.SkinProtection, safetyResolve.SkinReject));
     float materialVoidPixel = material.VoidDarkness;
+    float waterToneProtect = saturate(max(water.WaterPixelConfidence, water.WaterReceiver * 0.72));
+    float skyFogToneProtect = saturate(max(material.SkyCloudFog, safetyResolve.SkyReject));
+    float snowToneProtect = saturate(max(materialSnowPixel, safetyResolve.SnowProtect));
+    float sandToneProtect = saturate(max(materialSandPixel, safetyResolve.BrightSandProtect));
+    float aetherToneProtect = saturate(max(material.CrystalAether, max(material.NeonGlass, material.FireLavaHeat)));
+    float normalFieldInfluence = saturate(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence);
+    float normalStableStructure = saturate(normalFieldInfluence * normalField.StructureCandidate * (0.35 + normalField.NormalConfidence * 0.65) * (1.0 - materialSkinPixel * 0.70));
+    float normalUnstableEdge = saturate(normalFieldInfluence * normalField.EdgeDiscontinuity * (1.0 - normalField.NormalConfidence * 0.45) * (1.0 - materialSkyPixel * 0.75));
+    float normalDetailProtection = saturate(normalFieldInfluence * normalField.DetailStrength * (1.0 - normalField.EdgeDiscontinuity * 0.45) * (1.0 - materialSkinPixel * 0.60));
     float manualStrength = saturate(Dalashade_ManualStrength);
     float safety = 1.0 - saturate(readability * 0.42 + combat * 0.58);
     float foliageRichness = max(foliage, materialFoliage) * atmosphere * safety;
     float heatIdentity = max(heat, materialSandDust);
     float coldIdentity = max(cold, materialSnowIce);
     float hardSurfaceIdentity = max(industrial, materialMetalIndustrial);
-    float aetherIdentity = max(magicGlow, materialCrystal);
+    float aetherIdentity = max(max(magicGlow, materialCrystal), materialNeonGlass);
+    float fireIdentity = max(heat, materialFireHeat);
     float authoredIdentity = max(max(foliage, max(heat, cold)), max(max(neonGlow, magicGlow), max(industrial, cosmic)));
     float dayIdentity = saturate(daylight * 0.18 + sunlight * 0.16 + openSkyLight * 0.10 + dayAtmosphere * 0.12 + dayReflection * 0.08);
     float gradeStrength = manualStrength * (0.44 + atmosphere * 0.18 + cinematic * 0.18 + authoredIdentity * 0.08 + night * 0.06 + dayIdentity * 0.04) * (0.55 + safety * 0.45);
@@ -500,24 +597,39 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
         + (foliageRichness * 0.014)
         + (hardSurfaceIdentity * safety * 0.045)
         + (cosmic * safety * 0.020)
-        - (readability * 0.026);
+        - (readability * 0.026)
+        - normalUnstableEdge * 0.012
+        + normalStableStructure * shadowMask * 0.006;
     float saturationAmount = Dalashade_ManualSaturation
         + (cinematic * safety * 0.035)
         + (max(aetherIdentity, neonGlow) * safety * 0.025)
+        + (material.FireLavaHeat * safety * 0.010)
         + (foliageRichness * 0.030)
         + (artificialLight * safety * 0.018)
         + (cosmic * safety * 0.014)
         - (hardSurfaceIdentity * 0.040)
         - (materialSkin * 0.020)
         - (readability * 0.032)
-        - (combat * 0.026);
-    float temperature = Dalashade_ManualTemperature + (heatIdentity * 0.074) - (coldIdentity * 0.065) - (cosmic * 0.040) - (hardSurfaceIdentity * 0.018) - (moonlight * 0.048) + (artificialLight * 0.022);
-    float tint = Dalashade_ManualTint + (aetherIdentity * 0.030) - (neonGlow * 0.012) + (cosmic * 0.020) - (hardSurfaceIdentity * 0.010) + (moonlight * 0.010);
+        - (combat * 0.026)
+        - normalUnstableEdge * 0.010;
+    float temperature = Dalashade_ManualTemperature + (max(heatIdentity, fireIdentity) * 0.074) - (coldIdentity * 0.065) - (cosmic * 0.040) - (hardSurfaceIdentity * 0.018) - (moonlight * 0.048) + (artificialLight * 0.022);
+    float tint = Dalashade_ManualTint + (aetherIdentity * 0.030) - (max(neonGlow, material.NeonGlass) * 0.012) + (cosmic * 0.020) - (hardSurfaceIdentity * 0.010) + (moonlight * 0.010);
 
     float skinTintGuard = 1.0 - max(materialSkin * 0.34, materialSkinPixel * 0.45);
     saturationAmount *= 1.0 - max(materialSkin * 0.24, materialSkinPixel * 0.34);
     temperature *= skinTintGuard;
     tint *= skinTintGuard;
+    float materialIdentityGuard = saturate(
+        materialSkinPixel * 0.30
+        + waterToneProtect * 0.18
+        + skyFogToneProtect * 0.16
+        + snowToneProtect * 0.14
+        + sandToneProtect * 0.10
+        + aetherToneProtect * 0.10);
+    contrastAmount *= 1.0 - materialIdentityGuard * 0.035;
+    saturationAmount *= 1.0 - saturate(materialSkinPixel * 0.12 + skyFogToneProtect * 0.06 + normalUnstableEdge * 0.04);
+    temperature *= 1.0 - saturate(waterToneProtect * 0.08 + snowToneProtect * 0.08 + aetherToneProtect * 0.05);
+    tint *= 1.0 - saturate(waterToneProtect * 0.06 + normalUnstableEdge * 0.05);
 
     exposureTrim = clamp(exposureTrim, -0.085, 0.075);
     contrastAmount = clamp(contrastAmount, -0.085, 0.115);
@@ -536,11 +648,11 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float coolSignal = saturate((source.b - source.r) * 1.6 + cold * 0.18 + cosmic * 0.28);
     float foliageColor = foliageRichness * max(greenSignal, materialFoliagePixel * 0.68) * (1.0 - highlightMask * 0.45);
     graded = lerp(graded, graded * float3(0.965, 1.055, 0.940), foliageColor * 0.18);
-    graded = lerp(graded, graded * float3(1.038, 1.008, 0.948), heatIdentity * max(warmSignal, materialSandPixel * 0.48) * 0.048 * safety * (1.0 - materialSkin * 0.35));
+    graded = lerp(graded, graded * float3(1.038, 1.008, 0.948), max(heatIdentity, fireIdentity) * max(warmSignal, materialSandPixel * 0.48) * 0.048 * safety * (1.0 - materialSkin * 0.35));
     graded = lerp(graded, graded * float3(0.940, 0.970, 1.055), max(coldIdentity, cosmic) * max(coolSignal, materialSnowPixel * 0.42) * 0.060 * safety);
     graded = lerp(graded, float3(Dalashade_Luma(graded), Dalashade_Luma(graded), Dalashade_Luma(graded)), hardSurfaceIdentity * 0.045);
     graded = lerp(graded, graded * float3(0.982, 0.995, 1.025), materialMetalIndustrial * max(coolSignal, materialMetalPixel * 0.45) * 0.040 * safety);
-    graded = lerp(graded, graded * float3(0.985, 0.978, 1.035), materialCrystal * max(max(coolSignal, greenSignal), materialCrystalPixel * 0.42) * 0.034 * safety);
+    graded = lerp(graded, graded * float3(0.985, 0.978, 1.035), max(materialCrystal, material.NeonGlass) * max(max(coolSignal, greenSignal), materialCrystalPixel * 0.42) * 0.034 * safety);
 
     // Daytime tonal identity is a contextual layer: it protects bright materials and nudges mids without acting like bloom, fog, or reflection.
     float midtoneDayMask = smoothstep(0.18, 0.62, luma) * (1.0 - highlightMask * 0.62);
@@ -554,6 +666,10 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float3 chromaRestrained = Dalashade_SafeSaturation(graded, -0.080 * highSunChromaRestraint);
     chromaRestrained += Dalashade_Luma(graded) - Dalashade_Luma(chromaRestrained);
     graded = lerp(graded, chromaRestrained, 0.40 * manualStrength);
+    float3 waterPreserve = lerp(graded, source + (graded - source) * float3(0.88, 0.96, 1.06), 0.45);
+    graded = lerp(graded, waterPreserve, waterToneProtect * 0.10 * manualStrength * (1.0 - materialSkinPixel * 0.80));
+    float3 glowPreserve = lerp(graded, source + (graded - source) * 0.88, 0.35);
+    graded = lerp(graded, max(graded, glowPreserve), max(aetherToneProtect, material.FireLavaHeat) * 0.055 * manualStrength);
 
     // Night light hierarchy: unlit regions deepen, moonlit mids cool gently, and artificial light affects bright local pools instead of lifting the frame.
     float moonlitSurface = moonlight * smoothstep(0.18, 0.66, luma) * (1.0 - highlightMask * 0.34) * safety;
@@ -595,6 +711,9 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
         * smoothstep(0.02, 0.22, source.r - source.b)
         * (1.0 - smoothstep(0.10, 0.42, max(max(source.r, source.g), source.b) - min(min(source.r, source.g), source.b)));
     graded = lerp(graded, source + (graded - source) * 0.62, skinLikeMidtone * 0.50);
+    graded = lerp(graded, source + (graded - source) * 0.90, normalUnstableEdge * 0.16);
+    graded = lerp(graded, max(graded, source * 0.985), normalStableStructure * shadowMask * 0.055);
+    graded = lerp(graded, source + (graded - source) * 0.94, normalDetailProtection * highlightMask * 0.055);
 
     // Guardrails prevent the grade from crushing or blowing out relative to the input.
     graded = min(graded, source + 0.18);

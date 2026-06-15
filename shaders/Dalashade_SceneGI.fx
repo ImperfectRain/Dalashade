@@ -1,5 +1,6 @@
 #include "ReShade.fxh"
 #include "Dalashade_MaterialMasks.fxh"
+#include "Dalashade_NormalField.fxh"
 
 // Dalashade SceneGI is a lightweight screen-space GI-style approximation.
 // It is not path tracing, RTGI, or PTGI. It combines shallow depth contact
@@ -115,6 +116,11 @@ uniform float Dalashade_IntentCinematicPermission < ui_type = "slider"; ui_min =
 uniform float Dalashade_MaterialFoliage < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Material Foliage"; > = 0.0;
 uniform float Dalashade_MaterialWaterPlane < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Material Water Plane"; > = 0.0;
 uniform float Dalashade_MaterialSpecularGlint < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Material Specular Glint"; > = 0.0;
+uniform float Dalashade_WaterContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Water Context"; > = 0.0;
+uniform float Dalashade_CoastalContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Coastal Context"; > = 0.0;
+uniform float Dalashade_OpenOceanContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Open Ocean Context"; > = 0.0;
+uniform float Dalashade_ShallowWaterContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Shallow Water Context"; > = 0.0;
+uniform float Dalashade_WetSurfaceContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Wet Surface Context"; > = 0.0;
 uniform float Dalashade_MaterialSandDust < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Material Sand Dust"; > = 0.0;
 uniform float Dalashade_MaterialSnowIce < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Material Snow Ice"; > = 0.0;
 uniform float Dalashade_MaterialStoneRuins < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Material Stone Ruins"; > = 0.0;
@@ -125,6 +131,15 @@ uniform float Dalashade_MaterialFireLavaHeat < ui_type = "slider"; ui_min = 0.0;
 uniform float Dalashade_MaterialSkyCloudFog < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Material Sky Cloud Fog"; > = 0.0;
 uniform float Dalashade_MaterialSkinProtection < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Material Skin Protection"; > = 0.0;
 uniform float Dalashade_MaterialVoidDarkness < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Material Void Darkness"; > = 0.0;
+
+uniform float Dalashade_NormalFieldEnabled < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Enabled"; > = 0.0;
+uniform float Dalashade_NormalFieldStrength < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Strength"; > = 0.0;
+uniform float Dalashade_NormalDepthStrength < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Depth Strength"; > = 0.0;
+uniform float Dalashade_NormalDetailStrength < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Detail Strength"; > = 0.0;
+uniform float Dalashade_NormalMaterialInfluence < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Material Influence"; > = 0.0;
+uniform float Dalashade_NormalWaterSuppression < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Water Suppression"; > = 0.80;
+uniform float Dalashade_NormalSkinSuppression < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Skin Suppression"; > = 0.90;
+uniform float Dalashade_NormalSkySuppression < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Sky/Fog Suppression"; > = 0.95;
 
 float Dalashade_SceneGILuma(float3 color)
 {
@@ -328,11 +343,11 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     Dalashade_WaterResolve water = Dalashade_ResolveWater(
         color,
         texcoord,
-        Dalashade_MaterialWaterPlane,
-        Dalashade_MaterialWaterPlane,
-        Dalashade_MaterialWaterPlane,
-        Dalashade_MaterialWaterPlane,
-        Dalashade_IntentWetness,
+        Dalashade_WaterContext,
+        Dalashade_CoastalContext,
+        Dalashade_OpenOceanContext,
+        Dalashade_ShallowWaterContext,
+        max(Dalashade_IntentWetness, Dalashade_WetSurfaceContext),
         Dalashade_MaterialWaterPlane,
         Dalashade_MaterialSpecularGlint,
         Dalashade_MaterialSandDust,
@@ -350,9 +365,51 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
         0.0,
         0.0,
         0.0);
+    Dalashade_NormalField normalField = Dalashade_ResolveNormalField(
+        color,
+        texcoord,
+        material,
+        water,
+        safety,
+        Dalashade_NormalFieldEnabled,
+        Dalashade_NormalFieldStrength,
+        Dalashade_NormalDepthStrength,
+        Dalashade_NormalDetailStrength,
+        Dalashade_NormalMaterialInfluence,
+        Dalashade_NormalWaterSuppression,
+        Dalashade_NormalSkinSuppression,
+        Dalashade_NormalSkySuppression);
 
     float skyReject = saturate(safety.SkyReject * Dalashade_GISkyReject);
     float skinProtect = saturate(safety.SkinReject * Dalashade_GISkinProtect);
+    float normalFieldInfluence = saturate(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence);
+    float normalReceiverSafety = saturate(
+        (1.0 - skyReject * 0.92)
+        * (1.0 - skinProtect * 0.88)
+        * (1.0 - safety.WaterAOReject * 0.82)
+        * (1.0 - water.WaterReceiver * 0.62)
+        * (1.0 - material.SkyCloudFog * 0.72));
+    float normalStructureSupport = saturate(
+        normalFieldInfluence
+        * normalField.StructureCandidate
+        * (0.32 + normalField.NormalConfidence * 0.30 + normalField.OrientationConfidence * 0.18)
+        * normalReceiverSafety);
+    float normalAOContactSupport = saturate(
+        normalFieldInfluence
+        * normalField.AOReceiver
+        * (0.36 + normalField.NormalConfidence * 0.28 + normalField.OrientationConfidence * 0.18)
+        * normalReceiverSafety);
+    float normalGroundContactSupport = saturate(
+        normalFieldInfluence
+        * normalField.GroundPlaneCandidate
+        * (0.24 + normalField.NormalConfidence * 0.20 + normalField.OrientationConfidence * 0.18)
+        * normalReceiverSafety);
+    float normalEdgeContact = saturate(
+        normalFieldInfluence
+        * normalField.EdgeDiscontinuity
+        * (0.28 + normalField.NormalConfidence * 0.22)
+        * normalReceiverSafety
+        * (1.0 - safety.HighlightProtect * 0.42));
     float combatDampen = 1.0 - saturate(Dalashade_IntentCombatPressure * 0.58 + Dalashade_IntentReadability * 0.16);
     float readabilityDampen = 1.0 - saturate(Dalashade_IntentReadability * 0.24 + Dalashade_IntentCombatPressure * 0.38);
     float dayPush = saturate(Dalashade_Daylight * 0.20 + Dalashade_Sunlight * 0.25 + Dalashade_OpenSkyLight * 0.18 + Dalashade_DayReflection * 0.20);
@@ -371,6 +428,7 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     float aoMedium = Dalashade_SceneGIAO(texcoord, depth, aoRadius * 1.18, normalConfidence) * (0.82 + hardSurface * 0.38);
     float aoBroad = Dalashade_SceneGIAO(texcoord, depth, aoRadius * 2.15, normalConfidence) * (0.34 + hardSurface * 0.16 + material.Foliage * 0.08);
     float ao = saturate(aoMicro * 0.48 + aoMedium * 0.36 + aoBroad * 0.16);
+    ao = saturate(ao + normalAOContactSupport * 0.055 + normalGroundContactSupport * 0.030 + normalEdgeContact * 0.025);
     ao *= Dalashade_GIAOIntensity * aoMaterialBoost * combatDampen * readabilityDampen;
     ao *= 1.0 - skyReject;
     ao *= 1.0 - highlightGuard * 0.82;
@@ -396,7 +454,7 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     float lowFrequencySurface = saturate(Dalashade_RangeMask(neighborLuma, 0.08, 0.82) * (0.72 + shadow * 0.34));
     float aoReceiverConfidence = Dalashade_GetAOReceiver(material, water, safety);
     float structureReceiverConfidence = Dalashade_GetStructureReceiver(material, water, safety);
-    float sharedMaterialConfidence = saturate(max(aoReceiverConfidence, structureReceiverConfidence) + material.LightSourceConfidence * 0.35 + material.Foliage * 0.22 + material.SandDust * 0.18 + material.SnowIce * 0.18);
+    float sharedMaterialConfidence = saturate(max(aoReceiverConfidence, structureReceiverConfidence) + normalStructureSupport * 0.18 + normalAOContactSupport * 0.12 + material.LightSourceConfidence * 0.35 + material.Foliage * 0.22 + material.SandDust * 0.18 + material.SnowIce * 0.18);
     float lowFrequencyMaterialRegion = saturate(lowFrequencySurface * (sharedMaterialConfidence * 0.46 + hardSurface * 0.24 + material.Foliage * 0.18 + safety.FoliageNoiseReject * 0.08 + water.WaterSurface * 0.10 + material.SandDust * 0.12 + material.SnowIce * 0.10));
     lowFrequencyMaterialRegion *= 1.0 - skyReject * 0.86;
     lowFrequencyMaterialRegion *= 1.0 - skinProtect * 0.70;
@@ -404,7 +462,7 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
 
     float materialInfluence = saturate(Dalashade_GIMaterialInfluence * (sharedMaterialConfidence * 0.72 + lowFrequencyMaterialRegion * 0.48));
     float materialBounceAllowance = saturate(material.Foliage * 0.30 + material.SandDust * 0.26 + material.SnowIce * 0.20 + water.WetShoreline * 0.18 + material.StoneRuins * 0.22 + material.MetalIndustrial * 0.18 + material.CrystalAether * 0.44 + material.NeonGlass * 0.42 + material.FireLavaHeat * 0.54 + dayPush * 0.12);
-    float bounceReceiverMask = saturate(midtone * (0.36 + shadow * 0.55) + lowFrequencyMaterialRegion * 0.30 + material.Foliage * 0.16 + material.StoneRuins * 0.16 + material.MetalIndustrial * 0.10 + material.SandDust * 0.12 + material.SnowIce * 0.10 + water.WetShoreline * 0.08);
+    float bounceReceiverMask = saturate(midtone * (0.36 + shadow * 0.55) + lowFrequencyMaterialRegion * 0.30 + material.Foliage * 0.16 + material.StoneRuins * 0.16 + material.MetalIndustrial * 0.10 + material.SandDust * 0.12 + material.SnowIce * 0.10 + water.WetShoreline * 0.08 + normalStructureSupport * 0.055 + normalGroundContactSupport * 0.035);
     bounceReceiverMask *= saturate(0.55 + normalConfidence * 0.25 + max(normal.z, 0.0) * 0.20);
     bounceReceiverMask *= 1.0 - skyReject;
     bounceReceiverMask *= 1.0 - skinProtect * 0.82;
@@ -450,7 +508,7 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     float positiveGIAllowance = 0.105 + scenePush * 0.145 + materialPush * 0.170;
     positiveGIAllowance *= 1.0 - saturate(Dalashade_IntentCombatPressure * 0.34 + Dalashade_IntentReadability * 0.20 + highlightSafety * 0.46);
     positiveGIAllowance = max(positiveGIAllowance, 0.050 + emissiveMaterial * 0.060 + propagatedSourceMask * bounceReceiverMask * 0.060);
-    float negativeAOAllowance = 0.090 + hardSurface * 0.115 + material.StoneRuins * 0.050 + material.Foliage * 0.030 + material.VoidDarkness * 0.070;
+    float negativeAOAllowance = 0.090 + hardSurface * 0.115 + material.StoneRuins * 0.050 + material.Foliage * 0.030 + material.VoidDarkness * 0.070 + normalAOContactSupport * 0.030;
     negativeAOAllowance *= 1.0 - saturate(skyReject * 0.88 + skinProtect * 0.80 + material.SnowIce * 0.44 + material.WaterPlane * 0.48 + highlightGuard * 0.38 + Dalashade_IntentCombatPressure * 0.20);
     negativeAOAllowance = max(negativeAOAllowance, 0.030 + hardSurface * 0.020);
     float3 delta = result - color;
@@ -487,7 +545,8 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
         {
             float materialInfluenceMask = materialInfluence;
             debugColor = lerp(materialInfluenceMask.xxx, Dalashade_GetMaterialDebugColor(material), 0.72);
-            debugMask = saturate(max(sharedMaterialConfidence, max(max(aoReceiverConfidence, structureReceiverConfidence), material.LightSourceConfidence)));
+            debugColor = max(debugColor, float3(normalAOContactSupport * 0.45, normalStructureSupport * 0.55, normalGroundContactSupport * 0.40));
+            debugMask = saturate(max(sharedMaterialConfidence, max(max(max(aoReceiverConfidence, structureReceiverConfidence), material.LightSourceConfidence), max(normalAOContactSupport, normalStructureSupport))));
         }
         else if (mode == 5)
         {
@@ -509,8 +568,8 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
         }
         else if (mode == 8)
         {
-            debugColor = float3(normalConfidence, normal.z * 0.5 + 0.5, depth);
-            debugMask = max(normalConfidence, 0.35);
+            debugColor = float3(max(normalConfidence, normalField.NormalConfidence), normal.z * 0.5 + 0.5, saturate(depth + normalField.OrientationConfidence * 0.25));
+            debugMask = max(max(normalConfidence, normalField.NormalConfidence), 0.35);
         }
         else if (mode == 9)
         {
@@ -532,8 +591,8 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
         }
         else if (mode == 12)
         {
-            debugColor = float3(saturate(aoMicro * 4.0), saturate(aoMedium * 4.0), saturate(aoBroad * 4.0));
-            debugMask = saturate(max(max(aoMicro, aoMedium), aoBroad) * 4.0);
+            debugColor = float3(saturate(aoMicro * 4.0 + normalAOContactSupport), saturate(aoMedium * 4.0 + normalGroundContactSupport), saturate(aoBroad * 4.0 + normalStructureSupport));
+            debugMask = saturate(max(max(aoMicro, aoMedium), max(aoBroad, max(normalAOContactSupport, normalStructureSupport))) * 4.0);
         }
 
         return float4(Dalashade_SceneGIDebugOutput(texcoord, color, result, debugColor, debugMask), 1.0);
