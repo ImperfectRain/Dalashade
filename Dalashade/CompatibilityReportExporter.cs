@@ -523,7 +523,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Wet reflection strength {writeLabel}: {Math.Clamp(configuration.DalashadeSurfaceReflectionWetStrength, 0f, 1f):0.###}");
         builder.AppendLine($"- Aether/neon reflection strength {writeLabel}: {Math.Clamp(configuration.DalashadeSurfaceReflectionAetherNeonStrength, 0f, 1f):0.###}");
         builder.AppendLine($"- Reflection sample offset {writeLabel}: 0.018");
-        builder.AppendLine($"- SurfaceReflection debug mode {writeLabel} value: {ClampInt(configuration.DalashadeSurfaceReflectionDebugMode, 0, 10)} ({FormatSurfaceReflectionDebugMode(configuration.DalashadeSurfaceReflectionDebugMode)}).");
+        builder.AppendLine($"- SurfaceReflection debug mode {writeLabel} value: {ClampInt(configuration.DalashadeSurfaceReflectionDebugMode, 0, 14)} ({FormatSurfaceReflectionDebugMode(configuration.DalashadeSurfaceReflectionDebugMode)}).");
         builder.AppendLine($"- SurfaceReflection debug output mode {writeLabel} value: 0 ({FormatSurfaceReflectionDebugOutputMode(0)}).");
         builder.AppendLine($"- SurfaceReflection debug opacity {writeLabel} value: {Math.Clamp(configuration.DalashadeSurfaceReflectionDebugOpacity, 0f, 1f):0.###}.");
         var materialProfile = MaterialProfileBuilder.Build(tagStackDiagnostics, currentImage);
@@ -1475,7 +1475,7 @@ public sealed class CompatibilityReportExporter
 
     private static string FormatSurfaceReflectionDebugMode(int mode)
     {
-        return ClampInt(mode, 0, 10) switch
+        return ClampInt(mode, 0, 14) switch
         {
             0 => "Normal output",
             1 => "WaterPlane sheen mask",
@@ -1488,6 +1488,10 @@ public sealed class CompatibilityReportExporter
             8 => "Contribution over black",
             9 => "Reflection source mask",
             10 => "Reflection receiver mask",
+            11 => "Water projected reflection",
+            12 => "Wet hard projected reflection",
+            13 => "Metal/aether projected reflection",
+            14 => "Pseudo SSR contribution",
             _ => "Unknown"
         };
     }

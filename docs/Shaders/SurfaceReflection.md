@@ -66,23 +66,33 @@ Never use source-only color fields as receiver masks. Horizon water may color wa
 
 ## Debug modes
 
-| Mode | Meaning |
-| --- | --- |
-| Normal | Final output. |
-| WaterPlane sheen | Water sheen component. |
-| SpecularGlint | Thin glint component. |
-| Wet reflection | Wet hard-surface component. |
-| Aether/neon reflection | Aether/neon/glass component. |
-| Sky rejection | Sky safety rejection. |
-| Skin protection | Skin safety rejection. |
-| Final reflection influence | Final contribution only. |
-| Contribution over black | Reflection contribution on black. |
-| Reflection source mask | Qualified source evidence. |
-| Reflection receiver mask | Combined receiver evidence. |
-| Water projected reflection | Water vertical projection component. |
-| Wet hard projected reflection | Short wet hard-surface projection component. |
-| Metal/aether projected reflection | Tight streak projection component. |
-| Pseudo SSR contribution | Structure-biased pseudo-SSR component. |
+| Mode | Label | Meaning |
+| --- | --- | --- |
+| 0 | Normal | Final output. |
+| 1 | WaterPlane sheen | Water sheen component. |
+| 2 | SpecularGlint | Thin glint component. |
+| 3 | Wet reflection | Wet hard-surface component. |
+| 4 | Aether/neon reflection | Aether/neon/glass component. |
+| 5 | Sky rejection | Sky safety rejection. |
+| 6 | Skin protection | Skin safety rejection. |
+| 7 | Final reflection influence | Final contribution only. |
+| 8 | Contribution over black | Reflection contribution on black. |
+| 9 | Reflection source mask | Qualified source evidence. |
+| 10 | Reflection receiver mask | Combined receiver evidence. |
+| 11 | Water projected reflection | Water vertical projection component. |
+| 12 | Wet hard projected reflection | Short wet hard-surface projection component. |
+| 13 | Metal/aether projected reflection | Tight streak projection component. |
+| 14 | Pseudo SSR contribution | Structure-biased pseudo-SSR component. |
+
+`Dalashade_SurfaceReflectionDebugOutputMode` controls how nonzero debug modes are displayed:
+
+| Mode | Label | Meaning |
+| --- | --- | --- |
+| 0 | Full replacement diagnostic | Replace the image with the selected diagnostic. |
+| 1 | Alpha overlay over original | Blend the diagnostic over the source image. |
+| 2 | Side-by-side split | Diagnostic on the left, original on the right. |
+| 3 | Contribution over black | Show contribution/debug over black. |
+| 4 | Amplified difference view | Amplify result-vs-source difference with debug context. |
 
 ## Safety and suppression rules
 

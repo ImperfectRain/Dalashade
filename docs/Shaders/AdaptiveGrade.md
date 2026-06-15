@@ -40,16 +40,16 @@ AdaptiveGrade consumes material and water resolves for protection and color pres
 
 ## Debug modes
 
-| Mode | Meaning |
-| --- | --- |
-| 0 | Normal output. |
-| 1 | Night masks. |
-| 2 | Day masks. |
-| 3 | Material protection masks. |
-| 4 | Highlight rolloff. |
-| 5 | Chroma restraint. |
-| 6 | Skin protection. |
-| 7 | Final grade delta. |
+| Mode | Label | Meaning |
+| --- | --- | --- |
+| 0 | Normal | Normal output. |
+| 1 | Night masks | Night/moonlight/artificial-light masks. |
+| 2 | Day masks | Daylight shoulder, chroma restraint, shadow fill, and day material response. |
+| 3 | Material protection masks | Shared material protection lanes. |
+| 4 | Highlight rolloff | Combined highlight rolloff and day shoulder. |
+| 5 | Chroma restraint | High-sun chroma restraint. |
+| 6 | Skin protection | Skin/tint restraint. |
+| 7 | Final grade delta | Amplified difference between graded and source color. |
 
 `Dalashade_ShowDebugMask` remains a compatibility path for older debug behavior.
 

@@ -37,10 +37,65 @@ MaterialDebug directly visualizes `Dalashade_MaterialMasks.fxh`. It does not con
 
 ## Debug modes
 
-The shader includes a broad mode list for raw materials, final materials, water resolver, shared safety, and production-consumer previews. The SurfaceReflection and SceneGI preview modes use shared receiver helpers so they remain aligned with the material contract instead of relying on the legacy broad receiver field. Key current competition modes:
+The shader includes a broad mode list for raw materials, final materials, water resolver, shared safety, and production-consumer previews. The SurfaceReflection and SceneGI preview modes use shared receiver helpers so they remain aligned with the material contract instead of relying on the legacy broad receiver field.
 
 | Mode | Label | Meaning |
 | --- | --- | --- |
+| 0 | Off/pass-through | Normal source image. |
+| 1 | Overview final masks | Composite final material overview. |
+| 2 | Combined confidence | Overall final mask confidence. |
+| 3 | Raw sky/fog | Raw sky/fog pixel evidence. |
+| 4 | Gated sky/fog | Scene-gated sky/fog evidence. |
+| 5 | Final sky/fog | Final resolved sky/fog mask. |
+| 6 | Raw foliage strong | Raw strong foliage evidence. |
+| 7 | Organic green surface | Organic green foliage-like surface evidence. |
+| 8 | Final foliage influence | Final resolved foliage mask. |
+| 9 | Raw water/specular combined | Raw broad water/specular evidence. |
+| 10 | Gated water/specular combined | Scene-gated water/specular evidence. |
+| 11 | Final water/specular combined | Final resolved water/specular mask. |
+| 12 | Raw snow/ice | Raw snow/ice evidence. |
+| 13 | Gated snow/ice | Scene-gated snow/ice evidence. |
+| 14 | Final snow/ice | Final resolved snow/ice mask. |
+| 15 | Raw sand/dust | Raw sand/dust evidence. |
+| 16 | Gated sand/dust | Scene-gated sand/dust evidence. |
+| 17 | Final sand/dust | Final resolved sand/dust mask. |
+| 18 | Depth confidence | ReShade depth confidence. |
+| 19 | Depth-assisted sky/fog | Depth-assisted sky/fog contribution. |
+| 20 | Stone/ruins | Final stone/ruins material mask. |
+| 21 | Metal/industrial | Final metal/industrial material mask. |
+| 22 | Crystal/aether | Final crystal/aether material mask. |
+| 23 | Neon/glass | Final neon/glass material mask. |
+| 24 | Fire/lava/heat | Final fire/lava/heat material mask. |
+| 25 | Skin-protection | Final skin protection mask. |
+| 26 | Void/darkness | Final void/darkness mask. |
+| 27 | Raw water plane | Raw broad water-plane evidence. |
+| 28 | Gated water plane | Scene-gated water-plane evidence. |
+| 29 | Final water plane | Final resolved water-plane mask. |
+| 30 | Raw specular glint | Raw thin glint evidence. |
+| 31 | Gated specular glint | Scene-gated thin glint evidence. |
+| 32 | Final specular glint | Final resolved glint mask. |
+| 33 | Water resolver overview | Composite `WaterResolve` overview. |
+| 34 | Raw cyan water | Cyan/turquoise water-like evidence. |
+| 35 | Raw deep water | Dark/deep water evidence. |
+| 36 | Shallow water | Shallow water confidence. |
+| 37 | Deep water | Deep/open-water confidence. |
+| 38 | Water horizon | Horizon/far-water support. |
+| 39 | Wet shoreline | Shoreline/wet boundary evidence. |
+| 40 | Foam/edge | Foam/wave/edge evidence. |
+| 41 | Water receiver | Actual water reflection receiver. |
+| 42 | Water source | Water source-color eligibility, not receiver. |
+| 43 | Sky source vs reject | Blue source color vs red receiver rejection. |
+| 44 | Sand/skin reject | Dry sand and skin rejection. |
+| 45 | Water coherence | Local water coherence cue. |
+| 46 | Shared safety overview | Composite `SafetyResolve` overview. |
+| 47 | Shared receiver confidence | Legacy broad receiver confidence. |
+| 48 | Shared light source confidence | Shared light/glint/emissive confidence. |
+| 49 | SurfaceReflection receiver preview | Reflection receiver preview using shared role helpers. |
+| 50 | SceneGI receiver/source preview | GI receiver/source preview using AO/structure helpers. |
+| 51 | AtmosphereBloom eligibility preview | Bloom/glow eligibility preview. |
+| 52 | WeatherAtmosphere air influence preview | Weather/air influence preview. |
+| 53 | SmartSharpen dampening preview | Sharpen dampening preview. |
+| 54 | AdaptiveGrade protection preview | Grade protection preview. |
 | 55 | Water/sky conflict | Red sky wins, cyan water wins, yellow/white unresolved conflict. |
 | 56 | Water pixel confidence | Actual likely water pixels. |
 | 57 | Sky pixel confidence | Actual likely sky/cloud/fog pixels. |
@@ -52,6 +107,14 @@ The shader includes a broad mode list for raw materials, final materials, water 
 | 63 | Sky dominance | Sky dominance used by competition. |
 | 64 | Water proof boost | Local proof boost for true water. |
 | 65 | Competition internals overview | Composite competition explanation. |
+
+`Dalashade_MaterialDebugOverlayMode` controls how the selected mode is shown:
+
+| Mode | Label | Meaning |
+| --- | --- | --- |
+| 0 | Full debug replacement | Replace the image with the debug view. |
+| 1 | Alpha blend over image | Blend debug over the source image. |
+| 2 | Additive/tint overlay | Add/tint debug over the source image. |
 
 ## Safety and suppression rules
 

@@ -306,7 +306,7 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawFloatSlider("SurfaceReflection wet response", configuration.DalashadeSurfaceReflectionWetStrength, 0f, 1f, value => configuration.DalashadeSurfaceReflectionWetStrength = value);
         DrawFloatSlider("SurfaceReflection aether/neon response", configuration.DalashadeSurfaceReflectionAetherNeonStrength, 0f, 1f, value => configuration.DalashadeSurfaceReflectionAetherNeonStrength = value);
         var surfaceReflectionDebugMode = configuration.DalashadeSurfaceReflectionDebugMode;
-        if (ImGui.SliderInt("SurfaceReflection debug mode", ref surfaceReflectionDebugMode, 0, 10))
+        if (ImGui.SliderInt("SurfaceReflection debug mode", ref surfaceReflectionDebugMode, 0, 14))
         {
             configuration.DalashadeSurfaceReflectionDebugMode = surfaceReflectionDebugMode;
             configuration.Save();

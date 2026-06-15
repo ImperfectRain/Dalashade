@@ -40,6 +40,34 @@ SceneGI consumes MaterialMasks shared resolves. NormalField is not a production 
 
 SceneGI debug modes are intended to show shared material usage, sources, receivers, AO, bounce, and final influence. Treat them as effect diagnostics, not material truth; use MaterialDebug for base material classification.
 
+`Dalashade_GIDebugMode`:
+
+| Mode | Label | Meaning |
+| --- | --- | --- |
+| 0 | Off | Normal output. |
+| 1 | AO only | Layered AO mask. |
+| 2 | Bounce only | Material bounce contribution. |
+| 3 | Night light pooling | Local night/emissive pooling. |
+| 4 | Material influence | Shared material receiver/source influence. |
+| 5 | Sky rejection | Sky/fog safety rejection. |
+| 6 | Skin protection | Skin safety rejection. |
+| 7 | Final GI influence | Final combined GI/AO influence. |
+| 8 | Depth-normal confidence | Depth normal and confidence support. |
+| 9 | Emissive source | Local/aether/neon/fire/glint source confidence. |
+| 10 | Bounce receiver | Final bounce receiver mask. |
+| 11 | Adaptive limits/safety | Positive/negative contribution and safety clamps. |
+| 12 | Layered AO breakdown | Micro/medium/broad AO channels. |
+
+`Dalashade_GIDebugOutputMode`:
+
+| Mode | Label | Meaning |
+| --- | --- | --- |
+| 0 | Full replacement | Replace output with the selected debug view. |
+| 1 | Alpha overlay over original | Blend debug over the source image. |
+| 2 | Side-by-side split | Debug on the left, original on the right. |
+| 3 | Contribution over black | Show debug/contribution without source image. |
+| 4 | Amplified difference | Show amplified result-vs-source difference plus debug context. |
+
 ## Safety and suppression rules
 
 Sky rejects AO/GI. Skin rejects dirty AO/tinting. Water suppresses dirty AO. Foliage uses foliage/noise damping. Combat/readability dampens heavy output. Snow and bright sand are protected from muddy darkening.

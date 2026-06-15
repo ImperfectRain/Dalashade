@@ -38,18 +38,18 @@ Consumes `MaterialResolve`, `WaterResolve`, and `SafetyResolve`. Does not consum
 
 ## Debug modes
 
-| Mode | Meaning |
-| --- | --- |
-| Off | Normal output. |
-| Overview | Composite material bloom eligibility. |
-| Water/specular | Water-related glint/foam eligibility. |
-| Crystal/aether | Aether bloom support. |
-| Neon/glass | Neon/glass bloom support. |
-| Fire/heat | Lamp/fire/heat source support. |
-| Sky/fog | Atmosphere-aware sky/fog diffusion support. |
-| Final bloom eligibility | Final gated bloom mask. |
-| Water plane | Water plane support. |
-| Specular glint | Thin glint support. |
+| Mode | Label | Meaning |
+| --- | --- | --- |
+| 0 | Off | Normal output. |
+| 1 | Overview | Composite material bloom eligibility. |
+| 2 | Water/specular | Water-related glint/foam eligibility. |
+| 3 | Crystal/aether | Aether bloom support. |
+| 4 | Neon/glass | Neon/glass bloom support. |
+| 5 | Fire/heat | Lamp/fire/heat source support. |
+| 6 | Sky/fog | Atmosphere-aware sky/fog diffusion support. |
+| 7 | Final bloom eligibility | Final gated bloom mask. |
+| 8 | Water plane | Water plane support. |
+| 9 | Specular glint | Thin glint support. |
 
 ## Safety and suppression rules
 

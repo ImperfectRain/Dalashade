@@ -36,21 +36,21 @@ NormalDebug is the direct consumer of `Dalashade_NormalField.fxh`. It depends on
 
 ## Debug modes
 
-| Mode | Meaning |
-| --- | --- |
-| Normal image | Pass-through source image. |
-| Depth normal RGB | Encoded coarse depth normal. |
-| Detail normal RGB | Encoded restrained detail normal. |
-| Combined normal RGB | Encoded blended normal. |
-| Ground/plane candidate | Plane/support candidate. |
-| Wall-plane candidate | Strict vertical/wall candidate. |
-| Structure candidate | Broad structure/object confidence. |
-| Detail eligibility | Detail-normal trust/strength. |
-| Normal confidence | Overall NormalField confidence. |
-| Shading receiver | Future shading receiver mask. |
-| Reflection receiver | Future reflection receiver mask. |
-| AO receiver | Future AO receiver mask. |
-| Safety suppression | RGB safety suppression components. |
+| Mode | Label | Meaning |
+| --- | --- | --- |
+| 0 | Normal image | Pass-through source image. |
+| 1 | Depth normal RGB | Encoded coarse depth normal. |
+| 2 | Detail normal RGB | Encoded restrained detail normal. |
+| 3 | Combined normal RGB | Encoded blended normal. |
+| 4 | Ground/plane candidate | Plane/support candidate. |
+| 5 | Wall-plane candidate | Strict vertical/wall candidate. |
+| 6 | Structure candidate | Broad structure/object confidence. |
+| 7 | Detail eligibility | Detail-normal trust/strength. |
+| 8 | Normal confidence | Overall NormalField confidence. |
+| 9 | Shading receiver | Future shading receiver mask. |
+| 10 | Reflection receiver | Future reflection receiver mask. |
+| 11 | AO receiver | Future AO receiver mask. |
+| 12 | Safety suppression | RGB safety suppression components. |
 
 ## Safety and suppression rules
 

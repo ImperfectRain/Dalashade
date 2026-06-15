@@ -38,14 +38,32 @@ Consumes MaterialMasks shared resolves. Does not currently consume NormalField. 
 
 ## Debug modes
 
-| Mode | Meaning |
-| --- | --- |
-| Composite | Normal or composite debug output. |
-| Structural edge | Stable edge clarity. |
-| Texture detail | Microtexture detail. |
-| Final sharpen | Final sharpen contribution. |
-| Dampening | Suppression mask. |
-| Foliage/far-depth | Foliage/far-depth dampening. |
+`Dalashade_MaterialDebugMode` is used when `ShowDebugMask` is enabled:
+
+| Mode | Label | Meaning |
+| --- | --- | --- |
+| 0 | Off | Normal output unless `DebugView` is active. |
+| 1 | Overview | Composite material dampening overview. |
+| 2 | Foliage dampening | Foliage/organic green dampening. |
+| 3 | Water/specular dampening | Water and glint dampening. |
+| 4 | Snow/ice dampening | Snow/ice and bright-snow protection. |
+| 5 | Sky/fog exclusion | Sky/fog and smooth-gradient exclusion. |
+| 6 | Skin protection dampening | Skin/warm smooth protection. |
+| 7 | Water plane dampening | Broad water/far-depth dampening. |
+| 8 | Specular glint dampening | Specular edge/glint halo protection. |
+| 9 | Unused | Reserved/no custom material debug branch. |
+| 10 | Final material dampening | Final material/texture/structural dampening. |
+
+`DebugView` is the older sharpen diagnostic selector:
+
+| Mode | Label | Meaning |
+| --- | --- | --- |
+| 0 | Composite | Normal/composite output. |
+| 1 | Structural edge | Stable structural edge mask. |
+| 2 | Texture detail | Microtexture/detail mask. |
+| 3 | Final sharpen | Final sharpen amount. |
+| 4 | Dampening | Combined dampening/halo protection. |
+| 5 | Foliage/far-depth | Foliage and far-depth dampening. |
 
 ## Safety and suppression rules
 

@@ -38,19 +38,32 @@ Consumes MaterialMasks shared resolves. Does not use NormalField. Water/coastal 
 
 ## Debug modes
 
-| Mode | Meaning |
-| --- | --- |
-| Off | Normal output. |
-| Overview | Composite atmospheric influence. |
-| Foliage humidity | Foliage/canopy dampening and humidity. |
-| Sand/dust depth | Desert/dust/heat air. |
-| Snow/ice air | Snow/cold air. |
-| Water/wet mist | Coastal/wet/rain mist support. |
-| Crystal/aether veil | Aether atmosphere tint. |
-| Sky/fog depth | Sky/fog/depth driver. |
-| Final air influence | Final gated atmospheric mask. |
-| Water plane air | Water/coastal air support. |
-| Specular glint response | Highlight/glint atmospheric response. |
+`Dalashade_MaterialDebugMode` is used when `Dalashade_ShowDebugMask` is enabled:
+
+| Mode | Label | Meaning |
+| --- | --- | --- |
+| 0 | Off | Normal output unless `Dalashade_DebugView` is active. |
+| 1 | Overview | Composite atmospheric influence. |
+| 2 | Foliage humidity | Foliage/canopy dampening and humidity. |
+| 3 | Sand/dust depth | Desert/dust/heat air. |
+| 4 | Snow/ice air | Snow/cold air. |
+| 5 | Water/wet mist | Coastal/wet/rain mist support. |
+| 6 | Crystal/aether veil | Aether atmosphere tint. |
+| 7 | Sky/fog depth | Sky/fog/depth driver. |
+| 8 | Final air influence | Final gated atmospheric mask. |
+| 9 | Water plane air | Water/coastal air support. |
+| 10 | Specular glint response | Highlight/glint atmospheric response. |
+
+`Dalashade_DebugView` is the older atmosphere diagnostic selector:
+
+| Mode | Label | Meaning |
+| --- | --- | --- |
+| 0 | Composite | Normal/composite output. |
+| 1 | Depth haze | Depth-driven haze amount. |
+| 2 | Highlight protection | Highlight rolloff/protection. |
+| 3 | Weather glow | Weather/local glow response. |
+| 4 | Foliage dampening | Foliage/canopy damping. |
+| 5 | Heat/dust | Heat and dust contribution. |
 
 ## Safety and suppression rules
 
