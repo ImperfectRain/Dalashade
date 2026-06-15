@@ -1,29 +1,29 @@
 [
-  {
-    "Author": "ImperfectRain",
-    "Name": "Dalashade",
-    "InternalName": "Dalashade",
-    "AssemblyVersion": "2.0.0.0",
-    "Description": "Dalashade generates a separate ReShade preset from your base preset, then nudges known shader values using territory, weather, time, combat, cutscenes, and optional screenshot analysis. Use /dalashade to open it.",
-    "ApplicableVersion": "any",
-    "RepoUrl": "https://github.com/ImperfectRain/Dalashade",
-    "DalamudApiLevel": 15,
-    "LoadRequiredState": 0,
-    "LoadSync": false,
-    "CanUnloadAsync": false,
-    "LoadPriority": 0,
-    "Punchline": "A ReShade preset that pays attention to where you are.",
-    "Changelog": "v2 adds all-around improved logic, support for custom shaders, massively more transparent GUI and documentation",
-    "AcceptsFeedback": true,
-    "Tags": [
-      "reshade",
-      "preset",
-      "graphics"
-    ],
-    "DownloadLinkInstall": "https://github.com/ImperfectRain/Dalashade/releases/download/v2.0/Dalashade-v2.0.zip",
-    "DownloadLinkUpdate": "https://github.com/ImperfectRain/Dalashade/releases/download/v2.0/Dalashade-v2.0.zip",
-    "DownloadLinkTesting": "https://github.com/ImperfectRain/Dalashade/releases/download/v2.0/Dalashade-v2.0.zip",
-    "DownloadCount": 0,
-    "LastUpdate": 1781242442
-  }
+    {
+        "Author": "ImperfectRain",
+        "Name": "Dalashade",
+        "InternalName": "Dalashade",
+        "AssemblyVersion": "3.0.0.0",
+        "Description": "Dalashade generates a separate ReShade preset from your base preset, then nudges known shader values using territory, weather, time, combat, cutscenes, and optional screenshot analysis. Use /dalashade to open it.",
+        "ApplicableVersion": "any",
+        "RepoUrl": "https://github.com/ImperfectRain/Dalashade",
+        "DalamudApiLevel": 15,
+        "LoadRequiredState": 0,
+        "LoadSync": false,
+        "CanUnloadAsync": false,
+        "LoadPriority": 0,
+        "Punchline": "A ReShade preset that pays attention to where you are.",
+        "Changelog": "v3 features support for a much deeper first party dalashader system, improved game tagging states, experimental guessed normal/material system iteration",
+        "AcceptsFeedback": true,
+        "Tags": [
+            "reshade",
+            "preset",
+            "graphics"
+        ],
+        "DownloadLinkInstall": "https://github.com/ImperfectRain/Dalashade/releases/download/v3.0/Dalashade-v3.0.zip",
+        "DownloadLinkUpdate": "https://github.com/ImperfectRain/Dalashade/releases/download/v3.0/Dalashade-v3.0.zip",
+        "DownloadLinkTesting": "https://github.com/ImperfectRain/Dalashade/releases/download/v3.0/Dalashade-v3.0.zip",
+        "DownloadCount": 0,
+        "LastUpdate": 1781499971
+    }
 ]
