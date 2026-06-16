@@ -427,9 +427,9 @@ public sealed class DebugBundleExporter
                 change.Warning
             })
             .ToArray();
-        var productionShaderScan = BuildFrameDataProductionShaderScan();
-        var productionConsumers = GetFrameDataProductionConsumerLabels();
-        var productionMigrations = GetFrameDataProductionConsumerFiles();
+        var productionShaderScan = BuildFrameDataProductionShaderScan(configuration);
+        var productionConsumers = GetFrameDataProductionConsumerLabels(configuration);
+        var productionMigrations = GetFrameDataProductionConsumerFiles(configuration);
 
         return new
         {
@@ -471,7 +471,7 @@ public sealed class DebugBundleExporter
             {
                 "FrameData currently wraps inline canonical resolvers. No render target or prepass exists.",
                 "FrameDataDebug is manual and should remain inactive unless explicitly enabled in ReShade.",
-                "WeatherAtmosphere uses inline FrameData. Other production shaders are not migrated."
+                "WeatherAtmosphere, AdaptiveGrade, SmartSharpen, and AtmosphereBloom use inline FrameData. SurfaceReflection and SceneGI remain unmigrated."
             }
         };
     }
@@ -639,12 +639,12 @@ public sealed class DebugBundleExporter
             .ToArray();
     }
 
-    private static object[] BuildFrameDataProductionShaderScan()
+    private static object[] BuildFrameDataProductionShaderScan(Configuration configuration)
     {
         return ProductionShaderFiles
             .Select(fileName =>
             {
-                var source = ReadLocalShaderSource(fileName, out var sourceStatus);
+                var source = ReadShaderSource(configuration, fileName, out var sourceStatus);
                 var sourceAvailable = !string.IsNullOrWhiteSpace(source);
                 var includesFrameData = sourceAvailable && source.Contains("Dalashade_FrameData.fxh", StringComparison.Ordinal);
                 var resolvesFrameBase = sourceAvailable && source.Contains("Dalashade_ResolveFrameBaseData", StringComparison.Ordinal);
@@ -672,24 +672,24 @@ public sealed class DebugBundleExporter
             .ToArray();
     }
 
-    private static string[] GetFrameDataProductionConsumerFiles()
+    private static string[] GetFrameDataProductionConsumerFiles(Configuration configuration)
     {
         return ProductionShaderFiles
-            .Where(IsFrameDataProductionConsumer)
+            .Where(fileName => IsFrameDataProductionConsumer(configuration, fileName))
             .OrderBy(fileName => fileName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 
-    private static string[] GetFrameDataProductionConsumerLabels()
+    private static string[] GetFrameDataProductionConsumerLabels(Configuration configuration)
     {
-        return GetFrameDataProductionConsumerFiles()
+        return GetFrameDataProductionConsumerFiles(configuration)
             .Select(FormatFrameDataConsumerLabel)
             .ToArray();
     }
 
-    private static bool IsFrameDataProductionConsumer(string fileName)
+    private static bool IsFrameDataProductionConsumer(Configuration configuration, string fileName)
     {
-        var source = ReadLocalShaderSource(fileName, out _);
+        var source = ReadShaderSource(configuration, fileName, out _);
         return !string.IsNullOrWhiteSpace(source)
                && (source.Contains("Dalashade_FrameData.fxh", StringComparison.Ordinal)
                    || source.Contains("Dalashade_ResolveFrameBaseData", StringComparison.Ordinal)
@@ -1310,6 +1310,11 @@ Preset and plugin config files are included intentionally for debugging. Full Re
 
     private static string ReadLocalShaderSource(string? fileName, out string status)
     {
+        return ReadShaderSource(null, fileName, out status);
+    }
+
+    private static string ReadShaderSource(Configuration? configuration, string? fileName, out string status)
+    {
         if (string.IsNullOrWhiteSpace(fileName))
         {
             status = "source unavailable: file name empty";
@@ -1334,6 +1339,29 @@ Preset and plugin config files are included intentionally for debugging. Full Re
             {
                 status = $"source unavailable: read failed: {ex.Message}";
                 return string.Empty;
+            }
+        }
+
+        if (configuration is not null)
+        {
+            foreach (var root in FindReShadeShaderPaths(configuration))
+            {
+                var path = TryCombine(root, fileName);
+                if (string.IsNullOrWhiteSpace(path) || !FileExistsSafe(path))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    status = $"source available from ReShade shader path: {path}";
+                    return File.ReadAllText(path);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
+                {
+                    status = $"source unavailable: installed shader read failed: {ex.Message}";
+                    return string.Empty;
+                }
             }
         }
 

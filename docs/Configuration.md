@@ -10,7 +10,7 @@
 | Generation | Target style, performance budget, compatibility mode, backup count, generation behavior. |
 | Shader mapping | Known shader matching mode, inactive writes, iMMERSE Pro/Ultimate support, custom shader support. |
 | First-party shader mode | Supportive vs standalone behavior for production Dalashade shaders. |
-| First-party depth assist | Optional global generated-preset write that enables depth assist for Dalashade first-party shaders. |
+| First-party depth assist | Optional global generated-preset write that enables depth assist for production Dalashade first-party shaders. |
 | Scene and style | Screenshot analysis, master style mode, tuning preset, style strengths. |
 | MaterialIntent | Material profile/intent diagnostics and shader mapping controls. |
 | NormalField | Optional inferred normal/surface-field diagnostics and shader mapping controls. |
@@ -62,7 +62,7 @@ Debug shaders are intentionally unaffected by `FirstPartyShaderMode`.
 
 The write is limited to known first-party Dalashade shader sections that declare those uniforms. It requires custom shader variable writes to be enabled, does not install `.fx` files, and does not activate techniques. Depth assist can improve resolver confidence when ReShade depth is reliable, but it can worsen masks when the depth buffer is flat, unavailable, reversed incorrectly, or contaminated by UI/overlay depth.
 
-Compatibility reports and debug bundles list `EnableFirstPartyDepthAssist`, whether generated-preset custom shader writes and section injection are enabled, and which first-party sections received each depth-assist variable. Reporting missing shader files or missing generated-preset sections should be diagnostic-only and must not fail generation.
+Compatibility reports and debug bundles list `EnableFirstPartyDepthAssist`, whether generated-preset custom shader writes and section injection are enabled, and which production first-party sections received each depth-assist variable. Debug shaders remain manual diagnostic viewers. Reporting missing shader files or missing generated-preset sections should be diagnostic-only and must not fail generation.
 
 ## Path Safety
 

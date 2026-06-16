@@ -669,10 +669,7 @@ public sealed class CustomShaderVariableMapper
 
     private static bool IsFirstPartyDepthAssistSection(string section)
     {
-        return IsFirstPartyProductionSection(section)
-               || IsMaterialDebugSection(section)
-               || IsNormalDebugSection(section)
-               || IsFrameDataDebugSection(section);
+        return IsFirstPartyProductionSection(section);
     }
 
     private static bool IsFirstPartyProductionSection(string section)

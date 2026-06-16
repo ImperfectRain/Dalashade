@@ -17,7 +17,7 @@ FrameData does not add a prepass, render target, motion vector path, temporal ac
 
 ## Purpose
 
-FrameData gives first-party shaders one canonical vocabulary for material, water, safety, receiver, and optional surface/normal data. `Dalashade_WeatherAtmosphere.fx` is the first production consumer. The migration is intended to keep output visually stable while replacing shader-local material/water/safety resolver consumption with FrameData field names.
+FrameData gives first-party shaders one canonical vocabulary for material, water, safety, receiver, and optional surface/normal data. `Dalashade_WeatherAtmosphere.fx`, `Dalashade_AdaptiveGrade.fx`, `Dalashade_SmartSharpen.fx`, and `Dalashade_AtmosphereBloom.fx` are the current production consumers. The migrations are intended to keep output visually stable while replacing shader-local material/water/safety resolver consumption with FrameData field names.
 
 FrameData is not a promise to third-party shader authors yet. The contract can still change while Dalashade proves the names and field roles across its own shaders.
 
@@ -68,6 +68,8 @@ All fields are normalized confidence values in the `0..1` range unless noted.
 | `WaterSource` | Source | Water-related source-color/context support. Not receiver proof. |
 | `SkySource` | Source | Sky source-color/context support. Not receiver proof. |
 | `WetShoreline` | Material/source | Shoreline or wet boundary support. |
+| `FoamOrEdge` | Material/source | Water foam, edge, or shoreline transition support. |
+| `WaterSurface` | Material/receiver | Broad water-surface support from the canonical water resolve. |
 | `SpecularGlint` | Material/source | Small specular glint support from MaterialMasks. |
 | `HorizonOnly` | Source/context | Horizon-only support. Not water receiver proof. |
 | `WaterSkyConflict` | Safety/confidence | Ambiguity between water and sky interpretation. |
@@ -78,8 +80,10 @@ All fields are normalized confidence values in the `0..1` range unless noted.
 | Field | Role | Meaning |
 | --- | --- | --- |
 | `Foliage` | Material | Foliage/organic green confidence. |
+| `WaterSpecular` | Material/confidence | Canonical water/specular confidence from MaterialMasks. |
 | `SandDust` | Material | Sand, dust, desert, beach confidence. |
 | `SnowIce` | Material | Snow, ice, bright cold surface confidence. |
+| `WaterPlane` | Material/confidence | Canonical material water-plane confidence from MaterialMasks. |
 | `StoneRuins` | Material | Stone, ruin, masonry, rock confidence. |
 | `MetalIndustrial` | Material | Metal, industrial, hard cool surface confidence. |
 | `CrystalAether` | Material/source | Crystal, aether, magical cyan/violet confidence. |
@@ -123,6 +127,7 @@ NormalField is inferred screen-space data. It is not true FFXIV normals, materia
 | `NormalConfidence` | Confidence | Stability confidence for the inferred normal. |
 | `OrientationConfidence` | Confidence | Orientation stability confidence from NormalField. |
 | `DepthConfidence` | Confidence | Depth-derived normal confidence. |
+| `DetailStrength` | Confidence | Detail-derived surface support from NormalField. |
 | `EdgeDiscontinuity` | Safety/confidence | Local discontinuity risk. |
 | `GroundCandidate` | Surface/confidence | Support-plane candidate, not literal ground ID. |
 | `StructureCandidate` | Surface/confidence | Broad structure/object confidence. |
@@ -170,7 +175,7 @@ The debug shader is generated-preset aware but not auto-enabled. Base presets ar
 
 FrameData diagnostics are currently report-only:
 
-- Compatibility reports include `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and production shader source scans. WeatherAtmosphere is the first intended production consumer; no prepass or render target exists.
+- Compatibility reports include `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and production shader source scans. WeatherAtmosphere, AdaptiveGrade, SmartSharpen, and AtmosphereBloom are the current production consumers; no prepass or render target exists.
 - Debug bundles include `frame-data-diagnostics.json` with installed FrameData file presence, FrameDataDebug preset/technique state, FrameDataDebug debug variables, and production shader source scans.
 - Debug bundles include `first-party-depth-assist.json` so depth-assist opt-in state and written first-party depth-assist variables can be audited beside FrameData state.
 
@@ -180,10 +185,10 @@ FrameData diagnostics are currently report-only:
 
 When production shaders start using FrameData, migrate one shader at a time. The expected order is:
 
-1. WeatherAtmosphere air-layer identity. Complete for the inline base-data consumer pass.
-2. AtmosphereBloom source-class response.
-3. SmartSharpen safety/receiver harmonization.
-4. AdaptiveGrade role-name cleanup if needed.
+1. WeatherAtmosphere air-layer identity. Complete for the inline FrameData consumer pass.
+2. AdaptiveGrade tonal/material protection. Complete for the inline base/surface-data consumer pass.
+3. SmartSharpen safety/receiver harmonization. Complete for the inline base/surface-data consumer pass.
+4. AtmosphereBloom source-class response. Complete for the inline base/surface-data consumer pass.
 5. SurfaceReflection and SceneGI only after receiver validation.
 
 Each migration should keep before/after output equivalent unless the pass explicitly targets visuals.

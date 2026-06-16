@@ -10,15 +10,15 @@ SmartSharpen should be the final Dalashade clarity pass. It should improve reada
 
 ## Current implementation summary
 
-The shader separates structural edges from microtexture detail, resolves shared material/water/safety masks, applies dampening for unsafe regions, then blends a restrained sharpened result. Optional NormalField data can add mild stable-structure support and suppress unstable haloing, but it never classifies materials or creates new edges.
+The shader separates structural edges from microtexture detail, resolves shared material/water/safety/receiver data through the inline `Dalashade_FrameData.fxh` contract, applies dampening for unsafe regions, then blends a restrained sharpened result. Optional FrameData surface data can add mild stable-structure support and suppress unstable haloing, but it never classifies materials or creates new edges.
 
 ## Inputs
 
 - Backbuffer color and depth.
 - Scene intent uniforms for combat, day highlight pressure, open sky, fog/weather, and readability.
 - Material uniforms for foliage, water, specular glint, sand/dust, snow/ice, stone/ruins, metal/industrial, crystal/aether, neon/glass, sky/fog, and skin.
-- Shared material/water/safety resolvers.
-- Optional NormalField resolver for stable-structure and edge-discontinuity shaping.
+- Shared FrameData base resolver: `Dalashade_ResolveFrameBaseData`, which wraps canonical material, water, safety, and receiver resolves.
+- Optional FrameData surface resolver: `Dalashade_ResolveFrameSurfaceData`, used only for SmartSharpen's existing NormalField-backed stable-structure and edge-discontinuity shaping.
 - Sharpen strength, radius, threshold, dampening, and debug controls.
 
 ## Outputs
@@ -29,15 +29,15 @@ Normal output is source color with controlled clarity. Debug modes show edge/det
 
 1. Sample source and local neighborhood.
 2. Estimate structural edges and microtexture detail.
-3. Resolve material/water/safety masks.
+3. Resolve shared FrameData base fields and optional FrameData surface fields.
 4. Dampening suppresses sky/fog, water shimmer, foliage shimmer, skin, snow/sand highlights, specular glints, and aether/neon halos.
 5. Apply sharpen contribution with source-relative guardrails.
 
 ## Material/Water/Normal dependencies
 
-Consumes `MaterialResolve`, `WaterResolve`, and `SafetyResolve`. Unsafe sharpening is dampened through `safety.SkyReject`, `SkinReject`, `FoliageNoiseReject`, `HighlightProtect`, `BrightSandProtect`, and `SnowProtect`; `water.WaterPixelConfidence` and `water.WaterReceiver`; and material fields including `Foliage`, `SpecularGlint`, `CrystalAether`, `NeonGlass`, and `SkyCloudFog`.
+Consumes FrameData base fields. Unsafe sharpening is dampened through `frame.SafetySkyReject`, `frame.SafetySkinReject`, `frame.SafetyFoliageNoiseReject`, `frame.SafetyHighlightProtect`, `frame.SafetyBrightSandProtect`, and `frame.SafetySnowProtect`; `frame.WaterPixelConfidence` and `frame.WaterReceiver`; and material fields including `frame.MaterialFoliage`, `frame.WaterSpecularGlint`, `frame.MaterialCrystalAether`, `frame.MaterialNeonGlass`, and `frame.MaterialSkyCloudFog`. `WaterSource`, `WaterSkySource`, and `WaterHorizonOnly` are not sharpening permission.
 
-Stable structure support comes from `material.StructureReceiverConfidence`, `SurfaceHardness`, `StoneRuins`, and `MetalIndustrial`. Optional NormalField support uses `StructureCandidate`, `NormalConfidence`, and `OrientationConfidence` as small stability gates, while `EdgeDiscontinuity` and risky `DetailStrength` suppress halos/noisy texture. NormalField does not authorize sharpening water, foliage, skin, or sky.
+Stable structure support comes from `frame.ReceiverStructure`, `frame.MaterialSurfaceHardness`, `frame.MaterialStoneRuins`, and `frame.MaterialMetalIndustrial`. Optional FrameData surface support uses `surface.StructureCandidate`, `surface.NormalConfidence`, and `surface.OrientationConfidence` as small stability gates, while `surface.EdgeDiscontinuity` and risky `surface.DetailStrength` suppress halos/noisy texture. NormalField does not authorize sharpening water, foliage, skin, or sky.
 
 ## First-party shader mode
 

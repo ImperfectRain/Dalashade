@@ -757,12 +757,12 @@ public sealed class CompatibilityReportExporter
     {
         builder.AppendLine("## FrameData Diagnostics");
         builder.AppendLine();
-        var frameDataIncludeAvailable = !string.IsNullOrWhiteSpace(ReadShaderSource("Dalashade_FrameData.fxh"));
-        var frameDataDebugSourceAvailable = !string.IsNullOrWhiteSpace(ReadShaderSource("Dalashade_FrameDataDebug.fx"));
+        var frameDataIncludeAvailable = !string.IsNullOrWhiteSpace(ReadShaderSource(configuration, "Dalashade_FrameData.fxh"));
+        var frameDataDebugSourceAvailable = !string.IsNullOrWhiteSpace(ReadShaderSource(configuration, "Dalashade_FrameDataDebug.fx"));
         var frameDataDebug = FindFirstPartyTechnique(analysis, "Dalashade_FrameDataDebug");
         var generatedValues = ReadGeneratedPresetSectionValues(configuration.GeneratedPresetPath, "Dalashade_FrameDataDebug");
-        var frameDataConsumers = GetFrameDataProductionConsumerLabels();
-        var frameDataMigrations = GetFrameDataProductionConsumerFiles();
+        var frameDataConsumers = GetFrameDataProductionConsumerLabels(configuration);
+        var frameDataMigrations = GetFrameDataProductionConsumerFiles(configuration);
 
         builder.AppendLine("- FrameDataMode: Inline");
         builder.AppendLine("- FrameDataPrepass: NotImplemented");
@@ -789,13 +789,13 @@ public sealed class CompatibilityReportExporter
             .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         builder.AppendLine($"- FrameDataDebug variables changed this generation: {(frameDataDebugWrites.Length == 0 ? "none" : string.Join(", ", frameDataDebugWrites.Select(change => $"`{change.Section}:{change.Key}`")))}");
-        builder.AppendLine("- Current note: WeatherAtmosphere uses inline FrameData. No prepass or render target exists yet. Other production shaders are not migrated.");
+        builder.AppendLine("- Current note: WeatherAtmosphere, AdaptiveGrade, SmartSharpen, and AtmosphereBloom use inline FrameData. SurfaceReflection and SceneGI remain unmigrated. No prepass or render target exists yet.");
         builder.AppendLine();
         builder.AppendLine("### Production Shader FrameData Scan");
         builder.AppendLine();
         foreach (var fileName in ProductionShaderFiles)
         {
-            builder.AppendLine($"- {fileName}: {FormatFrameDataProductionConsumption(fileName)}");
+            builder.AppendLine($"- {fileName}: {FormatFrameDataProductionConsumption(configuration, fileName)}");
         }
 
         builder.AppendLine();
@@ -1313,6 +1313,11 @@ public sealed class CompatibilityReportExporter
 
     private static string ReadShaderSource(string fileName)
     {
+        return ReadShaderSource(null, fileName);
+    }
+
+    private static string ReadShaderSource(Configuration? configuration, string fileName)
+    {
         if (string.IsNullOrWhiteSpace(fileName))
         {
             return string.Empty;
@@ -1342,6 +1347,36 @@ public sealed class CompatibilityReportExporter
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {
                 return string.Empty;
+            }
+        }
+
+        if (configuration is not null)
+        {
+            foreach (var root in FindReShadeShaderPaths(configuration))
+            {
+                string path;
+                try
+                {
+                    path = Path.Combine(root, fileName);
+                }
+                catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (!File.Exists(path))
+                    {
+                        continue;
+                    }
+
+                    return File.ReadAllText(path);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+                {
+                    return string.Empty;
+                }
             }
         }
 
@@ -1534,9 +1569,9 @@ public sealed class CompatibilityReportExporter
             : "no, not yet";
     }
 
-    private static string FormatFrameDataProductionConsumption(string fileName)
+    private static string FormatFrameDataProductionConsumption(Configuration configuration, string fileName)
     {
-        var source = ReadShaderSource(fileName);
+        var source = ReadShaderSource(configuration, fileName);
         if (string.IsNullOrWhiteSpace(source))
         {
             return "unknown (source unavailable)";
@@ -1554,24 +1589,24 @@ public sealed class CompatibilityReportExporter
             : $"not migrated (inline-resolvers={YesNo(usesInlineResolvers)})";
     }
 
-    private static string[] GetFrameDataProductionConsumerFiles()
+    private static string[] GetFrameDataProductionConsumerFiles(Configuration configuration)
     {
         return ProductionShaderFiles
-            .Where(IsFrameDataProductionConsumer)
+            .Where(fileName => IsFrameDataProductionConsumer(configuration, fileName))
             .OrderBy(fileName => fileName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 
-    private static string[] GetFrameDataProductionConsumerLabels()
+    private static string[] GetFrameDataProductionConsumerLabels(Configuration configuration)
     {
-        return GetFrameDataProductionConsumerFiles()
+        return GetFrameDataProductionConsumerFiles(configuration)
             .Select(FormatFrameDataConsumerLabel)
             .ToArray();
     }
 
-    private static bool IsFrameDataProductionConsumer(string fileName)
+    private static bool IsFrameDataProductionConsumer(Configuration configuration, string fileName)
     {
-        var source = ReadShaderSource(fileName);
+        var source = ReadShaderSource(configuration, fileName);
         return !string.IsNullOrWhiteSpace(source)
                && (source.Contains("Dalashade_FrameData.fxh", StringComparison.Ordinal)
                    || source.Contains("Dalashade_ResolveFrameBaseData", StringComparison.Ordinal)
@@ -2128,6 +2163,104 @@ public sealed class CompatibilityReportExporter
         return string.IsNullOrWhiteSpace(appData)
             ? Path.Combine(Environment.CurrentDirectory, "Dalashade")
             : Path.Combine(appData, "XIVLauncher", "pluginConfigs", "Dalashade");
+    }
+
+    private static IEnumerable<string> FindReShadeShaderPaths(Configuration configuration)
+    {
+        var reShadeIniPath = FindReShadeIni(configuration);
+        if (string.IsNullOrWhiteSpace(reShadeIniPath) || !File.Exists(reShadeIniPath))
+        {
+            yield break;
+        }
+
+        var iniDirectory = Path.GetDirectoryName(reShadeIniPath) ?? string.Empty;
+        foreach (var line in File.ReadLines(reShadeIniPath))
+        {
+            var separatorIndex = line.IndexOf('=');
+            if (separatorIndex <= 0)
+            {
+                continue;
+            }
+
+            var key = line[..separatorIndex].Trim();
+            if (!key.Contains("EffectSearchPaths", StringComparison.OrdinalIgnoreCase)
+                && !key.Contains("EffectSearchPath", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            foreach (var rawPath in line[(separatorIndex + 1)..].Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                var normalized = rawPath.Trim('"');
+                if (string.IsNullOrWhiteSpace(normalized))
+                {
+                    continue;
+                }
+
+                var candidate = Path.IsPathRooted(normalized) ? normalized : Path.Combine(iniDirectory, normalized);
+                var fullPath = TryGetFullPath(candidate);
+                if (!string.IsNullOrWhiteSpace(fullPath) && Directory.Exists(fullPath))
+                {
+                    yield return fullPath;
+                }
+            }
+        }
+
+        var defaultShaders = Path.Combine(iniDirectory, "reshade-shaders", "Shaders");
+        var fullDefaultShaders = TryGetFullPath(defaultShaders);
+        if (!string.IsNullOrWhiteSpace(fullDefaultShaders) && Directory.Exists(fullDefaultShaders))
+        {
+            yield return fullDefaultShaders;
+        }
+    }
+
+    private static string? FindReShadeIni(Configuration configuration)
+    {
+        var configuredReShadeIni = TryGetFullPath(configuration.ReShadeIniPath);
+        if (!string.IsNullOrWhiteSpace(configuredReShadeIni) && File.Exists(configuredReShadeIni))
+        {
+            return configuredReShadeIni;
+        }
+
+        foreach (var candidate in new[] { configuration.GeneratedPresetPath, configuration.BasePresetPath })
+        {
+            var fullCandidate = TryGetFullPath(candidate);
+            if (string.IsNullOrWhiteSpace(fullCandidate))
+            {
+                continue;
+            }
+
+            var directory = Path.GetDirectoryName(fullCandidate);
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                continue;
+            }
+
+            var reShadeIni = Path.Combine(directory, "ReShade.ini");
+            if (File.Exists(reShadeIni))
+            {
+                return reShadeIni;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? TryGetFullPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
     }
 
     private static IEnumerable<PresetTechnique> DeduplicateTechniques(IEnumerable<PresetTechnique> techniques)

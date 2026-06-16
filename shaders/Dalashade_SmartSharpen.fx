@@ -1,6 +1,5 @@
 #include "ReShade.fxh"
-#include "Dalashade_MaterialMasks.fxh"
-#include "Dalashade_NormalField.fxh"
+#include "Dalashade_FrameData.fxh"
 
 uniform float Dalashade_Readability <
     ui_type = "slider";
@@ -427,97 +426,73 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float materialNeonGlass = saturate(Dalashade_MaterialNeonGlass);
     float materialSkyCloudFog = saturate(Dalashade_MaterialSkyCloudFog);
     float materialSkinProtection = saturate(Dalashade_MaterialSkinProtection);
-    Dalashade_MaterialResolve material = Dalashade_ResolveMaterials(
-        center,
-        texcoord,
-        materialFoliage,
-        materialWaterSpecular,
-        materialWaterPlaneScene,
-        materialSpecularGlintScene,
-        materialSandDust,
-        materialSnowIce,
-        materialStoneRuins,
-        materialMetalIndustrial,
-        materialCrystalAether,
-        materialNeonGlass,
-        0.0,
-        materialSkyCloudFog,
-        materialSkinProtection,
-        0.0,
-        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
-        Dalashade_DepthAssistStrength,
-        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
-    Dalashade_WaterResolve water = Dalashade_ResolveWater(
-        center,
-        texcoord,
-        materialWaterPlaneScene,
-        materialWaterPlaneScene,
-        materialWaterPlaneScene,
-        materialWaterPlaneScene,
-        wetness,
-        material.WaterPlane,
-        material.SpecularGlint,
-        0.0,
-        material.SkyCloudFog,
-        material.SkinProtection,
-        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
-        Dalashade_DepthAssistStrength,
-        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
-    Dalashade_SafetyResolve safety = Dalashade_ResolveSafety(
-        center,
-        texcoord,
-        material,
-        water,
-        max(highlightProtection, dayHighlightPressure),
-        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
-        Dalashade_DepthAssistStrength,
-        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
-    Dalashade_NormalField normalField = Dalashade_ResolveNormalField(
-        center,
-        texcoord,
-        material,
-        water,
-        safety,
-        Dalashade_NormalFieldEnabled,
-        Dalashade_NormalFieldStrength,
-        Dalashade_NormalDepthStrength,
-        Dalashade_NormalDetailStrength,
-        Dalashade_NormalMaterialInfluence,
-        Dalashade_NormalWaterSuppression,
-        Dalashade_NormalSkinSuppression,
-        Dalashade_NormalSkySuppression);
-    float materialFoliageStrong = material.Foliage;
-    float materialOrganicGreen = saturate(material.Foliage * material.SurfaceHardness * 0.35);
+    Dalashade_FrameDataSettings frameSettings = Dalashade_FrameData_DefaultSettings();
+    frameSettings.MaterialFoliage = materialFoliage;
+    frameSettings.MaterialWaterSpecular = materialWaterSpecular;
+    frameSettings.MaterialWaterPlane = materialWaterPlaneScene;
+    frameSettings.MaterialSpecularGlint = materialSpecularGlintScene;
+    frameSettings.MaterialSandDust = materialSandDust;
+    frameSettings.MaterialSnowIce = materialSnowIce;
+    frameSettings.MaterialStoneRuins = materialStoneRuins;
+    frameSettings.MaterialMetalIndustrial = materialMetalIndustrial;
+    frameSettings.MaterialCrystalAether = materialCrystalAether;
+    frameSettings.MaterialNeonGlass = materialNeonGlass;
+    frameSettings.MaterialFireLavaHeat = 0.0;
+    frameSettings.MaterialSkyCloudFog = materialSkyCloudFog;
+    frameSettings.MaterialSkinProtection = materialSkinProtection;
+    frameSettings.MaterialVoidDarkness = 0.0;
+    frameSettings.WaterContext = materialWaterPlaneScene;
+    frameSettings.CoastalContext = materialWaterPlaneScene;
+    frameSettings.OpenOceanContext = materialWaterPlaneScene;
+    frameSettings.ShallowWaterContext = materialWaterPlaneScene;
+    frameSettings.WetSurfaceContext = wetness;
+    frameSettings.HighlightProtection = max(highlightProtection, dayHighlightPressure);
+    frameSettings.DepthAssistEnabled = Dalashade_EnableDepthAssist ? 1.0 : 0.0;
+    frameSettings.DepthAssistStrength = Dalashade_DepthAssistStrength;
+    frameSettings.DepthAssistConfidenceFloor = max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor);
+    frameSettings.NormalFieldEnabled = Dalashade_NormalFieldEnabled;
+    frameSettings.NormalFieldStrength = Dalashade_NormalFieldStrength;
+    frameSettings.NormalDepthStrength = Dalashade_NormalDepthStrength;
+    frameSettings.NormalDetailStrength = Dalashade_NormalDetailStrength;
+    frameSettings.NormalMaterialInfluence = Dalashade_NormalMaterialInfluence;
+    frameSettings.NormalWaterSuppression = Dalashade_NormalWaterSuppression;
+    frameSettings.NormalSkinSuppression = Dalashade_NormalSkinSuppression;
+    frameSettings.NormalSkySuppression = Dalashade_NormalSkySuppression;
+
+    Dalashade_FrameBaseData frame = Dalashade_ResolveFrameBaseData(center, texcoord, frameSettings);
+    Dalashade_FrameSurfaceData surface = Dalashade_ResolveFrameSurfaceData(center, texcoord, frame, frameSettings);
+    float materialFoliageStrong = frame.MaterialFoliage;
+    float materialOrganicGreen = saturate(frame.MaterialFoliage * frame.MaterialSurfaceHardness * 0.35);
     float materialFoliagePixel = saturate(materialFoliageStrong + materialOrganicGreen * 0.42);
-    float materialWaterPlanePixel = water.WaterSurface;
-    float materialSpecularGlintPixel = material.SpecularGlint;
-    float materialWaterPixel = saturate(max(water.WaterPixelConfidence, max(water.WaterReceiver, material.WaterSpecular)));
-    float materialSandPixel = material.SandDust;
-    float materialSnowPixel = material.SnowIce;
-    float materialAetherNeonPixel = saturate(max(material.CrystalAether, material.NeonGlass));
-    float materialSkyPixel = saturate(max(material.SkyCloudFog, safety.SkyReject));
-    float materialSkinPixel = saturate(max(material.SkinProtection, safety.SkinReject));
+    float materialWaterPlanePixel = frame.WaterSurface;
+    float materialSpecularGlintPixel = frame.WaterSpecularGlint;
+    float materialWaterPixel = saturate(max(frame.WaterPixelConfidence, max(frame.WaterReceiver, frame.MaterialWaterSpecular)));
+    float materialSandPixel = frame.MaterialSandDust;
+    float materialSnowPixel = frame.MaterialSnowIce;
+    float materialAetherNeonPixel = saturate(max(frame.MaterialCrystalAether, frame.MaterialNeonGlass));
+    float materialSkyPixel = saturate(max(frame.MaterialSkyCloudFog, frame.SafetySkyReject));
+    float materialSkinPixel = saturate(max(frame.MaterialSkinProtection, frame.SafetySkinReject));
     float hardStructureSupport = saturate(
-        material.StructureReceiverConfidence * 0.48
-        + material.SurfaceHardness * 0.22
-        + material.StoneRuins * 0.22
-        + material.MetalIndustrial * 0.22);
+        frame.ReceiverStructure * 0.48
+        + frame.MaterialSurfaceHardness * 0.22
+        + frame.MaterialStoneRuins * 0.22
+        + frame.MaterialMetalIndustrial * 0.22);
     float normalFieldInfluence = saturate(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence);
     float normalStableStructure = saturate(
         normalFieldInfluence
-        * normalField.StructureCandidate
-        * (0.30 + normalField.NormalConfidence * 0.42 + normalField.OrientationConfidence * 0.28)
+        * surface.StructureCandidate
+        * (0.30 + surface.NormalConfidence * 0.42 + surface.OrientationConfidence * 0.28)
         * (1.0 - max(materialWaterPixel, materialFoliagePixel) * 0.58)
         * (1.0 - materialSkyPixel * 0.90)
         * (1.0 - materialSkinPixel * 0.82));
     float normalHaloRisk = saturate(
         normalFieldInfluence
-        * normalField.EdgeDiscontinuity
-        * (0.35 + (1.0 - normalField.NormalConfidence) * 0.45 + smoothstep(0.78, 1.0, centerLuma) * 0.20));
+        * surface.EdgeDiscontinuity
+        * (0.35 + (1.0 - surface.NormalConfidence) * 0.45 + smoothstep(0.78, 1.0, centerLuma) * 0.20));
     float normalDetailNoiseRisk = saturate(
         normalFieldInfluence
-        * normalField.DetailStrength
-        * (1.0 - normalField.StructureCandidate * 0.45)
+        * surface.DetailStrength
+        * (1.0 - surface.StructureCandidate * 0.45)
         * max(materialFoliagePixel, max(materialWaterPixel, materialSkyPixel)));
 
     float brightMask = smoothstep(0.62, 0.96, centerLuma);
@@ -540,18 +515,18 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
     float materialFoliagePressure = saturate(materialFoliagePixel * FoliageDampenStrength * (0.22 + textureDetailMask * 0.82 + farDepthMask * 0.24));
     float materialWaterPressure = saturate(materialWaterPixel * (0.34 + wetness * 0.28 + farDepthMask * 0.18 + textureDetailMask * 0.20) * HighlightDampenStrength);
     float materialGlintPressure = saturate(materialSpecularGlintPixel * (specularEdgeMask * 0.78 + veryBrightMask * 0.28) * HaloDampenStrength);
-    float materialSandPressure = saturate(max(materialSandPixel, safety.BrightSandProtect) * (brightMask * 0.40 + textureDetailMask * 0.25 + veryBrightMask * 0.25) * HaloDampenStrength);
+    float materialSandPressure = saturate(max(materialSandPixel, frame.SafetyBrightSandProtect) * (brightMask * 0.40 + textureDetailMask * 0.25 + veryBrightMask * 0.25) * HaloDampenStrength);
     float materialSnowPressure = saturate(materialSnowPixel * (brightMask * 0.54 + veryBrightMask * 0.36 + structuralEdgeMask * 0.18) * HaloDampenStrength);
     float materialSkyPressure = saturate(max(materialSkyPixel, materialSkyCloudFog * skyGradientMask * 0.42) * max(skyGradientMask, smoothGradientMask * (0.45 + haze * 0.45)) * SkyDampenStrength);
     float materialSkinPressure = saturate(max(materialSkinPixel, materialSkinProtection * warmSmoothMask * 0.35) * (0.50 + readability * 0.12) * AntiCrunchStrength);
     float materialAetherNeonPressure = saturate(materialAetherNeonPixel * (0.28 + specularEdgeMask * 0.38 + veryBrightMask * 0.24) * HaloDampenStrength);
     float safetyPressure = saturate(
-        safety.SkyReject * SkyDampenStrength
-        + safety.SkinReject * AntiCrunchStrength * 0.85
-        + safety.FoliageNoiseReject * FoliageDampenStrength * 0.72
-        + safety.HighlightProtect * HighlightDampenStrength * 0.48
-        + safety.BrightSandProtect * HaloDampenStrength * 0.38
-        + safety.SnowProtect * HaloDampenStrength * 0.38);
+        frame.SafetySkyReject * SkyDampenStrength
+        + frame.SafetySkinReject * AntiCrunchStrength * 0.85
+        + frame.SafetyFoliageNoiseReject * FoliageDampenStrength * 0.72
+        + frame.SafetyHighlightProtect * HighlightDampenStrength * 0.48
+        + frame.SafetyBrightSandProtect * HaloDampenStrength * 0.38
+        + frame.SafetySnowProtect * HaloDampenStrength * 0.38);
     float materialDampen = saturate(max(max(materialFoliagePressure, max(materialWaterPressure, materialGlintPressure)), max(max(materialSandPressure, materialSnowPressure), max(max(materialSkyPressure, materialSkinPressure), max(materialAetherNeonPressure, safetyPressure * 0.55)))));
 
     float hazePressure = saturate(max(haze, wetness * 0.72) * HazeDampenStrength);

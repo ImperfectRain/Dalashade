@@ -28,6 +28,8 @@ struct Dalashade_FrameWater
     float WaterSource;
     float SkySource;
     float WetShoreline;
+    float FoamOrEdge;
+    float WaterSurface;
     float SpecularGlint;
     float HorizonOnly;
     float WaterSkyConflict;
@@ -37,6 +39,8 @@ struct Dalashade_FrameWater
 struct Dalashade_FrameMaterial
 {
     float Foliage;
+    float WaterSpecular;
+    float WaterPlane;
     float SandDust;
     float SnowIce;
     float StoneRuins;
@@ -76,12 +80,16 @@ struct Dalashade_FrameBaseData
     float WaterSource;
     float WaterSkySource;
     float WaterWetShoreline;
+    float WaterFoamOrEdge;
+    float WaterSurface;
     float WaterSpecularGlint;
     float WaterHorizonOnly;
     float WaterSkyConflict;
     float WaterConfidence;
 
     float MaterialFoliage;
+    float MaterialWaterSpecular;
+    float MaterialWaterPlane;
     float MaterialSandDust;
     float MaterialSnowIce;
     float MaterialStoneRuins;
@@ -109,6 +117,7 @@ struct Dalashade_FrameSurfaceData
     float OrientationConfidence;
     float DepthConfidence;
     float EdgeDiscontinuity;
+    float DetailStrength;
     float GroundCandidate;
     float StructureCandidate;
     float WallCandidate;
@@ -290,12 +299,16 @@ Dalashade_FrameBaseData Dalashade_ResolveFrameBaseData(
     data.WaterSource = water.WaterSource;
     data.WaterSkySource = water.SkySource;
     data.WaterWetShoreline = water.WetShoreline;
+    data.WaterFoamOrEdge = water.FoamOrEdge;
+    data.WaterSurface = water.WaterSurface;
     data.WaterSpecularGlint = material.SpecularGlint;
     data.WaterHorizonOnly = water.HorizonOnlyConfidence;
     data.WaterSkyConflict = water.WaterSkyConflict;
     data.WaterConfidence = water.Confidence;
 
     data.MaterialFoliage = material.Foliage;
+    data.MaterialWaterSpecular = material.WaterSpecular;
+    data.MaterialWaterPlane = material.WaterPlane;
     data.MaterialSandDust = material.SandDust;
     data.MaterialSnowIce = material.SnowIce;
     data.MaterialStoneRuins = material.StoneRuins;
@@ -351,6 +364,7 @@ Dalashade_FrameSurfaceData Dalashade_ResolveFrameSurfaceData(
     surface.OrientationConfidence = field.OrientationConfidence;
     surface.DepthConfidence = field.DepthConfidence;
     surface.EdgeDiscontinuity = field.EdgeDiscontinuity;
+    surface.DetailStrength = field.DetailStrength;
     surface.GroundCandidate = field.GroundPlaneCandidate;
     surface.StructureCandidate = field.StructureCandidate;
     surface.WallCandidate = field.WallPlaneCandidate;

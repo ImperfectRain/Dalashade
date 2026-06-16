@@ -67,7 +67,7 @@ Start with:
 8. `first-party-depth-assist.json`: opt-in depth-assist setting state and known first-party sections that received depth-assist writes.
 9. `installed-dalashade-shaders.txt`: installed first-party shader files and hashes.
 
-FrameData is currently inline only. `frame-data-diagnostics.json` should report `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and WeatherAtmosphere as the first production FrameData consumer. Other production shaders should remain unmigrated until later explicit migration passes. `Dalashade_FrameDataDebug.fx` is a manual debug shader; section/variable injection must not make the technique active by default.
+FrameData is currently inline only. `frame-data-diagnostics.json` should report `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and WeatherAtmosphere, AdaptiveGrade, SmartSharpen, and AtmosphereBloom as production FrameData consumers. Other production shaders should remain unmigrated until later explicit migration passes. `Dalashade_FrameDataDebug.fx` is a manual debug shader; section/variable injection must not make the technique active by default.
 
 ## Do Not Do
 

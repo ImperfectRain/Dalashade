@@ -10,15 +10,15 @@ AtmosphereBloom should own broad glow eligibility and material-aware bloom restr
 
 ## Current implementation summary
 
-The shader samples local color, resolves shared material/water/safety masks, separates broad glow from thin glints, then gates bloom by material type and highlight safety. Aether, neon, fire/lamp, and shared `LightSourceConfidence` sources may bloom more strongly. Water and sky can provide source context, but water surfaces do not bloom broadly by themselves; foam/specular/glints contribute lightly. Optional NormalField data is used only to suppress unstable haloing around noisy edges.
+The shader samples local color, resolves shared material/water/safety/source data through the inline `Dalashade_FrameData.fxh` contract, separates broad glow from thin glints, then gates bloom by material type and highlight safety. Aether, neon, fire/lamp, and shared `SourceLightConfidence` sources may bloom more strongly. Water and sky can provide source context, but water surfaces do not bloom broadly by themselves; foam/specular/glints contribute lightly. Optional FrameData surface data is used only to suppress unstable haloing around noisy edges.
 
 ## Inputs
 
 - Backbuffer color and depth.
 - Scene/weather/day/night/combat uniforms.
 - Material uniforms for specular glint, water, foam/shoreline, crystal/aether, neon/glass, fire/heat, sky/fog, and skin protection.
-- Shared `Dalashade_MaterialMasks.fxh` resolvers.
-- Optional `Dalashade_NormalField.fxh` resolver for bloom-stability suppression only.
+- Shared FrameData base resolver: `Dalashade_ResolveFrameBaseData`, which wraps canonical material, water, safety, source, and receiver resolves.
+- Optional FrameData surface resolver: `Dalashade_ResolveFrameSurfaceData`, used only for the existing NormalField-backed bloom-stability suppression.
 - Bloom strength, radius, threshold, tint, and debug controls.
 
 ## Outputs
@@ -28,16 +28,16 @@ Normal output is source color plus restrained bloom contribution. Debug modes vi
 ## Core algorithm
 
 1. Sample source color and a small blur neighborhood.
-2. Resolve material/water/safety masks.
+2. Resolve shared FrameData base fields and optional FrameData surface fields.
 3. Build source eligibility from luma, shared light-source confidence, glints, aether/neon/fire, water/sky source context, and sky/fog.
 4. Apply skin/highlight/sand/snow/foliage/sky/weather/combat dampening.
 5. Blend a conservative bloom contribution into the source.
 
 ## Material/Water/Normal dependencies
 
-Consumes `MaterialResolve`, `WaterResolve`, and `SafetyResolve`. `material.LightSourceConfidence`, `FireLavaHeat`, `CrystalAether`, `NeonGlass`, and `SpecularGlint` qualify bloom sources. `SkyCloudFog` and `water.SkySource` shape atmospheric sky/fog bloom only. `water.WaterSource` is source context only and is not receiver evidence.
+Consumes FrameData base fields. `frame.SourceLightConfidence`, `frame.MaterialFireLavaHeat`, `frame.MaterialCrystalAether`, `frame.MaterialNeonGlass`, and `frame.WaterSpecularGlint` qualify bloom sources. `frame.MaterialSkyCloudFog` and `frame.WaterSkySource` shape atmospheric sky/fog bloom only. `frame.WaterSource` is source context only and is not receiver evidence.
 
-When NormalField mapping is enabled, AtmosphereBloom resolves `Dalashade_NormalField` and uses `StructureCandidate`, `NormalConfidence`, and `EdgeDiscontinuity` only to reduce unstable halos. NormalField never creates glow sources and does not classify materials.
+When NormalField mapping is enabled, AtmosphereBloom uses FrameData surface fields `surface.StructureCandidate`, `surface.NormalConfidence`, and `surface.EdgeDiscontinuity` only to reduce unstable halos. NormalField never creates glow sources and does not classify materials.
 
 ## First-party shader mode
 

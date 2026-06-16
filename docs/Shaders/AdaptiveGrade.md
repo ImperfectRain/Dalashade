@@ -10,14 +10,14 @@ AdaptiveGrade should remain the stable tonal foundation before GI, reflections, 
 
 ## Current implementation summary
 
-The shader samples the backbuffer, resolves shared materials, water, and safety masks through `Dalashade_MaterialMasks.fxh`, then applies conservative grade adjustments. Daytime inputs add shoulder/highlight restraint, chroma restraint, small material-aware identity lanes, and tiny day shadow fill. Night inputs preserve the existing moonlight/artificial-light/ambient-darkness behavior. Standalone mode now adds bounded scene identity lanes inside the same grade path so AdaptiveGrade can carry more of the first-party stack's tonal identity without becoming a LUT, fog, bloom, reflection, GI, or sharpening pass. When NormalField mapping is enabled, AdaptiveGrade may also resolve `Dalashade_NormalField` for very small structure/detail protection; it does not use NormalField as material identity.
+The shader samples the backbuffer, resolves shared material, water, safety, receiver, and optional surface data through the inline `Dalashade_FrameData.fxh` contract, then applies conservative grade adjustments. Daytime inputs add shoulder/highlight restraint, chroma restraint, small material-aware identity lanes, and tiny day shadow fill. Night inputs preserve the existing moonlight/artificial-light/ambient-darkness behavior. Standalone mode adds bounded scene identity lanes inside the same grade path so AdaptiveGrade can carry more of the first-party stack's tonal identity without becoming a LUT, fog, bloom, reflection, GI, or sharpening pass. AdaptiveGrade uses the FrameData surface path only for its pre-existing very small NormalField structure/detail protection; it does not use NormalField as material identity.
 
 ## Inputs
 
 - Scene intent uniforms: night/day, weather, combat, duty, GPose, atmosphere, heat, cold, water/coastal context.
 - Material uniforms: water, specular, sky/fog, sand, snow, foliage, stone/ruins, metal, crystal/aether, neon/glass, fire/lava/heat, skin, void.
-- Shared resolvers: `Dalashade_ResolveMaterials`, `Dalashade_ResolveWater`, `Dalashade_ResolveSafety`.
-- Optional NormalField resolver: `Dalashade_ResolveNormalField` when NormalField is enabled and mapped.
+- Shared FrameData base resolver: `Dalashade_ResolveFrameBaseData`, which wraps canonical material, water, safety, and receiver resolves.
+- Optional FrameData surface resolver: `Dalashade_ResolveFrameSurfaceData`, used only for the existing NormalField-backed structure/detail protection when NormalField is enabled and mapped.
 - User controls: grade strength and debug controls.
 - Backbuffer color and optional depth assist.
 
@@ -28,7 +28,7 @@ The output is a graded backbuffer color plus debug visualizations. It does not e
 ## Core algorithm
 
 1. Sample source color.
-2. Resolve shared material, water, and safety masks.
+2. Resolve shared FrameData base fields and optional FrameData surface fields.
 3. Build tonal masks for shadows, mids, highlights, skin, sky, water, snow, sand, foliage, and void.
 4. Apply conservative exposure/contrast/saturation/temperature adjustments.
 5. Apply night or day contextual layers.
@@ -37,9 +37,9 @@ The output is a graded backbuffer color plus debug visualizations. It does not e
 
 ## Material/Water/Normal dependencies
 
-AdaptiveGrade consumes material and water resolves for protection and color preservation only. Material influence protects skin, water, foliage, sand, snow/ice, sky/fog, aether/neon/glass, fire/lava/heat, and void/darkness from harsh tonal drift. It uses `WaterPixelConfidence` and `WaterReceiver` as tonal-protection inputs only; `WaterSource`, `SkySource`, and horizon/source-only evidence are not receiver or identity masks here.
+AdaptiveGrade consumes FrameData material and water fields for protection and color preservation only. Material influence protects skin, water, foliage, sand, snow/ice, sky/fog, aether/neon/glass, fire/lava/heat, and void/darkness from harsh tonal drift. It uses `frame.WaterPixelConfidence`, `frame.WaterReceiver`, `frame.WaterSurface`, and `frame.MaterialWaterPlane` as tonal-protection inputs only; `WaterSource`, `SkySource`, and horizon/source-only evidence are not receiver or identity masks here.
 
-NormalField is optional and secondary. When `Dalashade_NormalFieldEnabled` and the generated NormalField uniforms are active, AdaptiveGrade uses `StructureCandidate`, `NormalConfidence`, `DetailStrength`, and `EdgeDiscontinuity` as mild structure/detail protection. It does not classify water, sky, metal, skin, or foliage from NormalField, and it does not create lighting or geometry effects from inferred normals.
+NormalField is optional and secondary through FrameData surface fields. When `Dalashade_NormalFieldEnabled` and the generated NormalField uniforms are active, AdaptiveGrade uses `surface.StructureCandidate`, `surface.NormalConfidence`, `surface.DetailStrength`, and `surface.EdgeDiscontinuity` as mild structure/detail protection. It does not classify water, sky, metal, skin, or foliage from NormalField, and it does not create lighting or geometry effects from inferred normals.
 
 ## First-party shader mode
 
@@ -49,7 +49,7 @@ Standalone identity starts in AdaptiveGrade because this shader owns the broad t
 
 ## Standalone identity lanes
 
-Each lane is Standalone-weighted, uses existing SceneIntent/MaterialIntent uniforms plus shared material/water/safety resolves, and remains bounded by the current clamp and source-relative delta guardrails.
+Each lane is Standalone-weighted, uses existing SceneIntent/MaterialIntent uniforms plus shared FrameData material/water/safety fields, and remains bounded by the current clamp and source-relative delta guardrails.
 
 | Lane | Inputs | Behavior | Must not do |
 | --- | --- | --- | --- |
@@ -80,7 +80,7 @@ Each lane is Standalone-weighted, uses existing SceneIntent/MaterialIntent unifo
 
 Skin protection restrains tint and harsh sharpening-like contrast. Highlight protection prevents beach, sky, water, snow, sand, and specular areas from clipping. Water, sky/fog, snow, sand, aether/neon, fire/heat, and void material fields restrain only the grade components that would damage those identities. Coastal day uses separate water, sky, and warm-surface lanes so Standalone can keep teal water and cinematic depth while restoring sunlit wood/sand warmth and reducing open-sky whitening. Combat/readability dampening keeps heavy grading from interfering with gameplay and gates all Standalone identity lanes. Standalone allows larger but still capped source-relative deltas, then tightens those caps under highlight, skin, sky/fog, snow, forest, and readability pressure. If NormalField is disabled or unmapped, the NormalField shaping terms remain zero; this pass does not add new NormalField dependence.
 
-`WaterSource`, `SkySource`, and `HorizonOnlyConfidence` are not used as identity proof, receiver proof, or material proof. `ReflectionReceiverConfidence` is used only as weak aether/high-tech surface support for tonal shaping, not as reflection permission.
+`WaterSource`, `SkySource`, and `HorizonOnlyConfidence` are not used as identity proof, receiver proof, or material proof. `frame.ReceiverReflection` is used only as weak aether/high-tech surface support for tonal shaping, not as reflection permission.
 
 ## Validation screenshots
 
