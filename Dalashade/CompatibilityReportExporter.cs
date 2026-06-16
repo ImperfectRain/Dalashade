@@ -761,11 +761,13 @@ public sealed class CompatibilityReportExporter
         var frameDataDebugSourceAvailable = !string.IsNullOrWhiteSpace(ReadShaderSource("Dalashade_FrameDataDebug.fx"));
         var frameDataDebug = FindFirstPartyTechnique(analysis, "Dalashade_FrameDataDebug");
         var generatedValues = ReadGeneratedPresetSectionValues(configuration.GeneratedPresetPath, "Dalashade_FrameDataDebug");
+        var frameDataConsumers = GetFrameDataProductionConsumerLabels();
+        var frameDataMigrations = GetFrameDataProductionConsumerFiles();
 
         builder.AppendLine("- FrameDataMode: Inline");
         builder.AppendLine("- FrameDataPrepass: NotImplemented");
-        builder.AppendLine("- ProductionFrameDataConsumers: None");
-        builder.AppendLine("- ProductionShadersMigratedToFrameData: None");
+        builder.AppendLine($"- ProductionFrameDataConsumers: {FormatPlainList(frameDataConsumers)}");
+        builder.AppendLine($"- ProductionShadersMigratedToFrameData: {FormatPlainList(frameDataMigrations)}");
         builder.AppendLine($"- FrameData include source available for report scan: {YesNo(frameDataIncludeAvailable)}");
         builder.AppendLine($"- FrameDataDebug shader source available for report scan: {YesNo(frameDataDebugSourceAvailable)}");
         builder.AppendLine($"- Generated preset contains FrameDataDebug section: {YesNo(generatedValues.SectionPresent)}");
@@ -787,7 +789,7 @@ public sealed class CompatibilityReportExporter
             .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         builder.AppendLine($"- FrameDataDebug variables changed this generation: {(frameDataDebugWrites.Length == 0 ? "none" : string.Join(", ", frameDataDebugWrites.Select(change => $"`{change.Section}:{change.Key}`")))}");
-        builder.AppendLine("- Current note: FrameData wraps inline canonical resolvers only. No prepass, render target, or production shader migration exists yet.");
+        builder.AppendLine("- Current note: WeatherAtmosphere uses inline FrameData. No prepass or render target exists yet. Other production shaders are not migrated.");
         builder.AppendLine();
         builder.AppendLine("### Production Shader FrameData Scan");
         builder.AppendLine();
@@ -1550,6 +1552,40 @@ public sealed class CompatibilityReportExporter
         return includesFrameData || resolvesFrameBase || resolvesFrameSurface
             ? $"migrated (include={YesNo(includesFrameData)}, base={YesNo(resolvesFrameBase)}, surface={YesNo(resolvesFrameSurface)}, inline-resolvers={YesNo(usesInlineResolvers)})"
             : $"not migrated (inline-resolvers={YesNo(usesInlineResolvers)})";
+    }
+
+    private static string[] GetFrameDataProductionConsumerFiles()
+    {
+        return ProductionShaderFiles
+            .Where(IsFrameDataProductionConsumer)
+            .OrderBy(fileName => fileName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static string[] GetFrameDataProductionConsumerLabels()
+    {
+        return GetFrameDataProductionConsumerFiles()
+            .Select(FormatFrameDataConsumerLabel)
+            .ToArray();
+    }
+
+    private static bool IsFrameDataProductionConsumer(string fileName)
+    {
+        var source = ReadShaderSource(fileName);
+        return !string.IsNullOrWhiteSpace(source)
+               && (source.Contains("Dalashade_FrameData.fxh", StringComparison.Ordinal)
+                   || source.Contains("Dalashade_ResolveFrameBaseData", StringComparison.Ordinal)
+                   || source.Contains("Dalashade_ResolveFrameSurfaceData", StringComparison.Ordinal));
+    }
+
+    private static string FormatFrameDataConsumerLabel(string fileName)
+    {
+        var label = fileName.StartsWith("Dalashade_", StringComparison.OrdinalIgnoreCase)
+            ? fileName["Dalashade_".Length..]
+            : fileName;
+        return label.EndsWith(".fx", StringComparison.OrdinalIgnoreCase)
+            ? label[..^3]
+            : label;
     }
 
     private static string FormatGeneratedPresetValue(GeneratedPresetSectionValues values, string key)

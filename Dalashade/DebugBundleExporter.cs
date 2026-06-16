@@ -427,13 +427,16 @@ public sealed class DebugBundleExporter
                 change.Warning
             })
             .ToArray();
+        var productionShaderScan = BuildFrameDataProductionShaderScan();
+        var productionConsumers = GetFrameDataProductionConsumerLabels();
+        var productionMigrations = GetFrameDataProductionConsumerFiles();
 
         return new
         {
             FrameDataMode = "Inline",
             FrameDataPrepass = "NotImplemented",
-            ProductionFrameDataConsumers = Array.Empty<string>(),
-            ProductionShadersMigratedToFrameData = Array.Empty<string>(),
+            ProductionFrameDataConsumers = productionConsumers,
+            ProductionShadersMigratedToFrameData = productionMigrations,
             ShaderFiles = new
             {
                 FrameDataInclude = BuildShaderFilePresence(frameDataInclude),
@@ -456,19 +459,19 @@ public sealed class DebugBundleExporter
                     .ToArray(),
                 WrittenUniforms = frameDataDebugWrites
             },
-            ProductionShaderScan = BuildFrameDataProductionShaderScan(),
+            ProductionShaderScan = productionShaderScan,
             InlineResolverStatus = new
             {
                 Mode = "Inline",
                 Prepass = "NotImplemented",
-                ProductionConsumers = "None",
-                ProductionMigrations = "None"
+                ProductionConsumers = productionConsumers,
+                ProductionMigrations = productionMigrations
             },
             Notes = new[]
             {
                 "FrameData currently wraps inline canonical resolvers. No render target or prepass exists.",
                 "FrameDataDebug is manual and should remain inactive unless explicitly enabled in ReShade.",
-                "Production shaders are still expected to use their existing inline resolver calls until a future migration pass."
+                "WeatherAtmosphere uses inline FrameData. Other production shaders are not migrated."
             }
         };
     }
@@ -659,12 +662,48 @@ public sealed class DebugBundleExporter
                     IncludesFrameData = includesFrameData,
                     ResolvesFrameBaseData = resolvesFrameBase,
                     ResolvesFrameSurfaceData = resolvesFrameSurface,
+                    ConsumesFrameBaseData = resolvesFrameBase,
+                    ConsumesFrameSurfaceData = resolvesFrameSurface,
                     MigratedToFrameData = includesFrameData || resolvesFrameBase || resolvesFrameSurface,
                     UsesInlineCanonicalResolvers = usesInlineResolvers
                 };
             })
             .Cast<object>()
             .ToArray();
+    }
+
+    private static string[] GetFrameDataProductionConsumerFiles()
+    {
+        return ProductionShaderFiles
+            .Where(IsFrameDataProductionConsumer)
+            .OrderBy(fileName => fileName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static string[] GetFrameDataProductionConsumerLabels()
+    {
+        return GetFrameDataProductionConsumerFiles()
+            .Select(FormatFrameDataConsumerLabel)
+            .ToArray();
+    }
+
+    private static bool IsFrameDataProductionConsumer(string fileName)
+    {
+        var source = ReadLocalShaderSource(fileName, out _);
+        return !string.IsNullOrWhiteSpace(source)
+               && (source.Contains("Dalashade_FrameData.fxh", StringComparison.Ordinal)
+                   || source.Contains("Dalashade_ResolveFrameBaseData", StringComparison.Ordinal)
+                   || source.Contains("Dalashade_ResolveFrameSurfaceData", StringComparison.Ordinal));
+    }
+
+    private static string FormatFrameDataConsumerLabel(string fileName)
+    {
+        var label = fileName.StartsWith("Dalashade_", StringComparison.OrdinalIgnoreCase)
+            ? fileName["Dalashade_".Length..]
+            : fileName;
+        return label.EndsWith(".fx", StringComparison.OrdinalIgnoreCase)
+            ? label[..^3]
+            : label;
     }
 
     private static string BuildMaterialParityAudit(CompatibilityReportExportResult freshReport)
