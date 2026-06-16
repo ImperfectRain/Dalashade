@@ -10,15 +10,18 @@ SceneGI should own conservative contact shading, low-frequency material bounce, 
 
 ## Current implementation summary
 
-The shader samples nearby color/depth, builds receiver/source masks from shared material/water/safety resolves, then applies layered AO and restrained bounce/light pooling. Water and sky are protected from dirty AO; aether/neon/fire/glint sources can contribute localized light. Optional NormalField support adds small contact/structure grounding only after material and safety gates allow it.
+The shader samples nearby color/depth, builds receiver/source masks from inline FrameData material/water/safety/receiver and scene fields, then applies layered AO and restrained bounce/light pooling. Water and sky are protected from dirty AO; aether/neon/fire/glint sources can contribute localized light. Optional FrameData surface support adds small contact/structure grounding only after material and safety gates allow it.
+
+SceneGI routes its major scene decisions through shared FrameData scene lanes before applying GI-specific math. `DayOpenAir`, `NightLocalLight`, `WetAir`, `HeatAir`, `ColdAir`, `AetherTech`, `ForestCanopy`, `Industrial`, and `InteriorMood` are the first stage for environment-sensitive AO, bounce, and local-light behavior. Shader-local terms still shape the final GI role, but they should not redefine scene tags independently.
 
 ## Inputs
 
 - Backbuffer color and depth.
 - Scene intent uniforms for night, moonlight, artificial light, ambient darkness, day/open sky, combat, duty, weather, and atmosphere.
 - Material uniforms and water context.
-- Shared material/water/safety resolvers.
-- Optional NormalField resolver for conservative contact/structure shaping.
+- Shared `Dalashade_FrameData.fxh` base fields for canonical material/water/safety/receiver data.
+- Shared FrameData scene tags for readability, atmosphere, combat, wetness, cold, heat, aether/neon, day/night lighting, and Standalone mode strength.
+- Optional FrameData surface fields from NormalField for conservative contact/structure shaping.
 - GI/AO strength/radius/debug controls.
 
 ## Outputs
@@ -27,18 +30,21 @@ Normal output is source color plus conservative AO/bounce modifications. Debug m
 
 ## Core algorithm
 
-1. Resolve material, water, and safety masks.
-2. Build GI sources from light/glint/aether/neon/fire and local luminance.
-3. Build receivers from shared AO/structure receiver helpers, material hardness, water/sky/skin gates, and scene context.
-4. Optionally add small NormalField structure, AO, ground/contact, and edge-discontinuity support behind the same safety gates.
-5. Estimate local occlusion/bounce with small screen-space taps.
-6. Apply conservative darkening/lighting with safety clamps.
+1. Resolve shared FrameData base, scene, and optional surface data.
+2. Build GI scene lanes from shared FrameData derived tags: day/open air, night/local light, wet, heat, cold, aether/high-tech, forest/canopy, industrial, and interior.
+3. Build GI sources from light/glint/aether/neon/fire and local luminance. `frame.SourceLightConfidence` can strengthen source/light pooling, but it does not authorize receivers by itself.
+4. Build receivers from shared AO/structure receiver helpers, material hardness, water/sky/skin gates, surface support, and scene lanes.
+5. Optionally add small NormalField structure, AO, ground/contact, and edge-discontinuity support behind the same safety gates.
+6. Estimate local occlusion/bounce with small screen-space taps.
+7. Apply conservative darkening/lighting with safety clamps.
 
 ## Material/Water/Normal dependencies
 
-SceneGI consumes MaterialMasks shared resolves. The shared material confidence path prefers `Dalashade_GetAOReceiver(...)` and `Dalashade_GetStructureReceiver(...)` over legacy broad `ReceiverConfidence`; local material terms still shape the final GI role. Water surfaces suppress dirty AO; `WetShoreline` may support local light pooling.
+SceneGI consumes inline FrameData fields. The shared material confidence path prefers `frame.ReceiverAO` and `frame.ReceiverStructure` over legacy broad `ReceiverBroad`; local material terms still shape the final GI role. Water surfaces suppress dirty AO; `frame.WaterWetShoreline` may support local light pooling.
 
-Optional NormalField support uses `StructureCandidate` as mild structure grounding, `AOReceiver` as mild AO/contact support, `GroundPlaneCandidate` as mild ground/contact shaping, `EdgeDiscontinuity` as localized contact support only under safety gates, and `NormalConfidence`/`OrientationConfidence` as stability terms. NormalField cannot override sky, skin, water AO, or material safety rejects.
+SceneGI consumes the complete FrameData day/night scene contract: `Night`, `Moonlight`, `ArtificialLight`, `AmbientDarkness`, `NightAtmosphere`, `Daylight`, `Sunlight`, `OpenSkyLight`, `SurfaceHeat`, `DayAtmosphere`, `DayReflection`, and `DayHighlightPressure`. The generated preset can inject these keys for SceneGI, and the shader folds them into shared derived lanes instead of maintaining a separate night/day interpretation.
+
+Optional FrameData surface support uses `surface.StructureCandidate` as mild structure grounding, `surface.AOReceiverSupport` as mild AO/contact support, `surface.GroundCandidate` as mild ground/contact shaping, `surface.EdgeDiscontinuity` as localized contact support only under safety gates, and `surface.NormalConfidence`/`surface.OrientationConfidence` as stability terms. NormalField cannot override sky, skin, water AO, or material safety rejects.
 
 ## First-party shader mode
 
@@ -80,6 +86,8 @@ SceneGI debug modes are intended to show shared material usage, sources, receive
 
 Sky rejects AO/GI. Skin rejects dirty AO/tinting. Water suppresses dirty AO. Foliage uses foliage/noise damping. Combat/readability dampens heavy output. Snow and bright sand are protected from muddy darkening. NormalField is multiplied by the same sky/skin/water safety gates and remains a secondary shaping input.
 
+Source-vs-receiver separation is required: `frame.SourceLightConfidence` and emissive material fields may source local light/bounce, but `frame.ReceiverAO`, `frame.ReceiverStructure`, material support, and optional surface support decide where GI can land.
+
 ## Current limitations
 
 - Screen-space samples cannot see off-screen lights.
@@ -89,7 +97,7 @@ Sky rejects AO/GI. Skin rejects dirty AO/tinting. Water suppresses dirty AO. Fol
 
 ## Future direction
 
-Validate NormalField-assisted contact in dock, ruin, city, snow, desert, foliage, and combat scenes before increasing weights. Keep material source/receiver separation explicit.
+Validate the FrameScene lane pass in coastal day/night, rain/storm, fog/overcast, desert/heat, snow/cold, forest/canopy, aether/high-tech, dungeon/interior, and combat scenes before increasing weights. Keep material source/receiver separation explicit.
 
 ## Do not do
 

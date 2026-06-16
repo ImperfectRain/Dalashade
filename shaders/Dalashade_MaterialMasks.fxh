@@ -243,10 +243,10 @@ float Dalashade_GetEdgeStrength(float2 uv)
 {
     float2 texel = BUFFER_PIXEL_SIZE;
     float center = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, uv).rgb);
-    float left = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, uv - float2(texel.x, 0.0)).rgb);
-    float right = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, uv + float2(texel.x, 0.0)).rgb);
-    float up = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, uv - float2(0.0, texel.y)).rgb);
-    float down = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, uv + float2(0.0, texel.y)).rgb);
+    float left = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, saturate(uv - float2(texel.x, 0.0))).rgb);
+    float right = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, saturate(uv + float2(texel.x, 0.0))).rgb);
+    float up = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, saturate(uv - float2(0.0, texel.y))).rgb);
+    float down = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, saturate(uv + float2(0.0, texel.y))).rgb);
     return saturate((abs(center - left) + abs(center - right) + abs(center - up) + abs(center - down)) * 2.5);
 }
 
@@ -254,10 +254,10 @@ float Dalashade_GetDetailStrength(float2 uv)
 {
     float2 texel = BUFFER_PIXEL_SIZE;
     float center = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, uv).rgb);
-    float diagonalA = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, uv + float2(texel.x, texel.y)).rgb);
-    float diagonalB = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, uv + float2(-texel.x, texel.y)).rgb);
-    float diagonalC = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, uv + float2(texel.x, -texel.y)).rgb);
-    float diagonalD = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, uv + float2(-texel.x, -texel.y)).rgb);
+    float diagonalA = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, saturate(uv + float2(texel.x, texel.y))).rgb);
+    float diagonalB = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, saturate(uv + float2(-texel.x, texel.y))).rgb);
+    float diagonalC = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, saturate(uv + float2(texel.x, -texel.y))).rgb);
+    float diagonalD = Dalashade_GetLuminance(tex2D(ReShade::BackBuffer, saturate(uv + float2(-texel.x, -texel.y))).rgb);
     return saturate((abs(center - diagonalA) + abs(center - diagonalB) + abs(center - diagonalC) + abs(center - diagonalD)) * 2.0);
 }
 

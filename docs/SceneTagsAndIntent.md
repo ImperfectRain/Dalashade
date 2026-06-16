@@ -36,6 +36,14 @@ Dalashade keeps tags hierarchical instead of treating every hint as a primary cl
 
 Primary biome is the only single-choice bucket. The other buckets are diagnostic and additive, and should be added only when they drive useful intent, profile, shader, or report behavior.
 
+## Shader-Facing Tag Contract
+
+`Dalashade_FrameData.fxh` is the first-party shader-facing layer for shared tag interpretation. Plugin-side scene tags and `SceneIntent` values remain the source of generated uniforms, while `Dalashade_FrameSceneSettings` and `Dalashade_ResolveFrameSceneData(...)` provide the normalized HLSL vocabulary that production shaders should share.
+
+Frame scene data currently exposes the raw normalized tags plus derived lanes such as `GameplayDampen`, `ReadabilityDampen`, `ReflectionDampen`, `StandaloneSafe`, `DayOpenAir`, `NightLocalLight`, `WetAir`, `HeatAir`, `ColdAir`, `AetherTech`, `ForestCanopy`, `Industrial`, and `InteriorMood`. These lanes coordinate shader behavior; they are not material proof, receiver proof, weather truth, or a public third-party API promise.
+
+When adding a new first-party shader, prefer mapping its generated scene uniforms into `Dalashade_FrameSceneSettings` and consuming `Dalashade_FrameSceneData` instead of creating local one-off meanings for combat, readability, wetness, heat, cold, aether, neon, day, night, or Standalone mode.
+
 ## Nighttime Layer
 
 Night is implemented as a contextual layer, not a replacement biome or generic night preset. When `AutoAdjustAtNight` is enabled, Dalashade keeps the primary biome/weather/material identity and adds derived night tags only where combinations justify them.
@@ -162,7 +170,8 @@ Current first-party shader responsibilities are section-scoped:
 | `Dalashade_WeatherAtmosphere.fx` | Uses material masks for foliage humidity, coastal/wet air, snow/cold air, sand/dust air, sky/fog, and aetherial atmosphere. |
 | `Dalashade_AdaptiveGrade.fx` | Uses masks lightly for protection and preservation, not strong material color casts. |
 | `Dalashade_MaterialDebug.fx` | Visualizes broad material heuristics and raw/gated/final failures when manually enabled in ReShade. |
-| `Dalashade_SceneGI.fx` | Uses material masks and SceneIntent aliases for optional screen-space contact AO, ambient bounce, and night light pooling. It is not path tracing/RTGI/PTGI. |
+| `Dalashade_SceneGI.fx` | Uses FrameData material/water/safety/receiver/surface fields and shared scene tags for optional screen-space contact AO, ambient bounce, and night light pooling. It is not path tracing/RTGI/PTGI. |
+| `Dalashade_SurfaceReflection.fx` | Uses FrameData material/water/safety/receiver/surface fields and shared scene tags for water sheen, wet/glint response, and source-qualified reflection impressions. |
 
 ## Current Weather Tags
 

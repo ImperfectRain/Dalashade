@@ -30,8 +30,11 @@ struct Dalashade_FrameWater
     float WetShoreline;
     float FoamOrEdge;
     float WaterSurface;
+    float ShallowWater;
+    float WaterHorizon;
     float SpecularGlint;
     float HorizonOnly;
+    float SandReject;
     float WaterSkyConflict;
     float Confidence;
 };
@@ -72,6 +75,7 @@ struct Dalashade_FrameBaseData
     float SafetyBrightSandProtect;
     float SafetySnowProtect;
     float SafetyFoliageNoiseReject;
+    float SafetyWaterAOReject;
     float SafetyUIDepthRisk;
     float SafetyDepthConfidence;
 
@@ -82,8 +86,11 @@ struct Dalashade_FrameBaseData
     float WaterWetShoreline;
     float WaterFoamOrEdge;
     float WaterSurface;
+    float WaterShallow;
+    float WaterHorizon;
     float WaterSpecularGlint;
     float WaterHorizonOnly;
+    float WaterSandReject;
     float WaterSkyConflict;
     float WaterConfidence;
 
@@ -162,6 +169,182 @@ struct Dalashade_FrameDataSettings
     float NormalSkinSuppression;
     float NormalSkySuppression;
 };
+
+struct Dalashade_FrameSceneSettings
+{
+    float Readability;
+    float Atmosphere;
+    float HighlightProtection;
+    float ShadowProtection;
+    float Haze;
+    float Wetness;
+    float Cold;
+    float Heat;
+    float MagicGlow;
+    float NeonGlow;
+    float FoliageDensity;
+    float IndustrialHardness;
+    float CosmicMood;
+    float CinematicPermission;
+    float CombatPressure;
+
+    float Night;
+    float Moonlight;
+    float ArtificialLight;
+    float AmbientDarkness;
+    float NightAtmosphere;
+
+    float Daylight;
+    float Sunlight;
+    float OpenSkyLight;
+    float SurfaceHeat;
+    float DayAtmosphere;
+    float DayReflection;
+    float DayHighlightPressure;
+
+    float StandaloneStrength;
+};
+
+struct Dalashade_FrameSceneData
+{
+    float Readability;
+    float Atmosphere;
+    float HighlightProtection;
+    float ShadowProtection;
+    float Haze;
+    float Wetness;
+    float Cold;
+    float Heat;
+    float MagicGlow;
+    float NeonGlow;
+    float FoliageDensity;
+    float IndustrialHardness;
+    float CosmicMood;
+    float CinematicPermission;
+    float CombatPressure;
+
+    float Night;
+    float Moonlight;
+    float ArtificialLight;
+    float AmbientDarkness;
+    float NightAtmosphere;
+
+    float Daylight;
+    float Sunlight;
+    float OpenSkyLight;
+    float SurfaceHeat;
+    float DayAtmosphere;
+    float DayReflection;
+    float DayHighlightPressure;
+
+    float StandaloneStrength;
+    float GameplayDampen;
+    float ReadabilityDampen;
+    float ReflectionDampen;
+    float StandaloneSafe;
+
+    float DayOpenAir;
+    float NightLocalLight;
+    float WetAir;
+    float HeatAir;
+    float ColdAir;
+    float AetherTech;
+    float ForestCanopy;
+    float Industrial;
+    float InteriorMood;
+};
+
+Dalashade_FrameSceneSettings Dalashade_FrameScene_DefaultSettings()
+{
+    Dalashade_FrameSceneSettings settings;
+
+    settings.Readability = 0.0;
+    settings.Atmosphere = 0.0;
+    settings.HighlightProtection = 0.0;
+    settings.ShadowProtection = 0.0;
+    settings.Haze = 0.0;
+    settings.Wetness = 0.0;
+    settings.Cold = 0.0;
+    settings.Heat = 0.0;
+    settings.MagicGlow = 0.0;
+    settings.NeonGlow = 0.0;
+    settings.FoliageDensity = 0.0;
+    settings.IndustrialHardness = 0.0;
+    settings.CosmicMood = 0.0;
+    settings.CinematicPermission = 0.0;
+    settings.CombatPressure = 0.0;
+
+    settings.Night = 0.0;
+    settings.Moonlight = 0.0;
+    settings.ArtificialLight = 0.0;
+    settings.AmbientDarkness = 0.0;
+    settings.NightAtmosphere = 0.0;
+
+    settings.Daylight = 0.0;
+    settings.Sunlight = 0.0;
+    settings.OpenSkyLight = 0.0;
+    settings.SurfaceHeat = 0.0;
+    settings.DayAtmosphere = 0.0;
+    settings.DayReflection = 0.0;
+    settings.DayHighlightPressure = 0.0;
+
+    settings.StandaloneStrength = 0.0;
+
+    return settings;
+}
+
+Dalashade_FrameSceneData Dalashade_ResolveFrameSceneData(Dalashade_FrameSceneSettings settings)
+{
+    Dalashade_FrameSceneData scene;
+
+    scene.Readability = saturate(settings.Readability);
+    scene.Atmosphere = saturate(settings.Atmosphere);
+    scene.HighlightProtection = saturate(settings.HighlightProtection);
+    scene.ShadowProtection = saturate(settings.ShadowProtection);
+    scene.Haze = saturate(settings.Haze);
+    scene.Wetness = saturate(settings.Wetness);
+    scene.Cold = saturate(settings.Cold);
+    scene.Heat = saturate(settings.Heat);
+    scene.MagicGlow = saturate(settings.MagicGlow);
+    scene.NeonGlow = saturate(settings.NeonGlow);
+    scene.FoliageDensity = saturate(settings.FoliageDensity);
+    scene.IndustrialHardness = saturate(settings.IndustrialHardness);
+    scene.CosmicMood = saturate(settings.CosmicMood);
+    scene.CinematicPermission = saturate(settings.CinematicPermission);
+    scene.CombatPressure = saturate(settings.CombatPressure);
+
+    scene.Night = saturate(settings.Night);
+    scene.Moonlight = saturate(settings.Moonlight);
+    scene.ArtificialLight = saturate(settings.ArtificialLight);
+    scene.AmbientDarkness = saturate(settings.AmbientDarkness);
+    scene.NightAtmosphere = saturate(settings.NightAtmosphere);
+
+    scene.Daylight = saturate(settings.Daylight);
+    scene.Sunlight = saturate(settings.Sunlight);
+    scene.OpenSkyLight = saturate(settings.OpenSkyLight);
+    scene.SurfaceHeat = saturate(settings.SurfaceHeat);
+    scene.DayAtmosphere = saturate(settings.DayAtmosphere);
+    scene.DayReflection = saturate(settings.DayReflection);
+    scene.DayHighlightPressure = saturate(settings.DayHighlightPressure);
+
+    scene.StandaloneStrength = saturate(settings.StandaloneStrength);
+    scene.GameplayDampen = 1.0 - saturate(scene.CombatPressure * 0.58 + scene.Readability * 0.16);
+    scene.ReadabilityDampen = 1.0 - saturate(scene.Readability * 0.24 + scene.CombatPressure * 0.38);
+    scene.ReflectionDampen = 1.0 - saturate(scene.CombatPressure * 0.42 + scene.Readability * 0.18);
+    scene.StandaloneSafe = saturate(scene.StandaloneStrength * scene.GameplayDampen * scene.ReadabilityDampen);
+
+    scene.DayOpenAir = saturate(scene.Daylight * 0.28 + scene.Sunlight * 0.32 + scene.OpenSkyLight * 0.26 + scene.DayAtmosphere * 0.22);
+    scene.NightLocalLight = saturate(scene.Night * 0.28 + scene.Moonlight * 0.22 + scene.ArtificialLight * 0.34 + scene.AmbientDarkness * 0.18 + scene.NightAtmosphere * 0.22);
+    scene.WetAir = saturate(scene.Wetness * 0.72 + scene.Haze * 0.18 + scene.Atmosphere * 0.12);
+    scene.HeatAir = saturate(scene.Heat * 0.62 + scene.SurfaceHeat * 0.46 + scene.DayHighlightPressure * 0.16);
+    scene.ColdAir = saturate(scene.Cold * 0.66 + scene.Moonlight * 0.16 + scene.OpenSkyLight * 0.12);
+    scene.AetherTech = saturate(scene.MagicGlow * 0.58 + scene.NeonGlow * 0.58 + scene.CosmicMood * 0.22);
+    scene.ForestCanopy = saturate(scene.FoliageDensity * 0.74 + scene.Atmosphere * 0.12 + scene.ShadowProtection * 0.12);
+    scene.Industrial = saturate(scene.IndustrialHardness * 0.76 + scene.NeonGlow * 0.12);
+    scene.InteriorMood = saturate(scene.AmbientDarkness * 0.34 + scene.ArtificialLight * 0.28 + scene.ShadowProtection * 0.22 + scene.Night * 0.10);
+
+    return scene;
+}
 
 Dalashade_FrameDataSettings Dalashade_FrameData_DefaultSettings()
 {
@@ -291,6 +474,7 @@ Dalashade_FrameBaseData Dalashade_ResolveFrameBaseData(
     data.SafetyBrightSandProtect = safety.BrightSandProtect;
     data.SafetySnowProtect = safety.SnowProtect;
     data.SafetyFoliageNoiseReject = safety.FoliageNoiseReject;
+    data.SafetyWaterAOReject = safety.WaterAOReject;
     data.SafetyUIDepthRisk = safety.UIDepthRisk;
     data.SafetyDepthConfidence = safety.DepthConfidence;
 
@@ -301,8 +485,11 @@ Dalashade_FrameBaseData Dalashade_ResolveFrameBaseData(
     data.WaterWetShoreline = water.WetShoreline;
     data.WaterFoamOrEdge = water.FoamOrEdge;
     data.WaterSurface = water.WaterSurface;
+    data.WaterShallow = water.ShallowWater;
+    data.WaterHorizon = water.WaterHorizon;
     data.WaterSpecularGlint = material.SpecularGlint;
     data.WaterHorizonOnly = water.HorizonOnlyConfidence;
+    data.WaterSandReject = water.SandReject;
     data.WaterSkyConflict = water.WaterSkyConflict;
     data.WaterConfidence = water.Confidence;
 

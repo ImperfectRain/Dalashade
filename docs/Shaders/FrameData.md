@@ -17,7 +17,7 @@ FrameData does not add a prepass, render target, motion vector path, temporal ac
 
 ## Purpose
 
-FrameData gives first-party shaders one canonical vocabulary for material, water, safety, receiver, and optional surface/normal data. `Dalashade_WeatherAtmosphere.fx`, `Dalashade_AdaptiveGrade.fx`, `Dalashade_SmartSharpen.fx`, and `Dalashade_AtmosphereBloom.fx` are the current production consumers. The migrations are intended to keep output visually stable while replacing shader-local material/water/safety resolver consumption with FrameData field names.
+FrameData gives first-party shaders one canonical vocabulary for scene tags, material, water, safety, receiver, and optional surface/normal data. `Dalashade_WeatherAtmosphere.fx`, `Dalashade_AdaptiveGrade.fx`, `Dalashade_SmartSharpen.fx`, `Dalashade_AtmosphereBloom.fx`, `Dalashade_SurfaceReflection.fx`, and `Dalashade_SceneGI.fx` are the current production consumers. The migrations are intended to keep output visually stable while replacing shader-local material/water/safety resolver consumption with FrameData field names.
 
 FrameData is not a promise to third-party shader authors yet. The contract can still change while Dalashade proves the names and field roles across its own shaders.
 
@@ -27,6 +27,7 @@ FrameData is split into two paths:
 
 - `Dalashade_ResolveFrameBaseData(...)`: material, water, safety, and receiver data.
 - `Dalashade_ResolveFrameSurfaceData(...)`: optional surface/normal data from NormalField.
+- `Dalashade_ResolveFrameSceneData(...)`: shared scene/tag normalization and derived scene lanes.
 
 Shaders that only need material or safety data should call the base path. The surface path calls NormalField and should only be used when the effect actually needs inferred screen-space surface information.
 
@@ -41,6 +42,15 @@ Shaders that only need material or safety data should call the base path. The su
 - NormalField controls: `NormalFieldEnabled`, `NormalFieldStrength`, `NormalDepthStrength`, `NormalDetailStrength`, `NormalMaterialInfluence`, `NormalWaterSuppression`, `NormalSkinSuppression`, `NormalSkySuppression`
 
 `Dalashade_FrameData_DefaultSettings()` returns conservative zero-output defaults, with NormalField disabled.
+
+`Dalashade_FrameSceneSettings` mirrors generated SceneIntent and first-party scene tag concepts without replacing shader-owned effect sliders:
+
+- broad scene tags: `Readability`, `Atmosphere`, `HighlightProtection`, `ShadowProtection`, `Haze`, `Wetness`, `Cold`, `Heat`, `MagicGlow`, `NeonGlow`, `FoliageDensity`, `IndustrialHardness`, `CosmicMood`, `CinematicPermission`, `CombatPressure`
+- night tags: `Night`, `Moonlight`, `ArtificialLight`, `AmbientDarkness`, `NightAtmosphere`
+- day tags: `Daylight`, `Sunlight`, `OpenSkyLight`, `SurfaceHeat`, `DayAtmosphere`, `DayReflection`, `DayHighlightPressure`
+- first-party mode tag: `StandaloneStrength`
+
+`Dalashade_ResolveFrameSceneData(...)` clamps those tags and exposes derived helper lanes such as `GameplayDampen`, `ReadabilityDampen`, `ReflectionDampen`, `StandaloneSafe`, `DayOpenAir`, `NightLocalLight`, `WetAir`, `HeatAir`, `ColdAir`, `AetherTech`, `ForestCanopy`, `Industrial`, and `InteriorMood`. These lanes are shared vocabulary, not material proof or receiver proof.
 
 ## Structs
 
@@ -70,8 +80,11 @@ All fields are normalized confidence values in the `0..1` range unless noted.
 | `WetShoreline` | Material/source | Shoreline or wet boundary support. |
 | `FoamOrEdge` | Material/source | Water foam, edge, or shoreline transition support. |
 | `WaterSurface` | Material/receiver | Broad water-surface support from the canonical water resolve. |
+| `ShallowWater` | Material/receiver | Shallow-water support from the canonical water resolve. |
+| `WaterHorizon` | Source/context | Water-horizon support. Not water receiver proof. |
 | `SpecularGlint` | Material/source | Small specular glint support from MaterialMasks. |
 | `HorizonOnly` | Source/context | Horizon-only support. Not water receiver proof. |
+| `SandReject` | Safety/confidence | Sand/warm terrain rejection used to avoid water false positives. |
 | `WaterSkyConflict` | Safety/confidence | Ambiguity between water and sky interpretation. |
 | `Confidence` | Confidence | Overall water resolve confidence. |
 
@@ -116,6 +129,23 @@ ReShade's compiler does not support nested struct members, so the runtime contra
 | `Material*` | Material/safety/source | Flat material fields matching `Dalashade_FrameMaterial`. |
 | `Receiver*` | Receiver | Flat receiver fields matching `Dalashade_FrameReceivers`. |
 | `SourceLightConfidence` | Source | Flat light/glow/glint source support. |
+
+### Dalashade_FrameSceneData
+
+Frame scene data is the shared tag vocabulary used by first-party shaders to interpret generated scene variables consistently.
+
+| Field | Role | Meaning |
+| --- | --- | --- |
+| `Readability`, `CombatPressure` | Safety/tag | Gameplay pressure tags used to dampen heavy visual work. |
+| `Atmosphere`, `Haze`, `Wetness`, `Cold`, `Heat` | Scene tag | Broad air/weather/environment support. |
+| `MagicGlow`, `NeonGlow`, `CosmicMood` | Scene/source tag | Aether, high-tech, or cosmic source support; not receiver proof. |
+| `FoliageDensity`, `IndustrialHardness` | Scene/material tag | Context support for foliage/industrial scenes; not material proof by itself. |
+| `CinematicPermission` | Scene tag | Permission to allow more visible non-gameplay shaping. |
+| `Night*`, `Day*` | Scene tag | Shared day/night/open-air/light context. |
+| `StandaloneStrength` | Mode tag | First-party mode strength as written by the generated preset. |
+| `GameplayDampen`, `ReadabilityDampen`, `ReflectionDampen` | Safety/derived | Shared combat/readability dampening lanes. |
+| `StandaloneSafe` | Safety/derived | Standalone strength after common gameplay/readability dampening. |
+| `DayOpenAir`, `NightLocalLight`, `WetAir`, `HeatAir`, `ColdAir`, `AetherTech`, `ForestCanopy`, `Industrial`, `InteriorMood` | Scene/derived | Shared scene identity lanes for first-party shader coordination. |
 
 ### Dalashade_FrameSurfaceData
 
@@ -175,7 +205,7 @@ The debug shader is generated-preset aware but not auto-enabled. Base presets ar
 
 FrameData diagnostics are currently report-only:
 
-- Compatibility reports include `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and production shader source scans. WeatherAtmosphere, AdaptiveGrade, SmartSharpen, and AtmosphereBloom are the current production consumers; no prepass or render target exists.
+- Compatibility reports include `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and production shader source scans. WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SurfaceReflection, and SceneGI are the current production consumers; no prepass or render target exists.
 - Debug bundles include `frame-data-diagnostics.json` with installed FrameData file presence, FrameDataDebug preset/technique state, FrameDataDebug debug variables, and production shader source scans.
 - Debug bundles include `first-party-depth-assist.json` so depth-assist opt-in state and written first-party depth-assist variables can be audited beside FrameData state.
 
@@ -189,6 +219,7 @@ When production shaders start using FrameData, migrate one shader at a time. The
 2. AdaptiveGrade tonal/material protection. Complete for the inline base/surface-data consumer pass.
 3. SmartSharpen safety/receiver harmonization. Complete for the inline base/surface-data consumer pass.
 4. AtmosphereBloom source-class response. Complete for the inline base/surface-data consumer pass.
-5. SurfaceReflection and SceneGI only after receiver validation.
+5. SurfaceReflection receiver migration. Complete for the inline base/surface-data consumer pass.
+6. SceneGI receiver migration. Complete for the inline base/surface-data consumer pass.
 
 Each migration should keep before/after output equivalent unless the pass explicitly targets visuals.

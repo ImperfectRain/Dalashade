@@ -73,10 +73,10 @@ float Dalashade_GetNormalDepthConfidence(float2 uv, float depth)
 {
     float validDepth = step(0.00001, depth) * step(depth, 0.99999);
     float2 texel = BUFFER_PIXEL_SIZE;
-    float depthLeft = saturate(ReShade::GetLinearizedDepth(uv - float2(texel.x, 0.0)));
-    float depthRight = saturate(ReShade::GetLinearizedDepth(uv + float2(texel.x, 0.0)));
-    float depthUp = saturate(ReShade::GetLinearizedDepth(uv - float2(0.0, texel.y)));
-    float depthDown = saturate(ReShade::GetLinearizedDepth(uv + float2(0.0, texel.y)));
+    float depthLeft = saturate(ReShade::GetLinearizedDepth(saturate(uv - float2(texel.x, 0.0))));
+    float depthRight = saturate(ReShade::GetLinearizedDepth(saturate(uv + float2(texel.x, 0.0))));
+    float depthUp = saturate(ReShade::GetLinearizedDepth(saturate(uv - float2(0.0, texel.y))));
+    float depthDown = saturate(ReShade::GetLinearizedDepth(saturate(uv + float2(0.0, texel.y))));
 
     float neighborValid = step(0.00001, depthLeft) * step(depthLeft, 0.99999)
         * step(0.00001, depthRight) * step(depthRight, 0.99999)
@@ -96,10 +96,10 @@ float3 Dalashade_GetDepthNormal(float2 uv, float depth, float depthStrength)
     }
 
     float2 texel = BUFFER_PIXEL_SIZE;
-    float depthLeft = saturate(ReShade::GetLinearizedDepth(uv - float2(texel.x, 0.0)));
-    float depthRight = saturate(ReShade::GetLinearizedDepth(uv + float2(texel.x, 0.0)));
-    float depthUp = saturate(ReShade::GetLinearizedDepth(uv - float2(0.0, texel.y)));
-    float depthDown = saturate(ReShade::GetLinearizedDepth(uv + float2(0.0, texel.y)));
+    float depthLeft = saturate(ReShade::GetLinearizedDepth(saturate(uv - float2(texel.x, 0.0))));
+    float depthRight = saturate(ReShade::GetLinearizedDepth(saturate(uv + float2(texel.x, 0.0))));
+    float depthUp = saturate(ReShade::GetLinearizedDepth(saturate(uv - float2(0.0, texel.y))));
+    float depthDown = saturate(ReShade::GetLinearizedDepth(saturate(uv + float2(0.0, texel.y))));
 
     float dx = (depthRight - depthLeft) * 48.0 * confidence;
     float dy = (depthDown - depthUp) * 48.0 * confidence;
@@ -115,10 +115,10 @@ float3 Dalashade_GetImageGradientNormal(float2 uv, float detailStrength)
     }
 
     float2 texel = BUFFER_PIXEL_SIZE;
-    float left = Dalashade_NormalField_Luma(tex2D(ReShade::BackBuffer, uv - float2(texel.x, 0.0)).rgb);
-    float right = Dalashade_NormalField_Luma(tex2D(ReShade::BackBuffer, uv + float2(texel.x, 0.0)).rgb);
-    float up = Dalashade_NormalField_Luma(tex2D(ReShade::BackBuffer, uv - float2(0.0, texel.y)).rgb);
-    float down = Dalashade_NormalField_Luma(tex2D(ReShade::BackBuffer, uv + float2(0.0, texel.y)).rgb);
+    float left = Dalashade_NormalField_Luma(tex2D(ReShade::BackBuffer, saturate(uv - float2(texel.x, 0.0))).rgb);
+    float right = Dalashade_NormalField_Luma(tex2D(ReShade::BackBuffer, saturate(uv + float2(texel.x, 0.0))).rgb);
+    float up = Dalashade_NormalField_Luma(tex2D(ReShade::BackBuffer, saturate(uv - float2(0.0, texel.y))).rgb);
+    float down = Dalashade_NormalField_Luma(tex2D(ReShade::BackBuffer, saturate(uv + float2(0.0, texel.y))).rgb);
 
     // Deliberately restrained: this is a selective detail hint, not a relief-map pass.
     float dx = (right - left) * 3.35 * strength;

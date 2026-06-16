@@ -182,7 +182,7 @@ For initial `Dalashade_SceneGI.fx` testing, use this order:
 1. After `Dalashade_AdaptiveGrade.fx`.
 2. Before `Dalashade_SurfaceReflection.fx`, `Dalashade_AtmosphereBloom.fx`, `Dalashade_WeatherAtmosphere.fx`, and `Dalashade_SmartSharpen.fx`.
 3. Before UI restore, KeepUI, or RestoreUI effects if applicable.
-4. Enable `Dalashade_SceneGI` manually in ReShade only after copying the `.fx` file and `Dalashade_MaterialMasks.fxh` into a ReShade shader search folder.
+4. Enable `Dalashade_SceneGI` manually in ReShade only after copying the `.fx` file plus shared Dalashade include files into a ReShade shader search folder.
 
 SceneGI is a screen-space approximation for contact AO, local ambient bounce, and night light pooling. It is not true path tracing, RTGI, or PTGI, and it does not replace paid third-party GI shaders.
 
@@ -191,7 +191,7 @@ For `Dalashade_SurfaceReflection.fx`, use this order:
 1. After `Dalashade_SceneGI.fx`.
 2. Before `Dalashade_AtmosphereBloom.fx`, `Dalashade_WeatherAtmosphere.fx`, and final sharpeners.
 3. Before UI restore, KeepUI, or RestoreUI effects if applicable.
-4. Enable `Dalashade_SurfaceReflection` manually in ReShade only after copying the `.fx` file and `Dalashade_MaterialMasks.fxh` into a ReShade shader search folder.
+4. Enable `Dalashade_SurfaceReflection` manually in ReShade only after copying the `.fx` file plus shared Dalashade include files into a ReShade shader search folder.
 
 SurfaceReflection is a screen-space reflection-impression pass for water-plane sheen, wet glints, snow/ice sheen, polished metal/glass glints, and localized neon/aether/fire reflection streaks. It is not true SSR or ray-traced reflection, and it should remain separate from SceneGI.
 
@@ -643,7 +643,7 @@ SceneIntent values are normalized `0.0` to `1.0`. `Dalashade_SharpenAuthority` i
 
 `Dalashade_SmartSharpen.fx` currently consumes `Readability`, `Haze`, `Wetness`, `FoliageDensity`, `CombatPressure`, `HighlightProtection`, `Night`, `AmbientDarkness`, `ArtificialLight`, preset-derived `SharpenAuthority`, and the SmartSharpen-only MaterialIntent dampening channels listed above.
 
-`Dalashade_SceneGI.fx` currently consumes `Dalashade_Intent*` aliases for `Readability`, `Atmosphere`, `HighlightProtection`, `ShadowProtection`, `Haze`, `Wetness`, `Cold`, `Heat`, `MagicGlow`, `NeonGlow`, `FoliageDensity`, `IndustrialHardness`, `CosmicMood`, `CombatPressure`, and `CinematicPermission`; the daytime aliases `Dalashade_Daylight`, `Dalashade_Sunlight`, `Dalashade_OpenSkyLight`, `Dalashade_SurfaceHeat`, `Dalashade_DayAtmosphere`, `Dalashade_DayReflection`, and `Dalashade_DayHighlightPressure`; plus SceneGI controls and the SceneGI-only MaterialIntent channels listed above.
+`Dalashade_SceneGI.fx` currently consumes `Dalashade_Intent*` aliases for `Readability`, `Atmosphere`, `HighlightProtection`, `ShadowProtection`, `Haze`, `Wetness`, `Cold`, `Heat`, `MagicGlow`, `NeonGlow`, `FoliageDensity`, `IndustrialHardness`, `CosmicMood`, `CombatPressure`, and `CinematicPermission`; the night aliases `Dalashade_Night`, `Dalashade_Moonlight`, `Dalashade_ArtificialLight`, `Dalashade_AmbientDarkness`, and `Dalashade_NightAtmosphere`; the daytime aliases `Dalashade_Daylight`, `Dalashade_Sunlight`, `Dalashade_OpenSkyLight`, `Dalashade_SurfaceHeat`, `Dalashade_DayAtmosphere`, `Dalashade_DayReflection`, and `Dalashade_DayHighlightPressure`; plus SceneGI controls and the SceneGI-only MaterialIntent channels listed above. SceneGI routes those through FrameData scene lanes before applying AO, bounce, and local-light behavior.
 
 `Dalashade_SurfaceReflection.fx` currently consumes `Wetness`, `HighlightProtection`, `Readability`, `CombatPressure`, `MagicGlow`, `NeonGlow`, `Night`, `ArtificialLight`, `CinematicPermission`, SurfaceReflection controls, and the SurfaceReflection-only MaterialIntent channels listed above.
 

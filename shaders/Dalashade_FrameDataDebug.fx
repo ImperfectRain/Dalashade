@@ -204,11 +204,15 @@ float3 Dalashade_FrameDataDebugColor(
         + abs(baseData.MaterialNeonGlass - material.NeonGlass);
     float waterDiff = abs(baseData.WaterReceiver - water.WaterReceiver)
         + abs(baseData.WaterSource - water.WaterSource)
+        + abs(baseData.WaterShallow - water.ShallowWater)
+        + abs(baseData.WaterHorizon - water.WaterHorizon)
         + abs(baseData.WaterHorizonOnly - water.HorizonOnlyConfidence)
+        + abs(baseData.WaterSandReject - water.SandReject)
         + abs(baseData.WaterSkyConflict - water.WaterSkyConflict);
     float safetyDiff = abs(baseData.SafetySkyReject - safety.SkyReject)
         + abs(baseData.SafetySkinReject - safety.SkinReject)
-        + abs(baseData.SafetyHighlightProtect - safety.HighlightProtect);
+        + abs(baseData.SafetyHighlightProtect - safety.HighlightProtect)
+        + abs(baseData.SafetyWaterAOReject - safety.WaterAOReject);
     float surfaceDiff = abs(surfaceParity.NormalConfidence - field.NormalConfidence)
         + abs(surfaceParity.ReflectionReceiverSupport - field.ReflectionReceiver)
         + abs(surfaceParity.AOReceiverSupport - field.AOReceiver);

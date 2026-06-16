@@ -115,7 +115,7 @@ Next development should validate the AdaptiveGrade lane behavior before expandin
 
 ## Material, Water, Receiver, and NormalField Contract
 
-Use `Dalashade_MaterialMasks.fxh` as the shared material/water/safety contract. Do not redefine water, sky, receiver, or source semantics locally unless the shader has an effect-specific shaping reason.
+Use `Dalashade_FrameData.fxh` as the first-party shader-facing contract for shared scene tags, material, water, safety, receiver, and optional surface data. `Dalashade_MaterialMasks.fxh` and `Dalashade_NormalField.fxh` remain the canonical formula owners underneath FrameData. Do not redefine water, sky, receiver, source, scene tag, or surface semantics locally unless the shader has an effect-specific shaping reason.
 
 Important distinctions:
 

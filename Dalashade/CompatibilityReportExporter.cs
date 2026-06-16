@@ -789,7 +789,7 @@ public sealed class CompatibilityReportExporter
             .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         builder.AppendLine($"- FrameDataDebug variables changed this generation: {(frameDataDebugWrites.Length == 0 ? "none" : string.Join(", ", frameDataDebugWrites.Select(change => $"`{change.Section}:{change.Key}`")))}");
-        builder.AppendLine("- Current note: WeatherAtmosphere, AdaptiveGrade, SmartSharpen, and AtmosphereBloom use inline FrameData. SurfaceReflection and SceneGI remain unmigrated. No prepass or render target exists yet.");
+        builder.AppendLine("- Current note: production first-party shaders use inline FrameData. No prepass or render target exists yet.");
         builder.AppendLine();
         builder.AppendLine("### Production Shader FrameData Scan");
         builder.AppendLine();

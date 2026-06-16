@@ -471,7 +471,7 @@ public sealed class DebugBundleExporter
             {
                 "FrameData currently wraps inline canonical resolvers. No render target or prepass exists.",
                 "FrameDataDebug is manual and should remain inactive unless explicitly enabled in ReShade.",
-                "WeatherAtmosphere, AdaptiveGrade, SmartSharpen, and AtmosphereBloom use inline FrameData. SurfaceReflection and SceneGI remain unmigrated."
+                "Production first-party shaders use inline FrameData. SurfaceReflection and SceneGI now consume the same base/surface contract as WeatherAtmosphere, AdaptiveGrade, SmartSharpen, and AtmosphereBloom."
             }
         };
     }
