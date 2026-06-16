@@ -89,7 +89,7 @@ Implemented report paths:
 | Compatibility report | `CompatibilityReportExporter.Export(...)` |
 | Regression reports | `PresetRegressionReportHarness.Run(...)` |
 
-Compatibility reports include preset risk, authorities, role policies, shader support, changed variables, sanitize actions, master diagnostics, scene-tag diagnostics, and mapping validation.
+Compatibility reports include preset risk, authorities, role policies, shader support, changed variables, sanitize actions, master diagnostics, scene-tag diagnostics, FrameData diagnostics, first-party depth-assist diagnostics, and mapping validation.
 
 Scene-tag diagnostics include the primary biome, confidence, matched keyword/reason, active weather tags, secondary tags, material tags, area/context tags, gameplay-state tags, art-direction tags, and `SceneIntent` contributions grouped by tag category. Use these sections first when a generated preset has the wrong environmental identity.
 
@@ -105,6 +105,8 @@ Material diagnostics are split into plugin-side scene plausibility and shader-si
 
 Custom shader variable diagnostics separate three ownership classes. SceneIntent variables are Dalashade-controlled when custom shader support is enabled. MaterialIntent channel uniforms are Dalashade-controlled only when MaterialIntent shader mapping is enabled and section-scoped keys exist. Shader-owned controls, including depth assist and debug UI controls, may be known or injected with safe defaults but are not actively written by Dalashade.
 
+FrameData diagnostics report the internal resolver contract state. Current expected status is `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, `ProductionFrameDataConsumers: None`, and `ProductionShadersMigratedToFrameData: None`. The report also shows whether `Dalashade_FrameData.fxh` and `Dalashade_FrameDataDebug.fx` are available to the source scan, whether the generated preset contains a FrameDataDebug section, whether the technique appears active, and the FrameDataDebug debug variables. This is report-only; production shaders still use inline resolvers until an explicit migration pass.
+
 SceneGI diagnostics are separate from shader compilation. Dalashade can report whether the `Dalashade_SceneGI` section or technique appears in preset analysis and whether GI variables were written, but ReShade compile success still has to be verified in-game after installing `Dalashade_SceneGI.fx` and `Dalashade_MaterialMasks.fxh`.
 
 SurfaceReflection diagnostics are also separate from shader compilation. Dalashade can report whether the `Dalashade_SurfaceReflection` section or technique appears and whether reflection variables were written, but ReShade compile success still has to be verified in-game after installing `Dalashade_SurfaceReflection.fx` and `Dalashade_MaterialMasks.fxh`.
@@ -113,7 +115,7 @@ SceneGI and SurfaceReflection each get their own custom shader report section. S
 
 Preset analysis warns about first-party stack-order issues when it can see active techniques: SceneGI before AdaptiveGrade, SurfaceReflection before SceneGI, MaterialDebug before production shaders, sharpeners before GI/reflection, excessive active sharpeners, SurfaceReflection without WaterPlane/SpecularGlint uniforms, and active SceneGI where ReShade depth support cannot be confirmed from preset text.
 
-Depth assist remains disabled by default. It can help material masks when ReShade depth is valid, but DLSS/upscaling, dynamic resolution, game depth restrictions, or UI/depth mismatches may make it unreliable. Reported depth confidence means usable signal confidence for mask heuristics, not guaranteed correct game depth.
+Depth assist remains disabled by default. It can help material masks when ReShade depth is valid, but DLSS/upscaling, dynamic resolution, game depth restrictions, or UI/depth mismatches may make it unreliable. Reported depth confidence means usable signal confidence for mask heuristics, not guaranteed correct game depth. First-party depth-assist diagnostics report `EnableFirstPartyDepthAssist`, whether generated-preset custom shader writes and section injection are enabled, and which known first-party sections received `Dalashade_EnableDepthAssist`, `Dalashade_DepthAssistStrength`, `Dalashade_DepthAssistConfidenceFloor`, or `Dalashade_DepthConfidenceFloor`.
 
 Material calibration failures should be traced in this order: scene profile plausibility, MaterialIntent strength/gating, raw pixel heuristic, final conflict suppression, optional depth assist, then production shader behavior. The master `Dalashade_MaterialDebug.fx` answers what Dalashade thinks a pixel might be; each production shader's local debug mode answers why that shader is affecting or suppressing the pixel.
 

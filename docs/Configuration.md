@@ -60,7 +60,9 @@ Debug shaders are intentionally unaffected by `FirstPartyShaderMode`.
 - `Dalashade_DepthAssistConfidenceFloor=0`
 - `Dalashade_DepthConfidenceFloor=0`
 
-The write is limited to known first-party Dalashade shader sections that declare those uniforms. It requires custom shader variable writes to be enabled, does not install `.fx` files, and does not activate techniques.
+The write is limited to known first-party Dalashade shader sections that declare those uniforms. It requires custom shader variable writes to be enabled, does not install `.fx` files, and does not activate techniques. Depth assist can improve resolver confidence when ReShade depth is reliable, but it can worsen masks when the depth buffer is flat, unavailable, reversed incorrectly, or contaminated by UI/overlay depth.
+
+Compatibility reports and debug bundles list `EnableFirstPartyDepthAssist`, whether generated-preset custom shader writes and section injection are enabled, and which first-party sections received each depth-assist variable. Reporting missing shader files or missing generated-preset sections should be diagnostic-only and must not fail generation.
 
 ## Path Safety
 

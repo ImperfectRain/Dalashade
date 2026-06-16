@@ -107,7 +107,7 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawCheckbox("Auto-adjust in cutscenes", configuration.AutoAdjustInCutscenes, value => configuration.AutoAdjustInCutscenes = value);
         DrawCheckbox("Lock current generated preset", configuration.SceneLockEnabled, value => configuration.SceneLockEnabled = value);
         DrawCheckbox("Enable depth assist for first-party Dalashade shaders", configuration.EnableFirstPartyDepthAssist, value => configuration.EnableFirstPartyDepthAssist = value);
-        DrawItemTooltip("When enabled, generation writes Dalashade_EnableDepthAssist=1 and full depth-assist strength into known first-party Dalashade shader sections that declare those uniforms. This does not enable shader techniques.");
+        DrawItemTooltip("Requires Dalashade custom shader variable writes. When enabled, generation writes Dalashade_EnableDepthAssist=1 and full depth-assist strength into known first-party Dalashade shader sections that declare those uniforms. This does not enable shader techniques.");
         DrawCheckbox("Write generated preset backups", configuration.WriteBackups, value => configuration.WriteBackups = value);
 
         var maxBackups = configuration.MaxGeneratedPresetBackups;

@@ -17,7 +17,7 @@ FrameData does not add a prepass, render target, motion vector path, temporal ac
 
 ## Purpose
 
-FrameData gives first-party shaders one canonical vocabulary for material, water, safety, receiver, and optional surface/normal data. This first pass is foundational only. Existing production shaders are not migrated yet, and their output should not change.
+FrameData gives first-party shaders one canonical vocabulary for material, water, safety, receiver, and optional surface/normal data. `Dalashade_WeatherAtmosphere.fx` is the first production consumer. The migration is intended to keep output visually stable while replacing shader-local material/water/safety resolver consumption with FrameData field names.
 
 FrameData is not a promise to third-party shader authors yet. The contract can still change while Dalashade proves the names and field roles across its own shaders.
 
@@ -121,6 +121,7 @@ NormalField is inferred screen-space data. It is not true FFXIV normals, materia
 | --- | --- | --- |
 | `Normal` | Surface/confidence | Encoded as a direction vector; inferred from depth/detail. |
 | `NormalConfidence` | Confidence | Stability confidence for the inferred normal. |
+| `OrientationConfidence` | Confidence | Orientation stability confidence from NormalField. |
 | `DepthConfidence` | Confidence | Depth-derived normal confidence. |
 | `EdgeDiscontinuity` | Safety/confidence | Local discontinuity risk. |
 | `GroundCandidate` | Surface/confidence | Support-plane candidate, not literal ground ID. |
@@ -165,11 +166,21 @@ Modes:
 
 The debug shader is generated-preset aware but not auto-enabled. Base presets are not mutated.
 
+## Diagnostics And Reports
+
+FrameData diagnostics are currently report-only:
+
+- Compatibility reports include `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and production shader source scans. WeatherAtmosphere is the first intended production consumer; no prepass or render target exists.
+- Debug bundles include `frame-data-diagnostics.json` with installed FrameData file presence, FrameDataDebug preset/technique state, FrameDataDebug debug variables, and production shader source scans.
+- Debug bundles include `first-party-depth-assist.json` so depth-assist opt-in state and written first-party depth-assist variables can be audited beside FrameData state.
+
+`Dalashade_FrameDataDebug.fx` remains a manual debug shader. Generated-preset support may create the section and safe debug defaults, but it must not activate the technique. In-game ReShade compile validation is still required for `.fx` files because C# report/export checks only inspect files and preset text.
+
 ## Migration Guidance
 
 When production shaders start using FrameData, migrate one shader at a time. The expected order is:
 
-1. WeatherAtmosphere air-layer identity.
+1. WeatherAtmosphere air-layer identity. Complete for the inline base-data consumer pass.
 2. AtmosphereBloom source-class response.
 3. SmartSharpen safety/receiver harmonization.
 4. AdaptiveGrade role-name cleanup if needed.

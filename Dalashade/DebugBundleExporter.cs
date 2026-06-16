@@ -27,6 +27,9 @@ public sealed class DebugBundleExporter
 {
     private const string BundleFormatVersion = "1";
 
+    private sealed record GeneratedPresetSectionValues(bool SectionPresent, IReadOnlyDictionary<string, string> Values, string Warning);
+    private sealed record GeneratedPresetVariableValue(string Section, string Key, string Value);
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -41,10 +44,37 @@ public sealed class DebugBundleExporter
         "Dalashade_SmartSharpen.fx",
         "Dalashade_MaterialDebug.fx",
         "Dalashade_NormalDebug.fx",
+        "Dalashade_FrameDataDebug.fx",
         "Dalashade_SceneGI.fx",
         "Dalashade_SurfaceReflection.fx",
         "Dalashade_MaterialMasks.fxh",
-        "Dalashade_NormalField.fxh"
+        "Dalashade_NormalField.fxh",
+        "Dalashade_FrameData.fxh"
+    ];
+
+    private static readonly string[] ProductionShaderFiles =
+    [
+        "Dalashade_AdaptiveGrade.fx",
+        "Dalashade_AtmosphereBloom.fx",
+        "Dalashade_WeatherAtmosphere.fx",
+        "Dalashade_SmartSharpen.fx",
+        "Dalashade_SceneGI.fx",
+        "Dalashade_SurfaceReflection.fx"
+    ];
+
+    private static readonly string[] FrameDataDebugVariables =
+    [
+        "Dalashade_FrameDataDebugMode",
+        "Dalashade_FrameDataDebugBoost",
+        "Dalashade_FrameDataDebugOpacity"
+    ];
+
+    private static readonly string[] FirstPartyDepthAssistVariables =
+    [
+        "Dalashade_EnableDepthAssist",
+        "Dalashade_DepthAssistStrength",
+        "Dalashade_DepthAssistConfidenceFloor",
+        "Dalashade_DepthConfidenceFloor"
     ];
 
     public DebugBundleExportResult Export(
@@ -98,6 +128,8 @@ public sealed class DebugBundleExporter
 
             TryBundleStep("write material-intent.json", () => WriteJson(Path.Combine(folderPath, "material-intent.json"), BuildMaterialIntentDump(diagnostics, imageAnalysis, materialIntent, writeResult), included), log, skipped);
             TryBundleStep("write normal-field-diagnostics.json", () => WriteJson(Path.Combine(folderPath, "normal-field-diagnostics.json"), BuildNormalFieldDiagnosticsDump(configuration, analysis, writeResult), included), log, skipped);
+            TryBundleStep("write frame-data-diagnostics.json", () => WriteJson(Path.Combine(folderPath, "frame-data-diagnostics.json"), BuildFrameDataDiagnosticsDump(configuration, analysis, writeResult), included), log, skipped);
+            TryBundleStep("write first-party-depth-assist.json", () => WriteJson(Path.Combine(folderPath, "first-party-depth-assist.json"), BuildFirstPartyDepthAssistDump(configuration, writeResult), included), log, skipped);
             TryBundleStep("write material-parity-audit.md", () => WriteText(Path.Combine(folderPath, "material-parity-audit.md"), BuildMaterialParityAudit(freshReport), included), log, skipped);
             TryBundleStep("write shader-stack-summary.md", () => WriteText(Path.Combine(folderPath, "shader-stack-summary.md"), BuildShaderStackSummary(analysis), included), log, skipped);
             TryBundleStep("write installed-dalashade-shaders.txt", () => WriteText(Path.Combine(folderPath, "installed-dalashade-shaders.txt"), BuildInstalledShaderStatus(configuration, included, skipped), included), log, skipped);
@@ -365,6 +397,144 @@ public sealed class DebugBundleExporter
         };
     }
 
+    private static object BuildFrameDataDiagnosticsDump(Configuration configuration, PresetAnalysisResult analysis, PresetWriteResult writeResult)
+    {
+        var frameDataInclude = FindFirstShaderFile(configuration, "Dalashade_FrameData.fxh");
+        var frameDataDebugFile = FindFirstShaderFile(configuration, "Dalashade_FrameDataDebug.fx");
+        var frameDataDebugTechniques = analysis.Techniques
+            .Where(technique => TechniqueContains(technique, "Dalashade_FrameDataDebug"))
+            .Select(technique => new
+            {
+                technique.Section,
+                technique.TechniqueName,
+                technique.ShaderFile,
+                technique.ActivationState,
+                technique.Role,
+                technique.SupportLevel
+            })
+            .ToArray();
+        var generatedFrameDataDebugValues = ReadGeneratedPresetSectionValues(configuration.GeneratedPresetPath, "Dalashade_FrameDataDebug");
+        var frameDataDebugWrites = writeResult.Changes
+            .Where(change => FrameDataDebugVariables.Contains(change.Key, StringComparer.OrdinalIgnoreCase))
+            .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(change => new
+            {
+                change.Section,
+                change.Key,
+                change.NewValue,
+                change.ActivationState,
+                change.Warning
+            })
+            .ToArray();
+
+        return new
+        {
+            FrameDataMode = "Inline",
+            FrameDataPrepass = "NotImplemented",
+            ProductionFrameDataConsumers = Array.Empty<string>(),
+            ProductionShadersMigratedToFrameData = Array.Empty<string>(),
+            ShaderFiles = new
+            {
+                FrameDataInclude = BuildShaderFilePresence(frameDataInclude),
+                FrameDataDebug = BuildShaderFilePresence(frameDataDebugFile)
+            },
+            FrameDataDebug = new
+            {
+                GeneratedPresetSectionPresent = generatedFrameDataDebugValues.SectionPresent,
+                GeneratedPresetScanWarning = generatedFrameDataDebugValues.Warning,
+                TechniquePresent = frameDataDebugTechniques.Length > 0,
+                TechniqueActive = frameDataDebugTechniques.Any(technique => technique.ActivationState == TechniqueActivationState.Active),
+                Techniques = frameDataDebugTechniques,
+                Variables = FrameDataDebugVariables
+                    .Select(variable => new
+                    {
+                        Key = variable,
+                        GeneratedPresetValue = generatedFrameDataDebugValues.Values.TryGetValue(variable, out var value) ? value : string.Empty,
+                        PresentInGeneratedPreset = generatedFrameDataDebugValues.Values.ContainsKey(variable)
+                    })
+                    .ToArray(),
+                WrittenUniforms = frameDataDebugWrites
+            },
+            ProductionShaderScan = BuildFrameDataProductionShaderScan(),
+            InlineResolverStatus = new
+            {
+                Mode = "Inline",
+                Prepass = "NotImplemented",
+                ProductionConsumers = "None",
+                ProductionMigrations = "None"
+            },
+            Notes = new[]
+            {
+                "FrameData currently wraps inline canonical resolvers. No render target or prepass exists.",
+                "FrameDataDebug is manual and should remain inactive unless explicitly enabled in ReShade.",
+                "Production shaders are still expected to use their existing inline resolver calls until a future migration pass."
+            }
+        };
+    }
+
+    private static object BuildFirstPartyDepthAssistDump(Configuration configuration, PresetWriteResult writeResult)
+    {
+        var written = writeResult.Changes
+            .Where(change => FirstPartyDepthAssistVariables.Contains(change.Key, StringComparer.OrdinalIgnoreCase)
+                             && string.Equals(change.ReasonCategory, CustomShaderVariableMapper.FirstPartyDepthAssistReasonCategory, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var generatedValues = ReadGeneratedPresetVariables(configuration.GeneratedPresetPath, FirstPartyDepthAssistVariables);
+
+        return new
+        {
+            configuration.EnableFirstPartyDepthAssist,
+            GeneratedPresetWritesEnabled = configuration.EnableDalashadeCustomShaders,
+            CustomShaderSectionInjectionEnabled = configuration.AutoInjectDalashadeCustomShaderSections,
+            KnownVariables = FirstPartyDepthAssistVariables,
+            SectionsReceivingDepthAssist = written
+                .Select(change => change.Section)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(section => section, StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            SectionsWithGeneratedPresetDepthAssistValues = generatedValues
+                .Select(value => value.Section)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(section => section, StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            VariablesBySection = written
+                .GroupBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new
+                {
+                    Section = group.Key,
+                    Variables = group.Select(change => new
+                    {
+                        change.Key,
+                        change.NewValue,
+                        change.ActivationState,
+                        change.Warning
+                    }).ToArray()
+                })
+                .ToArray(),
+            GeneratedPresetValuesBySection = generatedValues
+                .GroupBy(value => value.Section, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new
+                {
+                    Section = group.Key,
+                    Variables = group
+                        .OrderBy(value => value.Key, StringComparer.OrdinalIgnoreCase)
+                        .Select(value => new { value.Key, value.Value })
+                        .ToArray()
+                })
+                .ToArray(),
+            Notes = new[]
+            {
+                "First-party depth assist is opt-in and does not enable techniques.",
+                "Depth assist writes are limited to known depth-assist uniforms in known Dalashade first-party sections.",
+                "A reliable ReShade depth buffer can improve resolver confidence; unreliable depth can make masks worse."
+            }
+        };
+    }
+
     private static object BuildShaderFilePresence(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -460,6 +630,37 @@ public sealed class DebugBundleExporter
                     DetailNormalConsumed = usesDetailNormal,
                     IncludesNormalField = includesNormalField,
                     ResolvesNormalField = resolvesNormalField
+                };
+            })
+            .Cast<object>()
+            .ToArray();
+    }
+
+    private static object[] BuildFrameDataProductionShaderScan()
+    {
+        return ProductionShaderFiles
+            .Select(fileName =>
+            {
+                var source = ReadLocalShaderSource(fileName, out var sourceStatus);
+                var sourceAvailable = !string.IsNullOrWhiteSpace(source);
+                var includesFrameData = sourceAvailable && source.Contains("Dalashade_FrameData.fxh", StringComparison.Ordinal);
+                var resolvesFrameBase = sourceAvailable && source.Contains("Dalashade_ResolveFrameBaseData", StringComparison.Ordinal);
+                var resolvesFrameSurface = sourceAvailable && source.Contains("Dalashade_ResolveFrameSurfaceData", StringComparison.Ordinal);
+                var usesInlineResolvers = sourceAvailable
+                    && (source.Contains("Dalashade_ResolveMaterials", StringComparison.Ordinal)
+                        || source.Contains("Dalashade_ResolveWater", StringComparison.Ordinal)
+                        || source.Contains("Dalashade_ResolveSafety", StringComparison.Ordinal)
+                        || source.Contains("Dalashade_ResolveNormalField", StringComparison.Ordinal));
+                return new
+                {
+                    Shader = fileName,
+                    SourceAvailable = sourceAvailable,
+                    SourceStatus = sourceStatus,
+                    IncludesFrameData = includesFrameData,
+                    ResolvesFrameBaseData = resolvesFrameBase,
+                    ResolvesFrameSurfaceData = resolvesFrameSurface,
+                    MigratedToFrameData = includesFrameData || resolvesFrameBase || resolvesFrameSurface,
+                    UsesInlineCanonicalResolvers = usesInlineResolvers
                 };
             })
             .Cast<object>()
@@ -1174,6 +1375,100 @@ Preset and plugin config files are included intentionally for debugging. Full Re
         return technique.Section.Contains(key, StringComparison.OrdinalIgnoreCase)
                || technique.TechniqueName.Contains(key, StringComparison.OrdinalIgnoreCase)
                || technique.ShaderFile.Contains(key, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static GeneratedPresetSectionValues ReadGeneratedPresetSectionValues(string? presetPath, string sectionNeedle)
+    {
+        if (string.IsNullOrWhiteSpace(presetPath) || string.IsNullOrWhiteSpace(sectionNeedle))
+        {
+            return new GeneratedPresetSectionValues(false, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), "generated preset path or section name empty");
+        }
+
+        if (!FileExistsSafe(presetPath))
+        {
+            return new GeneratedPresetSectionValues(false, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), "generated preset file not found");
+        }
+
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var inTargetSection = false;
+        var sectionPresent = false;
+        try
+        {
+            foreach (var line in File.ReadLines(presetPath))
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("[", StringComparison.Ordinal) && trimmed.EndsWith("]", StringComparison.Ordinal))
+                {
+                    var section = trimmed[1..^1];
+                    inTargetSection = section.Contains(sectionNeedle, StringComparison.OrdinalIgnoreCase);
+                    sectionPresent |= inTargetSection;
+                    continue;
+                }
+
+                if (!inTargetSection)
+                {
+                    continue;
+                }
+
+                var separatorIndex = trimmed.IndexOf('=');
+                if (separatorIndex <= 0)
+                {
+                    continue;
+                }
+
+                values[trimmed[..separatorIndex].Trim()] = trimmed[(separatorIndex + 1)..].Trim();
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return new GeneratedPresetSectionValues(sectionPresent, values, $"generated preset scan failed: {ex.Message}");
+        }
+
+        return new GeneratedPresetSectionValues(sectionPresent, values, string.Empty);
+    }
+
+    private static GeneratedPresetVariableValue[] ReadGeneratedPresetVariables(string? presetPath, IReadOnlyCollection<string> keys)
+    {
+        if (string.IsNullOrWhiteSpace(presetPath) || keys.Count == 0 || !FileExistsSafe(presetPath))
+        {
+            return [];
+        }
+
+        var wanted = new HashSet<string>(keys, StringComparer.OrdinalIgnoreCase);
+        var values = new List<GeneratedPresetVariableValue>();
+        var section = string.Empty;
+        try
+        {
+            foreach (var line in File.ReadLines(presetPath))
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("[", StringComparison.Ordinal) && trimmed.EndsWith("]", StringComparison.Ordinal))
+                {
+                    section = trimmed[1..^1];
+                    continue;
+                }
+
+                var separatorIndex = trimmed.IndexOf('=');
+                if (separatorIndex <= 0 || string.IsNullOrWhiteSpace(section))
+                {
+                    continue;
+                }
+
+                var key = trimmed[..separatorIndex].Trim();
+                if (!wanted.Contains(key))
+                {
+                    continue;
+                }
+
+                values.Add(new GeneratedPresetVariableValue(section, key, trimmed[(separatorIndex + 1)..].Trim()));
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return [];
+        }
+
+        return values.ToArray();
     }
 
     private static string? TryCombine(string? basePath, string childPath)

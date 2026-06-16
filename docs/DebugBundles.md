@@ -26,11 +26,13 @@ Current bundle contents include:
 - `scene-context.json`
 - `scene-intent.json`
 - `material-intent.json`
+- `normal-field-diagnostics.json`
+- `frame-data-diagnostics.json`
+- `first-party-depth-assist.json`
 - `material-parity-audit.md`
 - `shader-stack-summary.md`
 - `installed-dalashade-shaders.txt`
 - `paths-and-environment.txt`
-- `normal-field-diagnostics.json`
 - `manifest.json`
 - `bundle-export-log.txt`
 
@@ -60,7 +62,12 @@ Start with:
 3. `compatibility-report.md`: preset stack, material parity, NormalField diagnostics, shader support.
 4. `plugin-config.json`: settings that controlled the generation.
 5. `scene-context.json`, `scene-intent.json`, `material-intent.json`: scene and material reasoning.
-6. `installed-dalashade-shaders.txt`: installed first-party shader files and hashes.
+6. `normal-field-diagnostics.json`: NormalField settings, shader presence, debug technique state, and first-party consumption.
+7. `frame-data-diagnostics.json`: FrameData include/debug shader presence, FrameDataDebug section/variables, inline/prepass status, and production migration status.
+8. `first-party-depth-assist.json`: opt-in depth-assist setting state and known first-party sections that received depth-assist writes.
+9. `installed-dalashade-shaders.txt`: installed first-party shader files and hashes.
+
+FrameData is currently inline only. `frame-data-diagnostics.json` should report `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and no production shader migrations until a later migration pass explicitly changes production shaders. `Dalashade_FrameDataDebug.fx` is a manual debug shader; section/variable injection must not make the technique active by default.
 
 ## Do Not Do
 

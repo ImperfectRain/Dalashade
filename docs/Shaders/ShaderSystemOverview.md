@@ -36,7 +36,7 @@ Dalashade_FrameDataDebug
 | `Dalashade_SceneGI.fx` | Screen-space GI/AO impression, localized bounce, contact shading, and night light pooling. | Experimental production shader. |
 | `Dalashade_SurfaceReflection.fx` | Pseudo-SSR, water sheen, wet hard-surface reflection, metal/glass/aether streaks, and projection diagnostics. | Experimental production shader. |
 | `Dalashade_AtmosphereBloom.fx` | Material-aware bloom eligibility and atmospheric glow restraint. | Production-oriented, conservative. |
-| `Dalashade_WeatherAtmosphere.fx` | Scene/weather air, haze, dampness, heat, snow, sand, and fog impression. | Experimental production shader. |
+| `Dalashade_WeatherAtmosphere.fx` | Scene/weather air, haze, dampness, heat, snow, sand, and fog impression. First production consumer of inline FrameData base data. | Experimental production shader. |
 | `Dalashade_SmartSharpen.fx` | Material-aware clarity with dampening for sky, skin, water, foliage, snow, and specular glints. | Production-oriented, conservative. |
 | `Dalashade_MaterialDebug.fx` | Truth viewer for shared material, water, receiver, and competition masks. | Debug-only. |
 | `Dalashade_NormalDebug.fx` | Truth viewer for inferred screen-space NormalField outputs. | Debug-only. |
@@ -48,7 +48,7 @@ Dalashade_FrameDataDebug
 
 `Dalashade_NormalField.fxh` is the optional inferred surface-field contract. It consumes material/water/safety resolves and produces conservative screen-space normal, structure, receiver, and safety diagnostics. It is not true engine normal data.
 
-`Dalashade_FrameData.fxh` is an internal experimental wrapper over `MaterialMasks` and `NormalField`. It packages canonical resolver output into first-party shader-facing structs, but it does not own formulas, add a prepass, create render targets, or define a public third-party API.
+`Dalashade_FrameData.fxh` is an internal experimental wrapper over `MaterialMasks` and `NormalField`. It packages canonical resolver output into first-party shader-facing structs, but it does not own formulas, add a prepass, create render targets, or define a public third-party API. WeatherAtmosphere currently consumes inline FrameData base fields, and uses FrameData surface fields only for its pre-existing optional NormalField anchoring.
 
 Production shaders may apply role-specific gates after the shared resolves, but should not reinvent base water, sky, skin, sand, specular, foliage, or receiver classification independently.
 

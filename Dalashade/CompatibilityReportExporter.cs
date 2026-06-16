@@ -14,8 +14,27 @@ public sealed record CompatibilityReportExportResult(bool Success, string Messag
 public sealed class CompatibilityReportExporter
 {
     public const string MaterialIntentDiagnosticsTableHeader = "| Channel | Profile prior | Non-profile evidence | Final value | Top suppressions |";
+    private sealed record GeneratedPresetSectionValues(bool SectionPresent, IReadOnlyDictionary<string, string> Values, string Warning);
+    private sealed record GeneratedPresetVariableValue(string Section, string Key, string Value);
     private sealed record MaterialParityChannel(string Uniform, string Label);
     private sealed record MaterialParityShader(string FileName, string Technique, string Role, IReadOnlySet<string> WrittenUniforms, IReadOnlySet<string> ExpectedUniforms, IReadOnlySet<string> DebugUniforms);
+
+    private static readonly string[] ProductionShaderFiles =
+    [
+        "Dalashade_AdaptiveGrade.fx",
+        "Dalashade_AtmosphereBloom.fx",
+        "Dalashade_WeatherAtmosphere.fx",
+        "Dalashade_SmartSharpen.fx",
+        "Dalashade_SceneGI.fx",
+        "Dalashade_SurfaceReflection.fx"
+    ];
+
+    private static readonly string[] FrameDataDebugVariables =
+    [
+        "Dalashade_FrameDataDebugMode",
+        "Dalashade_FrameDataDebugBoost",
+        "Dalashade_FrameDataDebugOpacity"
+    ];
 
     private static readonly IReadOnlyList<MaterialParityChannel> SharedMaterialParityChannels =
     [
@@ -250,6 +269,8 @@ public sealed class CompatibilityReportExporter
         AppendTagStackDiagnostics(builder, tagStackDiagnostics);
         AppendMaterialIntentDiagnostics(builder, configuration, tagStackDiagnostics, currentImage, writeResult);
         AppendNormalFieldDiagnostics(builder, configuration, analysis, writeResult);
+        AppendFrameDataDiagnostics(builder, configuration, analysis, writeResult);
+        AppendFirstPartyDepthAssistDiagnostics(builder, configuration, writeResult);
         AppendMasterStyleDiagnostics(builder, configuration, masterDiagnostics);
         AppendColorFamilyAdjustments(builder, profile);
         AppendColorFamilyComparison(builder, currentImage, masterStyle, profile);
@@ -732,6 +753,75 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine();
     }
 
+    private static void AppendFrameDataDiagnostics(StringBuilder builder, Configuration configuration, PresetAnalysisResult analysis, PresetWriteResult writeResult)
+    {
+        builder.AppendLine("## FrameData Diagnostics");
+        builder.AppendLine();
+        var frameDataIncludeAvailable = !string.IsNullOrWhiteSpace(ReadShaderSource("Dalashade_FrameData.fxh"));
+        var frameDataDebugSourceAvailable = !string.IsNullOrWhiteSpace(ReadShaderSource("Dalashade_FrameDataDebug.fx"));
+        var frameDataDebug = FindFirstPartyTechnique(analysis, "Dalashade_FrameDataDebug");
+        var generatedValues = ReadGeneratedPresetSectionValues(configuration.GeneratedPresetPath, "Dalashade_FrameDataDebug");
+
+        builder.AppendLine("- FrameDataMode: Inline");
+        builder.AppendLine("- FrameDataPrepass: NotImplemented");
+        builder.AppendLine("- ProductionFrameDataConsumers: None");
+        builder.AppendLine("- ProductionShadersMigratedToFrameData: None");
+        builder.AppendLine($"- FrameData include source available for report scan: {YesNo(frameDataIncludeAvailable)}");
+        builder.AppendLine($"- FrameDataDebug shader source available for report scan: {YesNo(frameDataDebugSourceAvailable)}");
+        builder.AppendLine($"- Generated preset contains FrameDataDebug section: {YesNo(generatedValues.SectionPresent)}");
+        builder.AppendLine($"- FrameDataDebug technique present in preset analysis: {YesNo(frameDataDebug is not null)}");
+        builder.AppendLine($"- FrameDataDebug technique active: {YesNo(frameDataDebug?.ActivationState == TechniqueActivationState.Active)}");
+        if (!string.IsNullOrWhiteSpace(generatedValues.Warning))
+        {
+            builder.AppendLine($"- Generated preset FrameDataDebug scan warning: {generatedValues.Warning}");
+        }
+
+        foreach (var variable in FrameDataDebugVariables)
+        {
+            builder.AppendLine($"- `{variable}`: {FormatGeneratedPresetValue(generatedValues, variable)}");
+        }
+
+        var frameDataDebugWrites = writeResult.Changes
+            .Where(change => FrameDataDebugVariables.Contains(change.Key, StringComparer.OrdinalIgnoreCase))
+            .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        builder.AppendLine($"- FrameDataDebug variables changed this generation: {(frameDataDebugWrites.Length == 0 ? "none" : string.Join(", ", frameDataDebugWrites.Select(change => $"`{change.Section}:{change.Key}`")))}");
+        builder.AppendLine("- Current note: FrameData wraps inline canonical resolvers only. No prepass, render target, or production shader migration exists yet.");
+        builder.AppendLine();
+        builder.AppendLine("### Production Shader FrameData Scan");
+        builder.AppendLine();
+        foreach (var fileName in ProductionShaderFiles)
+        {
+            builder.AppendLine($"- {fileName}: {FormatFrameDataProductionConsumption(fileName)}");
+        }
+
+        builder.AppendLine();
+    }
+
+    private static void AppendFirstPartyDepthAssistDiagnostics(StringBuilder builder, Configuration configuration, PresetWriteResult writeResult)
+    {
+        builder.AppendLine("## First-Party Depth Assist Diagnostics");
+        builder.AppendLine();
+        var written = writeResult.Changes
+            .Where(change => IsDepthAssistUniform(change.Key)
+                             && string.Equals(change.ReasonCategory, CustomShaderVariableMapper.FirstPartyDepthAssistReasonCategory, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var generatedValues = ReadGeneratedPresetVariables(configuration.GeneratedPresetPath, ["Dalashade_EnableDepthAssist", "Dalashade_DepthAssistStrength", "Dalashade_DepthAssistConfidenceFloor", "Dalashade_DepthConfidenceFloor"]);
+
+        builder.AppendLine($"- EnableFirstPartyDepthAssist: {YesNo(configuration.EnableFirstPartyDepthAssist)}");
+        builder.AppendLine($"- Generated-preset writes enabled: {YesNo(configuration.EnableDalashadeCustomShaders)}");
+        builder.AppendLine($"- Custom shader section injection enabled: {YesNo(configuration.AutoInjectDalashadeCustomShaderSections)}");
+        builder.AppendLine($"- Depth-assist variables written to first-party sections: {(written.Length == 0 ? "none" : string.Join(", ", written.Select(change => $"`{change.Section}:{change.Key}`").Distinct(StringComparer.OrdinalIgnoreCase)))}");
+        builder.AppendLine($"- Sections receiving depth assist: {FormatDepthAssistSections(written)}");
+        builder.AppendLine($"- Generated preset sections with depth-assist values: {FormatGeneratedPresetVariableSections(generatedValues)}");
+        builder.AppendLine("- Known variables: `Dalashade_EnableDepthAssist`, `Dalashade_DepthAssistStrength`, `Dalashade_DepthAssistConfidenceFloor`, `Dalashade_DepthConfidenceFloor`.");
+        builder.AppendLine("- Current note: depth assist is opt-in, generated-preset-only, and does not activate techniques. It can improve or worsen resolver confidence depending on ReShade depth reliability.");
+        builder.AppendLine();
+    }
+
     private static void AppendTagStackDiagnostics(StringBuilder builder, TagStackDiagnostics diagnostics)
     {
         builder.AppendLine("## Scene Tags And Stack Diagnostics");
@@ -1120,6 +1210,100 @@ public sealed class CompatibilityReportExporter
             StringComparer.OrdinalIgnoreCase);
     }
 
+    private static GeneratedPresetSectionValues ReadGeneratedPresetSectionValues(string? presetPath, string sectionNeedle)
+    {
+        if (string.IsNullOrWhiteSpace(presetPath) || string.IsNullOrWhiteSpace(sectionNeedle))
+        {
+            return new GeneratedPresetSectionValues(false, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), "generated preset path or section name empty");
+        }
+
+        if (!File.Exists(presetPath))
+        {
+            return new GeneratedPresetSectionValues(false, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), "generated preset file not found");
+        }
+
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var sectionPresent = false;
+        var inTargetSection = false;
+        try
+        {
+            foreach (var line in File.ReadLines(presetPath))
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("[", StringComparison.Ordinal) && trimmed.EndsWith("]", StringComparison.Ordinal))
+                {
+                    var section = trimmed[1..^1];
+                    inTargetSection = section.Contains(sectionNeedle, StringComparison.OrdinalIgnoreCase);
+                    sectionPresent |= inTargetSection;
+                    continue;
+                }
+
+                if (!inTargetSection)
+                {
+                    continue;
+                }
+
+                var separatorIndex = trimmed.IndexOf('=');
+                if (separatorIndex <= 0)
+                {
+                    continue;
+                }
+
+                values[trimmed[..separatorIndex].Trim()] = trimmed[(separatorIndex + 1)..].Trim();
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return new GeneratedPresetSectionValues(sectionPresent, values, $"generated preset scan failed: {ex.Message}");
+        }
+
+        return new GeneratedPresetSectionValues(sectionPresent, values, string.Empty);
+    }
+
+    private static GeneratedPresetVariableValue[] ReadGeneratedPresetVariables(string? presetPath, IReadOnlyCollection<string> keys)
+    {
+        if (string.IsNullOrWhiteSpace(presetPath) || keys.Count == 0 || !File.Exists(presetPath))
+        {
+            return [];
+        }
+
+        var wanted = new HashSet<string>(keys, StringComparer.OrdinalIgnoreCase);
+        var values = new List<GeneratedPresetVariableValue>();
+        var section = string.Empty;
+        try
+        {
+            foreach (var line in File.ReadLines(presetPath))
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("[", StringComparison.Ordinal) && trimmed.EndsWith("]", StringComparison.Ordinal))
+                {
+                    section = trimmed[1..^1];
+                    continue;
+                }
+
+                var separatorIndex = trimmed.IndexOf('=');
+                if (separatorIndex <= 0 || string.IsNullOrWhiteSpace(section))
+                {
+                    continue;
+                }
+
+                var key = trimmed[..separatorIndex].Trim();
+                if (!wanted.Contains(key))
+                {
+                    continue;
+                }
+
+                values.Add(new GeneratedPresetVariableValue(section, key, trimmed[(separatorIndex + 1)..].Trim()));
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return [];
+        }
+
+        return values.ToArray();
+    }
+
     private static IReadOnlySet<string> Set(params string[] values)
     {
         return new HashSet<string>(values, StringComparer.OrdinalIgnoreCase);
@@ -1346,6 +1530,53 @@ public sealed class CompatibilityReportExporter
         return includesNormalField || resolvesNormalField || usesDepthNormal || usesDetailNormal
             ? $"yes (include={YesNo(includesNormalField)}, resolve={YesNo(resolvesNormalField)}, depth={YesNo(usesDepthNormal)}, detail={YesNo(usesDetailNormal)})"
             : "no, not yet";
+    }
+
+    private static string FormatFrameDataProductionConsumption(string fileName)
+    {
+        var source = ReadShaderSource(fileName);
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return "unknown (source unavailable)";
+        }
+
+        var includesFrameData = source.Contains("Dalashade_FrameData.fxh", StringComparison.Ordinal);
+        var resolvesFrameBase = source.Contains("Dalashade_ResolveFrameBaseData", StringComparison.Ordinal);
+        var resolvesFrameSurface = source.Contains("Dalashade_ResolveFrameSurfaceData", StringComparison.Ordinal);
+        var usesInlineResolvers = source.Contains("Dalashade_ResolveMaterials", StringComparison.Ordinal)
+                                  || source.Contains("Dalashade_ResolveWater", StringComparison.Ordinal)
+                                  || source.Contains("Dalashade_ResolveSafety", StringComparison.Ordinal)
+                                  || source.Contains("Dalashade_ResolveNormalField", StringComparison.Ordinal);
+        return includesFrameData || resolvesFrameBase || resolvesFrameSurface
+            ? $"migrated (include={YesNo(includesFrameData)}, base={YesNo(resolvesFrameBase)}, surface={YesNo(resolvesFrameSurface)}, inline-resolvers={YesNo(usesInlineResolvers)})"
+            : $"not migrated (inline-resolvers={YesNo(usesInlineResolvers)})";
+    }
+
+    private static string FormatGeneratedPresetValue(GeneratedPresetSectionValues values, string key)
+    {
+        return values.Values.TryGetValue(key, out var value)
+            ? $"`{value}`"
+            : "missing";
+    }
+
+    private static string FormatDepthAssistSections(IReadOnlyList<ChangedShaderVariable> written)
+    {
+        var sections = written
+            .Select(change => change.Section)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(section => section, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return sections.Length == 0 ? "none" : string.Join(", ", sections.Select(section => $"`{section}`"));
+    }
+
+    private static string FormatGeneratedPresetVariableSections(IReadOnlyList<GeneratedPresetVariableValue> values)
+    {
+        var sections = values
+            .Select(value => value.Section)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(section => section, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return sections.Length == 0 ? "none" : string.Join(", ", sections.Select(section => $"`{section}`"));
     }
 
     private static string YesNo(bool value) => value ? "yes" : "no";

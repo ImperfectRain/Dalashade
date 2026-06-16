@@ -179,7 +179,7 @@ float3 Dalashade_FrameDataDebugColor(
     }
 
     Dalashade_MaterialResolve material = Dalashade_FrameData_ResolveCanonicalMaterial(source, uv, settings);
-    Dalashade_WaterResolve water = Dalashade_FrameData_ResolveCanonicalWater(source, uv, settings);
+    Dalashade_WaterResolve water = Dalashade_FrameData_ResolveCanonicalWater(source, uv, material, settings);
     Dalashade_SafetyResolve safety = Dalashade_FrameData_ResolveCanonicalSafety(source, uv, material, water, settings);
     Dalashade_NormalField field = Dalashade_ResolveNormalField(
         source,

@@ -10,15 +10,15 @@ WeatherAtmosphere should own atmospheric mood and air behavior. It should not cr
 
 ## Current implementation summary
 
-The shader samples color/depth, resolves shared material/water/safety masks, and applies depth-aware atmospheric influence according to weather, day/night, sky/fog, water/coastal context, sand/dust, snow/ice, foliage, wetness, heat, aether/neon, industrial/stone structure, void darkness, and fire/heat cues. In Standalone mode it adds stronger weather identity lanes for clear/open air, clear coastal air, coastal/cloudy night air, rain/wet air, storm gloom, fog/mist, cloud/overcast, dust storm, heat wave, snow/cold, humid canopy, aether/umbral/cosmic air, industrial air, stone/interior air, transition air, and gloom while retaining the same safety gates. Optional NormalField data can mildly anchor air to plausible ground/structure and suppress edge buildup; it does not choose weather type.
+The shader samples color/depth, resolves shared material/water/safety masks through the inline FrameData contract, and applies depth-aware atmospheric influence according to weather, day/night, sky/fog, water/coastal context, sand/dust, snow/ice, foliage, wetness, heat, aether/neon, industrial/stone structure, void darkness, and fire/heat cues. In Standalone mode it adds stronger weather identity lanes for clear/open air, clear coastal air, coastal/cloudy night air, rain/wet air, storm gloom, fog/mist, cloud/overcast, dust storm, heat wave, snow/cold, humid canopy, aether/umbral/cosmic air, industrial air, stone/interior air, transition air, and gloom while retaining the same safety gates. Optional FrameData surface data from NormalField can mildly anchor air to plausible ground/structure and suppress edge buildup; it does not choose weather type.
 
 ## Inputs
 
 - Backbuffer color and depth.
 - Scene intent: weather, rain/storm, fog/mist, cloud/overcast, day atmosphere, night atmosphere, open sky, surface heat, industrial hardness, cosmic mood, coastal/water context, combat/duty.
 - Material uniforms: sky/fog, sand/dust, snow/ice, foliage, water/wet, stone/ruins, metal/industrial, crystal/aether, neon/glass, fire/lava/heat, void/darkness, and skin protection.
-- Shared material/water/safety resolvers.
-- Optional NormalField resolver for ground/structure anchoring and edge-discontinuity restraint.
+- Inline FrameData base data for shared material/water/safety/receiver interpretation.
+- Optional FrameData surface data for existing NormalField ground/structure anchoring and edge-discontinuity restraint.
 - Weather atmosphere strength, depth, dampening, and debug controls.
 
 ## Outputs
@@ -27,7 +27,7 @@ Normal output is source color with restrained atmospheric modification. Debug mo
 
 ## Core algorithm
 
-1. Resolve material/water/safety masks.
+1. Resolve inline FrameData base data for material/water/safety/source/receiver fields.
 2. Build air influence from sky/fog, depth, weather, and scene context.
 3. Add material-specific air lanes for coastal dampness, storm/rain, cloud/overcast, sand/dust, heat, snow/cold clarity, foliage humidity, aether/neon/cosmic veil, industrial hardness, stone/interior air, and warm heat-source air.
 4. In Standalone mode, resolve weather identity lanes that strengthen air color, visibility, wet diffusion, mood darkening, highlight rolloff, and final guardrail headroom without changing weather detection.
@@ -36,9 +36,9 @@ Normal output is source color with restrained atmospheric modification. Debug mo
 
 ## Material/Water/Normal dependencies
 
-Consumes `MaterialResolve`, `WaterResolve`, and `SafetyResolve`. Water/coastal context affects air/shoreline humidity, not literal reflection: `water.WaterSource` is only atmosphere/source context, while `water.WaterPixelConfidence`, `WaterReceiver`, and `WetShoreline` are used for local water/wet plausibility. Skin and highlight safety come from `safety.SkinReject`, `HighlightProtect`, `FoliageNoiseReject`, `BrightSandProtect`, and `SnowProtect`.
+WeatherAtmosphere is the first production shader migrated to FrameData. It consumes `Dalashade_FrameBaseData` fields rather than directly consuming `MaterialResolve`, `WaterResolve`, and `SafetyResolve`. Water/coastal context affects air/shoreline humidity, not literal reflection: `frame.WaterSource` is only atmosphere/source context, while `frame.WaterPixelConfidence`, `frame.WaterReceiver`, and `frame.WaterWetShoreline` are used for local water/wet plausibility. Skin and highlight safety come from `frame.SafetySkinReject`, `frame.SafetyHighlightProtect`, `frame.SafetyFoliageNoiseReject`, `frame.SafetyBrightSandProtect`, and `frame.SafetySnowProtect`.
 
-Optional NormalField support uses `GroundPlaneCandidate` for mild fog/dust/wetness grounding, `StructureCandidate` for subtle structure silhouette anchoring, `NormalConfidence` as a small stability gate, and `EdgeDiscontinuity` to avoid outline/halo buildup. NormalField does not classify water, sky, weather, or material identity.
+Optional FrameData surface support uses existing NormalField data: `GroundCandidate` for mild fog/dust/wetness grounding, `StructureCandidate` for subtle structure silhouette anchoring, `NormalConfidence` and `OrientationConfidence` as small stability gates, and `EdgeDiscontinuity` to avoid outline/halo buildup. NormalField does not classify water, sky, weather, or material identity.
 
 ## First-party shader mode
 

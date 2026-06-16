@@ -1,6 +1,5 @@
 #include "ReShade.fxh"
-#include "Dalashade_MaterialMasks.fxh"
-#include "Dalashade_NormalField.fxh"
+#include "Dalashade_FrameData.fxh"
 
 uniform float Dalashade_Haze <
     ui_type = "slider";
@@ -482,100 +481,76 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float materialVoidDarkness = Dalashade_Saturate(Dalashade_MaterialVoidDarkness);
 
     float luma = dot(color, float3(0.2126, 0.7152, 0.0722));
-    Dalashade_MaterialResolve material = Dalashade_ResolveMaterials(
-        color,
-        texcoord,
-        materialFoliage,
-        materialWater,
-        Dalashade_MaterialWaterPlane,
-        Dalashade_MaterialSpecularGlint,
-        materialSandDust,
-        materialSnowIce,
-        materialStoneRuins,
-        materialMetalIndustrial,
-        materialCrystal,
-        materialNeonGlass,
-        materialFireHeat,
-        materialSkyFog,
-        materialSkin,
-        materialVoidDarkness,
-        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
-        Dalashade_DepthAssistStrength,
-        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
-    Dalashade_WaterResolve water = Dalashade_ResolveWater(
-        color,
-        texcoord,
-        Dalashade_WaterContext,
-        Dalashade_CoastalContext,
-        Dalashade_OpenOceanContext,
-        Dalashade_ShallowWaterContext,
-        Dalashade_WetSurfaceContext,
-        material.WaterPlane,
-        material.SpecularGlint,
-        material.SandDust,
-        material.SkyCloudFog,
-        material.SkinProtection,
-        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
-        Dalashade_DepthAssistStrength,
-        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
-    Dalashade_SafetyResolve safety = Dalashade_ResolveSafety(
-        color,
-        texcoord,
-        material,
-        water,
-        highlightProtection,
-        Dalashade_EnableDepthAssist ? 1.0 : 0.0,
-        Dalashade_DepthAssistStrength,
-        max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
-    Dalashade_NormalField normalField = Dalashade_ResolveNormalField(
-        color,
-        texcoord,
-        material,
-        water,
-        safety,
-        Dalashade_NormalFieldEnabled,
-        Dalashade_NormalFieldStrength,
-        Dalashade_NormalDepthStrength,
-        Dalashade_NormalDetailStrength,
-        Dalashade_NormalMaterialInfluence,
-        Dalashade_NormalWaterSuppression,
-        Dalashade_NormalSkinSuppression,
-        Dalashade_NormalSkySuppression);
-    materialFoliage = max(materialFoliage, material.Foliage);
-    materialSandDust = max(materialSandDust, material.SandDust);
-    materialSnowIce = max(materialSnowIce, material.SnowIce);
-    materialStoneRuins = max(materialStoneRuins, material.StoneRuins);
-    materialMetalIndustrial = max(materialMetalIndustrial, material.MetalIndustrial);
-    float waterAtmosphereContext = Dalashade_Saturate(max(water.WaterPixelConfidence, max(water.WaterReceiver, max(water.WetShoreline * 0.72, water.WaterSource * 0.34))));
+    Dalashade_FrameDataSettings frameSettings = Dalashade_FrameData_DefaultSettings();
+    frameSettings.MaterialFoliage = materialFoliage;
+    frameSettings.MaterialWaterSpecular = materialWater;
+    frameSettings.MaterialWaterPlane = Dalashade_MaterialWaterPlane;
+    frameSettings.MaterialSpecularGlint = Dalashade_MaterialSpecularGlint;
+    frameSettings.MaterialSandDust = materialSandDust;
+    frameSettings.MaterialSnowIce = materialSnowIce;
+    frameSettings.MaterialStoneRuins = materialStoneRuins;
+    frameSettings.MaterialMetalIndustrial = materialMetalIndustrial;
+    frameSettings.MaterialCrystalAether = materialCrystal;
+    frameSettings.MaterialNeonGlass = materialNeonGlass;
+    frameSettings.MaterialFireLavaHeat = materialFireHeat;
+    frameSettings.MaterialSkyCloudFog = materialSkyFog;
+    frameSettings.MaterialSkinProtection = materialSkin;
+    frameSettings.MaterialVoidDarkness = materialVoidDarkness;
+    frameSettings.WaterContext = Dalashade_WaterContext;
+    frameSettings.CoastalContext = Dalashade_CoastalContext;
+    frameSettings.OpenOceanContext = Dalashade_OpenOceanContext;
+    frameSettings.ShallowWaterContext = Dalashade_ShallowWaterContext;
+    frameSettings.WetSurfaceContext = Dalashade_WetSurfaceContext;
+    frameSettings.HighlightProtection = highlightProtection;
+    frameSettings.DepthAssistEnabled = Dalashade_EnableDepthAssist ? 1.0 : 0.0;
+    frameSettings.DepthAssistStrength = Dalashade_DepthAssistStrength;
+    frameSettings.DepthAssistConfidenceFloor = max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor);
+    frameSettings.NormalFieldEnabled = Dalashade_NormalFieldEnabled;
+    frameSettings.NormalFieldStrength = Dalashade_NormalFieldStrength;
+    frameSettings.NormalDepthStrength = Dalashade_NormalDepthStrength;
+    frameSettings.NormalDetailStrength = Dalashade_NormalDetailStrength;
+    frameSettings.NormalMaterialInfluence = Dalashade_NormalMaterialInfluence;
+    frameSettings.NormalWaterSuppression = Dalashade_NormalWaterSuppression;
+    frameSettings.NormalSkinSuppression = Dalashade_NormalSkinSuppression;
+    frameSettings.NormalSkySuppression = Dalashade_NormalSkySuppression;
+
+    Dalashade_FrameBaseData frame = Dalashade_ResolveFrameBaseData(color, texcoord, frameSettings);
+    Dalashade_FrameSurfaceData surface = Dalashade_ResolveFrameSurfaceData(color, texcoord, frame, frameSettings);
+    materialFoliage = max(materialFoliage, frame.MaterialFoliage);
+    materialSandDust = max(materialSandDust, frame.MaterialSandDust);
+    materialSnowIce = max(materialSnowIce, frame.MaterialSnowIce);
+    materialStoneRuins = max(materialStoneRuins, frame.MaterialStoneRuins);
+    materialMetalIndustrial = max(materialMetalIndustrial, frame.MaterialMetalIndustrial);
+    float waterAtmosphereContext = Dalashade_Saturate(max(frame.WaterPixelConfidence, max(frame.WaterReceiver, max(frame.WaterWetShoreline * 0.72, frame.WaterSource * 0.34))));
     materialWaterPlane = max(materialWaterPlane, max(waterAtmosphereContext * 0.74, max(Dalashade_WaterContext, Dalashade_CoastalContext) * 0.34));
-    materialSpecularGlint = max(materialSpecularGlint, material.SpecularGlint);
+    materialSpecularGlint = max(materialSpecularGlint, frame.WaterSpecularGlint);
     materialWaterGate = Dalashade_Saturate(max(materialWaterPlane, materialSpecularGlint));
-    materialCrystal = max(materialCrystal, material.CrystalAether);
-    materialNeonGlass = max(materialNeonGlass, material.NeonGlass);
-    materialFireHeat = max(materialFireHeat, material.FireLavaHeat);
-    materialSkyFog = max(materialSkyFog, max(material.SkyCloudFog, safety.SkyReject));
-    materialVoidDarkness = max(materialVoidDarkness, material.VoidDarkness);
+    materialCrystal = max(materialCrystal, frame.MaterialCrystalAether);
+    materialNeonGlass = max(materialNeonGlass, frame.MaterialNeonGlass);
+    materialFireHeat = max(materialFireHeat, frame.MaterialFireLavaHeat);
+    materialSkyFog = max(materialSkyFog, max(frame.MaterialSkyCloudFog, frame.SafetySkyReject));
+    materialVoidDarkness = max(materialVoidDarkness, frame.MaterialVoidDarkness);
     float materialAetherNeon = Dalashade_Saturate(max(materialCrystal, materialNeonGlass));
-    float skinAtmosphereProtect = Dalashade_Saturate(max(materialSkin, safety.SkinReject));
-    float highlightAtmosphereProtect = Dalashade_Saturate(max(safety.HighlightProtect, max(safety.BrightSandProtect, safety.SnowProtect) * 0.55));
-    float foliageNoiseProtect = Dalashade_Saturate(safety.FoliageNoiseReject);
+    float skinAtmosphereProtect = Dalashade_Saturate(max(materialSkin, frame.SafetySkinReject));
+    float highlightAtmosphereProtect = Dalashade_Saturate(max(frame.SafetyHighlightProtect, max(frame.SafetyBrightSandProtect, frame.SafetySnowProtect) * 0.55));
+    float foliageNoiseProtect = Dalashade_Saturate(frame.SafetyFoliageNoiseReject);
     float normalFieldInfluence = Dalashade_Saturate(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence);
     float normalGroundAnchor = Dalashade_Saturate(
         normalFieldInfluence
-        * normalField.GroundPlaneCandidate
-        * (0.35 + normalField.NormalConfidence * 0.35 + normalField.OrientationConfidence * 0.20)
+        * surface.GroundCandidate
+        * (0.35 + surface.NormalConfidence * 0.35 + surface.OrientationConfidence * 0.20)
         * (1.0 - materialSkyFog * 0.72)
         * (1.0 - skinAtmosphereProtect * 0.80));
     float normalStructureAnchor = Dalashade_Saturate(
         normalFieldInfluence
-        * normalField.StructureCandidate
-        * (0.30 + normalField.NormalConfidence * 0.32)
+        * surface.StructureCandidate
+        * (0.30 + surface.NormalConfidence * 0.32)
         * (1.0 - max(materialWaterGate, materialSkyFog) * 0.55)
         * (1.0 - skinAtmosphereProtect * 0.82));
     float normalEdgeSafety = Dalashade_Saturate(
         normalFieldInfluence
-        * normalField.EdgeDiscontinuity
-        * (0.35 + (1.0 - normalField.NormalConfidence) * 0.35 + highlightAtmosphereProtect * 0.20));
+        * surface.EdgeDiscontinuity
+        * (0.35 + (1.0 - surface.NormalConfidence) * 0.35 + highlightAtmosphereProtect * 0.20));
 
     float brightMask = smoothstep(0.54, 0.96, luma);
     float specularMask = smoothstep(0.72, 1.0, luma);
@@ -612,7 +587,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         weatherLaneSafety
         * daylight
         * openSkyLight
-        * max(max(Dalashade_CoastalContext, Dalashade_WaterContext), water.WaterPixelConfidence * 0.52)
+        * max(max(Dalashade_CoastalContext, Dalashade_WaterContext), frame.WaterPixelConfidence * 0.52)
         * (0.32 + dayReflection * 0.26 + dayAtmosphere * 0.12)
         * (1.0 - wetness * 0.50)
         * (1.0 - haze * 0.42));
@@ -632,7 +607,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float coastalNightAirIdentity = saturate(
         weatherLaneSafety
         * night
-        * max(max(Dalashade_CoastalContext, Dalashade_WaterContext), max(materialWaterGate, water.WaterPixelConfidence) * 0.62)
+        * max(max(Dalashade_CoastalContext, Dalashade_WaterContext), max(materialWaterGate, frame.WaterPixelConfidence) * 0.62)
         * max(nightAtmosphere, haze * 0.56)
         * (0.32 + moonlight * 0.20 + artificialLight * 0.14 + materialSkyFog * 0.18)
         * (1.0 - combat * 0.32));
@@ -650,14 +625,14 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         weatherLaneSafety
         * max(max(heat, surfaceHeat * 0.74), materialSandDust)
         * (0.40 + haze * 0.20 + daylight * 0.18 + farAir * 0.18)
-        * (1.0 - safety.BrightSandProtect * brightMask * 0.26)
+        * (1.0 - frame.SafetyBrightSandProtect * brightMask * 0.26)
         * (1.0 - materialSkin * 0.56));
     float dustStormAirIdentity = saturate(
         weatherLaneSafety
         * materialSandDust
         * max(haze, dayAtmosphere * 0.42)
         * (0.38 + farAir * 0.24 + heat * 0.12)
-        * (1.0 - safety.BrightSandProtect * brightMask * 0.30)
+        * (1.0 - frame.SafetyBrightSandProtect * brightMask * 0.30)
         * (1.0 - materialSkin * 0.62));
     float heatWaveAirIdentity = saturate(
         weatherLaneSafety
@@ -667,9 +642,9 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         * (1.0 - materialSkin * 0.58));
     float snowColdAirIdentity = saturate(
         weatherLaneSafety
-        * max(cold, max(materialSnowIce, safety.SnowProtect * 0.62))
+        * max(cold, max(materialSnowIce, frame.SafetySnowProtect * 0.62))
         * (0.38 + openSkyLight * daylight * 0.22 + materialSkyFog * 0.16 + farAir * 0.18)
-        * (1.0 - brightMask * safety.SnowProtect * 0.20));
+        * (1.0 - brightMask * frame.SafetySnowProtect * 0.20));
     float humidCanopyAirIdentity = saturate(
         weatherLaneSafety
         * max(foliage, materialFoliage)
@@ -702,7 +677,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         * (1.0 - materialSkin * 0.62));
     float stoneInteriorAirIdentity = saturate(
         weatherLaneSafety
-        * max(max(materialStoneRuins, material.SurfaceHardness * 0.35), materialMetalIndustrial * 0.36)
+        * max(max(materialStoneRuins, frame.MaterialSurfaceHardness * 0.35), materialMetalIndustrial * 0.36)
         * max(max(ambientDarkness, artificialLight * 0.48), atmosphere * 0.22)
         * (0.34 + night * 0.12 + haze * 0.10)
         * (1.0 - materialSkyFog * 0.66)
@@ -872,27 +847,27 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         }
         if (Dalashade_MaterialDebugMode == 2)
         {
-            return float4(material.Foliage * materialDebugStrength, safety.FoliageNoiseReject * materialDebugStrength, humidAir * 5.0 * materialDebugStrength, 1.0);
+            return float4(frame.MaterialFoliage * materialDebugStrength, frame.SafetyFoliageNoiseReject * materialDebugStrength, humidAir * 5.0 * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 3)
         {
-            return float4(material.SandDust * materialDebugStrength, dustAir * 4.0 * materialDebugStrength, heatDistance * materialDebugStrength, 1.0);
+            return float4(frame.MaterialSandDust * materialDebugStrength, dustAir * 4.0 * materialDebugStrength, heatDistance * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 4)
         {
-            return float4(material.SnowIce * materialDebugStrength, snowAir * 5.0 * materialDebugStrength, highlightRollOff * 5.0 * materialDebugStrength, 1.0);
+            return float4(frame.MaterialSnowIce * materialDebugStrength, snowAir * 5.0 * materialDebugStrength, highlightRollOff * 5.0 * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 5)
         {
-            return float4(water.WetShoreline * materialDebugStrength, waterMist * 5.0 * materialDebugStrength, material.SpecularGlint * materialDebugStrength, 1.0);
+            return float4(frame.WaterWetShoreline * materialDebugStrength, waterMist * 5.0 * materialDebugStrength, frame.WaterSpecularGlint * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 6)
         {
-            return float4(material.CrystalAether * materialDebugStrength, aetherAir * 5.0 * materialDebugStrength, magicGlow * materialDebugStrength, 1.0);
+            return float4(frame.MaterialCrystalAether * materialDebugStrength, aetherAir * 5.0 * materialDebugStrength, magicGlow * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 7)
         {
-            return float4(material.SkyCloudFog * materialDebugStrength, skyFogAir * 5.0 * materialDebugStrength, realFogWeather * materialDebugStrength, 1.0);
+            return float4(frame.MaterialSkyCloudFog * materialDebugStrength, skyFogAir * 5.0 * materialDebugStrength, realFogWeather * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 8)
         {
@@ -900,11 +875,11 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         }
         if (Dalashade_MaterialDebugMode == 9)
         {
-            return float4(water.WaterSurface * materialDebugStrength, waterMist * 5.0 * materialDebugStrength, materialWaterGate * materialDebugStrength, 1.0);
+            return float4(frame.WaterReceiver * materialDebugStrength, waterMist * 5.0 * materialDebugStrength, materialWaterGate * materialDebugStrength, 1.0);
         }
         if (Dalashade_MaterialDebugMode == 10)
         {
-            return float4(material.SpecularGlint * materialDebugStrength, specularMask * materialDebugStrength, rainGlow * materialDebugStrength, 1.0);
+            return float4(frame.WaterSpecularGlint * materialDebugStrength, specularMask * materialDebugStrength, rainGlow * materialDebugStrength, 1.0);
         }
 
         if (Dalashade_DebugView == 1)

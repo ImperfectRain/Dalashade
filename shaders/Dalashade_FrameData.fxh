@@ -106,6 +106,7 @@ struct Dalashade_FrameSurfaceData
 {
     float3 Normal;
     float NormalConfidence;
+    float OrientationConfidence;
     float DepthConfidence;
     float EdgeDiscontinuity;
     float GroundCandidate;
@@ -225,6 +226,7 @@ Dalashade_MaterialResolve Dalashade_FrameData_ResolveCanonicalMaterial(
 Dalashade_WaterResolve Dalashade_FrameData_ResolveCanonicalWater(
     float3 color,
     float2 uv,
+    Dalashade_MaterialResolve material,
     Dalashade_FrameDataSettings settings)
 {
     return Dalashade_ResolveWater(
@@ -235,11 +237,11 @@ Dalashade_WaterResolve Dalashade_FrameData_ResolveCanonicalWater(
         settings.OpenOceanContext,
         settings.ShallowWaterContext,
         settings.WetSurfaceContext,
-        settings.MaterialWaterPlane,
-        settings.MaterialSpecularGlint,
-        settings.MaterialSandDust,
-        settings.MaterialSkyCloudFog,
-        settings.MaterialSkinProtection,
+        material.WaterPlane,
+        material.SpecularGlint,
+        material.SandDust,
+        material.SkyCloudFog,
+        material.SkinProtection,
         settings.DepthAssistEnabled,
         settings.DepthAssistStrength,
         settings.DepthAssistConfidenceFloor);
@@ -269,7 +271,7 @@ Dalashade_FrameBaseData Dalashade_ResolveFrameBaseData(
     Dalashade_FrameDataSettings settings)
 {
     Dalashade_MaterialResolve material = Dalashade_FrameData_ResolveCanonicalMaterial(color, uv, settings);
-    Dalashade_WaterResolve water = Dalashade_FrameData_ResolveCanonicalWater(color, uv, settings);
+    Dalashade_WaterResolve water = Dalashade_FrameData_ResolveCanonicalWater(color, uv, material, settings);
     Dalashade_SafetyResolve safety = Dalashade_FrameData_ResolveCanonicalSafety(color, uv, material, water, settings);
 
     Dalashade_FrameBaseData data;
@@ -326,7 +328,7 @@ Dalashade_FrameSurfaceData Dalashade_ResolveFrameSurfaceData(
     // intentionally recomputes canonical resolves so surface parity can catch
     // wrapper assignment mistakes without depending on cached aggregate fields.
     Dalashade_MaterialResolve material = Dalashade_FrameData_ResolveCanonicalMaterial(color, uv, settings);
-    Dalashade_WaterResolve water = Dalashade_FrameData_ResolveCanonicalWater(color, uv, settings);
+    Dalashade_WaterResolve water = Dalashade_FrameData_ResolveCanonicalWater(color, uv, material, settings);
     Dalashade_SafetyResolve safety = Dalashade_FrameData_ResolveCanonicalSafety(color, uv, material, water, settings);
     Dalashade_NormalField field = Dalashade_ResolveNormalField(
         color,
@@ -346,6 +348,7 @@ Dalashade_FrameSurfaceData Dalashade_ResolveFrameSurfaceData(
     Dalashade_FrameSurfaceData surface;
     surface.Normal = field.CombinedNormal;
     surface.NormalConfidence = field.NormalConfidence;
+    surface.OrientationConfidence = field.OrientationConfidence;
     surface.DepthConfidence = field.DepthConfidence;
     surface.EdgeDiscontinuity = field.EdgeDiscontinuity;
     surface.GroundCandidate = field.GroundPlaneCandidate;
