@@ -25,6 +25,12 @@ uniform float Dalashade_OpenOceanContext < ui_type = "slider"; ui_min = 0.0; ui_
 uniform float Dalashade_ShallowWaterContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Shallow Water Context"; > = 0.0;
 uniform float Dalashade_WetSurfaceContext < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Scene Wet Surface Context"; > = 0.0;
 
+uniform float Dalashade_HighlightProtection <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Highlight Protection";
+> = 0.0;
+
 uniform bool Dalashade_EnableDepthAssist < ui_label = "Enable Depth Assist"; > = false;
 uniform float Dalashade_DepthAssistStrength < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Depth Assist Strength"; > = 0.0;
 uniform float Dalashade_DepthAssistConfidenceFloor < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Depth Assist Confidence Floor"; > = 0.0;
@@ -83,6 +89,7 @@ Dalashade_FrameDataSettings Dalashade_FrameDataDebugSettings()
     settings.ShallowWaterContext = Dalashade_ShallowWaterContext;
     settings.WetSurfaceContext = Dalashade_WetSurfaceContext;
 
+    settings.HighlightProtection = Dalashade_HighlightProtection;
     settings.DepthAssistEnabled = Dalashade_EnableDepthAssist ? 1.0 : 0.0;
     settings.DepthAssistStrength = Dalashade_DepthAssistStrength;
     settings.DepthAssistConfidenceFloor = max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor);

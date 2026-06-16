@@ -103,6 +103,7 @@ public class Configuration : IPluginConfiguration
     public bool AutoAdjustFromScreenshots { get; set; } = false;
     public bool MatchMasterPresetStyle { get; set; } = false;
     public bool SceneLockEnabled { get; set; } = false;
+    public bool EnableFirstPartyDepthAssist { get; set; } = false;
     public bool AutoAdjustInCutscenes { get; set; } = true;
     public bool UsePremiumImmerseEffects { get; set; } = false;
     public bool EnableDalashadeCustomShaders { get; set; } = false;

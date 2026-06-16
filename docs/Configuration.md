@@ -10,6 +10,7 @@
 | Generation | Target style, performance budget, compatibility mode, backup count, generation behavior. |
 | Shader mapping | Known shader matching mode, inactive writes, iMMERSE Pro/Ultimate support, custom shader support. |
 | First-party shader mode | Supportive vs standalone behavior for production Dalashade shaders. |
+| First-party depth assist | Optional global generated-preset write that enables depth assist for Dalashade first-party shaders. |
 | Scene and style | Screenshot analysis, master style mode, tuning preset, style strengths. |
 | MaterialIntent | Material profile/intent diagnostics and shader mapping controls. |
 | NormalField | Optional inferred normal/surface-field diagnostics and shader mapping controls. |
@@ -52,6 +53,15 @@ First-party custom shaders are optional. Dalashade may inject known generated-pr
 
 Debug shaders are intentionally unaffected by `FirstPartyShaderMode`.
 
+`EnableFirstPartyDepthAssist` is an opt-in generation behavior switch. When enabled, generated presets write:
+
+- `Dalashade_EnableDepthAssist=1`
+- `Dalashade_DepthAssistStrength=1`
+- `Dalashade_DepthAssistConfidenceFloor=0`
+- `Dalashade_DepthConfidenceFloor=0`
+
+The write is limited to known first-party Dalashade shader sections that declare those uniforms. It requires custom shader variable writes to be enabled, does not install `.fx` files, and does not activate techniques.
+
 ## Path Safety
 
 Exporters and writers must resolve safe defaults before calling path APIs. Empty configured paths should fall back to the plugin config directory:
@@ -68,5 +78,6 @@ Exporters and writers must resolve safe defaults before calling path APIs. Empty
 - Do not remove serialized fields without a migration.
 - Do not make experimental systems enabled by default.
 - Do not change the default `FirstPartyShaderMode` away from `Supportive` without a migration and explicit review.
+- Do not enable first-party depth assist by default; it must remain an explicit generation behavior opt-in.
 - Do not write NormalField or MaterialIntent shader variables unless their mapping settings allow it.
 - Do not store sensitive external paths beyond what the user configured.

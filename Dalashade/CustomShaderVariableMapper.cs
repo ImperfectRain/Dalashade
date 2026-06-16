@@ -13,6 +13,7 @@ public sealed class CustomShaderVariableMapper
     public const string SurfaceReflectionReasonCategory = "Dalashade custom shader SurfaceReflection tuning";
     public const string NormalFieldReasonCategory = "Dalashade custom shader NormalField tuning";
     public const string FirstPartyModeReasonCategory = "Dalashade first-party shader mode";
+    public const string FirstPartyDepthAssistReasonCategory = "Dalashade first-party depth assist";
 
     private static readonly IReadOnlyDictionary<string, Func<SceneIntent, float>> Variables =
         new Dictionary<string, Func<SceneIntent, float>>(StringComparer.OrdinalIgnoreCase)
@@ -67,6 +68,15 @@ public sealed class CustomShaderVariableMapper
         {
             ["Dalashade_StandaloneStrength"] = configuration => configuration.FirstPartyShaderMode == FirstPartyShaderMode.Standalone ? 1f : 0f,
             ["Dalashade_FirstPartyMode"] = configuration => configuration.FirstPartyShaderMode == FirstPartyShaderMode.Standalone ? 1f : 0f
+        };
+
+    private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> FirstPartyDepthAssistVariables =
+        new Dictionary<string, Func<Configuration, float>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Dalashade_EnableDepthAssist"] = _ => 1f,
+            ["Dalashade_DepthAssistStrength"] = _ => 1f,
+            ["Dalashade_DepthAssistConfidenceFloor"] = _ => 0f,
+            ["Dalashade_DepthConfidenceFloor"] = _ => 0f
         };
 
     private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> SceneGIVariables =
@@ -316,6 +326,7 @@ public sealed class CustomShaderVariableMapper
 
     public static IReadOnlyCollection<string> KnownVariableNames => Variables.Keys
         .Concat(FirstPartyModeVariables.Keys)
+        .Concat(FirstPartyDepthAssistVariables.Keys)
         .Concat(SceneGIVariables.Keys)
         .Concat(SurfaceReflectionVariables.Keys)
         .Concat(NormalFieldVariables.Keys)
@@ -349,6 +360,18 @@ public sealed class CustomShaderVariableMapper
             adjustment = new ShaderAdjustment(
                 _ => new ShaderAdjustmentResult(Format(Clamp01(firstPartyModeAccessor(configuration))), false, false),
                 FirstPartyModeReasonCategory,
+                EffectRole.UiUtility,
+                1f);
+            return true;
+        }
+
+        if (configuration.EnableFirstPartyDepthAssist
+            && IsFirstPartyDepthAssistSection(section)
+            && FirstPartyDepthAssistVariables.TryGetValue(key, out var depthAssistAccessor))
+        {
+            adjustment = new ShaderAdjustment(
+                _ => FormatFirstPartyDepthAssistValue(key, depthAssistAccessor(configuration)),
+                FirstPartyDepthAssistReasonCategory,
                 EffectRole.UiUtility,
                 1f);
             return true;
@@ -432,6 +455,7 @@ public sealed class CustomShaderVariableMapper
         return !string.IsNullOrWhiteSpace(key)
                && (Variables.ContainsKey(key)
                    || FirstPartyModeVariables.ContainsKey(key)
+                   || FirstPartyDepthAssistVariables.ContainsKey(key)
                    || SceneGIVariables.ContainsKey(key)
                    || SurfaceReflectionVariables.ContainsKey(key)
                    || NormalFieldVariables.ContainsKey(key)
@@ -462,6 +486,7 @@ public sealed class CustomShaderVariableMapper
     {
         return !string.IsNullOrWhiteSpace(key)
                && (ShaderOwnedVariables.Contains(key)
+                   || FirstPartyDepthAssistVariables.ContainsKey(key)
                    || SmartSharpenAuthority.WritableVariables.Contains(key, StringComparer.OrdinalIgnoreCase));
     }
 
@@ -537,6 +562,18 @@ public sealed class CustomShaderVariableMapper
         {
             var clamped = MathF.Min(8f, MathF.Max(0.25f, value));
             return new ShaderAdjustmentResult(Format(clamped), value < 0.25f, value > 8f);
+        }
+
+        var normalized = Clamp01(value);
+        return new ShaderAdjustmentResult(Format(normalized), value < 0f, value > 1f);
+    }
+
+    private static ShaderAdjustmentResult FormatFirstPartyDepthAssistValue(string key, float value)
+    {
+        if (string.Equals(key, "Dalashade_EnableDepthAssist", StringComparison.OrdinalIgnoreCase))
+        {
+            var enabled = value >= 0.5f ? 1 : 0;
+            return new ShaderAdjustmentResult(enabled.ToString(CultureInfo.InvariantCulture), false, false);
         }
 
         var normalized = Clamp01(value);
@@ -630,6 +667,14 @@ public sealed class CustomShaderVariableMapper
                    || IsMaterialDebugSection(section));
     }
 
+    private static bool IsFirstPartyDepthAssistSection(string section)
+    {
+        return IsFirstPartyProductionSection(section)
+               || IsMaterialDebugSection(section)
+               || IsNormalDebugSection(section)
+               || IsFrameDataDebugSection(section);
+    }
+
     private static bool IsFirstPartyProductionSection(string section)
     {
         return SmartSharpenAuthority.IsSmartSharpenSection(section)
@@ -668,6 +713,12 @@ public sealed class CustomShaderVariableMapper
     {
         return string.Equals(section, "Dalashade_NormalDebug.fx", StringComparison.OrdinalIgnoreCase)
                || section.Contains("Dalashade_NormalDebug", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsFrameDataDebugSection(string section)
+    {
+        return string.Equals(section, "Dalashade_FrameDataDebug.fx", StringComparison.OrdinalIgnoreCase)
+               || section.Contains("Dalashade_FrameDataDebug", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsSceneGISection(string section)

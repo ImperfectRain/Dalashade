@@ -322,6 +322,9 @@ Dalashade_FrameSurfaceData Dalashade_ResolveFrameSurfaceData(
     Dalashade_FrameBaseData baseData,
     Dalashade_FrameDataSettings settings)
 {
+    // Keep baseData in the signature for future API symmetry. This first pass
+    // intentionally recomputes canonical resolves so surface parity can catch
+    // wrapper assignment mistakes without depending on cached aggregate fields.
     Dalashade_MaterialResolve material = Dalashade_FrameData_ResolveCanonicalMaterial(color, uv, settings);
     Dalashade_WaterResolve water = Dalashade_FrameData_ResolveCanonicalWater(color, uv, settings);
     Dalashade_SafetyResolve safety = Dalashade_FrameData_ResolveCanonicalSafety(color, uv, material, water, settings);

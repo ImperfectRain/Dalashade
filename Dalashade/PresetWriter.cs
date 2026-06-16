@@ -167,6 +167,7 @@ public sealed class PresetWriter
 
     private static readonly IReadOnlyList<string> FrameDataDebugShaderVariables =
     [
+        "Dalashade_HighlightProtection",
         "Dalashade_FrameDataDebugMode",
         "Dalashade_FrameDataDebugBoost",
         "Dalashade_FrameDataDebugOpacity"
