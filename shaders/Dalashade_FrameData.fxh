@@ -62,10 +62,44 @@ struct Dalashade_FrameReceivers
 
 struct Dalashade_FrameBaseData
 {
-    Dalashade_FrameSafety Safety;
-    Dalashade_FrameWater Water;
-    Dalashade_FrameMaterial Material;
-    Dalashade_FrameReceivers Receivers;
+    float SafetySkyReject;
+    float SafetySkinReject;
+    float SafetyHighlightProtect;
+    float SafetyBrightSandProtect;
+    float SafetySnowProtect;
+    float SafetyFoliageNoiseReject;
+    float SafetyUIDepthRisk;
+    float SafetyDepthConfidence;
+
+    float WaterPixelConfidence;
+    float WaterReceiver;
+    float WaterSource;
+    float WaterSkySource;
+    float WaterWetShoreline;
+    float WaterSpecularGlint;
+    float WaterHorizonOnly;
+    float WaterSkyConflict;
+    float WaterConfidence;
+
+    float MaterialFoliage;
+    float MaterialSandDust;
+    float MaterialSnowIce;
+    float MaterialStoneRuins;
+    float MaterialMetalIndustrial;
+    float MaterialCrystalAether;
+    float MaterialNeonGlass;
+    float MaterialFireLavaHeat;
+    float MaterialSkyCloudFog;
+    float MaterialSkinProtection;
+    float MaterialVoidDarkness;
+    float MaterialSurfaceSmoothness;
+    float MaterialSurfaceHardness;
+
+    float ReceiverBroad;
+    float ReceiverReflection;
+    float ReceiverAO;
+    float ReceiverStructure;
+    float SourceLightConfidence;
 };
 
 struct Dalashade_FrameSurfaceData
@@ -240,44 +274,44 @@ Dalashade_FrameBaseData Dalashade_ResolveFrameBaseData(
 
     Dalashade_FrameBaseData data;
 
-    data.Safety.SkyReject = safety.SkyReject;
-    data.Safety.SkinReject = safety.SkinReject;
-    data.Safety.HighlightProtect = safety.HighlightProtect;
-    data.Safety.BrightSandProtect = safety.BrightSandProtect;
-    data.Safety.SnowProtect = safety.SnowProtect;
-    data.Safety.FoliageNoiseReject = safety.FoliageNoiseReject;
-    data.Safety.UIDepthRisk = safety.UIDepthRisk;
-    data.Safety.DepthConfidence = safety.DepthConfidence;
+    data.SafetySkyReject = safety.SkyReject;
+    data.SafetySkinReject = safety.SkinReject;
+    data.SafetyHighlightProtect = safety.HighlightProtect;
+    data.SafetyBrightSandProtect = safety.BrightSandProtect;
+    data.SafetySnowProtect = safety.SnowProtect;
+    data.SafetyFoliageNoiseReject = safety.FoliageNoiseReject;
+    data.SafetyUIDepthRisk = safety.UIDepthRisk;
+    data.SafetyDepthConfidence = safety.DepthConfidence;
 
-    data.Water.WaterPixelConfidence = water.WaterPixelConfidence;
-    data.Water.WaterReceiver = water.WaterReceiver;
-    data.Water.WaterSource = water.WaterSource;
-    data.Water.SkySource = water.SkySource;
-    data.Water.WetShoreline = water.WetShoreline;
-    data.Water.SpecularGlint = material.SpecularGlint;
-    data.Water.HorizonOnly = water.HorizonOnlyConfidence;
-    data.Water.WaterSkyConflict = water.WaterSkyConflict;
-    data.Water.Confidence = water.Confidence;
+    data.WaterPixelConfidence = water.WaterPixelConfidence;
+    data.WaterReceiver = water.WaterReceiver;
+    data.WaterSource = water.WaterSource;
+    data.WaterSkySource = water.SkySource;
+    data.WaterWetShoreline = water.WetShoreline;
+    data.WaterSpecularGlint = material.SpecularGlint;
+    data.WaterHorizonOnly = water.HorizonOnlyConfidence;
+    data.WaterSkyConflict = water.WaterSkyConflict;
+    data.WaterConfidence = water.Confidence;
 
-    data.Material.Foliage = material.Foliage;
-    data.Material.SandDust = material.SandDust;
-    data.Material.SnowIce = material.SnowIce;
-    data.Material.StoneRuins = material.StoneRuins;
-    data.Material.MetalIndustrial = material.MetalIndustrial;
-    data.Material.CrystalAether = material.CrystalAether;
-    data.Material.NeonGlass = material.NeonGlass;
-    data.Material.FireLavaHeat = material.FireLavaHeat;
-    data.Material.SkyCloudFog = material.SkyCloudFog;
-    data.Material.SkinProtection = material.SkinProtection;
-    data.Material.VoidDarkness = material.VoidDarkness;
-    data.Material.SurfaceSmoothness = material.SurfaceSmoothness;
-    data.Material.SurfaceHardness = material.SurfaceHardness;
+    data.MaterialFoliage = material.Foliage;
+    data.MaterialSandDust = material.SandDust;
+    data.MaterialSnowIce = material.SnowIce;
+    data.MaterialStoneRuins = material.StoneRuins;
+    data.MaterialMetalIndustrial = material.MetalIndustrial;
+    data.MaterialCrystalAether = material.CrystalAether;
+    data.MaterialNeonGlass = material.NeonGlass;
+    data.MaterialFireLavaHeat = material.FireLavaHeat;
+    data.MaterialSkyCloudFog = material.SkyCloudFog;
+    data.MaterialSkinProtection = material.SkinProtection;
+    data.MaterialVoidDarkness = material.VoidDarkness;
+    data.MaterialSurfaceSmoothness = material.SurfaceSmoothness;
+    data.MaterialSurfaceHardness = material.SurfaceHardness;
 
-    data.Receivers.BroadReceiver = material.ReceiverConfidence;
-    data.Receivers.ReflectionReceiver = material.ReflectionReceiverConfidence;
-    data.Receivers.AOReceiver = material.AOReceiverConfidence;
-    data.Receivers.StructureReceiver = material.StructureReceiverConfidence;
-    data.Receivers.LightSourceConfidence = material.LightSourceConfidence;
+    data.ReceiverBroad = material.ReceiverConfidence;
+    data.ReceiverReflection = material.ReflectionReceiverConfidence;
+    data.ReceiverAO = material.AOReceiverConfidence;
+    data.ReceiverStructure = material.StructureReceiverConfidence;
+    data.SourceLightConfidence = material.LightSourceConfidence;
 
     return data;
 }

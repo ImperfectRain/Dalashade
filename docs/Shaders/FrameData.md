@@ -103,12 +103,15 @@ All fields are normalized confidence values in the `0..1` range unless noted.
 
 ### Dalashade_FrameBaseData
 
+ReShade's compiler does not support nested struct members, so the runtime contract uses a flat aggregate with role prefixes. The role structs above document the logical groups and naming intent.
+
 | Field | Role | Meaning |
 | --- | --- | --- |
-| `Safety` | Safety | `Dalashade_FrameSafety`. |
-| `Water` | Material/source/receiver | `Dalashade_FrameWater`. |
-| `Material` | Material/safety/source | `Dalashade_FrameMaterial`. |
-| `Receivers` | Receiver/source | `Dalashade_FrameReceivers`. |
+| `Safety*` | Safety | Flat safety fields matching `Dalashade_FrameSafety`. |
+| `Water*` | Material/source/receiver | Flat water fields matching `Dalashade_FrameWater`. |
+| `Material*` | Material/safety/source | Flat material fields matching `Dalashade_FrameMaterial`. |
+| `Receiver*` | Receiver | Flat receiver fields matching `Dalashade_FrameReceivers`. |
+| `SourceLightConfidence` | Source | Flat light/glow/glint source support. |
 
 ### Dalashade_FrameSurfaceData
 

@@ -111,33 +111,33 @@ float3 Dalashade_FrameDataDebugColor(
     if (mode == 1)
     {
         return saturate(float3(
-            baseData.Safety.SkyReject,
-            baseData.Safety.SkinReject,
-            max(baseData.Safety.HighlightProtect, max(baseData.Safety.BrightSandProtect, baseData.Safety.SnowProtect))) * boost);
+            baseData.SafetySkyReject,
+            baseData.SafetySkinReject,
+            max(baseData.SafetyHighlightProtect, max(baseData.SafetyBrightSandProtect, baseData.SafetySnowProtect))) * boost);
     }
 
     if (mode == 2)
     {
         return saturate(float3(
-            baseData.Water.WaterPixelConfidence,
-            baseData.Water.WaterReceiver,
-            max(baseData.Water.WetShoreline, baseData.Water.SpecularGlint)) * boost);
+            baseData.WaterPixelConfidence,
+            baseData.WaterReceiver,
+            max(baseData.WaterWetShoreline, baseData.WaterSpecularGlint)) * boost);
     }
 
     if (mode == 3)
     {
         return saturate(float3(
-            max(baseData.Material.SandDust, max(baseData.Material.StoneRuins, baseData.Material.FireLavaHeat)),
-            max(baseData.Material.Foliage, baseData.Material.SnowIce),
-            max(baseData.Material.CrystalAether, max(baseData.Material.NeonGlass, baseData.Material.VoidDarkness))) * boost);
+            max(baseData.MaterialSandDust, max(baseData.MaterialStoneRuins, baseData.MaterialFireLavaHeat)),
+            max(baseData.MaterialFoliage, baseData.MaterialSnowIce),
+            max(baseData.MaterialCrystalAether, max(baseData.MaterialNeonGlass, baseData.MaterialVoidDarkness))) * boost);
     }
 
     if (mode == 4)
     {
         return saturate(float3(
-            baseData.Receivers.ReflectionReceiver,
-            baseData.Receivers.AOReceiver,
-            baseData.Receivers.StructureReceiver) * boost);
+            baseData.ReceiverReflection,
+            baseData.ReceiverAO,
+            baseData.ReceiverStructure) * boost);
     }
 
     if (mode == 5)
@@ -149,26 +149,26 @@ float3 Dalashade_FrameDataDebugColor(
 
     if (mode == 6)
     {
-        float sourceSupport = max(baseData.Water.WaterSource, max(baseData.Water.SkySource, baseData.Receivers.LightSourceConfidence));
-        float receiverSupport = max(baseData.Water.WaterReceiver, baseData.Receivers.ReflectionReceiver);
-        float structureSupport = max(baseData.Receivers.AOReceiver, baseData.Receivers.StructureReceiver);
+        float sourceSupport = max(baseData.WaterSource, max(baseData.WaterSkySource, baseData.SourceLightConfidence));
+        float receiverSupport = max(baseData.WaterReceiver, baseData.ReceiverReflection);
+        float structureSupport = max(baseData.ReceiverAO, baseData.ReceiverStructure);
         return saturate(float3(sourceSupport, receiverSupport, structureSupport) * boost);
     }
 
     if (mode == 7)
     {
         return saturate(float3(
-            baseData.Water.WaterSkyConflict,
-            baseData.Water.WaterPixelConfidence,
-            max(baseData.Water.SkySource, baseData.Safety.SkyReject)) * boost);
+            baseData.WaterSkyConflict,
+            baseData.WaterPixelConfidence,
+            max(baseData.WaterSkySource, baseData.SafetySkyReject)) * boost);
     }
 
     if (mode == 8)
     {
         return saturate(float3(
-            baseData.Water.WaterPixelConfidence,
-            max(baseData.Material.CrystalAether, baseData.Material.NeonGlass),
-            max(baseData.Material.MetalIndustrial, baseData.Receivers.StructureReceiver)) * boost);
+            baseData.WaterPixelConfidence,
+            max(baseData.MaterialCrystalAether, baseData.MaterialNeonGlass),
+            max(baseData.MaterialMetalIndustrial, baseData.ReceiverStructure)) * boost);
     }
 
     Dalashade_MaterialResolve material = Dalashade_FrameData_ResolveCanonicalMaterial(source, uv, settings);
@@ -190,18 +190,18 @@ float3 Dalashade_FrameDataDebugColor(
         settings.NormalSkySuppression);
     Dalashade_FrameSurfaceData surfaceParity = Dalashade_ResolveFrameSurfaceData(source, uv, baseData, settings);
 
-    float materialDiff = abs(baseData.Material.Foliage - material.Foliage)
-        + abs(baseData.Material.SandDust - material.SandDust)
-        + abs(baseData.Material.SnowIce - material.SnowIce)
-        + abs(baseData.Material.CrystalAether - material.CrystalAether)
-        + abs(baseData.Material.NeonGlass - material.NeonGlass);
-    float waterDiff = abs(baseData.Water.WaterReceiver - water.WaterReceiver)
-        + abs(baseData.Water.WaterSource - water.WaterSource)
-        + abs(baseData.Water.HorizonOnly - water.HorizonOnlyConfidence)
-        + abs(baseData.Water.WaterSkyConflict - water.WaterSkyConflict);
-    float safetyDiff = abs(baseData.Safety.SkyReject - safety.SkyReject)
-        + abs(baseData.Safety.SkinReject - safety.SkinReject)
-        + abs(baseData.Safety.HighlightProtect - safety.HighlightProtect);
+    float materialDiff = abs(baseData.MaterialFoliage - material.Foliage)
+        + abs(baseData.MaterialSandDust - material.SandDust)
+        + abs(baseData.MaterialSnowIce - material.SnowIce)
+        + abs(baseData.MaterialCrystalAether - material.CrystalAether)
+        + abs(baseData.MaterialNeonGlass - material.NeonGlass);
+    float waterDiff = abs(baseData.WaterReceiver - water.WaterReceiver)
+        + abs(baseData.WaterSource - water.WaterSource)
+        + abs(baseData.WaterHorizonOnly - water.HorizonOnlyConfidence)
+        + abs(baseData.WaterSkyConflict - water.WaterSkyConflict);
+    float safetyDiff = abs(baseData.SafetySkyReject - safety.SkyReject)
+        + abs(baseData.SafetySkinReject - safety.SkinReject)
+        + abs(baseData.SafetyHighlightProtect - safety.HighlightProtect);
     float surfaceDiff = abs(surfaceParity.NormalConfidence - field.NormalConfidence)
         + abs(surfaceParity.ReflectionReceiverSupport - field.ReflectionReceiver)
         + abs(surfaceParity.AOReceiverSupport - field.AOReceiver);
