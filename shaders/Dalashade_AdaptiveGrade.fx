@@ -170,6 +170,13 @@ uniform float Dalashade_MaterialSnowIce <
     ui_tooltip = "Inferred snow or ice likelihood. Supports cool clarity and white rolloff without gray snow.";
 > = 0.0;
 
+uniform float Dalashade_MaterialStoneRuins <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Stone/Ruins";
+    ui_tooltip = "Inferred stone, ruin, or masonry likelihood. Supports grounded interior depth without muddying skin or sky.";
+> = 0.0;
+
 uniform float Dalashade_MaterialMetalIndustrial <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -452,6 +459,7 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float materialSpecularGlint = saturate(Dalashade_MaterialSpecularGlint);
     float materialSandDust = saturate(Dalashade_MaterialSandDust);
     float materialSnowIce = saturate(Dalashade_MaterialSnowIce);
+    float materialStoneRuins = saturate(Dalashade_MaterialStoneRuins);
     float materialMetalIndustrial = saturate(Dalashade_MaterialMetalIndustrial);
     float materialCrystal = saturate(Dalashade_MaterialCrystalAether);
     float materialNeonGlass = saturate(Dalashade_MaterialNeonGlass);
@@ -473,7 +481,7 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
         materialSpecularGlint,
         materialSandDust,
         materialSnowIce,
-        0.0,
+        materialStoneRuins,
         materialMetalIndustrial,
         materialCrystal,
         materialNeonGlass,
@@ -556,7 +564,6 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float authoredIdentity = max(max(foliage, max(heat, cold)), max(max(neonGlow, magicGlow), max(industrial, cosmic)));
     float dayIdentity = saturate(daylight * 0.18 + sunlight * 0.16 + openSkyLight * 0.10 + dayAtmosphere * 0.12 + dayReflection * 0.08);
     float gradeStrength = manualStrength * (0.44 + atmosphere * 0.18 + cinematic * 0.18 + authoredIdentity * 0.08 + night * 0.06 + dayIdentity * 0.04) * (0.55 + safety * 0.45);
-    gradeStrength *= lerp(1.0, 1.18, standaloneSafe);
 
     float luma = Dalashade_Luma(source);
     float highlightMask = smoothstep(0.62, 0.98, luma);
@@ -598,9 +605,27 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float forestCanopyIdentity = saturate(laneSafety * max(materialFoliagePixel, foliage) * (0.34 + dayAtmosphere * 0.36 + ambientDarkness * 0.24) * (1.0 - safetyResolve.FoliageNoiseReject * 0.32));
     float aetherTechIdentity = saturate(laneSafety * max(max(materialCrystalPixel, materialMetalPixel * 0.70), max(magicGlow, neonGlow) * 0.72) * (0.52 + material.LightSourceConfidence * 0.22 + material.ReflectionReceiverConfidence * 0.14) * (1.0 - materialSkyPixel * 0.42));
     float interiorDungeonIdentity = saturate(laneSafety * max(max(ambientDarkness, night * 0.65), artificialLight * 0.42) * max(max(materialStonePixel, material.SurfaceHardness * 0.42), max(materialMetalPixel, materialVoidPixel * 0.58)) * (1.0 - materialSkyPixel * 0.78));
+    float standaloneIdentityPressure = saturate(max(max(max(coastalDayIdentity, coastalNightIdentity), max(desertHeatIdentity, snowColdIdentity)), max(max(forestCanopyIdentity, aetherTechIdentity), interiorDungeonIdentity)));
     float standaloneHighlightProtection = saturate(coastalDayIdentity * 0.22 + desertHeatIdentity * 0.34 + snowColdIdentity * 0.38 + aetherTechIdentity * material.LightSourceConfidence * 0.18);
     float standaloneBlackDepth = saturate(forestCanopyIdentity * 0.28 + interiorDungeonIdentity * 0.34 + aetherTechIdentity * 0.18 + coastalNightIdentity * 0.20);
     float warmLightPreserve = saturate((coastalNightIdentity + interiorDungeonIdentity) * artificialLight * max(material.FireLavaHeat, material.LightSourceConfidence));
+    float greenSignal = saturate((source.g - max(source.r, source.b) * 0.78) * 2.4);
+    float warmSignal = saturate((source.r - source.b) * 1.8 + heat * 0.20);
+    float coolSignal = saturate((source.b - source.r) * 1.6 + cold * 0.18 + cosmic * 0.28);
+    float coastalWarmSurface = saturate(
+        coastalDayIdentity
+        * smoothstep(0.20, 0.78, luma)
+        * (1.0 - highlightMask * 0.30)
+        * max(warmSignal, max(materialSandPixel, materialSandDust) * 0.68)
+        * (1.0 - max(materialWaterPixel, waterToneProtect) * 0.82)
+        * (1.0 - materialSkyPixel * 0.90)
+        * (1.0 - materialSkinPixel * 0.72));
+    float coastalNaturalSky = saturate(
+        coastalDayIdentity
+        * materialSkyPixel
+        * (0.46 + openSkyLight * 0.28 + dayAtmosphere * 0.18)
+        * (1.0 - highlightMask * 0.36)
+        * (1.0 - materialWaterPixel * 0.80));
 
     // Build a mild intent-driven grade target. Manual controls add test pressure, not a new architecture path.
     float exposureTrim = Dalashade_ManualExposure
@@ -637,32 +662,36 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float temperature = Dalashade_ManualTemperature + (max(heatIdentity, fireIdentity) * 0.074) - (coldIdentity * 0.065) - (cosmic * 0.040) - (hardSurfaceIdentity * 0.018) - (moonlight * 0.048) + (artificialLight * 0.022);
     float tint = Dalashade_ManualTint + (aetherIdentity * 0.030) - (max(neonGlow, material.NeonGlass) * 0.012) + (cosmic * 0.020) - (hardSurfaceIdentity * 0.010) + (moonlight * 0.010);
 
-    contrastAmount += standaloneSafe * (0.010 + night * 0.006 + daylight * 0.004 + hardSurfaceIdentity * 0.004);
-    saturationAmount += standaloneSafe * (0.008 + aetherIdentity * 0.004 + foliageRichness * 0.004 - readability * 0.004);
-    temperature += standaloneSafe * (heatIdentity * 0.010 - coldIdentity * 0.008);
-    tint += standaloneSafe * (aetherIdentity * 0.006 - hardSurfaceIdentity * 0.003);
-    contrastAmount += coastalDayIdentity * 0.005
-        + desertHeatIdentity * 0.007
-        + snowColdIdentity * 0.004
-        + forestCanopyIdentity * 0.006
-        + aetherTechIdentity * 0.008
-        + interiorDungeonIdentity * 0.009;
-    saturationAmount += coastalDayIdentity * 0.004
-        - desertHeatIdentity * safetyResolve.BrightSandProtect * 0.006
-        - snowColdIdentity * highlightMask * 0.010
+    contrastAmount += standaloneSafe * (0.014 + night * 0.008 + daylight * 0.006 + hardSurfaceIdentity * 0.006);
+    saturationAmount += standaloneSafe * (0.012 + aetherIdentity * 0.006 + foliageRichness * 0.006 - readability * 0.005);
+    temperature += standaloneSafe * (heatIdentity * 0.014 - coldIdentity * 0.012);
+    tint += standaloneSafe * (aetherIdentity * 0.010 - hardSurfaceIdentity * 0.004);
+    contrastAmount += coastalDayIdentity * 0.009
+        + desertHeatIdentity * 0.013
+        + snowColdIdentity * 0.008
+        + forestCanopyIdentity * 0.012
+        + aetherTechIdentity * 0.014
+        + interiorDungeonIdentity * 0.016;
+    saturationAmount += coastalDayIdentity * 0.006
+        + coastalWarmSurface * 0.014
+        - coastalNaturalSky * 0.006
+        - desertHeatIdentity * safetyResolve.BrightSandProtect * 0.010
+        - snowColdIdentity * highlightMask * 0.018
+        + forestCanopyIdentity * 0.016
+        + aetherTechIdentity * 0.012
+        - interiorDungeonIdentity * shadowMask * 0.006;
+    temperature += coastalDayIdentity * 0.002
+        + coastalWarmSurface * 0.026
+        - coastalNaturalSky * 0.010
+        + coastalNightIdentity * -0.026
+        + desertHeatIdentity * 0.028
+        + snowColdIdentity * -0.034
+        + forestCanopyIdentity * -0.008
+        + interiorDungeonIdentity * 0.014;
+    tint += aetherTechIdentity * 0.028
         + forestCanopyIdentity * 0.008
-        + aetherTechIdentity * 0.006
-        - interiorDungeonIdentity * shadowMask * 0.004;
-    temperature += coastalDayIdentity * -0.002
-        + coastalNightIdentity * -0.012
-        + desertHeatIdentity * 0.014
-        + snowColdIdentity * -0.018
-        + forestCanopyIdentity * -0.004
-        + interiorDungeonIdentity * 0.006;
-    tint += aetherTechIdentity * 0.014
-        + forestCanopyIdentity * 0.004
-        - coastalNightIdentity * 0.004
-        - interiorDungeonIdentity * 0.002;
+        - coastalNightIdentity * 0.008
+        - interiorDungeonIdentity * 0.004;
 
     float skinTintGuard = 1.0 - max(materialSkin * 0.34, materialSkinPixel * 0.45);
     saturationAmount *= 1.0 - max(materialSkin * 0.24, materialSkinPixel * 0.34);
@@ -681,10 +710,10 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     tint *= 1.0 - saturate(waterToneProtect * 0.06 + normalUnstableEdge * 0.05);
 
     exposureTrim = clamp(exposureTrim, -0.085, 0.075);
-    contrastAmount = clamp(contrastAmount, -0.085, 0.115);
-    saturationAmount = clamp(saturationAmount, -0.095, 0.115);
-    temperature = clamp(temperature, -0.110, 0.120);
-    tint = clamp(tint, -0.075, 0.075);
+    contrastAmount = clamp(contrastAmount, -0.085, lerp(0.115, 0.150, standaloneSafe));
+    saturationAmount = clamp(saturationAmount, -0.105, lerp(0.115, 0.145, standaloneSafe));
+    temperature = clamp(temperature, -0.145, lerp(0.120, 0.155, standaloneSafe));
+    tint = clamp(tint, -0.090, lerp(0.075, 0.105, standaloneSafe));
 
     float3 graded = source + exposureTrim;
     graded = Dalashade_SafeContrast(graded, contrastAmount);
@@ -692,9 +721,6 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     graded = Dalashade_TemperatureTint(graded, temperature, tint);
 
     // Biome-aware color response is selective: greens are protected in forests, metal is harder, and cosmic scenes cool shadows without global saturation abuse.
-    float greenSignal = saturate((source.g - max(source.r, source.b) * 0.78) * 2.4);
-    float warmSignal = saturate((source.r - source.b) * 1.8 + heat * 0.20);
-    float coolSignal = saturate((source.b - source.r) * 1.6 + cold * 0.18 + cosmic * 0.28);
     float foliageColor = foliageRichness * max(greenSignal, materialFoliagePixel * 0.68) * (1.0 - highlightMask * 0.45);
     graded = lerp(graded, graded * float3(0.965, 1.055, 0.940), foliageColor * 0.18);
     graded = lerp(graded, graded * float3(1.038, 1.008, 0.948), max(heatIdentity, fireIdentity) * max(warmSignal, materialSandPixel * 0.48) * 0.048 * safety * (1.0 - materialSkin * 0.35));
@@ -706,19 +732,25 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     // Daytime tonal identity is a contextual layer: it protects bright materials and nudges mids without acting like bloom, fog, or reflection.
     float midtoneDayMask = smoothstep(0.18, 0.62, luma) * (1.0 - highlightMask * 0.62);
     graded = lerp(graded, graded * float3(1.018, 1.006, 0.982), baseCoastalDayIdentity * midtoneDayMask * 0.10 * safety);
-    graded = lerp(graded, graded * float3(0.978, 1.010, 1.028), baseCoastalDayIdentity * max(materialWaterPixel, materialSkyPixel * 0.55) * 0.08 * (1.0 - materialSkinPixel * 0.80));
+    graded = lerp(graded, graded * float3(0.976, 1.010, 1.032), baseCoastalDayIdentity * materialWaterPixel * 0.08 * (1.0 - materialSkinPixel * 0.80));
+    graded = lerp(graded, graded * float3(0.990, 1.000, 1.012), baseCoastalDayIdentity * materialSkyPixel * 0.035 * (1.0 - materialSkinPixel * 0.80));
     graded = lerp(graded, graded * float3(0.970, 1.038, 0.948), baseCanopyDayIdentity * max(greenSignal, materialFoliagePixel) * 0.075 * safety * (1.0 - highlightMask * 0.45));
     graded = lerp(graded, graded * float3(1.030, 1.006, 0.945), baseDesertDayIdentity * warmSignal * midtoneDayMask * 0.075 * safety);
     graded = lerp(graded, graded * float3(0.965, 0.986, 1.035), baseSnowDayIdentity * max(materialSnowPixel, coolSignal) * 0.052 * safety * (1.0 - daylightShoulder * 0.35));
     graded = lerp(graded, graded * float3(0.972, 0.988, 1.024), baseHighTechDayIdentity * 0.045 * safety);
-    graded = lerp(graded, source + (graded - source) * float3(0.90, 0.98, 1.08), coastalDayIdentity * max(materialWaterPixel, waterToneProtect) * 0.16);
-    graded = lerp(graded, source + (graded - source) * float3(0.96, 1.00, 1.07), coastalNightIdentity * max(water.WaterPixelConfidence, moonlight) * 0.18);
-    graded = lerp(graded, graded * float3(1.022, 1.006, 0.958), desertHeatIdentity * warmSignal * midtoneDayMask * 0.12 * (1.0 - materialSkinPixel * 0.70));
-    graded = lerp(graded, source + (graded - source) * float3(0.92, 0.97, 1.08), snowColdIdentity * max(materialSnowPixel, coolSignal) * 0.13 * (1.0 - daylightShoulder * 0.44));
-    graded = lerp(graded, graded * float3(0.955, 1.045, 0.932), forestCanopyIdentity * max(greenSignal, materialFoliagePixel) * 0.13 * (1.0 - highlightMask * 0.52));
-    graded = lerp(graded, graded * float3(0.965, 0.978, 1.055), aetherTechIdentity * max(materialCrystalPixel, coolSignal) * 0.11 * (1.0 - materialSkyPixel * 0.62));
-    graded = lerp(graded, graded * float3(1.026, 1.000, 0.950), warmLightPreserve * 0.10 * (1.0 - materialSkinPixel * 0.65));
-    graded = lerp(graded, graded * float3(0.982, 0.976, 0.956), interiorDungeonIdentity * shadowMask * 0.10 * (1.0 - materialSkinPixel * 0.55));
+    graded = lerp(graded, graded * float3(1.060, 1.018, 0.930), coastalWarmSurface * 0.28 * safety);
+    graded = lerp(graded, Dalashade_SafeSaturation(graded, 0.035), coastalWarmSurface * 0.22 * safety);
+    float3 naturalCoastalSky = source + (graded - source) * float3(0.70, 0.78, 0.96);
+    naturalCoastalSky = Dalashade_SafeSaturation(naturalCoastalSky, 0.030 * (1.0 - highlightMask));
+    graded = lerp(graded, naturalCoastalSky, coastalNaturalSky * 0.26);
+    graded = lerp(graded, source + (graded - source) * float3(0.86, 0.98, 1.12), coastalDayIdentity * max(materialWaterPixel, waterToneProtect) * 0.28);
+    graded = lerp(graded, source + (graded - source) * float3(0.94, 1.00, 1.12), coastalNightIdentity * max(water.WaterPixelConfidence, moonlight) * 0.30);
+    graded = lerp(graded, graded * float3(1.045, 1.010, 0.918), desertHeatIdentity * warmSignal * midtoneDayMask * 0.22 * (1.0 - materialSkinPixel * 0.70));
+    graded = lerp(graded, source + (graded - source) * float3(0.88, 0.96, 1.14), snowColdIdentity * max(materialSnowPixel, coolSignal) * 0.24 * (1.0 - daylightShoulder * 0.44));
+    graded = lerp(graded, graded * float3(0.925, 1.075, 0.895), forestCanopyIdentity * max(greenSignal, materialFoliagePixel) * 0.24 * (1.0 - highlightMask * 0.52));
+    graded = lerp(graded, graded * float3(0.925, 0.962, 1.115), aetherTechIdentity * max(materialCrystalPixel, coolSignal) * 0.21 * (1.0 - materialSkyPixel * 0.62));
+    graded = lerp(graded, graded * float3(1.060, 1.005, 0.900), warmLightPreserve * 0.18 * (1.0 - materialSkinPixel * 0.65));
+    graded = lerp(graded, graded * float3(0.960, 0.948, 0.912), interiorDungeonIdentity * shadowMask * 0.20 * (1.0 - materialSkinPixel * 0.55));
     graded += dayShadowFill * 0.012 * manualStrength * (1.0 - source) * (1.0 - materialSkinPixel * 0.55);
     float3 chromaRestrained = Dalashade_SafeSaturation(graded, -0.080 * highSunChromaRestraint);
     chromaRestrained += Dalashade_Luma(graded) - Dalashade_Luma(chromaRestrained);
@@ -727,9 +759,9 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     standaloneHighlightRestrained += Dalashade_Luma(graded) - Dalashade_Luma(standaloneHighlightRestrained);
     graded = lerp(graded, standaloneHighlightRestrained, standaloneHighlightProtection * 0.42);
     float3 waterPreserve = lerp(graded, source + (graded - source) * float3(0.88, 0.96, 1.06), 0.45);
-    graded = lerp(graded, waterPreserve, waterToneProtect * (0.10 * manualStrength + coastalDayIdentity * 0.06 + coastalNightIdentity * 0.08) * (1.0 - materialSkinPixel * 0.80));
+    graded = lerp(graded, waterPreserve, waterToneProtect * (0.10 * manualStrength + coastalDayIdentity * 0.12 + coastalNightIdentity * 0.14) * (1.0 - materialSkinPixel * 0.80));
     float3 glowPreserve = lerp(graded, source + (graded - source) * 0.88, 0.35);
-    graded = lerp(graded, max(graded, glowPreserve), max(aetherToneProtect, material.FireLavaHeat) * (0.055 * manualStrength + aetherTechIdentity * 0.045 + warmLightPreserve * 0.035));
+    graded = lerp(graded, max(graded, glowPreserve), max(aetherToneProtect, material.FireLavaHeat) * (0.055 * manualStrength + aetherTechIdentity * 0.090 + warmLightPreserve * 0.060));
 
     // Night light hierarchy: unlit regions deepen, moonlit mids cool gently, and artificial light affects bright local pools instead of lifting the frame.
     float moonlitSurface = moonlight * smoothstep(0.18, 0.66, luma) * (1.0 - highlightMask * 0.34) * safety;
@@ -753,7 +785,7 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     graded = lerp(graded, graded * cinematicTint, cinematicBias);
 
     // Highlight and shadow protection keep the grade usable in gameplay and bright weather.
-    float rolloff = min((highlightProtection * 0.17 + coldIdentity * 0.060 + heatIdentity * 0.040 + hardSurfaceIdentity * 0.018 + cosmic * 0.020 + standaloneHighlightProtection * 0.12) * highlightMask + daylightShoulder * 0.14, 0.32);
+    float rolloff = min((highlightProtection * 0.17 + coldIdentity * 0.060 + heatIdentity * 0.040 + hardSurfaceIdentity * 0.018 + cosmic * 0.020 + standaloneHighlightProtection * 0.22) * highlightMask + daylightShoulder * 0.14, lerp(0.30, 0.38, standaloneSafe));
     graded = lerp(graded, graded / (1.0 + graded), rolloff * manualStrength);
 
     float selectiveShadowLift = (0.060 - night * 0.020 - combat * 0.022) * (1.0 - max(foliage, materialFoliage) * 0.38) * (1.0 - hardSurfaceIdentity * 0.22) * (1.0 - materialVoid * 0.52);
@@ -761,7 +793,7 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     graded += lift * manualStrength * (1.0 - source);
 
     // Preserve black depth in forests, industrial zones, and gloom-heavy scenes by recovering contrast in the deepest shadows.
-    float blackDepth = shadowMask * (ambientDarkness * 0.060 + max(foliage, max(materialFoliage, materialFoliagePixel)) * 0.040 + hardSurfaceIdentity * 0.030 + cosmic * 0.014 + max(materialVoid, materialVoidPixel) * 0.060 + standaloneBlackDepth * 0.050) * (1.0 - combat * 0.45);
+    float blackDepth = shadowMask * (ambientDarkness * 0.060 + max(foliage, max(materialFoliage, materialFoliagePixel)) * 0.040 + hardSurfaceIdentity * 0.030 + cosmic * 0.014 + max(materialVoid, materialVoidPixel) * 0.060 + standaloneBlackDepth * 0.095) * (1.0 - combat * 0.45);
     graded = lerp(graded, graded * (1.0 - blackDepth), saturate(1.0 - readability * 0.40));
 
     // Skin protection reins in extreme shifts on smooth warm midtones without flattening the whole grade.
@@ -776,13 +808,20 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     graded = lerp(graded, source + (graded - source) * 0.94, normalDetailProtection * highlightMask * 0.055);
 
     // Guardrails prevent the grade from crushing or blowing out relative to the input.
-    float positiveDeltaCap = 0.18 - saturate(standaloneHighlightProtection + materialSkinPixel * 0.55 + skyFogToneProtect * 0.32) * standaloneSafe * 0.026;
-    float negativeDeltaCap = 0.16 - saturate(snowColdIdentity * 0.18 + forestCanopyIdentity * 0.10 + interiorDungeonIdentity * readability * 0.18) * standaloneSafe * 0.018;
+    float positiveDeltaCap = lerp(0.18, 0.235, standaloneSafe) - saturate(standaloneHighlightProtection + materialSkinPixel * 0.55 + skyFogToneProtect * 0.32) * standaloneSafe * 0.030;
+    float negativeDeltaCap = lerp(0.16, 0.210, standaloneSafe) - saturate(snowColdIdentity * 0.18 + forestCanopyIdentity * 0.10 + interiorDungeonIdentity * readability * 0.18) * standaloneSafe * 0.020;
     graded = min(graded, source + positiveDeltaCap);
     graded = max(graded, source - negativeDeltaCap);
     graded = clamp(graded, 0.015, 0.985);
 
-    float3 result = lerp(source, graded, saturate(gradeStrength));
+    float standaloneGradeStrength = saturate(max(
+        gradeStrength * (1.34 + standaloneIdentityPressure * 0.30),
+        (0.42 + atmosphere * 0.050 + cinematic * 0.060 + standaloneIdentityPressure * 0.090)
+            * (1.0 - readability * 0.30)
+            * (1.0 - combat * 0.35)));
+    float skyGradeRestraint = standaloneSafe * coastalNaturalSky * (0.14 + skyFogToneProtect * 0.10);
+    float finalGradeStrength = lerp(gradeStrength, standaloneGradeStrength, standaloneSafe) * (1.0 - skyGradeRestraint);
+    float3 result = lerp(source, graded, saturate(finalGradeStrength));
 
     int debugMode = Dalashade_AdaptiveGradeDebugMode;
     if (Dalashade_ShowDebugMask && debugMode == 0)

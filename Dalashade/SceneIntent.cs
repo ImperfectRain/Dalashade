@@ -296,6 +296,9 @@ public sealed class SceneIntentBuilder
         if (configuration.AutoAdjustAtNight && tags.IsDawnOrDusk)
         {
             Add("Dawn/dusk", nameof(SceneIntent.Atmosphere), 0.12f, "Low sun supports mild atmosphere.");
+            Add("Dawn/dusk", nameof(SceneIntent.DayAtmosphere), 0.10f, "Transition light keeps a low-air identity without pretending to be full daylight.");
+            Add("Dawn/dusk", nameof(SceneIntent.OpenSkyLight), 0.14f, "Dawn and dusk need sky-color context for weather and grade lanes.");
+            Add("Dawn/dusk", nameof(SceneIntent.HighlightProtection), 0.06f, "Low sun highlights get light restraint without flattening the scene.");
         }
     }
 
@@ -311,12 +314,19 @@ public sealed class SceneIntentBuilder
             Add("Fog weather", nameof(SceneIntent.Haze), 0.75f, "Fog and mist are strong haze signals.");
             Add("Fog weather", nameof(SceneIntent.HighlightProtection), 0.25f, "Fog can bloom bright detail.");
             Add("Fog weather", nameof(SceneIntent.Atmosphere), 0.25f, "Fog atmosphere should not be erased.");
+            Add("Fog weather", tags.IsNight ? nameof(SceneIntent.NightAtmosphere) : nameof(SceneIntent.DayAtmosphere), 0.18f, "Fog feeds the active time-of-day air lane.");
         }
 
         if (tags.IsCloudy || tags.IsOvercast)
         {
-            Add(tags.IsOvercast ? "Overcast weather" : "Cloud weather", nameof(SceneIntent.Haze), 0.30f, "Clouds are a mild haze signal.");
-            Add(tags.IsOvercast ? "Overcast weather" : "Cloud weather", nameof(SceneIntent.HighlightProtection), 0.18f, "Clouds can flatten highlights.");
+            Add(tags.IsOvercast ? "Overcast weather" : "Cloud weather", nameof(SceneIntent.Haze), tags.IsOvercast ? 0.38f : 0.30f, "Clouds are a mild haze signal and overcast is a stronger air signal.");
+            Add(tags.IsOvercast ? "Overcast weather" : "Cloud weather", nameof(SceneIntent.Atmosphere), tags.IsOvercast ? 0.16f : 0.10f, "Cloud and overcast tags feed a broad air lane without becoming fog.");
+            Add(tags.IsOvercast ? "Overcast weather" : "Cloud weather", tags.IsNight ? nameof(SceneIntent.NightAtmosphere) : nameof(SceneIntent.DayAtmosphere), tags.IsOvercast ? 0.14f : 0.10f, "Cloud cover gets routed through the active time-of-day atmosphere lane.");
+            Add(tags.IsOvercast ? "Overcast weather" : "Cloud weather", nameof(SceneIntent.HighlightProtection), tags.IsOvercast ? 0.22f : 0.18f, "Clouds can flatten highlights.");
+            if (tags.IsDay)
+            {
+                Add(tags.IsOvercast ? "Overcast weather" : "Cloud weather", nameof(SceneIntent.Sunlight), tags.IsOvercast ? -0.12f : -0.06f, "Cloud cover softens direct sun pressure.");
+            }
         }
 
         if (tags.IsGloom)
@@ -324,12 +334,17 @@ public sealed class SceneIntentBuilder
             Add("Gloom weather", nameof(SceneIntent.Haze), 0.16f, "Gloom is a dark mood signal, not full fog.");
             Add("Gloom weather", nameof(SceneIntent.ShadowProtection), 0.24f, "Gloom needs some dark-detail protection without flattening blacks.");
             Add("Gloom weather", nameof(SceneIntent.Atmosphere), 0.22f, "Gloom atmosphere should be preserved.");
+            Add("Gloom weather", nameof(SceneIntent.AmbientDarkness), 0.16f, "Gloom deepens ambient darkness instead of turning into gray fog.");
+            Add("Gloom weather", nameof(SceneIntent.NightAtmosphere), 0.10f, "Gloom can use the darker air path even outside strict night.");
         }
 
         if (tags.IsRain)
         {
             Add("Rain weather", nameof(SceneIntent.Wetness), 0.65f, "Rain creates wet-surface behavior.");
             Add("Rain weather", nameof(SceneIntent.HighlightProtection), 0.35f, "Wet specular highlights need protection.");
+            Add("Rain weather", nameof(SceneIntent.Haze), 0.24f, "Rain adds a light damp air signal.");
+            Add("Rain weather", nameof(SceneIntent.Atmosphere), 0.14f, "Rain should be visible as air, not only as wetness.");
+            Add("Rain weather", tags.IsNight ? nameof(SceneIntent.NightAtmosphere) : nameof(SceneIntent.DayAtmosphere), 0.12f, "Rain feeds the active time-of-day atmosphere lane.");
         }
 
         if (tags.IsStorm)
@@ -338,12 +353,19 @@ public sealed class SceneIntentBuilder
             Add("Storm weather", nameof(SceneIntent.HighlightProtection), 0.55f, "Storm highlights and lightning need protection.");
             Add("Storm weather", nameof(SceneIntent.Readability), 0.20f, "Storms need extra readability.");
             Add("Storm weather", nameof(SceneIntent.Cold), 0.25f, "Storms bias cooler.");
+            Add("Storm weather", nameof(SceneIntent.Haze), 0.34f, "Storms add visible weather mass without forcing full fog.");
+            Add("Storm weather", nameof(SceneIntent.Atmosphere), 0.20f, "Storm atmosphere should be available to first-party air shaders.");
+            Add("Storm weather", nameof(SceneIntent.AmbientDarkness), 0.10f, "Storms darken broad ambient fill while readability gates remain active.");
+            Add("Storm weather", tags.IsNight ? nameof(SceneIntent.NightAtmosphere) : nameof(SceneIntent.DayAtmosphere), 0.16f, "Storms feed the active time-of-day atmosphere lane.");
         }
 
         if (tags.IsSnow)
         {
             Add("Snow weather", nameof(SceneIntent.Cold), 0.75f, "Snow is the primary cold signal.");
             Add("Snow weather", nameof(SceneIntent.HighlightProtection), 0.65f, "Snow risks blown white detail.");
+            Add("Snow weather", nameof(SceneIntent.Haze), 0.20f, "Snow adds cold air thickness while preserving white detail.");
+            Add("Snow weather", nameof(SceneIntent.Atmosphere), 0.14f, "Snow should be visible as atmospheric cold, not only color temperature.");
+            Add("Snow weather", tags.IsNight ? nameof(SceneIntent.NightAtmosphere) : nameof(SceneIntent.DayAtmosphere), 0.12f, "Snow feeds the active time-of-day atmosphere lane.");
         }
 
         if (tags.IsDustStorm || tags.IsHeatWave)
@@ -351,6 +373,8 @@ public sealed class SceneIntentBuilder
             Add(tags.IsDustStorm ? "Dust weather" : "Heat weather", nameof(SceneIntent.Heat), 0.65f, "Dust and heat are hot-scene signals.");
             Add(tags.IsDustStorm ? "Dust weather" : "Heat weather", nameof(SceneIntent.Haze), tags.IsNight && tags.IsHeatWave && !tags.IsDustStorm ? 0.34f : 0.45f, "Dust and heat add distance-biased glare/haze.");
             Add(tags.IsDustStorm ? "Dust weather" : "Heat weather", nameof(SceneIntent.HighlightProtection), tags.IsNight && tags.IsHeatWave && !tags.IsDustStorm ? 0.32f : 0.45f, "Night heat needs less highlight restraint than daytime glare.");
+            Add(tags.IsDustStorm ? "Dust weather" : "Heat weather", nameof(SceneIntent.Atmosphere), tags.IsDustStorm ? 0.18f : 0.10f, "Dust and heat route through air-shaping lanes instead of only color grading.");
+            Add(tags.IsDustStorm ? "Dust weather" : "Heat weather", tags.IsNight ? nameof(SceneIntent.NightAtmosphere) : nameof(SceneIntent.DayAtmosphere), tags.IsDustStorm ? 0.12f : 0.08f, "Dust and heat feed the active time-of-day atmosphere lane.");
         }
     }
 
@@ -396,6 +420,12 @@ public sealed class SceneIntentBuilder
             case "void":
                 Add("Biome", nameof(SceneIntent.ShadowProtection), 0.42f * styleScale, "Dark biomes need some shadow detail without washing out depth.");
                 Add("Biome", nameof(SceneIntent.Atmosphere), 0.20f * styleScale, "Dark biomes should retain mood.");
+                Add("Biome", nameof(SceneIntent.AmbientDarkness), (tags.BiomeKey == "void" ? 0.30f : 0.18f) * styleScale, "Caves and void spaces preserve black-depth mood.");
+                Add("Biome", nameof(SceneIntent.NightAtmosphere), 0.14f * styleScale, "Dark enclosed spaces use the night-air lane for depth even outside clock night.");
+                if (tags.BiomeKey == "void")
+                {
+                    Add("Biome", nameof(SceneIntent.CosmicMood), 0.26f * styleScale, "Void spaces can use the cosmic/umbral atmosphere family.");
+                }
                 break;
             case "aetherial":
             case "fae":
@@ -418,17 +448,20 @@ public sealed class SceneIntentBuilder
             case "highTech":
                 Add("Biome", nameof(SceneIntent.NeonGlow), 0.78f * styleScale, "High-tech zones should preserve neon accents.");
                 Add("Biome", nameof(SceneIntent.HighlightProtection), 0.38f * styleScale, "Neon and glossy surfaces need highlight protection.");
+                Add("Biome", nameof(SceneIntent.IndustrialHardness), 0.30f * styleScale, "High-tech spaces share the constructed hard-surface atmosphere family.");
                 Add("Neon mood", nameof(SceneIntent.Atmosphere), 0.06f * styleScale, "High-tech neon spaces keep a controlled ambient glow.");
                 break;
             case "imperial":
                 Add("Biome", nameof(SceneIntent.IndustrialHardness), 0.68f * styleScale, "Imperial spaces have hard industrial contrast.");
                 Add("Biome", nameof(SceneIntent.Readability), 0.12f * styleScale, "Industrial spaces benefit from clarity.");
+                Add("Biome", nameof(SceneIntent.ShadowProtection), 0.10f * styleScale, "Industrial spaces preserve hard-surface black depth.");
                 Add("Industrial mood", nameof(SceneIntent.Atmosphere), -0.04f * styleScale, "Industrial spaces favor structure over haze.");
                 break;
             case "ancient":
                 Add("Biome", nameof(SceneIntent.IndustrialHardness), 0.28f * styleScale, "Ancient/ruin spaces need structural clarity.");
                 Add("Biome", nameof(SceneIntent.Readability), 0.12f * styleScale, "Ruins benefit from readable structure.");
                 Add("Biome", nameof(SceneIntent.Atmosphere), 0.04f * styleScale, "Ruins can keep light age and depth atmosphere.");
+                Add("Biome", nameof(SceneIntent.ShadowProtection), 0.12f * styleScale, "Ruins preserve carved surface detail without global lift.");
                 break;
             case "coastal":
             case "tropical":
@@ -445,6 +478,7 @@ public sealed class SceneIntentBuilder
             case "fire":
                 Add("Biome", nameof(SceneIntent.Heat), 0.55f * styleScale, "Fire and volcanic biomes are hot-scene signals.");
                 Add("Biome", nameof(SceneIntent.HighlightProtection), 0.35f * styleScale, "Hot highlights need control.");
+                Add("Biome", nameof(SceneIntent.Atmosphere), 0.12f * styleScale, "Hot biomes can carry heat air without broad haze.");
                 break;
         }
     }

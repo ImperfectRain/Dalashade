@@ -181,6 +181,8 @@ public sealed class CustomShaderVariableMapper
         "Dalashade_MaterialFoliage",
         "Dalashade_MaterialSandDust",
         "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialStoneRuins",
+        "Dalashade_MaterialMetalIndustrial",
         "Dalashade_MaterialWaterSpecular",
         "Dalashade_MaterialWaterPlane",
         "Dalashade_MaterialSpecularGlint",
@@ -193,7 +195,8 @@ public sealed class CustomShaderVariableMapper
         "Dalashade_MaterialNeonGlass",
         "Dalashade_MaterialFireLavaHeat",
         "Dalashade_MaterialSkyCloudFog",
-        "Dalashade_MaterialSkinProtection"
+        "Dalashade_MaterialSkinProtection",
+        "Dalashade_MaterialVoidDarkness"
     ];
 
     private static readonly HashSet<string> AtmosphereBloomMaterialVariables =
@@ -221,6 +224,7 @@ public sealed class CustomShaderVariableMapper
         "Dalashade_WetSurfaceContext",
         "Dalashade_MaterialSandDust",
         "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialStoneRuins",
         "Dalashade_MaterialMetalIndustrial",
         "Dalashade_MaterialCrystalAether",
         "Dalashade_MaterialNeonGlass",

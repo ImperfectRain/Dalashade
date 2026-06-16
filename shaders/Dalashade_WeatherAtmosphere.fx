@@ -80,6 +80,20 @@ uniform float Dalashade_FoliageDensity <
     ui_tooltip = "Scene-driven foliage density. Higher values restrain veil haze and add subtle canopy light.";
 > = 0.0;
 
+uniform float Dalashade_IndustrialHardness <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Industrial Hardness";
+    ui_tooltip = "Scene-driven industrial, high-tech, ruin, or constructed-hardness context.";
+> = 0.0;
+
+uniform float Dalashade_CosmicMood <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Cosmic Mood";
+    ui_tooltip = "Scene-driven cosmic, lunar, alien, or aetherial air context.";
+> = 0.0;
+
 uniform float Dalashade_CinematicPermission <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -149,6 +163,20 @@ uniform float Dalashade_MaterialSnowIce <
     ui_min = 0.0; ui_max = 1.0;
     ui_label = "Dalashade Material Snow/Ice";
     ui_tooltip = "Inferred snow or ice likelihood. Supports cold air and white highlight protection.";
+> = 0.0;
+
+uniform float Dalashade_MaterialStoneRuins <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Stone/Ruins";
+    ui_tooltip = "Inferred stone, ruins, or masonry likelihood. Supports interior, ancient, and damp stone atmosphere.";
+> = 0.0;
+
+uniform float Dalashade_MaterialMetalIndustrial <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Metal/Industrial";
+    ui_tooltip = "Inferred metal or industrial likelihood. Supports high-tech, imperial, and constructed air restraint.";
 > = 0.0;
 
 uniform float Dalashade_MaterialWaterSpecular <
@@ -237,6 +265,13 @@ uniform float Dalashade_MaterialSkinProtection <
     ui_min = 0.0; ui_max = 1.0;
     ui_label = "Dalashade Material Skin Protection";
     ui_tooltip = "Inferred skin/character protection. Restrains atmosphere tinting on skin-like areas.";
+> = 0.0;
+
+uniform float Dalashade_MaterialVoidDarkness <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade Material Void/Darkness";
+    ui_tooltip = "Inferred void, abyss, or darkness likelihood. Supports gloom/void air without gray fog wash.";
 > = 0.0;
 
 uniform int Dalashade_MaterialDebugMode <
@@ -412,6 +447,8 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float magicGlow = Dalashade_Saturate(Dalashade_MagicGlow);
     float neonGlow = Dalashade_Saturate(Dalashade_NeonGlow);
     float foliage = Dalashade_Saturate(Dalashade_FoliageDensity);
+    float industrialHardness = Dalashade_Saturate(Dalashade_IndustrialHardness);
+    float cosmicMood = Dalashade_Saturate(Dalashade_CosmicMood);
     float cinematic = Dalashade_Saturate(Dalashade_CinematicPermission);
     float night = Dalashade_Saturate(Dalashade_Night);
     float moonlight = Dalashade_Saturate(Dalashade_Moonlight);
@@ -431,6 +468,8 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float materialFoliage = Dalashade_Saturate(Dalashade_MaterialFoliage);
     float materialSandDust = Dalashade_Saturate(Dalashade_MaterialSandDust);
     float materialSnowIce = Dalashade_Saturate(Dalashade_MaterialSnowIce);
+    float materialStoneRuins = Dalashade_Saturate(Dalashade_MaterialStoneRuins);
+    float materialMetalIndustrial = Dalashade_Saturate(Dalashade_MaterialMetalIndustrial);
     float materialWater = Dalashade_Saturate(Dalashade_MaterialWaterSpecular);
     float materialWaterPlane = Dalashade_Saturate(max(materialWater, Dalashade_MaterialWaterPlane));
     float materialSpecularGlint = Dalashade_Saturate(max(materialWater, Dalashade_MaterialSpecularGlint));
@@ -440,6 +479,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float materialFireHeat = Dalashade_Saturate(Dalashade_MaterialFireLavaHeat);
     float materialSkyFog = Dalashade_Saturate(Dalashade_MaterialSkyCloudFog);
     float materialSkin = Dalashade_Saturate(Dalashade_MaterialSkinProtection);
+    float materialVoidDarkness = Dalashade_Saturate(Dalashade_MaterialVoidDarkness);
 
     float luma = dot(color, float3(0.2126, 0.7152, 0.0722));
     Dalashade_MaterialResolve material = Dalashade_ResolveMaterials(
@@ -451,14 +491,14 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         Dalashade_MaterialSpecularGlint,
         materialSandDust,
         materialSnowIce,
-        0.0,
-        0.0,
+        materialStoneRuins,
+        materialMetalIndustrial,
         materialCrystal,
         materialNeonGlass,
         materialFireHeat,
         materialSkyFog,
         materialSkin,
-        0.0,
+        materialVoidDarkness,
         Dalashade_EnableDepthAssist ? 1.0 : 0.0,
         Dalashade_DepthAssistStrength,
         max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor));
@@ -504,6 +544,8 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     materialFoliage = max(materialFoliage, material.Foliage);
     materialSandDust = max(materialSandDust, material.SandDust);
     materialSnowIce = max(materialSnowIce, material.SnowIce);
+    materialStoneRuins = max(materialStoneRuins, material.StoneRuins);
+    materialMetalIndustrial = max(materialMetalIndustrial, material.MetalIndustrial);
     float waterAtmosphereContext = Dalashade_Saturate(max(water.WaterPixelConfidence, max(water.WaterReceiver, max(water.WetShoreline * 0.72, water.WaterSource * 0.34))));
     materialWaterPlane = max(materialWaterPlane, max(waterAtmosphereContext * 0.74, max(Dalashade_WaterContext, Dalashade_CoastalContext) * 0.34));
     materialSpecularGlint = max(materialSpecularGlint, material.SpecularGlint);
@@ -512,6 +554,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     materialNeonGlass = max(materialNeonGlass, material.NeonGlass);
     materialFireHeat = max(materialFireHeat, material.FireLavaHeat);
     materialSkyFog = max(materialSkyFog, max(material.SkyCloudFog, safety.SkyReject));
+    materialVoidDarkness = max(materialVoidDarkness, material.VoidDarkness);
     float materialAetherNeon = Dalashade_Saturate(max(materialCrystal, materialNeonGlass));
     float skinAtmosphereProtect = Dalashade_Saturate(max(materialSkin, safety.SkinReject));
     float highlightAtmosphereProtect = Dalashade_Saturate(max(safety.HighlightProtect, max(safety.BrightSandProtect, safety.SnowProtect) * 0.55));
@@ -558,13 +601,146 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float fogLike = saturate(realFogWeather * (1.0 - max(heat, materialSandDust) * 0.28));
     float heatDistance = smoothstep(0.26, 0.96, depth);
     float distanceWeight = lerp(distant * 0.72 + midDistance * 0.18, heatDistance * heatDistance, max(heat, materialSandDust));
+    float farAir = smoothstep(0.22, 0.96, depth);
+    float midAir = smoothstep(0.10, 0.70, depth) * (1.0 - smoothstep(0.88, 1.0, depth) * 0.20);
+    float skyAir = saturate(materialSkyFog * (0.48 + farAir * 0.42 + openSkyLight * daylight * 0.18));
+    float weatherLaneSafety = standaloneAtmosphere
+        * (1.0 - skinAtmosphereProtect * 0.72)
+        * (1.0 - foliageNoiseProtect * 0.24)
+        * (1.0 - normalEdgeSafety * 0.30);
+    float clearCoastalAirIdentity = saturate(
+        weatherLaneSafety
+        * daylight
+        * openSkyLight
+        * max(max(Dalashade_CoastalContext, Dalashade_WaterContext), water.WaterPixelConfidence * 0.52)
+        * (0.32 + dayReflection * 0.26 + dayAtmosphere * 0.12)
+        * (1.0 - wetness * 0.50)
+        * (1.0 - haze * 0.42));
+    float clearOpenAirIdentity = saturate(
+        weatherLaneSafety
+        * daylight
+        * openSkyLight
+        * max(dayAtmosphere, atmosphere * 0.38)
+        * (0.34 + sunlight * 0.16 + materialSkyFog * 0.12 + farAir * 0.10)
+        * (1.0 - max(max(wetness, fogLike), haze * 0.54))
+        * (1.0 - materialSkin * 0.42));
+    float rainWetAirIdentity = saturate(
+        weatherLaneSafety
+        * max(wetness, max(waterMist * 1.8, materialSpecularGlint * 0.42))
+        * (0.42 + max(dayAtmosphere, nightAtmosphere) * 0.24 + materialWaterGate * 0.18)
+        * (1.0 - highlightAtmosphereProtect * 0.18));
+    float coastalNightAirIdentity = saturate(
+        weatherLaneSafety
+        * night
+        * max(max(Dalashade_CoastalContext, Dalashade_WaterContext), max(materialWaterGate, water.WaterPixelConfidence) * 0.62)
+        * max(nightAtmosphere, haze * 0.56)
+        * (0.32 + moonlight * 0.20 + artificialLight * 0.14 + materialSkyFog * 0.18)
+        * (1.0 - combat * 0.32));
+    float stormAirIdentity = saturate(
+        weatherLaneSafety
+        * max(max(wetness * max(haze, atmosphere), manualMood), nightAtmosphere * max(wetness, materialSkyFog) * 0.72)
+        * (0.50 + ambientDarkness * 0.20 + materialSkyFog * 0.18)
+        * (1.0 - combat * 0.32));
+    float fogMistAirIdentity = saturate(
+        weatherLaneSafety
+        * max(fogLike, materialSkyFog * max(haze, max(dayAtmosphere, nightAtmosphere) * 0.42))
+        * (0.42 + farAir * 0.28 + skyAir * 0.18)
+        * (1.0 - max(heat, materialSandDust) * 0.36));
+    float dustHeatAirIdentity = saturate(
+        weatherLaneSafety
+        * max(max(heat, surfaceHeat * 0.74), materialSandDust)
+        * (0.40 + haze * 0.20 + daylight * 0.18 + farAir * 0.18)
+        * (1.0 - safety.BrightSandProtect * brightMask * 0.26)
+        * (1.0 - materialSkin * 0.56));
+    float dustStormAirIdentity = saturate(
+        weatherLaneSafety
+        * materialSandDust
+        * max(haze, dayAtmosphere * 0.42)
+        * (0.38 + farAir * 0.24 + heat * 0.12)
+        * (1.0 - safety.BrightSandProtect * brightMask * 0.30)
+        * (1.0 - materialSkin * 0.62));
+    float heatWaveAirIdentity = saturate(
+        weatherLaneSafety
+        * max(heat, surfaceHeat)
+        * (0.32 + daylight * 0.20 + heatDistance * 0.22)
+        * (1.0 - max(wetness, fogLike) * 0.44)
+        * (1.0 - materialSkin * 0.58));
+    float snowColdAirIdentity = saturate(
+        weatherLaneSafety
+        * max(cold, max(materialSnowIce, safety.SnowProtect * 0.62))
+        * (0.38 + openSkyLight * daylight * 0.22 + materialSkyFog * 0.16 + farAir * 0.18)
+        * (1.0 - brightMask * safety.SnowProtect * 0.20));
+    float humidCanopyAirIdentity = saturate(
+        weatherLaneSafety
+        * max(foliage, materialFoliage)
+        * (0.34 + wetness * 0.24 + haze * 0.14 + dayAtmosphere * 0.14 + nightAtmosphere * night * 0.08)
+        * (1.0 - shadowMask * 0.18)
+        * (1.0 - foliageNoiseProtect * 0.42));
+    float aetherUmbralAirIdentity = saturate(
+        weatherLaneSafety
+        * max(max(materialAetherNeon, max(magicGlow, neonGlow) * 0.58), cosmicMood * 0.50)
+        * (0.34 + nightAtmosphere * 0.22 + atmosphere * 0.18 + materialSkyFog * 0.10 + cosmicMood * 0.16)
+        * (1.0 - materialWaterGate * 0.42)
+        * (1.0 - materialSkin * 0.62));
+    float cloudOvercastAirIdentity = saturate(
+        weatherLaneSafety
+        * max(materialSkyFog, haze * 0.72)
+        * max(max(dayAtmosphere, nightAtmosphere), atmosphere * 0.26)
+        * (0.38 + skyAir * 0.24 + farAir * 0.16)
+        * (1.0 - max(dustHeatAirIdentity, stormAirIdentity) * 0.34));
+    float transitionAirIdentity = saturate(
+        weatherLaneSafety
+        * (1.0 - max(daylight, night) * 0.72)
+        * max(atmosphere, max(moonlight, openSkyLight) * 0.44)
+        * (0.30 + cinematic * 0.16 + materialSkyFog * 0.12 + farAir * 0.14)
+        * (1.0 - combat * 0.35));
+    float industrialAirIdentity = saturate(
+        weatherLaneSafety
+        * max(max(industrialHardness, materialMetalIndustrial), materialNeonGlass * 0.62)
+        * (0.34 + max(dayAtmosphere, nightAtmosphere) * 0.12 + atmosphere * 0.10)
+        * (1.0 - materialWaterGate * 0.42)
+        * (1.0 - materialSkin * 0.62));
+    float stoneInteriorAirIdentity = saturate(
+        weatherLaneSafety
+        * max(max(materialStoneRuins, material.SurfaceHardness * 0.35), materialMetalIndustrial * 0.36)
+        * max(max(ambientDarkness, artificialLight * 0.48), atmosphere * 0.22)
+        * (0.34 + night * 0.12 + haze * 0.10)
+        * (1.0 - materialSkyFog * 0.66)
+        * (1.0 - materialSkin * 0.68));
+    float gloomAirIdentity = saturate(
+        weatherLaneSafety
+        * max(max(manualMood, materialVoidDarkness * 0.76), max(ambientDarkness * night, materialSkyFog * nightAtmosphere) * 0.76)
+        * (0.36 + night * 0.22 + atmosphere * 0.12)
+        * (1.0 - fogMistAirIdentity * 0.22));
+    float standaloneWeatherIdentity = saturate(max(
+        max(max(max(max(clearCoastalAirIdentity, clearOpenAirIdentity), coastalNightAirIdentity), rainWetAirIdentity), max(stormAirIdentity, fogMistAirIdentity)),
+        max(
+            max(max(max(dustHeatAirIdentity, dustStormAirIdentity), max(heatWaveAirIdentity, snowColdAirIdentity)), max(humidCanopyAirIdentity, aetherUmbralAirIdentity)),
+            max(max(cloudOvercastAirIdentity, transitionAirIdentity), max(max(industrialAirIdentity, stoneInteriorAirIdentity), gloomAirIdentity)))));
     float foliageHazeRestraint = 1.0 - max(foliage, materialFoliage) * atmosphere * 0.50;
     float depthHaze = distanceWeight * weatherAmount * foliageHazeRestraint;
     depthHaze += dustAir * 0.035 + snowAir * 0.026 + waterMist * 0.020 + aetherAir * 0.026 + skyFogAir * 0.035 + humidAir * 0.012;
+    depthHaze += clearCoastalAirIdentity * farAir * 0.016;
+    depthHaze += coastalNightAirIdentity * max(midAir, farAir * 0.72) * 0.060;
+    depthHaze += rainWetAirIdentity * midAir * 0.036;
+    depthHaze += stormAirIdentity * farAir * 0.036;
+    depthHaze += fogMistAirIdentity * farAir * 0.060;
+    depthHaze += dustHeatAirIdentity * heatDistance * 0.052;
+    depthHaze += dustStormAirIdentity * heatDistance * 0.045;
+    depthHaze += heatWaveAirIdentity * heatDistance * 0.030;
+    depthHaze += snowColdAirIdentity * farAir * 0.040;
+    depthHaze += clearOpenAirIdentity * farAir * 0.012;
+    depthHaze += humidCanopyAirIdentity * midAir * 0.022;
+    depthHaze += aetherUmbralAirIdentity * farAir * 0.032;
+    depthHaze += cloudOvercastAirIdentity * farAir * 0.038;
+    depthHaze += transitionAirIdentity * farAir * 0.022;
+    depthHaze += industrialAirIdentity * midAir * 0.016;
+    depthHaze += stoneInteriorAirIdentity * midAir * 0.018;
+    depthHaze += gloomAirIdentity * farAir * 0.020;
     depthHaze *= (0.15 + atmosphere * 0.16 + fogLike * 0.07 + dustSoftness * 0.08 + nightAtmosphere * 0.035 + dayAtmosphere * 0.030) * gameplayDampen * cinematicBoost * lerp(1.0, 1.20, standaloneAtmosphere);
     depthHaze *= 1.0 - ambientDarkness * night * (0.22 + max(foliage, materialFoliage) * 0.20);
     depthHaze *= 1.0 - Dalashade_Saturate(skinAtmosphereProtect * 0.45 + highlightAtmosphereProtect * 0.20 + foliageNoiseProtect * 0.10 + normalEdgeSafety * 0.12);
-    depthHaze = min(depthHaze, lerp(0.22, 0.32, saturate(fogLike + max(heat, materialSandDust) * 0.45 + materialSkyFog * haze * 0.30)) * lerp(1.0, 1.08, standaloneAtmosphere));
+    depthHaze = min(depthHaze, lerp(0.22, 0.32, saturate(fogLike + max(heat, materialSandDust) * 0.45 + materialSkyFog * haze * 0.30)) * lerp(1.0, 1.16, standaloneWeatherIdentity));
 
     float3 hazeTint = float3(0.63, 0.68, 0.72);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.78, 0.87, 1.00), max(cold, materialSnowIce) * 0.42);
@@ -575,8 +751,26 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.58, 0.74, 0.92), materialNeonGlass * neonGlow * 0.16);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.50, 0.60, 0.82), moonlight * night * 0.22);
     hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.54, 0.57, 0.66), manualMood * 0.40);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.66, 0.86, 1.00), clearCoastalAirIdentity * 0.28);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.72, 0.86, 1.00), clearOpenAirIdentity * 0.18);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.62, 0.74, 0.82), rainWetAirIdentity * 0.34);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.45, 0.52, 0.64), stormAirIdentity * 0.42);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.70, 0.74, 0.78), fogMistAirIdentity * 0.36);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(1.00, 0.72, 0.42), dustHeatAirIdentity * 0.46);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.98, 0.68, 0.40), dustStormAirIdentity * 0.42);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(1.00, 0.76, 0.54), heatWaveAirIdentity * 0.32);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.82, 0.91, 1.00), snowColdAirIdentity * 0.42);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.62, 0.84, 0.58), humidCanopyAirIdentity * 0.34);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.58, 0.62, 0.98), aetherUmbralAirIdentity * 0.42);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.34, 0.36, 0.46), gloomAirIdentity * 0.36);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.48, 0.62, 0.72), coastalNightAirIdentity * 0.46);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.62, 0.67, 0.72), cloudOvercastAirIdentity * 0.34);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.92, 0.76, 0.58), transitionAirIdentity * 0.26);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.50, 0.58, 0.68), industrialAirIdentity * 0.34);
+    hazeTint = Dalashade_SafeLerp(hazeTint, float3(0.60, 0.56, 0.50), stoneInteriorAirIdentity * 0.30);
 
-    float3 result = Dalashade_SafeLerp(color, hazeTint, depthHaze * manualStrength);
+    float weatherBlendStrength = min(manualStrength + standaloneWeatherIdentity * 0.24 + coastalNightAirIdentity * 0.08 + fogMistAirIdentity * 0.06 + stormAirIdentity * 0.05 + cloudOvercastAirIdentity * 0.04 + stoneInteriorAirIdentity * 0.03 + max(dustStormAirIdentity, heatWaveAirIdentity) * 0.03, 0.70);
+    float3 result = Dalashade_SafeLerp(color, hazeTint, depthHaze * weatherBlendStrength);
 
     // Wet air scattering: rain/wetness softens bright wet highlights without lifting the entire scene.
     float rainGlow = max(wetness * 0.54, specularMask * max(wetness, max(waterMist, materialSpecularGlint * 0.35)) * 0.78);
@@ -587,27 +781,40 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     glowIntent = max(glowIntent, nightLocalGlow);
     glowIntent = max(glowIntent, moonAirGlow);
     glowIntent = max(glowIntent, manualGlow * 0.45);
+    glowIntent = max(glowIntent, rainWetAirIdentity * specularMask * 0.32);
+    glowIntent = max(glowIntent, coastalNightAirIdentity * max(specularMask, materialSpecularGlint * 0.55) * 0.22);
+    glowIntent = max(glowIntent, aetherUmbralAirIdentity * max(materialAetherNeon, brightMask) * 0.24);
+    glowIntent = max(glowIntent, industrialAirIdentity * max(materialNeonGlass, materialSpecularGlint) * 0.16);
     glowIntent *= gameplayDampen;
-    float glowAmount = min((brightMask * 0.70 + specularMask * 0.55) * glowIntent * (0.085 + atmosphere * 0.075) * lerp(1.0, 1.12, standaloneAtmosphere), 0.18 * lerp(1.0, 1.10, standaloneAtmosphere));
+    float glowAmount = min((brightMask * 0.70 + specularMask * 0.55) * glowIntent * (0.085 + atmosphere * 0.075) * lerp(1.0, 1.18, max(rainWetAirIdentity, aetherUmbralAirIdentity)), 0.18 * lerp(1.0, 1.14, standaloneWeatherIdentity));
     float3 glowTint = Dalashade_SafeLerp(float3(1.0, 1.0, 1.0), float3(0.72, 0.90, 1.0), max(neonGlow, cold) * 0.35);
     glowTint = Dalashade_SafeLerp(glowTint, float3(1.0, 0.82, 0.55), heat * 0.30);
-    result = Dalashade_SoftLighten(result, glowTint, glowAmount * manualStrength);
+    glowTint = Dalashade_SafeLerp(glowTint, float3(0.70, 0.82, 1.0), rainWetAirIdentity * 0.24);
+    glowTint = Dalashade_SafeLerp(glowTint, float3(0.74, 0.88, 1.0), coastalNightAirIdentity * 0.22);
+    glowTint = Dalashade_SafeLerp(glowTint, float3(0.64, 0.58, 1.0), aetherUmbralAirIdentity * 0.36);
+    glowTint = Dalashade_SafeLerp(glowTint, float3(0.68, 0.82, 1.0), industrialAirIdentity * 0.16);
+    result = Dalashade_SoftLighten(result, glowTint, glowAmount * weatherBlendStrength);
 
     // Dense rainforest canopies get local green-gold sky light on bright openings, while haze and shadow lift are restrained.
     float canopyOpenings = smoothstep(0.50, 0.90, luma) * (1.0 - shadowMask * 0.70);
     float canopyLight = max(foliage, materialFoliage) * atmosphere * gameplayDampen * canopyOpenings;
-    canopyLight *= (0.032 + max(magicGlow, cinematic) * 0.016 + moonlight * night * 0.012) * lerp(1.0, 1.10, standaloneAtmosphere);
+    canopyLight *= (0.032 + max(magicGlow, cinematic) * 0.016 + moonlight * night * 0.012 + humidCanopyAirIdentity * 0.018) * lerp(1.0, 1.18, humidCanopyAirIdentity);
     float3 canopyTint = float3(0.60, 0.86, 0.48);
-    result = Dalashade_SoftLighten(result, canopyTint, min(canopyLight * manualStrength, 0.055));
+    result = Dalashade_SoftLighten(result, canopyTint, min(canopyLight * weatherBlendStrength, 0.070));
 
     // Gloom/storm mood darkens and cools the scene; it is not fog, so it preserves black depth.
-    float stormMood = Dalashade_Saturate(manualMood + wetness * max(haze, atmosphere) * 0.82);
+    float stormMood = Dalashade_Saturate(manualMood + wetness * max(haze, atmosphere) * 0.82 + stormAirIdentity * 0.48 + gloomAirIdentity * 0.42 + cloudOvercastAirIdentity * 0.16 + materialVoidDarkness * 0.20);
     float nightDarken = ambientDarkness * night * shadowMask * (0.030 + max(foliage, materialFoliage) * 0.020 + materialSkyFog * 0.010) * (1.0 - readability * 0.30);
     result *= 1.0 - nightDarken;
 
-    float moodDarken = stormMood * (0.045 + haze * 0.035 + nightAtmosphere * 0.014) * (1.0 - combat * 0.52) * lerp(1.0, 1.10, standaloneAtmosphere);
+    float moodDarken = stormMood * (0.045 + haze * 0.035 + nightAtmosphere * 0.014 + gloomAirIdentity * 0.018) * (1.0 - combat * 0.52) * lerp(1.0, 1.18, max(stormAirIdentity, gloomAirIdentity));
     result *= 1.0 - moodDarken;
-    result = Dalashade_SafeLerp(result, result * float3(0.90, 0.93, 1.0), stormMood * 0.10 * manualStrength);
+    result = Dalashade_SafeLerp(result, result * float3(0.88, 0.92, 1.0), stormMood * 0.12 * weatherBlendStrength);
+    result = Dalashade_SafeLerp(result, result * float3(0.82, 0.84, 0.94), gloomAirIdentity * shadowMask * 0.16 * weatherBlendStrength);
+    result = Dalashade_SafeLerp(result, result * float3(0.90, 0.965, 1.060), coastalNightAirIdentity * max(midAir, materialWaterGate * 0.34) * 0.12 * weatherBlendStrength);
+    result = Dalashade_SafeLerp(result, result * float3(0.94, 0.97, 1.03), cloudOvercastAirIdentity * farAir * 0.10 * weatherBlendStrength);
+    result = Dalashade_SafeLerp(result, result * float3(0.92, 0.96, 1.06), industrialAirIdentity * shadowMask * 0.08 * weatherBlendStrength);
+    result = Dalashade_SafeLerp(result, result * float3(1.02, 0.98, 0.92), stoneInteriorAirIdentity * max(shadowMask, artificialLight * 0.35) * 0.08 * weatherBlendStrength);
 
     // Highlight shoulder: bright sand, clouds, snow, and specular water roll off before bloom/grade can clip them.
     float snowHighlightGuard = max(cold, materialSnowIce) * max(highlightProtection, brightMask);
@@ -616,20 +823,35 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     highlightRollOff = max(highlightRollOff, snowHighlightGuard * specularMask * 0.10);
     highlightRollOff = max(highlightRollOff, materialSnowIce * brightMask * 0.055);
     highlightRollOff = max(highlightRollOff, coastalGlareGuard);
-    result = lerp(result, result / (1.0 + result), min(highlightRollOff * manualStrength, 0.27));
+    highlightRollOff = max(highlightRollOff, rainWetAirIdentity * specularMask * 0.035);
+    highlightRollOff = max(highlightRollOff, coastalNightAirIdentity * specularMask * 0.045);
+    highlightRollOff = max(highlightRollOff, dustHeatAirIdentity * brightMask * 0.055);
+    highlightRollOff = max(highlightRollOff, dustStormAirIdentity * brightMask * 0.052);
+    highlightRollOff = max(highlightRollOff, heatWaveAirIdentity * brightMask * 0.036);
+    highlightRollOff = max(highlightRollOff, snowColdAirIdentity * brightMask * 0.060);
+    highlightRollOff = max(highlightRollOff, cloudOvercastAirIdentity * brightMask * 0.026);
+    highlightRollOff = max(highlightRollOff, industrialAirIdentity * specularMask * 0.030);
+    result = lerp(result, result / (1.0 + result), min(highlightRollOff * weatherBlendStrength, 0.30));
 
     // Shadow lift stays selective; foliage-heavy and gloomy scenes keep trunks/background dark instead of milky.
     float shadowLift = shadowProtection * shadowMask * (0.032 - night * 0.010) * (1.0 - combat * 0.35) * (1.0 - max(foliage, materialFoliage) * 0.46) * (1.0 - ambientDarkness * 0.36);
-    result += shadowLift * manualStrength;
+    shadowLift *= 1.0 - saturate(stormAirIdentity * 0.24 + gloomAirIdentity * 0.38 + humidCanopyAirIdentity * 0.18 + coastalNightAirIdentity * 0.16 + stoneInteriorAirIdentity * 0.22 + industrialAirIdentity * 0.12);
+    result += shadowLift * weatherBlendStrength;
 
     // Heat/dust softness is distance-weighted so night desert scenes get air thickness, not a full-screen lift.
-    float heatShimmerSoftness = max(heat, materialSandDust) * heatDistance * heatDistance * (0.050 + haze * 0.018) * gameplayDampen;
+    float heatShimmerSoftness = max(heat, materialSandDust) * heatDistance * heatDistance * (0.050 + haze * 0.018 + dustHeatAirIdentity * 0.026) * gameplayDampen;
     float warmLuma = dot(result, float3(0.26, 0.67, 0.07));
-    result = Dalashade_SafeLerp(result, float3(warmLuma, warmLuma, warmLuma), heatShimmerSoftness * manualStrength);
+    result = Dalashade_SafeLerp(result, float3(warmLuma, warmLuma, warmLuma), heatShimmerSoftness * weatherBlendStrength);
+    result = Dalashade_SafeLerp(result, result * float3(1.040, 0.980, 0.870), dustHeatAirIdentity * heatDistance * 0.11 * weatherBlendStrength);
+    result = Dalashade_SafeLerp(result, result * float3(1.050, 0.955, 0.830), dustStormAirIdentity * heatDistance * 0.10 * weatherBlendStrength);
+    result = Dalashade_SafeLerp(result, result * float3(1.030, 0.985, 0.915), heatWaveAirIdentity * heatDistance * 0.08 * weatherBlendStrength);
+    result = Dalashade_SafeLerp(result, max(result, color * float3(0.94, 0.985, 1.055)), snowColdAirIdentity * brightMask * 0.14 * weatherBlendStrength);
+    result = Dalashade_SafeLerp(result, result * float3(0.92, 0.92, 1.08), aetherUmbralAirIdentity * farAir * 0.11 * weatherBlendStrength);
+    result = Dalashade_SafeLerp(result, result * float3(0.94, 0.98, 1.04), clearOpenAirIdentity * farAir * 0.05 * weatherBlendStrength);
 
     // Final guardrails keep the shader visible but prevent large grade swings.
-    result = min(result, color + 0.24 * lerp(1.0, 1.08, standaloneAtmosphere));
-    result = max(result, color - 0.20 * lerp(1.0, 1.06, standaloneAtmosphere));
+    result = min(result, color + 0.24 * lerp(1.0, 1.20, standaloneWeatherIdentity));
+    result = max(result, color - 0.20 * lerp(1.0, 1.14, standaloneWeatherIdentity));
     result = saturate(result);
 
     if (Dalashade_ShowDebugMask)
@@ -637,10 +859,16 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
         float foliageDampen = saturate(foliage * atmosphere * 0.85);
         float heatDust = saturate(heatShimmerSoftness * 8.0 + max(heat, materialSandDust) * heatDistance * 0.35);
         float materialDebugStrength = Dalashade_Saturate(Dalashade_MaterialDebugStrength);
-        float materialAir = saturate(humidAir + dustAir + snowAir + waterMist + aetherAir + skyFogAir + nightAtmosphere * night * 0.20);
+        float materialAir = saturate(
+            humidAir + dustAir + snowAir + waterMist + aetherAir + skyFogAir + nightAtmosphere * night * 0.20
+            + standaloneWeatherIdentity * 0.42 + industrialAirIdentity * 0.24 + stoneInteriorAirIdentity * 0.22);
         if (Dalashade_MaterialDebugMode == 1)
         {
-            return float4(saturate(dustAir + waterMist) * materialDebugStrength, saturate(humidAir + aetherAir) * materialDebugStrength, saturate(snowAir + skyFogAir) * materialDebugStrength, 1.0);
+            return float4(
+                saturate(dustAir + waterMist + rainWetAirIdentity + coastalNightAirIdentity * 0.65 + stormAirIdentity * 0.35 + dustStormAirIdentity * 0.45 + heatWaveAirIdentity * 0.28) * materialDebugStrength,
+                saturate(humidAir + aetherAir + humidCanopyAirIdentity + clearCoastalAirIdentity * 0.30 + clearOpenAirIdentity * 0.26 + industrialAirIdentity * 0.20 + stoneInteriorAirIdentity * 0.16) * materialDebugStrength,
+                saturate(snowAir + skyFogAir + fogMistAirIdentity + snowColdAirIdentity + aetherUmbralAirIdentity * 0.35 + cloudOvercastAirIdentity * 0.28 + transitionAirIdentity * 0.22) * materialDebugStrength,
+                1.0);
         }
         if (Dalashade_MaterialDebugMode == 2)
         {
