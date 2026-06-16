@@ -4,6 +4,8 @@
 
 The include is intentionally conservative. It should provide shared truth, not final effect styling.
 
+`Dalashade_FrameData.fxh` may wrap these outputs for first-party shader consumption, but MaterialMasks remains the canonical owner of material, water, safety, competition, and receiver formulas. FrameData must call these resolvers rather than copy or reimplement them.
+
 ## Pipeline
 
 ```text

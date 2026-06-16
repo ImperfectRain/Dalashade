@@ -23,9 +23,10 @@ iMMERSE/Marty Sharpen
 Dalashade_SmartSharpen
 Dalashade_MaterialDebug
 Dalashade_NormalDebug
+Dalashade_FrameDataDebug
 ```
 
-`MaterialDebug` and `NormalDebug` are diagnostic viewers. They should normally be disabled during gameplay and placed near the bottom only when comparing masks against final output.
+`MaterialDebug`, `NormalDebug`, and `FrameDataDebug` are diagnostic viewers. They should normally be disabled during gameplay and placed near the bottom only when comparing masks against final output.
 
 ## First-Party Shader Roles
 
@@ -39,12 +40,15 @@ Dalashade_NormalDebug
 | `Dalashade_SmartSharpen.fx` | Material-aware clarity with dampening for sky, skin, water, foliage, snow, and specular glints. | Production-oriented, conservative. |
 | `Dalashade_MaterialDebug.fx` | Truth viewer for shared material, water, receiver, and competition masks. | Debug-only. |
 | `Dalashade_NormalDebug.fx` | Truth viewer for inferred screen-space NormalField outputs. | Debug-only. |
+| `Dalashade_FrameDataDebug.fx` | Truth viewer for the internal FrameData wrapper contract, source-vs-receiver roles, and inline resolver parity. | Debug-only. |
 
 ## Shared Contracts
 
 `Dalashade_MaterialMasks.fxh` is the primary shared material contract. It defines raw pixel signals, material candidates, material competition, final masks, water resolve, material resolve, safety resolve, and material debug colors.
 
 `Dalashade_NormalField.fxh` is the optional inferred surface-field contract. It consumes material/water/safety resolves and produces conservative screen-space normal, structure, receiver, and safety diagnostics. It is not true engine normal data.
+
+`Dalashade_FrameData.fxh` is an internal experimental wrapper over `MaterialMasks` and `NormalField`. It packages canonical resolver output into first-party shader-facing structs, but it does not own formulas, add a prepass, create render targets, or define a public third-party API.
 
 Production shaders may apply role-specific gates after the shared resolves, but should not reinvent base water, sky, skin, sand, specular, foliage, or receiver classification independently.
 
@@ -68,6 +72,8 @@ Debug modes are diagnostic views, not material IDs. A cyan mask in one mode does
 - `NormalField.ReflectionReceiver` is intentionally conservative and can be darker than `MaterialDebug` receiver views.
 
 Use `MaterialDebug` first when checking material semantics. Use `NormalDebug` when checking whether the inferred normal/receiver field is safe enough to feed future effects.
+
+Use `FrameDataDebug` when checking whether the wrapper contract preserves canonical resolver output, keeps source and receiver roles separate, and exposes optional NormalField data without forcing every shader to consume it.
 
 ## Safety Boundaries
 

@@ -16,6 +16,8 @@ NormalField is not:
 - real texture normal maps
 - a production dependency for current first-party shaders unless explicitly wired later
 
+`Dalashade_FrameData.fxh` exposes NormalField through an optional surface data path. The base FrameData path does not call NormalField, so shaders that only need material, water, safety, or receiver data do not pay the normal-field cost.
+
 ## Dalashade_NormalField
 
 Fields:

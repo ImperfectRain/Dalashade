@@ -72,6 +72,7 @@ Status meanings:
 | `shaders/.gitkeep` | Keeps the shader source folder present in empty checkouts. | Repository structure marker. | None. | Folder retention. | Git. | Contributors. | Stable. |
 | `shaders/Dalashade_MaterialMasks.fxh` | Shared material/water/safety resolver contract. | Converts color/depth/uniforms into material resolves and debug colors. | Backbuffer, depth, scene/material priors. | `MaterialResolve`, `WaterResolve`, `SafetyResolve`, debug colors. | `ReShade.fxh`. | All first-party shaders. | Experimental contract. |
 | `shaders/Dalashade_NormalField.fxh` | Optional inferred NormalField contract. | Produces depth/detail/combined normals and receiver candidates. | Backbuffer, depth, material/water/safety resolves, NormalField settings. | `Dalashade_NormalField`, debug colors. | `MaterialMasks.fxh`. | `Dalashade_NormalDebug.fx`, future production shaders. | Experimental/debug-first. |
+| `shaders/Dalashade_FrameData.fxh` | Internal FrameData wrapper contract. | Packages canonical material/water/safety/receiver resolves and optional NormalField data into shared structs. | Backbuffer, depth, material/water/depth/NormalField settings. | `FrameBaseData`, `FrameSurfaceData`. | `MaterialMasks.fxh`, `NormalField.fxh`. | `Dalashade_FrameDataDebug.fx`, future first-party migrations. | Experimental internal contract. |
 | `shaders/Dalashade_AdaptiveGrade.fx` | Base tonal adaptation shader. | Applies scene/day/night/material-aware tone and color adjustments. | Scene/material/day/night uniforms, shared resolvers. | Graded color and debug masks. | `MaterialMasks.fxh`. | ReShade technique `Dalashade_AdaptiveGrade`. | Production-oriented. |
 | `shaders/Dalashade_SceneGI.fx` | Screen-space GI/AO impression. | Applies conservative AO, bounce, source pooling. | Scene/material/water/safety uniforms, depth. | GI/AO modified color and debug masks. | `MaterialMasks.fxh`. | ReShade technique `Dalashade_SceneGI`. | Experimental production. |
 | `shaders/Dalashade_SurfaceReflection.fx` | Pseudo-SSR and material reflection simulation. | Applies water/wet/metal/aether reflection projections and source-qualified pseudo SSR. | Shared resolves, depth, reflection sliders. | Reflected color contribution and debug modes. | `MaterialMasks.fxh`. | ReShade technique `Dalashade_SurfaceReflection`. | Experimental production. |
@@ -80,6 +81,7 @@ Status meanings:
 | `shaders/Dalashade_SmartSharpen.fx` | Material-aware sharpen shader. | Applies controlled clarity with material/safety dampening. | Shared resolves, sharpen sliders, scene uniforms. | Sharpened color and debug masks. | `MaterialMasks.fxh`. | ReShade technique `Dalashade_SmartSharpen`. | Production-oriented. |
 | `shaders/Dalashade_MaterialDebug.fx` | Shared material truth viewer. | Visualizes material, water, safety, receiver, and competition masks. | Shared material uniforms, depth, debug mode. | False-color debug output. | `MaterialMasks.fxh`. | ReShade technique `Dalashade_MaterialDebug`. | Debug-only. |
 | `shaders/Dalashade_NormalDebug.fx` | NormalField truth viewer. | Visualizes inferred normals, structure, receivers, and safety. | Shared material uniforms, NormalField settings, depth. | False-color debug output. | `MaterialMasks.fxh`, `NormalField.fxh`. | ReShade technique `Dalashade_NormalDebug`. | Debug-only. |
+| `shaders/Dalashade_FrameDataDebug.fx` | FrameData contract truth viewer. | Visualizes FrameData safety, water, material, receiver, source-vs-receiver, ambiguity, surface, and parity views. | Shared material uniforms, depth, NormalField settings, debug mode. | False-color debug output. | `FrameData.fxh`. | ReShade technique `Dalashade_FrameDataDebug`. | Debug-only. |
 
 ## Documentation Files
 
@@ -93,6 +95,7 @@ Status meanings:
 | `docs/ShaderMapping.md` | Known shader variable mapping behavior. | Preset writer work. | Stable. |
 | `docs/ShaderAuthoring.md` | First-party shader authoring notes. | Shader work. | Stable. |
 | `docs/Shaders/ShaderSystemOverview.md` | First-party shader stack and shared contracts. | Shader work. | Stable. |
+| `docs/Shaders/FrameData.md` | Internal FrameData wrapper contract reference. | Future first-party shader contract work. | Experimental internal contract doc. |
 | `docs/Shaders/MaterialMasks.md` | Shared material/water/safety contract reference. | Material/shader work. | Experimental contract doc. |
 | `docs/Shaders/NormalField.md` | Shared NormalField include contract reference. | NormalField work. | Experimental contract doc. |
 | `docs/Shaders/AdaptiveGrade.md` | AdaptiveGrade shader reference. | Shader work. | Stable. |

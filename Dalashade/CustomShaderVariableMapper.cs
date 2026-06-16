@@ -305,6 +305,9 @@ public sealed class CustomShaderVariableMapper
     private static readonly HashSet<string> ShaderOwnedVariables =
     [
         "Dalashade_AdaptiveGradeDebugMode",
+        "Dalashade_FrameDataDebugMode",
+        "Dalashade_FrameDataDebugBoost",
+        "Dalashade_FrameDataDebugOpacity",
         "Dalashade_EnableDepthAssist",
         "Dalashade_DepthAssistStrength",
         "Dalashade_DepthAssistConfidenceFloor",

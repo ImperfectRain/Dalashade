@@ -165,6 +165,13 @@ public sealed class PresetWriter
         "Dalashade_NormalSkySuppression"
     ];
 
+    private static readonly IReadOnlyList<string> FrameDataDebugShaderVariables =
+    [
+        "Dalashade_FrameDataDebugMode",
+        "Dalashade_FrameDataDebugBoost",
+        "Dalashade_FrameDataDebugOpacity"
+    ];
+
     private static readonly IReadOnlyList<string> FirstPartyShaderModeVariables =
     [
         "Dalashade_StandaloneStrength"
@@ -387,6 +394,15 @@ public sealed class PresetWriter
             MaterialDebugShaderVariables
                 .Concat(DepthAssistShaderOwnedVariables)
                 .Concat(NormalFieldShaderVariables)
+                .ToArray()),
+        new(
+            "Dalashade_FrameDataDebug.fx",
+            "Dalashade_FrameDataDebug",
+            "Dalashade_FrameDataDebug@Dalashade_FrameDataDebug.fx",
+            MaterialDebugShaderVariables
+                .Concat(DepthAssistShaderOwnedVariables)
+                .Concat(NormalFieldShaderVariables)
+                .Concat(FrameDataDebugShaderVariables)
                 .ToArray()),
         new(
             "Dalashade_SceneGI.fx",
@@ -877,6 +893,17 @@ public sealed class PresetWriter
 
     private static string DefaultInjectedCustomShaderValue(string section, string variable)
     {
+        if (section.Contains("Dalashade_FrameDataDebug", StringComparison.OrdinalIgnoreCase))
+        {
+            return variable switch
+            {
+                "Dalashade_FrameDataDebugMode" => "0",
+                "Dalashade_FrameDataDebugBoost" => "2.000000",
+                "Dalashade_FrameDataDebugOpacity" => "1.000000",
+                _ => "0.000000"
+            };
+        }
+
         if (section.Contains("Dalashade_SurfaceReflection", StringComparison.OrdinalIgnoreCase))
         {
             return variable switch
