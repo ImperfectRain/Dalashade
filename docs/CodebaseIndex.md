@@ -123,6 +123,7 @@ Status meanings:
 | `docs/ReleaseChecklist.md` | Release process. | Release tasks. | Stable. |
 | `docs/CodexEditingGuide.md` | Repo-specific Codex editing rules. | Codex runs. | Stable. |
 | `docs/CodexSessionHandoff.md` | Handoff notes. | Codex runs. | Stable. |
+| `docs/CommitChangelog.md` | Plainspeak Codex-maintained change log for committed work. | Codex runs/maintainers. | Stable. |
 
 ## Test Fixtures and Release Support
 

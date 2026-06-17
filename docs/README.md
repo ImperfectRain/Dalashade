@@ -35,6 +35,7 @@ These docs are for users who want to understand what Dalashade is doing, maintai
 | ReShade reload behavior | [ReShadeReload.md](ReShadeReload.md) |
 | Release checklist | [ReleaseChecklist.md](ReleaseChecklist.md) |
 | Codex editing rules | [CodexEditingGuide.md](CodexEditingGuide.md) |
+| Codex commit changelog | [CommitChangelog.md](CommitChangelog.md) |
 
 ## For Codex Agents
 
@@ -44,6 +45,8 @@ Before editing code, read:
 2. `docs/GenerationPipeline.md`
 3. The specific topic doc for the requested change
 4. `docs/CodexEditingGuide.md`
+
+After changing code, shaders, configuration, workflow, or documentation that should be committed, add a plainspeak entry to `docs/CommitChangelog.md` before committing.
 
 Do not treat planned-roadmap docs as implementation references. Planned systems are labeled as planned and should not be implemented unless the user explicitly asks for that work.
 

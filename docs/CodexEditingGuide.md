@@ -25,6 +25,7 @@ Then inspect the actual source files named by the docs. The docs are navigation 
 | Preserve user-facing settings unless explicitly asked. | Existing configs may belong to active users. |
 | Build after meaningful changes. | Compile errors are easy to introduce across UI, diagnostics, and mapper code. |
 | Update docs when architecture changes. | Future edits depend on accurate navigation. |
+| Update `docs/CommitChangelog.md` before committing Codex changes. | Git history says what changed; this file says why in plainspeak. |
 | Avoid changing `repo.json` unless the task is explicitly a release task. | Bad release metadata breaks installs. |
 | Avoid loose shader-key changes without diagnostics. | Generic keys often mean different things across shaders. |
 | Do not implement a native ReShade bridge unless explicitly requested. | Current reload is hotkey-based. Bridge work is a separate system. |
@@ -86,4 +87,5 @@ Before finishing a change:
 6. Did you avoid broad loose-key shader changes?
 7. Did you build?
 8. Did you update docs if behavior changed?
-9. Did you avoid release manifest changes unless this was a release task?
+9. Did you add or update the `docs/CommitChangelog.md` entry for committed work?
+10. Did you avoid release manifest changes unless this was a release task?

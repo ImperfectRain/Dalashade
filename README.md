@@ -11,12 +11,15 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 - Watches territory, combat, cutscene, night/day, and current weather.
 - Uses Dalamud state like GPose, duty state, content finder info, Eorzea time, and client weather data to infer what kind of scene you are in.
 - Classifies the current place as a city, field zone, dungeon/trial/raid-like duty, or interior-ish space.
+- Infers a primary biome plus supporting tags for weather, time of day, materials, area context, gameplay state, and broad art direction.
+- Provides optional scene authoring overrides and tag registry tuning for advanced users who want to adjust the effective tags for a current territory.
 - Optionally analyzes the newest screenshot in a folder for brightness, contrast, saturation, crushed shadows, and clipped highlights.
 - Optionally analyzes a master image folder, so you can point it at a look you like and let Dalashade bias the generated preset toward it.
 - Shows the actual preset variables it changed, with old and new values, plus whether that shader is active in ReShade.
 - Scans your base preset for shader variables Dalashade can really control.
 - Analyzes the whole active preset stack for compatibility risk, unsupported effects, high-risk effects, and visual authorities.
 - Generates a separate ReShade preset from your chosen base preset.
+- Can write scene-aware uniforms for optional first-party Dalashade shaders when those shader sections exist in the generated preset, or when generated-preset-only section injection is enabled.
 - Supports free iMMERSE variables by default.
 - Can also adjust installed iMMERSE Pro/Ultimate variables when you turn that option on.
 
@@ -25,6 +28,9 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 - It does not bundle iMMERSE, iMMERSE Pro, iMMERSE Ultimate, RTGI, or any paid shader files.
 - It does not modify your base preset in place.
 - It does not capture live frames yet.
+- It does not copy, install, or auto-enable first-party or third-party shader files.
+- It does not add techniques to ReShade's `Techniques=` list.
+- It does not have a prepass, render target chain, temporal accumulation, native FFXIV G-buffer access, motion vectors, or true material IDs.
 - It does not magically know taste. It has opinions, but they are intentionally mild.
 - It does not automate gameplay, read or inject network packets, control combat input, track players, or identify mechanics.
 
@@ -40,6 +46,7 @@ Start here:
 - [`docs/Shaders/MaterialMasks.md`](docs/Shaders/MaterialMasks.md) for the shared material/water/receiver contract.
 - [`docs/Shaders/SurfaceReflection.md`](docs/Shaders/SurfaceReflection.md) for the current pseudo-SSR/reflection shader.
 - [`docs/SafetyAndScope.md`](docs/SafetyAndScope.md) for project boundaries and review notes.
+- [`docs/CommitChangelog.md`](docs/CommitChangelog.md) for plainspeak Codex change notes after code or documentation changes.
 
 ## Basic Setup
 
@@ -84,6 +91,14 @@ Instead of hand-tuning `Central Shroud = these values` forever, it reads what Da
 - combat, duty, cutscene, GPose
 
 Those tags feed generic rules. Rain pulls back bloom and saturation a little. Duties favor readability. GPose can go prettier. Night lifts shadows and relaxes AO. Weather is refreshed from the client weather manager during normal updates, with zone-entry weather only kept as a fallback. It is all category-based, so a new zone should still get sane behavior without anyone manually adding it.
+
+## Scene Authoring
+
+Scene authoring is the current answer for places where automatic tags are close but not quite right.
+
+It is optional and disabled by default. When enabled, it can add or remove grouped tags for the current territory, set a primary biome override, and tune registry entries that feed SceneIntent or MaterialIntent channels. Those edits live in the plugin config folder, not in your base preset, shader source, or the automatic classifier.
+
+This system is usable, but it is first-generation. It is best treated as an advanced authoring and diagnostics surface right now. The next work here should make the service and UI easier to maintain and easier to understand, not simply add more controls.
 
 ## Master Preset Images
 
@@ -155,6 +170,22 @@ This still does not disable techniques or broadly sanitize every color shader. T
 
 NormalField is optional and disabled by default. It is currently a diagnostic/shared-data layer for future first-party shader improvements, not true FFXIV material normals, G-buffer access, or texture normal maps. See `docs/NormalField.md` for configuration, debug modes, and the test plan.
 
+## Optional First-Party Shaders
+
+Dalashade includes optional first-party ReShade shader source files under `shaders/`.
+
+Production-oriented shaders currently cover adaptive grading, scene GI/AO impression, surface reflection impression, atmosphere bloom, weather atmosphere, and smart sharpening. Diagnostic shaders visualize shared material, NormalField, and FrameData contracts. These shaders are not required for the normal generated-preset workflow, and Dalashade does not install or enable them automatically.
+
+The current shader stack is built around shared contracts:
+
+- `Dalashade_MaterialMasks.fxh` owns material, water, receiver, and safety formulas.
+- `Dalashade_NormalField.fxh` owns optional inferred screen-space normal diagnostics.
+- `Dalashade_FrameData.fxh` packages those outputs into a shared inline wrapper consumed by first-party production shaders.
+
+FrameData is not a prepass and is not a formula owner. The first-party shaders work from ReShade backbuffer/depth plus plugin-generated scene priors, so effects like GI, reflection, weather, and normals are controlled screen-space impressions rather than physically complete rendering systems.
+
+`FirstPartyShaderMode` controls whether production Dalashade shaders stay in the default supportive role or take a little more responsibility in standalone mode. Standalone mode is still safety-gated and shader-specific; it is not a switch to rewrite shader order, weaken material contracts, or turn debug shaders into gameplay effects.
+
 ## Scene Lock
 
 `Lock current generated preset` pauses automatic regeneration. Manual `Generate Now` still works. This is for the moments where the preset looks good and you want Dalashade to stop reacting to time, weather, screenshots, or combat for a while.
@@ -181,13 +212,51 @@ Dalashade/bin/x64/Debug/Dalashade.dll
 
 For dev loading, add that DLL path in Dalamud's dev plugin settings.
 
-## Current Shape
+## Where The Project Is Now
 
-This is the practical MVP:
+Dalashade has grown from a conservative preset writer into a small scene-aware visual system.
+
+The stable center is still the generated-preset workflow:
 
 - context-aware preset generation
 - world, screenshot, and reference-image feedback
 - conservative shader mapping
 - clean generated-preset workflow
 
-Next sensible steps are better content-type classification, a more transparent tag-definition registry for user-authored scene behavior, and eventually a ReShade add-on bridge so this stops relying on preset reloads. Weather is already refreshed from current client state during normal updates, with zone-entry weather retained only as a fallback.
+Around that center, the project now has:
+
+- user and developer UI modes, where User Mode should explain safe choices and Developer Mode keeps raw diagnostics and shader controls
+- passive scene classification with biome, weather, time, material, area, gameplay, and art-direction tags
+- optional scene authoring overrides and tag registry tuning
+- master-style and screenshot feedback
+- compatibility reports, debug bundles, changed-variable reporting, clamp reporting, and ReShade reload diagnostics
+- optional first-party shaders that consume shared MaterialMasks, NormalField, and inline FrameData contracts
+- a Codex-maintained [commit changelog](docs/CommitChangelog.md) so code and documentation changes leave a plainspeak trail
+
+The main pressure point is maintainability. Several systems are working but large: scene authoring, compatibility reporting, debug bundle export, the main UI, and SurfaceReflection. Future work should prefer staged, behavior-preserving splits with focused tests over more feature piling.
+
+## Roadmap
+
+Near-term work:
+
+- Keep documentation synchronized with code changes, including `docs/CommitChangelog.md` entries before commits.
+- Add focused regression tests around scene tags, scene authoring overrides, tag registry tuning, and generated preset writes.
+- Split `SceneAuthoringService` into smaller owners for storage, registry defaults, override resolution, validation, import/export, and reset behavior.
+- Improve User Mode clarity so normal users can see what Dalashade is doing and choose safe options without reading developer diagnostics.
+- Keep Developer Mode as the place for raw variables, shader mappings, debug modes, reports, and low-level tuning.
+- Validate and tune the AdaptiveGrade standalone identity lanes before expanding standalone identity work across the rest of the first-party shader stack.
+- Improve SceneGI through scene lanes, material bounce, contact/AO shaping, and emissive pooling.
+
+Medium-term work:
+
+- Stage behavior-preserving refactors for `CompatibilityReportExporter.cs`, `DebugBundleExporter.cs`, `MainWindow.cs`, `SceneAuthoringService.cs`, and large shader files.
+- Make tag authoring easier to share through shipped defaults plus non-destructive user overrides.
+- Expand compatibility diagnostics where they help users understand active visual authorities and unsupported effects.
+- Keep FrameData as a shared inline contract unless a deliberate prepass design is started.
+- Treat SurfaceReflection as a redesign candidate, not a shader to keep small-tuning toward mirror-like output.
+
+Longer-term possibilities:
+
+- A deliberate ReShade bridge, add-on, IPC path, or native data path could eventually replace hotkey-based reload and preset-only feedback.
+- A real prepass or render-target pipeline could support stronger GI/reflection/normal behavior if the project chooses to take on that complexity.
+- Any future bridge, prepass, G-buffer, temporal, or live-frame system should be designed as a separate architecture pass, not implied by the current preset writer or FrameData wrapper.

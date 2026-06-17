@@ -132,6 +132,22 @@ Keep behavior inside its current owner unless the task is explicitly architectur
 
 Avoid unrelated refactors. Visual behavior changes can be hard to validate, so keep commits small and scoped to one purpose.
 
+## Current Maintainability Notes
+
+The docs are mostly accurate, but the scene authoring and tag registry system should be treated as implemented rather than architecturally mature. Scene overrides and registry tuning exist, and the UI is usable, but `SceneAuthoringService` currently owns storage, registry defaults, override resolution, tuning validation, import/export, and reset behavior. The best next move is a behavior-preserving split with tests around tag behavior before adding more scene authoring UI features.
+
+FrameData is currently inline-only. All first-party production shaders consume `Dalashade_FrameData.fxh`, but there is no prepass, render target, temporal accumulation, G-buffer path, native XIV buffer path, or ReShade bridge. `Dalashade_MaterialMasks.fxh` and `Dalashade_NormalField.fxh` remain the canonical formula owners; FrameData is a contract/wrapper, not a formula owner.
+
+`Dalashade_SurfaceReflection.fx` is the weakest visual system. It has useful debug masks, but normal output has repeatedly failed to create convincing object reflections. Do not keep small-tuning it while expecting mirror-like behavior. Future reflection work should be a deliberate algorithm redesign or wait for better prepass/data support.
+
+`Dalashade_SceneGI.fx` is a safer near-term shader target. It fits the current FrameData model better and can improve through scene lanes, material bounce, contact/AO shaping, and emissive pooling without requiring true world-space reflection data.
+
+The largest maintainability pressure points are `CompatibilityReportExporter.cs`, `DebugBundleExporter.cs`, `MainWindow.cs`, `SceneAuthoringService.cs`, and `SurfaceReflection.fx`. Refactors should be staged, behavior-preserving, and backed by focused checks or tests where possible.
+
+User Mode should explain what is happening and expose safe choices. Developer Mode should keep raw variables, diagnostics, shader controls, and low-level mapping. Tag authoring should move toward shipped defaults plus non-destructive user overrides that can be shared.
+
+Do not commit `.codex-debug/` or similar local investigation output unless a task explicitly promotes it to source material.
+
 ## Required Workflow For Future Tasks
 
 1. Read `docs/CodebaseIndex.md`.
@@ -141,8 +157,9 @@ Avoid unrelated refactors. Visual behavior changes can be hard to validate, so k
 5. Inspect the source files named by those docs before editing.
 6. Make the smallest responsible change.
 7. Update docs when behavior or architecture changes.
-8. Run `dotnet build` after meaningful changes.
-9. For release tasks only, run `scripts/ValidateRelease.ps1` after release artifacts and manifest links exist.
+8. Add a plainspeak entry to `docs/CommitChangelog.md` before committing code, shader, configuration, workflow, or documentation changes.
+9. Run `dotnet build` after meaningful changes.
+10. For release tasks only, run `scripts/ValidateRelease.ps1` after release artifacts and manifest links exist.
 
 ## Recommended Next Agent Starting Point
 
