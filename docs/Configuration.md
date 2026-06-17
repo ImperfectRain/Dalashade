@@ -99,7 +99,11 @@ When `EnableNormalField` is false, production output and generated preset variab
 
 ## Custom Shader Settings
 
-First-party custom shaders are optional. Dalashade may inject known generated-preset sections and write known uniforms when enabled, but it should not copy shader files, install shader packs, or append techniques to `Techniques=`.
+First-party custom shaders are optional. Dalashade may inject known generated-preset sections and write known uniforms when enabled, but it should not copy shader files or install shader packs.
+
+`SyncDalashadeTechniqueActivation` is optional and disabled by default. When enabled, generated presets can add or remove Dalashade production first-party techniques from `Techniques=` based on the plugin shader options. It preserves third-party effects, leaves debug techniques manual, and still does not modify the base preset.
+
+Generated preset load-order optimization is also optional and disabled by default. When enabled, it may reorder existing entries in `Techniques=` and `TechniqueSorting=` in the generated preset only. By itself, it must not add, remove, or activate techniques.
 
 `FirstPartyShaderMode` controls how strongly production first-party Dalashade shaders participate once custom shader variable writing is enabled:
 
@@ -115,7 +119,7 @@ Debug shaders are intentionally unaffected by `FirstPartyShaderMode`.
 - `Dalashade_DepthAssistConfidenceFloor=0`
 - `Dalashade_DepthConfidenceFloor=0`
 
-The write is limited to known first-party Dalashade production shader sections that declare those uniforms: AdaptiveGrade, AtmosphereBloom, WeatherAtmosphere, SmartSharpen, SceneGI, and SurfaceReflection. It requires custom shader variable writes to be enabled, does not install `.fx` files, and does not activate techniques. Depth assist can improve resolver confidence when ReShade depth is reliable, but it can worsen masks when the depth buffer is flat, unavailable, reversed incorrectly, or contaminated by UI/overlay depth.
+The write is limited to known first-party Dalashade production shader sections that declare those uniforms: AdaptiveGrade, AtmosphereBloom, WeatherAtmosphere, SmartSharpen, SceneGI, and SurfaceReflection. It requires custom shader variable writes to be enabled and does not install `.fx` files. Technique activation remains manual unless `SyncDalashadeTechniqueActivation` is enabled. Depth assist can improve resolver confidence when ReShade depth is reliable, but it can worsen masks when the depth buffer is flat, unavailable, reversed incorrectly, or contaminated by UI/overlay depth.
 
 Compatibility reports and debug bundles list `EnableFirstPartyDepthAssist`, whether generated-preset custom shader writes and section injection are enabled, and which production first-party sections received each depth-assist variable. Debug shaders remain manual diagnostic viewers. Reporting missing shader files or missing generated-preset sections should be diagnostic-only and must not fail generation.
 

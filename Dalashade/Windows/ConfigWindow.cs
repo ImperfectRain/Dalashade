@@ -663,7 +663,7 @@ public sealed class ConfigWindow : Window, IDisposable
 
     private string ShaderMatchingSummary()
     {
-        return $"{configuration.ShaderMatchingMode}, inactive writes {configuration.InactiveShaderWriteMode}, custom shaders {(configuration.EnableDalashadeCustomShaders ? "on" : "off")}, mode {FormatFirstPartyShaderMode(configuration.FirstPartyShaderMode)}, injection {(configuration.AutoInjectDalashadeCustomShaderSections ? "on" : "off")}";
+        return $"{configuration.ShaderMatchingMode}, inactive writes {configuration.InactiveShaderWriteMode}, load order {(configuration.OptimizeGeneratedPresetLoadOrder ? "on" : "off")}, custom shaders {(configuration.EnableDalashadeCustomShaders ? "on" : "off")}, mode {FormatFirstPartyShaderMode(configuration.FirstPartyShaderMode)}, injection {(configuration.AutoInjectDalashadeCustomShaderSections ? "on" : "off")}, technique sync {(configuration.SyncDalashadeTechniqueActivation ? "on" : "off")}";
     }
 
     private Vector4? ShaderMatchingWarningColor()
@@ -692,6 +692,9 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.Save();
         }
 
+        DrawCheckbox("Optimize generated preset load order", configuration.OptimizeGeneratedPresetLoadOrder, value => configuration.OptimizeGeneratedPresetLoadOrder = value);
+        ImGui.TextWrapped("When enabled, Dalashade reorders Techniques= and TechniqueSorting= in the generated preset only. It preserves the same entries and does not enable or disable effects.");
+
         DrawCheckbox("Enable Dalashade custom shader variables", configuration.EnableDalashadeCustomShaders, value => configuration.EnableDalashadeCustomShaders = value);
         var firstPartyMode = (int)configuration.FirstPartyShaderMode;
         if (ImGui.Combo("Dalashade shader mode", ref firstPartyMode, "Supportive / Enhance Base Preset\0Standalone / First-Party Stack\0"))
@@ -703,6 +706,8 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawCheckbox("Auto-inject known Dalashade shader sections into generated preset", configuration.AutoInjectDalashadeCustomShaderSections, value => configuration.AutoInjectDalashadeCustomShaderSections = value);
         ImGui.TextWrapped("When enabled with custom shader variables, Dalashade can add known Dalashade custom shader sections and variables to the generated preset only. The base preset is never modified.");
         ImGui.TextWrapped("This does not install .fx shader files. Install needed Dalashade shaders in ReShade separately so ReShade can compile injected generated-preset sections.");
+        DrawCheckbox("Sync Dalashade technique activation", configuration.SyncDalashadeTechniqueActivation, value => configuration.SyncDalashadeTechniqueActivation = value);
+        ImGui.TextWrapped("When enabled, generated presets add or remove Dalashade production techniques from Techniques= based on the plugin shader options. Debug techniques stay manual, and third-party effects are not disabled.");
 
         ImGui.Separator();
         ImGui.TextWrapped("SceneGI: adaptive screen-space indirect lighting and material bounce");
@@ -726,7 +731,7 @@ public sealed class ConfigWindow : Window, IDisposable
         }
         DrawFloatSlider("SceneGI debug opacity", configuration.DalashadeSceneGIDebugOpacity, 0f, 1f, value => configuration.DalashadeSceneGIDebugOpacity = value);
         DrawFloatSlider("SceneGI debug boost", configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f, value => configuration.DalashadeSceneGIDebugBoost = value);
-        ImGui.TextWrapped("SceneGI variable writes require Dalashade custom shader variables and matching generated preset keys. The SceneGI technique is never auto-enabled; enable it manually in ReShade after installing the .fx file.");
+        ImGui.TextWrapped("SceneGI variable writes require Dalashade custom shader variables and matching generated preset keys. If technique sync is enabled, SceneGI is added to the generated preset when these writes are enabled.");
 
         ImGui.Separator();
         ImGui.TextWrapped("SurfaceReflection: material-aware water, wetness, and glint response");
@@ -743,7 +748,7 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.Save();
         }
         DrawFloatSlider("SurfaceReflection debug opacity", configuration.DalashadeSurfaceReflectionDebugOpacity, 0f, 1f, value => configuration.DalashadeSurfaceReflectionDebugOpacity = value);
-        ImGui.TextWrapped("SurfaceReflection is a separate optional first-party shader for water sheen, wet glints, and material-aware reflection impressions. The technique is never auto-enabled.");
+        ImGui.TextWrapped("SurfaceReflection is a separate optional first-party shader for water sheen, wet glints, and material-aware reflection impressions. If technique sync is enabled, it follows this variable-write option.");
         ImGui.TextWrapped("Debug modes show inferred shader-side masks, not true engine material IDs.");
     }
 

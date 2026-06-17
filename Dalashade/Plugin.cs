@@ -428,6 +428,8 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.CompatibilityMode,
             Configuration.ShaderMatchingMode,
             Configuration.InactiveShaderWriteMode,
+            Configuration.OptimizeGeneratedPresetLoadOrder,
+            Configuration.SyncDalashadeTechniqueActivation,
             Configuration.ImageSamplingMode,
             Configuration.ScreenshotAnalysisStrength,
             Configuration.MasterStyleMode,

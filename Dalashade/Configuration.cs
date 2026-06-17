@@ -117,6 +117,7 @@ public class Configuration : IPluginConfiguration
     public bool EnableDalashadeCustomShaders { get; set; } = false;
     public FirstPartyShaderMode FirstPartyShaderMode { get; set; } = FirstPartyShaderMode.Supportive;
     public bool AutoInjectDalashadeCustomShaderSections { get; set; } = false;
+    public bool SyncDalashadeTechniqueActivation { get; set; } = false;
     public bool EnableDalashadeSceneGIShaderVariables { get; set; } = false;
     public float DalashadeSceneGIStrength { get; set; } = 0.45f;
     public float DalashadeSceneGIAOIntensity { get; set; } = 0.30f;
@@ -154,6 +155,7 @@ public class Configuration : IPluginConfiguration
     public PresetCompatibilityMode CompatibilityMode { get; set; } = PresetCompatibilityMode.AdaptiveBalanced;
     public ShaderMatchingMode ShaderMatchingMode { get; set; } = ShaderMatchingMode.StrictSections;
     public InactiveShaderWriteMode InactiveShaderWriteMode { get; set; } = InactiveShaderWriteMode.SupportedInactiveSections;
+    public bool OptimizeGeneratedPresetLoadOrder { get; set; } = false;
     public bool WriteBackups { get; set; } = true;
     public int MaxGeneratedPresetBackups { get; set; } = 10;
     public int MinimumSecondsBetweenWrites { get; set; } = 10;

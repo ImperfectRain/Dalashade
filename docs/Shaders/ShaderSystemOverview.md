@@ -79,7 +79,7 @@ Use `FrameDataDebug` when checking whether the wrapper contract preserves canoni
 
 First-party shaders must keep these boundaries:
 
-- Do not auto-enable techniques.
+- Do not auto-enable techniques by default; only production first-party techniques may follow the explicit generated-preset activation sync option.
 - Do not reflect or dirty skin.
 - Do not let sky receive reflection or AO.
 - Do not turn all smooth/cyan surfaces into water.

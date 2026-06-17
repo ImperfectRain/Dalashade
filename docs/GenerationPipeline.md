@@ -36,12 +36,15 @@ This describes implemented behavior from `/dalashade` to a generated ReShade pre
     - First-party custom shaders can receive `Night`, `Moonlight`, `ArtificialLight`, `AmbientDarkness`, `NightAtmosphere`, `Daylight`, `Sunlight`, `OpenSkyLight`, `SurfaceHeat`, `DayAtmosphere`, `DayReflection`, and `DayHighlightPressure` intent values when their sections/keys exist or are injected into the generated preset.
     - Material-aware first-party shader behavior is section-scoped: SmartSharpen uses final masks for suppression, AtmosphereBloom uses glow eligibility masks, WeatherAtmosphere uses air/haze masks, AdaptiveGrade uses only subtle protection/preservation masks, SceneGI uses masks for optional contact AO, ambient bounce, and night light pooling, and SurfaceReflection uses masks for water sheen, wet glints, ice sheen, and neon/aether reflection impressions.
     - `Dalashade_MaterialMasks.fxh` exposes raw candidates, scene-gated candidates, final masks, optional depth assist, and the shared `Dalashade_ResolveMaterials`, `Dalashade_ResolveWater`, and `Dalashade_ResolveSafety` contracts for first-party shaders. Depth assist is shader-owned, disabled by default, and never required.
-    - `Dalashade_MaterialDebug.fx` and `Dalashade_NormalDebug.fx` are optional utility shaders for material and NormalField diagnostics. `Dalashade_SceneGI.fx` is an optional screen-space GI-style shader, not path tracing, RTGI, or PTGI. `Dalashade_SurfaceReflection.fx` is an optional reflection-impression shader with a restrained pseudo-SSR component, not full SSR or ray tracing. Dalashade can inject sections/variables for them, but does not add them to `Techniques=` or require them for normal output.
-    - Dalashade does not append custom shader entries to `Techniques=`, copy `.fx` files, or require custom shaders for normal operation.
+    - `Dalashade_MaterialDebug.fx` and `Dalashade_NormalDebug.fx` are optional utility shaders for material and NormalField diagnostics. `Dalashade_SceneGI.fx` is an optional screen-space GI-style shader, not path tracing, RTGI, or PTGI. `Dalashade_SurfaceReflection.fx` is an optional reflection-impression shader with a restrained pseudo-SSR component, not full SSR or ray tracing. Dalashade can inject sections/variables for them, but does not require them for normal output.
+    - By default, Dalashade does not append custom shader entries to `Techniques=`, copy `.fx` files, or require custom shaders for normal operation.
+    - If `SyncDalashadeTechniqueActivation` is enabled, generated presets can add or remove Dalashade production first-party entries in `Techniques=` based on the plugin shader options. Debug shaders and third-party effects remain manual.
 15. `GenerationAuthorityPolicy.From()` dampens secondary authorities for selected compatibility modes.
 16. The writer edits only matching section/key lines, records `ChangedShaderVariable` entries, and applies `SanitizeActionPipeline` only when allowed by mode.
-17. If backups are enabled and the generated preset already exists, `PresetWriter` creates and prunes backups.
-18. `PresetWriter` writes a temporary file and replaces the generated preset path.
+17. If `SyncDalashadeTechniqueActivation` is enabled, `PresetWriter` synchronizes generated-preset `Techniques=` entries for Dalashade production first-party shaders only.
+18. If `OptimizeGeneratedPresetLoadOrder` is enabled, `PresetWriter` may reorder existing `Techniques=` and `TechniqueSorting=` entries in the generated preset only.
+18. If backups are enabled and the generated preset already exists, `PresetWriter` creates and prunes backups.
+19. `PresetWriter` writes a temporary file and replaces the generated preset path.
 19. `Plugin.ReloadShadersIfNeeded()` optionally calls `ReShadeController.ReloadAfterPresetWrite()`.
 
 ## Shader-side Pipeline

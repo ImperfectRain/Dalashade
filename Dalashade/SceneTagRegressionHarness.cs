@@ -46,6 +46,8 @@ public static class SceneTagRegressionHarness
         ValidateMaterialReportSnapshot(failures);
         ValidateSceneAuthoringOverrides(failures);
         ValidateImageAnalysisOpinions(failures);
+        ValidateGeneratedPresetLoadOrderOptimization(failures);
+        ValidateGeneratedPresetDalashadeTechniqueSync(failures);
 
         foreach (var testCase in cases)
         {
@@ -348,6 +350,203 @@ public static class SceneTagRegressionHarness
                 // Regression cleanup is best-effort.
             }
         }
+    }
+
+    private static void ValidateGeneratedPresetLoadOrderOptimization(List<SceneTagRegressionFailure> failures)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "DalashadeLoadOrderRegression", Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(root);
+            var basePath = Path.Combine(root, "base.ini");
+            var generatedPath = Path.Combine(root, "generated.ini");
+            File.WriteAllLines(basePath, new[]
+            {
+                "Techniques=Dalashade_SmartSharpen@Dalashade_SmartSharpen.fx,Dalashade_SurfaceReflection@Dalashade_SurfaceReflection.fx,Dalashade_AdaptiveGrade@Dalashade_AdaptiveGrade.fx,Dalashade_SceneGI@Dalashade_SceneGI.fx",
+                "TechniqueSorting=Dalashade_SmartSharpen@Dalashade_SmartSharpen.fx,Dalashade_SurfaceReflection@Dalashade_SurfaceReflection.fx,Dalashade_AdaptiveGrade@Dalashade_AdaptiveGrade.fx,Dalashade_SceneGI@Dalashade_SceneGI.fx",
+                "[Dalashade_SmartSharpen.fx]",
+                "SharpenStrength=1.000000",
+                "[Dalashade_SurfaceReflection.fx]",
+                "Dalashade_SurfaceReflectionStrength=0.320000",
+                "[Dalashade_AdaptiveGrade.fx]",
+                "Dalashade_Readability=0.000000",
+                "[Dalashade_SceneGI.fx]",
+                "Dalashade_GIStrength=0.450000"
+            });
+
+            var result = new PresetWriter().WriteGeneratedPreset(
+                new Configuration
+                {
+                    BasePresetPath = basePath,
+                    GeneratedPresetPath = generatedPath,
+                    OptimizeGeneratedPresetLoadOrder = true,
+                    EnableDalashadeCustomShaders = false,
+                    WriteBackups = false,
+                    CompatibilityMode = PresetCompatibilityMode.AdaptiveBalanced
+                },
+                VisualProfile.Neutral,
+                SceneIntent.Neutral,
+                MaterialIntent.Neutral);
+            if (!result.Success || !result.TechniqueOrderOptimization.Changed)
+            {
+                failures.Add(new SceneTagRegressionFailure("Generated preset load-order optimization", $"Expected successful load-order change, got: {result.Message}"));
+                return;
+            }
+
+            var generated = File.ReadAllLines(generatedPath);
+            var techniques = generated.FirstOrDefault(line => line.StartsWith("Techniques=", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
+            var entries = techniques[(techniques.IndexOf('=') + 1)..].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (entries.Length != 4)
+            {
+                failures.Add(new SceneTagRegressionFailure("Generated preset load-order optimization", $"Expected 4 preserved technique entries, got {entries.Length}."));
+            }
+
+            var adaptive = Array.FindIndex(entries, entry => entry.Contains("Dalashade_AdaptiveGrade", StringComparison.OrdinalIgnoreCase));
+            var sceneGi = Array.FindIndex(entries, entry => entry.Contains("Dalashade_SceneGI", StringComparison.OrdinalIgnoreCase));
+            var reflection = Array.FindIndex(entries, entry => entry.Contains("Dalashade_SurfaceReflection", StringComparison.OrdinalIgnoreCase));
+            var sharpen = Array.FindIndex(entries, entry => entry.Contains("Dalashade_SmartSharpen", StringComparison.OrdinalIgnoreCase));
+            if (!(adaptive >= 0 && sceneGi > adaptive && reflection > sceneGi && sharpen > reflection))
+            {
+                failures.Add(new SceneTagRegressionFailure("Generated preset load-order optimization", $"Expected AdaptiveGrade -> SceneGI -> SurfaceReflection -> SmartSharpen order, got: {techniques}"));
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            failures.Add(new SceneTagRegressionFailure("Generated preset load-order optimization", $"Load-order validation failed: {ex.Message}"));
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(root))
+                {
+                    Directory.Delete(root, true);
+                }
+            }
+            catch
+            {
+                // Regression cleanup is best-effort.
+            }
+        }
+    }
+
+    private static void ValidateGeneratedPresetDalashadeTechniqueSync(List<SceneTagRegressionFailure> failures)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "DalashadeTechniqueSyncRegression", Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(root);
+            var basePath = Path.Combine(root, "base.ini");
+            var generatedPath = Path.Combine(root, "generated.ini");
+            File.WriteAllLines(basePath, new[]
+            {
+                "Techniques=ThirdPartyBloom@qUINT_bloom.fx",
+                "TechniqueSorting=ThirdPartyBloom@qUINT_bloom.fx",
+                "[ThirdPartyBloom.fx]",
+                "BloomStrength=0.500000"
+            });
+
+            var writer = new PresetWriter();
+            var enableResult = writer.WriteGeneratedPreset(
+                new Configuration
+                {
+                    BasePresetPath = basePath,
+                    GeneratedPresetPath = generatedPath,
+                    EnableDalashadeCustomShaders = true,
+                    AutoInjectDalashadeCustomShaderSections = true,
+                    SyncDalashadeTechniqueActivation = true,
+                    EnableDalashadeSceneGIShaderVariables = true,
+                    EnableDalashadeSurfaceReflectionShaderVariables = true,
+                    WriteBackups = false,
+                    CompatibilityMode = PresetCompatibilityMode.AdaptiveBalanced
+                },
+                VisualProfile.Neutral,
+                SceneIntent.Neutral,
+                MaterialIntent.Neutral);
+            if (!enableResult.Success || !enableResult.CustomShaderInjection.TechniqueInjected)
+            {
+                failures.Add(new SceneTagRegressionFailure("Generated preset Dalashade technique sync", $"Expected Dalashade technique activation, got: {enableResult.Message}"));
+                return;
+            }
+
+            var enabledTechniques = ReadPresetEntries(generatedPath, "Techniques");
+            if (!enabledTechniques.Any(entry => entry.Contains("ThirdPartyBloom", StringComparison.OrdinalIgnoreCase)))
+            {
+                failures.Add(new SceneTagRegressionFailure("Generated preset Dalashade technique sync", "Third-party active technique was removed during Dalashade activation sync."));
+            }
+
+            var adaptive = Array.FindIndex(enabledTechniques, entry => entry.Contains("Dalashade_AdaptiveGrade", StringComparison.OrdinalIgnoreCase));
+            var sceneGi = Array.FindIndex(enabledTechniques, entry => entry.Contains("Dalashade_SceneGI", StringComparison.OrdinalIgnoreCase));
+            var weather = Array.FindIndex(enabledTechniques, entry => entry.Contains("Dalashade_WeatherAtmosphere", StringComparison.OrdinalIgnoreCase));
+            var bloom = Array.FindIndex(enabledTechniques, entry => entry.Contains("Dalashade_AtmosphereBloom", StringComparison.OrdinalIgnoreCase));
+            var reflection = Array.FindIndex(enabledTechniques, entry => entry.Contains("Dalashade_SurfaceReflection", StringComparison.OrdinalIgnoreCase));
+            var sharpen = Array.FindIndex(enabledTechniques, entry => entry.Contains("Dalashade_SmartSharpen", StringComparison.OrdinalIgnoreCase));
+            if (!(adaptive >= 0 && sceneGi > adaptive && weather > sceneGi && bloom > weather && reflection > bloom && sharpen > reflection))
+            {
+                failures.Add(new SceneTagRegressionFailure("Generated preset Dalashade technique sync", $"Expected Dalashade production technique order, got: {string.Join(",", enabledTechniques)}"));
+            }
+
+            var disableResult = writer.WriteGeneratedPreset(
+                new Configuration
+                {
+                    BasePresetPath = generatedPath,
+                    GeneratedPresetPath = Path.Combine(root, "disabled.ini"),
+                    EnableDalashadeCustomShaders = false,
+                    AutoInjectDalashadeCustomShaderSections = false,
+                    SyncDalashadeTechniqueActivation = true,
+                    WriteBackups = false,
+                    CompatibilityMode = PresetCompatibilityMode.AdaptiveBalanced
+                },
+                VisualProfile.Neutral,
+                SceneIntent.Neutral,
+                MaterialIntent.Neutral);
+            if (!disableResult.Success || !disableResult.CustomShaderInjection.TechniqueDeactivated)
+            {
+                failures.Add(new SceneTagRegressionFailure("Generated preset Dalashade technique sync", $"Expected Dalashade technique deactivation, got: {disableResult.Message}"));
+                return;
+            }
+
+            var disabledTechniques = ReadPresetEntries(Path.Combine(root, "disabled.ini"), "Techniques");
+            if (disabledTechniques.Any(entry => entry.Contains("Dalashade_", StringComparison.OrdinalIgnoreCase)))
+            {
+                failures.Add(new SceneTagRegressionFailure("Generated preset Dalashade technique sync", $"Expected active Dalashade techniques to be removed, got: {string.Join(",", disabledTechniques)}"));
+            }
+
+            if (!disabledTechniques.Any(entry => entry.Contains("ThirdPartyBloom", StringComparison.OrdinalIgnoreCase)))
+            {
+                failures.Add(new SceneTagRegressionFailure("Generated preset Dalashade technique sync", "Third-party active technique was removed during Dalashade deactivation sync."));
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            failures.Add(new SceneTagRegressionFailure("Generated preset Dalashade technique sync", $"Technique sync validation failed: {ex.Message}"));
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(root))
+                {
+                    Directory.Delete(root, true);
+                }
+            }
+            catch
+            {
+                // Regression cleanup is best-effort.
+            }
+        }
+    }
+
+    private static string[] ReadPresetEntries(string presetPath, string key)
+    {
+        var line = File.ReadAllLines(presetPath).FirstOrDefault(candidate => candidate.StartsWith($"{key}=", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
+        var separatorIndex = line.IndexOf('=');
+        if (separatorIndex < 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        return line[(separatorIndex + 1)..].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
     private static void ExpectOpinion(List<SceneTagRegressionFailure> failures, string caseName, ImageAnalysisResult image, string opinionKey, float minimum)

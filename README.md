@@ -28,8 +28,9 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 - It does not bundle iMMERSE, iMMERSE Pro, iMMERSE Ultimate, RTGI, or any paid shader files.
 - It does not modify your base preset in place.
 - It does not capture live frames yet.
-- It does not copy, install, or auto-enable first-party or third-party shader files.
-- It does not add techniques to ReShade's `Techniques=` list.
+- It does not copy or install first-party or third-party shader files.
+- By default, it does not add or remove techniques from ReShade's `Techniques=` list. If `Sync Dalashade technique activation` is enabled, it may add or remove Dalashade production techniques in the generated preset only, based on plugin shader options. Third-party techniques and debug shaders stay manual.
+- If load-order optimization is enabled, it may reorder `Techniques=` and `TechniqueSorting=` entries in the generated preset only.
 - It does not have a prepass, render target chain, temporal accumulation, native FFXIV G-buffer access, motion vectors, or true material IDs.
 - It does not magically know taste. It has opinions, but they are intentionally mild.
 - It does not automate gameplay, read or inject network packets, control combat input, track players, or identify mechanics.

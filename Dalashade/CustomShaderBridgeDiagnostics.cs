@@ -249,7 +249,9 @@ public static class CustomShaderBridgeDiagnosticsBuilder
 
         if (injection.Attempted)
         {
-            messages.Add("Technique activation remains manual: install the .fx file and enable the desired Dalashade shader in ReShade.");
+            messages.Add(configuration.SyncDalashadeTechniqueActivation
+                ? "Technique activation sync enabled: generated presets can add or remove Dalashade production techniques from Techniques= based on plugin shader options."
+                : "Technique activation remains manual: install the .fx file and enable the desired Dalashade shader in ReShade.");
         }
 
         if (sections.Count > 0 && variables.Count == 0 && !injection.VariablesInjected)

@@ -31,6 +31,24 @@ Use Unix timestamps so entries are easy to sort and compare across local time zo
 
 ## Entries
 
+### 1781722123 - Add optional Dalashade technique activation sync
+
+- Changed: Added `SyncDalashadeTechniqueActivation`, generated-preset-only management of Dalashade production techniques in `Techniques=`, phase-ordered insertion into `Techniques=`/`TechniqueSorting=`, deactivation when controlling plugin shader options are off, diagnostics wording, and regression harness coverage.
+- Why: Users need a quick way to add or remove the influence of first-party Dalashade `.fx` files without hand-editing every generated preset or disturbing third-party effects.
+- Related goals: Make first-party shader use easier, keep preset generation non-destructive, preserve debug shaders as manual tools, and make generated stacks safer by default.
+- Documentation: Updated `README.md`, `docs/PresetWriting.md`, `docs/Configuration.md`, `docs/GenerationPipeline.md`, `docs/ShaderAuthoring.md`, `docs/Shaders/ShaderSystemOverview.md`, `docs/CodebaseIndex.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `git diff --check` passed with line-ending warnings only; `dotnet test Dalashade.sln` completed after sandbox escalation.
+- Next steps: Surface the exact synced technique list in compatibility reports if users need more audit detail, and test against real ReShade presets with missing shader files to confirm user-facing failure messages are clear.
+
+### 1781718938 - Add optional generated preset load-order optimization
+
+- Changed: Added `OptimizeGeneratedPresetLoadOrder`, a settings toggle, and a generated-preset-only optimizer for `Techniques=` and `TechniqueSorting=`. The optimizer preserves the same entries, reports moved entry positions in the write message, and has a scrambled-stack regression harness check.
+- Why: Messy base preset stack order can make generated values less reliable even when no effects should be disabled.
+- Related goals: Improve generated preset safety, make compatibility cleanup optional, and keep base presets non-destructive.
+- Documentation: Updated `README.md`, `docs/PresetWriting.md`, `docs/Configuration.md`, `docs/GenerationPipeline.md`, `docs/CodebaseIndex.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors.
+- Next steps: Expose order changes in compatibility reports if users need more than the write message, and tune phase rules against real messy preset examples.
+
 ### 1781718347 - Make screenshot analysis opinion-driven and strength-scaled
 
 - Changed: Added named screenshot scene opinions, a `ScreenshotAnalysisStrength` slider, strength-scaled VisualProfile/SceneIntent/MaterialProfile/MaterialIntent influence, legible screenshot diagnostics in UI/reports/debug bundles, and synthetic image regression coverage in the existing harness.

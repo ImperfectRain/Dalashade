@@ -23,9 +23,10 @@ public sealed record PresetWriteResult(
     int ChangedVariables,
     IReadOnlyList<ChangedShaderVariable> Changes,
     IReadOnlyList<SanitizedShaderVariable> SanitizeActions,
-    CustomShaderInjectionResult CustomShaderInjection)
+    CustomShaderInjectionResult CustomShaderInjection,
+    TechniqueOrderOptimizationResult TechniqueOrderOptimization)
 {
-    public static PresetWriteResult Skipped(string message) => new(false, message, 0, Array.Empty<ChangedShaderVariable>(), Array.Empty<SanitizedShaderVariable>(), CustomShaderInjectionResult.Skipped);
+    public static PresetWriteResult Skipped(string message) => new(false, message, 0, Array.Empty<ChangedShaderVariable>(), Array.Empty<SanitizedShaderVariable>(), CustomShaderInjectionResult.Skipped, TechniqueOrderOptimizationResult.Skipped);
 }
 
 public sealed record CustomShaderInjectionResult(
@@ -34,12 +35,23 @@ public sealed record CustomShaderInjectionResult(
     bool SectionInjected,
     bool VariablesInjected,
     bool TechniqueInjected,
+    bool TechniqueDeactivated,
     string Message,
     IReadOnlyList<string> Sections,
     IReadOnlyList<string> Variables,
     IReadOnlyList<string> Techniques)
 {
-    public static CustomShaderInjectionResult Skipped { get; } = new(false, false, false, false, false, "Custom shader section injection not attempted.", Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>());
+    public static CustomShaderInjectionResult Skipped { get; } = new(false, false, false, false, false, false, "Custom shader section injection not attempted.", Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>());
+}
+
+public sealed record TechniqueOrderOptimizationResult(
+    bool Attempted,
+    bool Changed,
+    string Message,
+    IReadOnlyList<string> OptimizedKeys,
+    int MovedEntryCount)
+{
+    public static TechniqueOrderOptimizationResult Skipped { get; } = new(false, false, "Technique load-order optimization not attempted.", Array.Empty<string>(), 0);
 }
 
 public sealed record ShaderSupportItem(string Section, string Key, bool Controllable, string ReasonCategory, TechniqueActivationState ActivationState);
@@ -52,6 +64,7 @@ public sealed record ShaderSupportScan(bool Success, string Message, IReadOnlyLi
 public sealed class PresetWriter
 {
     private sealed record KnownCustomShaderDefinition(string Section, string Technique, string TechniqueEntry, IReadOnlyList<string> Variables);
+    private sealed record TechniqueSyncResult(bool Attempted, bool Activated, bool Deactivated, IReadOnlyList<string> ActiveTechniques, IReadOnlyList<string> KeysChanged);
 
     private static readonly IReadOnlyList<string> SmartSharpenMaterialIntentShaderVariables =
     [
@@ -631,6 +644,7 @@ public sealed class PresetWriter
 
             var writableLines = lines.ToArray();
             var sanitizeChanges = sanitizeActionPipeline.Apply(writableLines, configuration, activationMap, authorityPolicy);
+            var orderOptimization = OptimizeTechniqueOrder(configuration, writableLines);
 
             if (configuration.WriteBackups && File.Exists(generatedPresetPath))
             {
@@ -660,7 +674,12 @@ public sealed class PresetWriter
                 message += $" {injectionResult.Message}";
             }
 
-            return new PresetWriteResult(true, message, changes.Count, changes, sanitizeChanges, injectionResult);
+            if (orderOptimization.Attempted)
+            {
+                message += $" {orderOptimization.Message}";
+            }
+
+            return new PresetWriteResult(true, message, changes.Count, changes, sanitizeChanges, injectionResult, orderOptimization);
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -794,69 +813,73 @@ public sealed class PresetWriter
 
     private static CustomShaderInjectionResult InjectCustomShaderSections(Configuration configuration, List<string> lines)
     {
-        if (!configuration.EnableDalashadeCustomShaders || !configuration.AutoInjectDalashadeCustomShaderSections)
+        if ((!configuration.EnableDalashadeCustomShaders || !configuration.AutoInjectDalashadeCustomShaderSections)
+            && !configuration.SyncDalashadeTechniqueActivation)
         {
             return CustomShaderInjectionResult.Skipped;
         }
 
         var sectionInjected = false;
         var variablesInjected = false;
-        var techniqueInjected = false;
         var injectedSections = new List<string>();
         var injectedVariables = new List<string>();
-        var injectedTechniques = new List<string>();
 
-        foreach (var shader in KnownCustomShaders)
+        if (configuration.EnableDalashadeCustomShaders && configuration.AutoInjectDalashadeCustomShaderSections)
         {
-            var shaderVariables = VariablesForInjection(configuration, shader);
-            if (shaderVariables.Count == 0)
+            foreach (var shader in KnownCustomShaders)
             {
-                continue;
-            }
-
-            if (!ContainsSection(lines, shader.Section))
-            {
-                if (lines.Count > 0 && !string.IsNullOrWhiteSpace(lines[^1]))
+                var shaderVariables = VariablesForInjection(configuration, shader);
+                if (shaderVariables.Count == 0)
                 {
-                    lines.Add(string.Empty);
+                    continue;
                 }
 
-                lines.Add($"[{shader.Section}]");
-                foreach (var variable in shaderVariables)
+                if (!ContainsSection(lines, shader.Section))
                 {
-                    lines.Add($"{variable}={DefaultInjectedCustomShaderValue(shader.Section, variable)}");
-                    injectedVariables.Add($"{shader.Section}/{variable}");
-                }
-
-                sectionInjected = true;
-                variablesInjected = true;
-                injectedSections.Add(shader.Section);
-            }
-            else
-            {
-                var insertIndex = FindSectionEnd(lines, shader.Section);
-                var existingVariables = ReadSectionKeys(lines, shader.Section);
-                foreach (var variable in shaderVariables)
-                {
-                    if (existingVariables.Contains(variable))
+                    if (lines.Count > 0 && !string.IsNullOrWhiteSpace(lines[^1]))
                     {
-                        continue;
+                        lines.Add(string.Empty);
                     }
 
-                    lines.Insert(insertIndex, $"{variable}={DefaultInjectedCustomShaderValue(shader.Section, variable)}");
-                    insertIndex++;
-                    injectedVariables.Add($"{shader.Section}/{variable}");
+                    lines.Add($"[{shader.Section}]");
+                    foreach (var variable in shaderVariables)
+                    {
+                        lines.Add($"{variable}={DefaultInjectedCustomShaderValue(shader.Section, variable)}");
+                        injectedVariables.Add($"{shader.Section}/{variable}");
+                    }
+
+                    sectionInjected = true;
+                    variablesInjected = true;
+                    injectedSections.Add(shader.Section);
                 }
+                else
+                {
+                    var insertIndex = FindSectionEnd(lines, shader.Section);
+                    var existingVariables = ReadSectionKeys(lines, shader.Section);
+                    foreach (var variable in shaderVariables)
+                    {
+                        if (existingVariables.Contains(variable))
+                        {
+                            continue;
+                        }
 
-                variablesInjected = variablesInjected || injectedVariables.Count > 0;
+                        lines.Insert(insertIndex, $"{variable}={DefaultInjectedCustomShaderValue(shader.Section, variable)}");
+                        insertIndex++;
+                        injectedVariables.Add($"{shader.Section}/{variable}");
+                    }
+
+                    variablesInjected = variablesInjected || injectedVariables.Count > 0;
+                }
             }
-
-            // Section and variable injection intentionally does not activate techniques.
-            // Users still need to install the .fx file and enable wanted shaders in ReShade.
         }
 
-        var message = sectionInjected || variablesInjected || techniqueInjected
-            ? $"Custom shader injection: section={(sectionInjected ? "yes" : "no")}, variables={(variablesInjected ? "yes" : "no")}, technique={(techniqueInjected ? "yes" : "no")}, generated preset only=yes."
+        var techniqueSync = SyncDalashadeTechniqueActivation(configuration, lines);
+        var techniqueInjected = techniqueSync.Activated;
+        var techniqueDeactivated = techniqueSync.Deactivated;
+        var injectedTechniques = techniqueSync.ActiveTechniques;
+
+        var message = sectionInjected || variablesInjected || techniqueInjected || techniqueDeactivated
+            ? $"Custom shader injection: section={(sectionInjected ? "yes" : "no")}, variables={(variablesInjected ? "yes" : "no")}, technique={(techniqueInjected ? "yes" : "no")}, deactivated={(techniqueDeactivated ? "yes" : "no")}, generated preset only=yes."
             : "Custom shader injection: known generated preset sections and variables already present; generated preset only=yes.";
 
         return new CustomShaderInjectionResult(
@@ -865,6 +888,7 @@ public sealed class PresetWriter
             sectionInjected,
             variablesInjected,
             techniqueInjected,
+            techniqueDeactivated,
             message,
             injectedSections.ToArray(),
             injectedVariables.ToArray(),
@@ -1045,6 +1069,380 @@ public sealed class PresetWriter
             string.Equals(variable, $"{section}/{key}", StringComparison.OrdinalIgnoreCase));
     }
 
+    private static TechniqueSyncResult SyncDalashadeTechniqueActivation(Configuration configuration, List<string> lines)
+    {
+        if (!configuration.SyncDalashadeTechniqueActivation)
+        {
+            return new TechniqueSyncResult(false, false, false, Array.Empty<string>(), Array.Empty<string>());
+        }
+
+        var activeDefinitions = KnownCustomShaders
+            .Where(IsAutoActivatableDalashadeTechnique)
+            .Where(shader => ShouldActivateDalashadeTechnique(configuration, shader))
+            .ToArray();
+        var activeEntries = activeDefinitions
+            .Select(shader => ParseTechniqueOrderEntries(shader.TechniqueEntry).First())
+            .ToArray();
+        var changedKeys = new List<string>();
+        var activated = false;
+        var deactivated = false;
+
+        var techniquesLineIndex = FindPresetKeyLine(lines, "Techniques");
+        if (techniquesLineIndex >= 0)
+        {
+            var separatorIndex = lines[techniquesLineIndex].IndexOf('=');
+            var originalEntries = ParseTechniqueOrderEntries(lines[techniquesLineIndex][(separatorIndex + 1)..]);
+            var retainedEntries = originalEntries
+                .Where(entry => !IsAutoActivatableDalashadeTechnique(entry))
+                .ToList();
+            deactivated = originalEntries
+                .Where(IsAutoActivatableDalashadeTechnique)
+                .Any(entry => !activeEntries.Contains(entry, TechniqueOrderEntryComparer.Instance));
+            var beforeAddCount = retainedEntries.Count;
+            AddMissingTechniqueEntries(retainedEntries, activeEntries);
+            activated = retainedEntries.Count != beforeAddCount;
+            var sortedEntries = SortTechniqueEntries(retainedEntries);
+
+            if (!originalEntries.SequenceEqual(sortedEntries, TechniqueOrderEntryComparer.Instance))
+            {
+                lines[techniquesLineIndex] = $"{lines[techniquesLineIndex][..(separatorIndex + 1)]}{string.Join(",", sortedEntries.Select(entry => entry.Raw))}";
+                changedKeys.Add("Techniques");
+            }
+        }
+        else if (activeEntries.Length > 0)
+        {
+            var sortedEntries = SortTechniqueEntries(activeEntries);
+            lines.Insert(FindTopLevelInsertIndex(lines), $"Techniques={string.Join(",", sortedEntries.Select(entry => entry.Raw))}");
+            activated = true;
+            changedKeys.Add("Techniques");
+        }
+
+        if (activeEntries.Length > 0)
+        {
+            var sortingLineIndex = FindPresetKeyLine(lines, "TechniqueSorting");
+            if (sortingLineIndex >= 0)
+            {
+                var separatorIndex = lines[sortingLineIndex].IndexOf('=');
+                var originalEntries = ParseTechniqueOrderEntries(lines[sortingLineIndex][(separatorIndex + 1)..]).ToList();
+                var beforeAddCount = originalEntries.Count;
+                AddMissingTechniqueEntries(originalEntries, activeEntries);
+                var sortedEntries = SortTechniqueEntries(originalEntries);
+                if (originalEntries.Count != beforeAddCount
+                    || !ParseTechniqueOrderEntries(lines[sortingLineIndex][(separatorIndex + 1)..]).SequenceEqual(sortedEntries, TechniqueOrderEntryComparer.Instance))
+                {
+                    lines[sortingLineIndex] = $"{lines[sortingLineIndex][..(separatorIndex + 1)]}{string.Join(",", sortedEntries.Select(entry => entry.Raw))}";
+                    changedKeys.Add("TechniqueSorting");
+                }
+            }
+            else
+            {
+                var sortedEntries = SortTechniqueEntries(activeEntries);
+                lines.Insert(FindTopLevelInsertIndex(lines), $"TechniqueSorting={string.Join(",", sortedEntries.Select(entry => entry.Raw))}");
+                changedKeys.Add("TechniqueSorting");
+            }
+        }
+
+        return new TechniqueSyncResult(
+            true,
+            activated,
+            deactivated,
+            activeDefinitions.Select(shader => shader.TechniqueEntry).ToArray(),
+            changedKeys.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+    }
+
+    private static bool ShouldActivateDalashadeTechnique(Configuration configuration, KnownCustomShaderDefinition shader)
+    {
+        if (!configuration.EnableDalashadeCustomShaders || !configuration.AutoInjectDalashadeCustomShaderSections)
+        {
+            return false;
+        }
+
+        if (shader.Section.Contains("SceneGI", StringComparison.OrdinalIgnoreCase))
+        {
+            return configuration.EnableDalashadeSceneGIShaderVariables;
+        }
+
+        if (shader.Section.Contains("SurfaceReflection", StringComparison.OrdinalIgnoreCase))
+        {
+            return configuration.EnableDalashadeSurfaceReflectionShaderVariables;
+        }
+
+        return true;
+    }
+
+    private static bool IsAutoActivatableDalashadeTechnique(KnownCustomShaderDefinition shader)
+    {
+        return !shader.Section.Contains("MaterialDebug", StringComparison.OrdinalIgnoreCase)
+               && !shader.Section.Contains("NormalDebug", StringComparison.OrdinalIgnoreCase)
+               && !shader.Section.Contains("FrameDataDebug", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAutoActivatableDalashadeTechnique(TechniqueOrderEntry entry)
+    {
+        return KnownCustomShaders
+            .Where(IsAutoActivatableDalashadeTechnique)
+            .Any(shader =>
+                string.Equals(shader.Technique, entry.TechniqueName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(shader.Section, entry.ShaderFile, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(shader.TechniqueEntry, entry.DisplayName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void AddMissingTechniqueEntries(ICollection<TechniqueOrderEntry> entries, IEnumerable<TechniqueOrderEntry> additions)
+    {
+        foreach (var addition in additions)
+        {
+            if (entries.Contains(addition, TechniqueOrderEntryComparer.Instance))
+            {
+                continue;
+            }
+
+            entries.Add(addition);
+        }
+    }
+
+    private static IReadOnlyList<TechniqueOrderEntry> SortTechniqueEntries(IEnumerable<TechniqueOrderEntry> entries)
+    {
+        return entries
+            .Select((entry, index) => new TechniqueOrderSortEntry(entry, index, TechniqueOrderPhase(entry)))
+            .OrderBy(entry => entry.Phase)
+            .ThenBy(entry => entry.OriginalIndex)
+            .Select(entry => entry.Entry)
+            .ToArray();
+    }
+
+    private static int FindPresetKeyLine(IReadOnlyList<string> lines, string wantedKey)
+    {
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (TryReadPresetKey(lines[i], out var key, out _)
+                && string.Equals(key, wantedKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static int FindTopLevelInsertIndex(IReadOnlyList<string> lines)
+    {
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (TryReadSection(lines[i], out _))
+            {
+                return i;
+            }
+        }
+
+        return lines.Count;
+    }
+
+    private static TechniqueOrderOptimizationResult OptimizeTechniqueOrder(Configuration configuration, string[] lines)
+    {
+        if (!configuration.OptimizeGeneratedPresetLoadOrder)
+        {
+            return TechniqueOrderOptimizationResult.Skipped;
+        }
+
+        var optimizedKeys = new List<string>();
+        var movedEntries = 0;
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (!TryReadPresetKey(lines[i], out var key, out var separatorIndex)
+                || !IsTechniqueOrderKey(key))
+            {
+                continue;
+            }
+
+            var originalEntries = ParseTechniqueOrderEntries(lines[i][(separatorIndex + 1)..]);
+            if (originalEntries.Count <= 1)
+            {
+                continue;
+            }
+
+            var optimizedEntries = originalEntries
+                .Select((entry, index) => new TechniqueOrderSortEntry(entry, index, TechniqueOrderPhase(entry)))
+                .OrderBy(entry => entry.Phase)
+                .ThenBy(entry => entry.OriginalIndex)
+                .Select(entry => entry.Entry)
+                .ToArray();
+            if (originalEntries.SequenceEqual(optimizedEntries, TechniqueOrderEntryComparer.Instance))
+            {
+                continue;
+            }
+
+            movedEntries += CountMovedEntries(originalEntries, optimizedEntries);
+            lines[i] = $"{lines[i][..(separatorIndex + 1)]}{string.Join(",", optimizedEntries.Select(entry => entry.Raw))}";
+            optimizedKeys.Add(key);
+        }
+
+        if (optimizedKeys.Count == 0)
+        {
+            return new TechniqueOrderOptimizationResult(true, false, "Technique load-order optimization: already ordered or no sortable technique lists found.", Array.Empty<string>(), 0);
+        }
+
+        return new TechniqueOrderOptimizationResult(
+            true,
+            true,
+            $"Technique load-order optimization: reordered {movedEntries} entry position(s) across {string.Join("/", optimizedKeys)} without adding or disabling techniques.",
+            optimizedKeys.ToArray(),
+            movedEntries);
+    }
+
+    private static bool IsTechniqueOrderKey(string key)
+    {
+        return string.Equals(key, "Techniques", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(key, "TechniqueSorting", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyList<TechniqueOrderEntry> ParseTechniqueOrderEntries(string value)
+    {
+        return value
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(raw =>
+            {
+                var shaderSeparator = raw.LastIndexOf('@');
+                return shaderSeparator >= 0 && shaderSeparator < raw.Length - 1
+                    ? new TechniqueOrderEntry(raw, raw[..shaderSeparator].Trim(), raw[(shaderSeparator + 1)..].Trim())
+                    : new TechniqueOrderEntry(raw, Path.GetFileNameWithoutExtension(raw.Trim()), raw.Trim());
+            })
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.ShaderFile))
+            .ToArray();
+    }
+
+    private static int CountMovedEntries(IReadOnlyList<TechniqueOrderEntry> original, IReadOnlyList<TechniqueOrderEntry> optimized)
+    {
+        var count = 0;
+        for (var i = 0; i < Math.Min(original.Count, optimized.Count); i++)
+        {
+            if (!TechniqueOrderEntryComparer.Instance.Equals(original[i], optimized[i]))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static int TechniqueOrderPhase(TechniqueOrderEntry entry)
+    {
+        var text = $"{entry.TechniqueName} {entry.ShaderFile}".ToLowerInvariant();
+        if (ContainsAny(text, "dalashade_adaptivegrade"))
+        {
+            return 20;
+        }
+
+        if (ContainsAny(text, "dalashade_scenegi"))
+        {
+            return 32;
+        }
+
+        if (ContainsAny(text, "dalashade_weatheratmosphere"))
+        {
+            return 42;
+        }
+
+        if (ContainsAny(text, "dalashade_atmospherebloom"))
+        {
+            return 50;
+        }
+
+        if (ContainsAny(text, "dalashade_surfacereflection"))
+        {
+            return 56;
+        }
+
+        if (ContainsAny(text, "dalashade_smartsharpen"))
+        {
+            return 60;
+        }
+
+        if (ContainsAny(text, "dalashade_materialdebug", "dalashade_normaldebug", "dalashade_framedatadebug"))
+        {
+            return 95;
+        }
+
+        if (ContainsAny(text, "deband", "denoise"))
+        {
+            return 10;
+        }
+
+        if (ContainsAny(text, "tonemap", "hdr", "levels", "curves", "color", "colour", "grade", "lut", "prod80", "prod_80", "prod80_04", "prod80_03", "prod80_02", "prod80_01", "regrade", "filmicpass", "lightroom"))
+        {
+            return 20;
+        }
+
+        if (ContainsAny(text, "mxao", "ssao", "rtgi", "globalillumination", "gi.fx", "radiantgi", "quint_mxao", "martymods_mxao"))
+        {
+            return 30;
+        }
+
+        if (ContainsAny(text, "fog", "haze", "ambientlight", "diffusion", "magicbloom"))
+        {
+            return 42;
+        }
+
+        if (ContainsAny(text, "bloom", "glow"))
+        {
+            return 50;
+        }
+
+        if (ContainsAny(text, "reflection", "reflect", "glint", "specular"))
+        {
+            return 56;
+        }
+
+        if (ContainsAny(text, "sharpen", "sharp", "cas.fx", "luma", "clarity", "delc"))
+        {
+            return 60;
+        }
+
+        if (ContainsAny(text, "smaa", "fxaa", "taa", "antialias", "anti-alias"))
+        {
+            return 62;
+        }
+
+        if (ContainsAny(text, "dof", "depthoffield", "cinematicdof", "adof"))
+        {
+            return 70;
+        }
+
+        if (ContainsAny(text, "grain", "noise"))
+        {
+            return 80;
+        }
+
+        if (ContainsAny(text, "vignette", "border", "chromatic", "aberration", "prism", "letterbox"))
+        {
+            return 85;
+        }
+
+        if (ContainsAny(text, "debug", "displaydepth", "ui", "overlay"))
+        {
+            return 95;
+        }
+
+        return 40;
+    }
+
+    private static bool ContainsAny(string text, params string[] needles)
+    {
+        return needles.Any(needle => text.Contains(needle, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool TryReadPresetKey(string line, out string key, out int separatorIndex)
+    {
+        separatorIndex = line.IndexOf('=');
+        if (separatorIndex <= 0)
+        {
+            key = string.Empty;
+            return false;
+        }
+
+        key = line[..separatorIndex].Trim();
+        return !string.IsNullOrWhiteSpace(key);
+    }
+
     private static bool TryReadSection(string line, out string section)
     {
         var trimmed = line.Trim();
@@ -1056,6 +1454,33 @@ public sealed class PresetWriter
 
         section = string.Empty;
         return false;
+    }
+
+    private sealed record TechniqueOrderEntry(string Raw, string TechniqueName, string ShaderFile)
+    {
+        public string DisplayName => string.IsNullOrWhiteSpace(TechniqueName) ? ShaderFile : $"{TechniqueName}@{ShaderFile}";
+    }
+
+    private sealed record TechniqueOrderSortEntry(TechniqueOrderEntry Entry, int OriginalIndex, int Phase);
+
+    private sealed class TechniqueOrderEntryComparer : IEqualityComparer<TechniqueOrderEntry>
+    {
+        public static TechniqueOrderEntryComparer Instance { get; } = new();
+
+        public bool Equals(TechniqueOrderEntry? x, TechniqueOrderEntry? y)
+        {
+            if (x is null || y is null)
+            {
+                return x is null && y is null;
+            }
+
+            return string.Equals(x.DisplayName, y.DisplayName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public int GetHashCode(TechniqueOrderEntry obj)
+        {
+            return StringComparer.OrdinalIgnoreCase.GetHashCode(obj.DisplayName);
+        }
     }
 
     private static void ReplaceFile(string tempPath, string generatedPresetPath)

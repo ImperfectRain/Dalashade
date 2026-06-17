@@ -35,7 +35,37 @@ The generated preset should not overwrite the base preset.
 
 `PresetWriter` reads the base preset line by line and tracks the current INI section. For each `key=value` line, it asks `ShaderVariableMapper` whether that section/key can be changed.
 
-The writer changes only variable values. It does not reorder sections, disable techniques, edit texture names, or rewrite the whole preset structure.
+By default, the writer changes only variable values. It does not reorder sections, disable techniques, edit texture names, or rewrite the whole preset structure.
+
+## Optional Technique Load-Order Optimization
+
+`Configuration.OptimizeGeneratedPresetLoadOrder` is disabled by default.
+
+When enabled, `PresetWriter` may reorder the comma-separated entries in `Techniques=` and `TechniqueSorting=` in the generated preset only. It preserves the same entries, does not add techniques, does not remove techniques, and does not change the base preset.
+
+The optimizer uses broad stable phases so known effect families land in a safer order while unknown effects keep their relative order inside the neutral phase. Current first-party anchors include:
+
+| Phase | Examples |
+| --- | --- |
+| Earlier grade/scene foundation | `Dalashade_AdaptiveGrade` |
+| GI/ambient structure | `Dalashade_SceneGI`, MXAO/RTGI-style effects |
+| Weather/air and bloom | `Dalashade_WeatherAtmosphere`, `Dalashade_AtmosphereBloom`, bloom/glow effects |
+| Reflection/sheen | `Dalashade_SurfaceReflection`, reflection/glint/specular effects |
+| Detail finishing | sharpen, clarity, AA, DOF, grain, vignette, debug/overlay tools |
+
+This feature is a generated-preset cleanup pass, not a compatibility guarantee. If a shader has unusual ordering requirements, leave the toggle off or inspect the generated `Techniques=` line before using it.
+
+## Optional Dalashade Technique Activation Sync
+
+`SyncDalashadeTechniqueActivation` is separate from load-order optimization and is disabled by default.
+
+When enabled, `PresetWriter` manages only Dalashade production first-party techniques in the generated preset's `Techniques=` list:
+
+- Always eligible when custom shader variables and section injection are enabled: `Dalashade_AdaptiveGrade`, `Dalashade_WeatherAtmosphere`, `Dalashade_AtmosphereBloom`, and `Dalashade_SmartSharpen`.
+- Eligible only when their plugin variable-write options are enabled: `Dalashade_SceneGI` and `Dalashade_SurfaceReflection`.
+- Never auto-enabled: `Dalashade_MaterialDebug`, `Dalashade_NormalDebug`, and `Dalashade_FrameDataDebug`.
+
+The sync preserves third-party active techniques, adds missing eligible Dalashade production techniques, removes active Dalashade production techniques when their controlling plugin options are off, and writes the managed entries in the same phase order used by the load-order optimizer. It still does not copy `.fx` files or modify the base preset.
 
 ## Shader Activation State
 
@@ -106,5 +136,6 @@ Use changed variable output to verify whether a visual change was actually writt
 | No visible change | Check changed variable count, active preset in ReShade, and reload diagnostics. |
 | Too many changes | Check shader matching mode and compatibility mode. Avoid loose key matching for broad presets. |
 | Preset was overwritten | Verify generated path is not the same as base path. |
+| Stack still looks wrong | Disable load-order optimization and compare the generated `Techniques=` order against the base preset. |
 
 Do not fix generated output by broadly rewriting `PresetWriter` first. Most visual behavior belongs in `ShaderVariableMapper`, `VisualProfile`, compatibility policy, or master style code.
