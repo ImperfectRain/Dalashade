@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Dalashade.SceneAuthoring;
 
 namespace Dalashade;
 
@@ -75,7 +76,7 @@ public sealed class SceneIntentBuilder
     private float combatPressure;
     private float cinematicPermission;
 
-    public SceneIntent Build(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, Configuration configuration)
+    public SceneIntent Build(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, Configuration configuration, IReadOnlyList<SceneTagPreset>? tagRegistry = null)
     {
         Add("Base", nameof(SceneIntent.Atmosphere), 0.25f, "Baseline atmosphere preservation.");
         Add("Cutscene/GPose state", nameof(SceneIntent.CinematicPermission), tags.CinematicAllowed ? 0.45f : 0.10f, tags.CinematicAllowed ? "Cinematic treatment is allowed." : "Cinematic treatment is constrained.");
@@ -88,6 +89,7 @@ public sealed class SceneIntentBuilder
         AddScreenshotAnalysis(imageAnalysis, configuration);
         AddStyle(configuration.Style);
         AddPerformanceBudget(configuration.PerformanceBudget);
+        AddTagRegistry(tags, tagRegistry);
 
         _ = context;
         return new SceneIntent(
@@ -545,6 +547,35 @@ public sealed class SceneIntentBuilder
         Add("Performance budget", nameof(SceneIntent.Haze), -0.04f * amount, "Lower budgets reduce heavy haze pressure conservatively.");
     }
 
+    private void AddTagRegistry(SceneTags tags, IReadOnlyList<SceneTagPreset>? tagRegistry)
+    {
+        if (tagRegistry is null || tagRegistry.Count == 0)
+        {
+            return;
+        }
+
+        var active = BuildActiveRegistryTags(tags);
+        foreach (var preset in tagRegistry)
+        {
+            if (!PresetApplies(preset, active))
+            {
+                continue;
+            }
+
+            foreach (var tuning in preset.Tunings.Where(tuning =>
+                         tuning.Enabled
+                         && string.Equals(tuning.Target, SceneTagTuningTargets.SceneIntent, StringComparison.OrdinalIgnoreCase)
+                         && SceneAuthoringService.SceneIntentTuningChannels.Contains(tuning.Channel, StringComparer.OrdinalIgnoreCase)))
+            {
+                Add(
+                    $"Tag registry: {preset.Tag}",
+                    tuning.Channel,
+                    tuning.Amount,
+                    string.IsNullOrWhiteSpace(tuning.Reason) ? "User-editable tag registry tuning." : tuning.Reason);
+            }
+        }
+    }
+
     private void Add(string source, string intent, float amount, string reason)
     {
         if (MathF.Abs(amount) <= 0.0005f)
@@ -679,6 +710,68 @@ public sealed class SceneIntentBuilder
         return tags.IsCityLike
                || tags.BiomeKey is "coastal" or "tropical" or "highTech" or "imperial" or "ancient" or "fae" or "aetherial" or "cosmic" or "lunar" or "volcanic" or "fire"
                || tags.MoodTags.Any(tag => tag is "neon" or "urban" or "luminous" or "magical" or "aetherial" or "fire" or "warm");
+    }
+
+    private static bool PresetApplies(SceneTagPreset preset, IReadOnlyDictionary<string, HashSet<string>> active)
+    {
+        return preset.Categories.Any(category =>
+            active.TryGetValue(category, out var tags)
+            && tags.Contains(preset.Tag));
+    }
+
+    private static IReadOnlyDictionary<string, HashSet<string>> BuildActiveRegistryTags(SceneTags tags)
+    {
+        var active = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        void Add(string category, string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value == "unknown")
+            {
+                return;
+            }
+
+            if (!active.TryGetValue(category, out var values))
+            {
+                values = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                active[category] = values;
+            }
+
+            values.Add(value);
+        }
+
+        Add(SceneAuthoringService.AreaCategory, tags.AreaKey);
+        if (tags.IsCityLike) Add(SceneAuthoringService.AreaCategory, "city");
+        if (tags.IsFieldLike) Add(SceneAuthoringService.AreaCategory, "field");
+        if (tags.IsInteriorLike) Add(SceneAuthoringService.AreaCategory, "interior");
+        if (tags.IsDungeonLike) Add(SceneAuthoringService.AreaCategory, "dungeon");
+        if (tags.IsRaidLike) Add(SceneAuthoringService.AreaCategory, "raid");
+
+        Add(SceneAuthoringService.BiomeCategory, tags.BiomeKey);
+
+        Add(SceneAuthoringService.WeatherCategory, tags.WeatherKey);
+        if (tags.IsRain) Add(SceneAuthoringService.WeatherCategory, "rain");
+        if (tags.IsFog) Add(SceneAuthoringService.WeatherCategory, "fog");
+        if (tags.IsCloudy) Add(SceneAuthoringService.WeatherCategory, "clouds");
+        if (tags.IsOvercast) Add(SceneAuthoringService.WeatherCategory, "overcast");
+        if (tags.IsGloom) Add(SceneAuthoringService.WeatherCategory, "gloom");
+        if (tags.IsSnow) Add(SceneAuthoringService.WeatherCategory, "snow");
+        if (tags.IsStorm) Add(SceneAuthoringService.WeatherCategory, "storm");
+        if (tags.IsDustStorm) Add(SceneAuthoringService.WeatherCategory, "dust");
+        if (tags.IsHeatWave) Add(SceneAuthoringService.WeatherCategory, "heat");
+        if (tags.IsClear) Add(SceneAuthoringService.WeatherCategory, "clear");
+
+        if (tags.IsNight) Add(SceneAuthoringService.TimeCategory, "night");
+        if (tags.IsDay) Add(SceneAuthoringService.TimeCategory, "day");
+        if (tags.IsDawnOrDusk) Add(SceneAuthoringService.TimeCategory, "dawnDusk");
+
+        foreach (var mood in tags.MoodTags)
+        {
+            Add(SceneAuthoringService.MoodCategory, mood);
+            Add(SceneAuthoringService.SecondaryCategory, mood);
+            Add(SceneAuthoringService.MaterialCategory, mood);
+            Add(SceneAuthoringService.ArtDirectionCategory, mood);
+        }
+
+        return active;
     }
 }
 

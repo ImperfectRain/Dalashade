@@ -280,7 +280,7 @@ public sealed class CompatibilityReportExporter
         AppendColorFamilyComparison(builder, currentImage, masterStyle, profile);
         AppendMappingValidation(builder, configuration, analysis, shaderSupport, effectiveBasePresetPath);
         AppendCustomShaderDiagnostics(builder, configuration, analysis, shaderSupport, writeResult, tagStackDiagnostics, currentImage);
-        AppendMaterialParityAudit(builder);
+        AppendMaterialParityAudit(builder, configuration);
         AppendShaderSupport(builder, shaderSupport);
         AppendChangedVariables(builder, writeResult);
         AppendSanitizeActions(builder, writeResult);
@@ -382,11 +382,11 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine();
     }
 
-    private static void AppendMaterialParityAudit(StringBuilder builder)
+    private static void AppendMaterialParityAudit(StringBuilder builder, Configuration configuration)
     {
         var sourceByShader = MaterialParityShaders.ToDictionary(
             shader => shader.FileName,
-            shader => ReadShaderSource(shader.FileName),
+            shader => ReadShaderSource(configuration, shader.FileName),
             StringComparer.OrdinalIgnoreCase);
 
         builder.AppendLine("## Material Parity Audit");
@@ -512,7 +512,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Night light strength {writeLabel}: {Math.Clamp(configuration.DalashadeSceneGINightLightStrength, 0f, 1f):0.###}");
         builder.AppendLine($"- Material influence {writeLabel}: {Math.Clamp(configuration.DalashadeSceneGIMaterialInfluence, 0f, 1f):0.###}");
         var sceneGIDebugWriteLabel = configuration.EnableDalashadeSceneGIShaderVariables ? "written" : "configured";
-        builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 12)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
+        builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 14)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
         builder.AppendLine($"- SceneGI debug output mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugOutputMode, 0, 4)} ({FormatSceneGIDebugOutputMode(configuration.DalashadeSceneGIDebugOutputMode)}).");
         builder.AppendLine($"- SceneGI debug opacity {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugOpacity, 0f, 1f):0.###}.");
         builder.AppendLine($"- SceneGI debug boost {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f):0.###}. Debug boost affects diagnostic masks only, not normal GI output.");
@@ -1782,7 +1782,7 @@ public sealed class CompatibilityReportExporter
 
     private static string FormatSceneGIDebugMode(int mode)
     {
-        return ClampInt(mode, 0, 12) switch
+        return ClampInt(mode, 0, 14) switch
         {
             0 => "Off / normal output",
             1 => "AO only",
@@ -1797,6 +1797,8 @@ public sealed class CompatibilityReportExporter
             10 => "Bounce receiver mask",
             11 => "Adaptive limits / safety clamp",
             12 => "Layered AO breakdown",
+            13 => "Clamp pressure",
+            14 => "SSGI diffuse gather",
             _ => "Unknown"
         };
     }

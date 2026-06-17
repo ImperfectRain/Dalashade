@@ -29,6 +29,43 @@ public sealed class SceneAuthoringService
         ArtDirectionCategory
     ];
 
+    public static readonly IReadOnlyList<string> SceneIntentTuningChannels =
+    [
+        nameof(SceneIntent.Readability),
+        nameof(SceneIntent.Atmosphere),
+        nameof(SceneIntent.HighlightProtection),
+        nameof(SceneIntent.ShadowProtection),
+        nameof(SceneIntent.Haze),
+        nameof(SceneIntent.Wetness),
+        nameof(SceneIntent.Cold),
+        nameof(SceneIntent.Heat),
+        nameof(SceneIntent.MagicGlow),
+        nameof(SceneIntent.NeonGlow),
+        nameof(SceneIntent.FoliageDensity),
+        nameof(SceneIntent.IndustrialHardness),
+        nameof(SceneIntent.CosmicMood),
+        nameof(SceneIntent.Night),
+        nameof(SceneIntent.Moonlight),
+        nameof(SceneIntent.ArtificialLight),
+        nameof(SceneIntent.AmbientDarkness),
+        nameof(SceneIntent.NightAtmosphere),
+        nameof(SceneIntent.Daylight),
+        nameof(SceneIntent.Sunlight),
+        nameof(SceneIntent.OpenSkyLight),
+        nameof(SceneIntent.SurfaceHeat),
+        nameof(SceneIntent.DayAtmosphere),
+        nameof(SceneIntent.DayReflection),
+        nameof(SceneIntent.DayHighlightPressure),
+        nameof(SceneIntent.CombatPressure),
+        nameof(SceneIntent.CinematicPermission)
+    ];
+
+    public static readonly IReadOnlyList<string> TuningTargets =
+    [
+        SceneTagTuningTargets.SceneIntent,
+        SceneTagTuningTargets.MaterialIntent
+    ];
+
     public static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> KnownTags = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
     {
         [AreaCategory] = ["city", "field", "interior", "dungeon", "raid"],
@@ -57,6 +94,8 @@ public sealed class SceneAuthoringService
     public string TagPresetFilePath { get; private set; } = string.Empty;
 
     public string LastImportExportMessage { get; private set; } = "No scene authoring import/export action has been run yet.";
+
+    public string RegistryFingerprint => BuildRegistryFingerprint();
 
     public void Load(string rootDirectory)
     {
@@ -320,6 +359,15 @@ public sealed class SceneAuthoringService
             && string.Equals(preset.Tag, normalizedTag, StringComparison.OrdinalIgnoreCase));
     }
 
+    public IReadOnlyList<SceneTagPreset> AllTagPresets() => tagPresets.Presets.ToArray();
+
+    public IReadOnlyList<string> TuningChannelsForTarget(string target)
+    {
+        return string.Equals(target, SceneTagTuningTargets.MaterialIntent, StringComparison.OrdinalIgnoreCase)
+            ? MaterialIntent.ChannelNames
+            : SceneIntentTuningChannels;
+    }
+
     public void AddCustomTagPreset(string category, string tag)
     {
         var normalizedCategory = NormalizeCategory(category);
@@ -365,6 +413,49 @@ public sealed class SceneAuthoringService
 
         preset.DisplayName = string.IsNullOrWhiteSpace(displayName) ? preset.Tag : displayName.Trim();
         preset.Description = description.Trim();
+        SaveTagPresets();
+    }
+
+    public void AddTagTuning(string category, string tag)
+    {
+        var preset = FindPreset(category, tag);
+        if (preset is null)
+        {
+            return;
+        }
+
+        preset.Tunings.Add(new SceneTagTuning
+        {
+            Target = SceneTagTuningTargets.SceneIntent,
+            Channel = nameof(SceneIntent.Atmosphere),
+            Amount = 0.05f,
+            Reason = "User-authored tag registry tuning."
+        });
+        preset.Tunings = preset.Tunings.Select(NormalizeTuning).ToList();
+        SaveTagPresets();
+    }
+
+    public void UpdateTagTuning(string category, string tag, int index, SceneTagTuning tuning)
+    {
+        var preset = FindPreset(category, tag);
+        if (preset is null || index < 0 || index >= preset.Tunings.Count)
+        {
+            return;
+        }
+
+        preset.Tunings[index] = NormalizeTuning(tuning);
+        SaveTagPresets();
+    }
+
+    public void RemoveTagTuning(string category, string tag, int index)
+    {
+        var preset = FindPreset(category, tag);
+        if (preset is null || index < 0 || index >= preset.Tunings.Count)
+        {
+            return;
+        }
+
+        preset.Tunings.RemoveAt(index);
         SaveTagPresets();
     }
 
@@ -414,7 +505,10 @@ public sealed class SceneAuthoringService
         }
 
         tagPresets = JsonSerializer.Deserialize<SceneTagPresetSet>(File.ReadAllText(source), JsonOptions) ?? CreateDefaultTagPresetSet();
+        var shouldBackfillTunings = tagPresets.Version < 2;
         NormalizeTagPresetSet();
+        MergeMissingDefaultTagPresets(shouldBackfillTunings);
+        tagPresets.Version = 2;
         SaveTagPresets();
         LastImportExportMessage = $"Tag presets imported from {source}";
     }
@@ -436,8 +530,10 @@ public sealed class SceneAuthoringService
         }
 
         tagPresets = JsonSerializer.Deserialize<SceneTagPresetSet>(File.ReadAllText(TagPresetFilePath), JsonOptions) ?? CreateDefaultTagPresetSet();
+        var shouldBackfillTunings = tagPresets.Version < 2;
         NormalizeTagPresetSet();
-        MergeMissingDefaultTagPresets();
+        MergeMissingDefaultTagPresets(shouldBackfillTunings);
+        tagPresets.Version = 2;
         SaveTagPresets();
     }
 
@@ -454,6 +550,7 @@ public sealed class SceneAuthoringService
 
     private void NormalizeTagPresetSet()
     {
+        tagPresets.Version = tagPresets.Version <= 0 ? 1 : tagPresets.Version;
         tagPresets.Presets = tagPresets.Presets
             .Where(preset => !string.IsNullOrWhiteSpace(preset.Tag))
             .Select(NormalizePreset)
@@ -463,16 +560,20 @@ public sealed class SceneAuthoringService
             .ToList();
     }
 
-    private void MergeMissingDefaultTagPresets()
+    private void MergeMissingDefaultTagPresets(bool backfillTunings = false)
     {
         foreach (var defaultPreset in CreateDefaultTagPresetSet().Presets)
         {
-            var exists = tagPresets.Presets.Any(preset =>
+            var existing = tagPresets.Presets.FirstOrDefault(preset =>
                 string.Equals(preset.Tag, defaultPreset.Tag, StringComparison.OrdinalIgnoreCase)
                 && preset.Categories.Any(category => defaultPreset.Categories.Contains(category, StringComparer.OrdinalIgnoreCase)));
-            if (!exists)
+            if (existing is null)
             {
                 tagPresets.Presets.Add(defaultPreset);
+            }
+            else if (backfillTunings && existing.Tunings.Count == 0)
+            {
+                existing.Tunings = defaultPreset.Tunings;
             }
         }
 
@@ -496,7 +597,30 @@ public sealed class SceneAuthoringService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(effect => effect, StringComparer.OrdinalIgnoreCase)
             .ToList();
+        preset.Tunings = (preset.Tunings ?? [])
+            .Select(NormalizeTuning)
+            .Where(tuning => !string.IsNullOrWhiteSpace(tuning.Channel))
+            .ToList();
         return preset;
+    }
+
+    private static SceneTagTuning NormalizeTuning(SceneTagTuning tuning)
+    {
+        var target = TuningTargets.FirstOrDefault(candidate => string.Equals(candidate, tuning.Target, StringComparison.OrdinalIgnoreCase))
+                     ?? SceneTagTuningTargets.SceneIntent;
+        var channelList = string.Equals(target, SceneTagTuningTargets.MaterialIntent, StringComparison.OrdinalIgnoreCase)
+            ? MaterialIntent.ChannelNames
+            : SceneIntentTuningChannels;
+        var channel = channelList.FirstOrDefault(candidate => string.Equals(candidate, tuning.Channel, StringComparison.OrdinalIgnoreCase))
+                      ?? channelList.First();
+        return new SceneTagTuning
+        {
+            Enabled = tuning.Enabled,
+            Target = target,
+            Channel = channel,
+            Amount = Math.Clamp(tuning.Amount, -1f, 1f),
+            Reason = string.IsNullOrWhiteSpace(tuning.Reason) ? "Tag registry tuning." : tuning.Reason.Trim()
+        };
     }
 
     private static SceneTagPresetSet CreateDefaultTagPresetSet()
@@ -513,6 +637,7 @@ public sealed class SceneAuthoringService
                     Description = DefaultDescription(category, tag),
                     Categories = [category],
                     Effects = DefaultEffects(category, tag).ToList(),
+                    Tunings = DefaultTunings(category, tag).ToList(),
                     IsBuiltIn = true
                 });
             }
@@ -588,9 +713,229 @@ public sealed class SceneAuthoringService
         }
     }
 
+    private static IEnumerable<SceneTagTuning> DefaultTunings(string category, string tag)
+    {
+        SceneTagTuning Scene(string channel, float amount, string reason) => new()
+        {
+            Target = SceneTagTuningTargets.SceneIntent,
+            Channel = channel,
+            Amount = amount,
+            Reason = reason
+        };
+
+        SceneTagTuning Material(string channel, float amount, string reason) => new()
+        {
+            Target = SceneTagTuningTargets.MaterialIntent,
+            Channel = channel,
+            Amount = amount,
+            Reason = reason
+        };
+
+        if (category == BiomeCategory)
+        {
+            foreach (var tuning in tag switch
+            {
+                "coastal" or "tropical" =>
+                [
+                    Scene(nameof(SceneIntent.Wetness), 0.08f, "Coastal/tropical tags support wet and specular scene response."),
+                    Scene(nameof(SceneIntent.DayReflection), 0.10f, "Coastal/tropical tags support valid daylight reflection lanes."),
+                    Scene(nameof(SceneIntent.DayHighlightPressure), 0.06f, "Coastal/tropical tags protect water, sand, and white surfaces."),
+                    Material(MaterialIntent.WaterSpecularChannel, 0.14f, "Coastal/tropical tags raise water/specular material plausibility."),
+                    Material(MaterialIntent.SandDustChannel, 0.06f, "Beach/coastal tags can imply sand without desert heat.")
+                ],
+                "forest" or "jungle" or "swamp" =>
+                [
+                    Scene(nameof(SceneIntent.FoliageDensity), 0.14f, "Forest/jungle/swamp tags support foliage-aware shader lanes."),
+                    Scene(nameof(SceneIntent.Atmosphere), 0.05f, "Dense vegetation can preserve local atmosphere."),
+                    Material(MaterialIntent.FoliageChannel, 0.16f, "Forest/jungle/swamp tags raise foliage material plausibility.")
+                ],
+                "desert" or "wasteland" =>
+                [
+                    Scene(nameof(SceneIntent.Heat), 0.12f, "Dry biomes support heat identity."),
+                    Scene(nameof(SceneIntent.SurfaceHeat), 0.12f, "Dry biomes support sunlit hot-surface lanes."),
+                    Scene(nameof(SceneIntent.DayHighlightPressure), 0.08f, "Sand and dry sky need highlight restraint."),
+                    Material(MaterialIntent.SandDustChannel, 0.18f, "Dry biomes raise sand/dust material plausibility.")
+                ],
+                "snow" or "alpine" =>
+                [
+                    Scene(nameof(SceneIntent.Cold), 0.14f, "Snow/alpine tags support cold identity."),
+                    Scene(nameof(SceneIntent.HighlightProtection), 0.10f, "Snow/alpine tags protect white highlights."),
+                    Material(MaterialIntent.SnowIceChannel, 0.18f, "Snow/alpine tags raise snow/ice material plausibility.")
+                ],
+                "highTech" =>
+                [
+                    Scene(nameof(SceneIntent.NeonGlow), 0.10f, "High-tech tags support neon/glass response."),
+                    Scene(nameof(SceneIntent.IndustrialHardness), 0.08f, "High-tech tags support constructed hard-surface identity."),
+                    Material(MaterialIntent.NeonGlassChannel, 0.16f, "High-tech tags raise neon/glass material plausibility."),
+                    Material(MaterialIntent.MetalIndustrialChannel, 0.10f, "High-tech tags raise metal/industrial material plausibility.")
+                ],
+                "imperial" =>
+                [
+                    Scene(nameof(SceneIntent.IndustrialHardness), 0.12f, "Imperial tags support hard constructed structure."),
+                    Material(MaterialIntent.MetalIndustrialChannel, 0.18f, "Imperial tags raise metal/industrial material plausibility.")
+                ],
+                "aetherial" or "fae" or "lightFlooded" or "lunar" or "cosmic" =>
+                [
+                    Scene(nameof(SceneIntent.MagicGlow), 0.12f, "Aetherial/fae/lunar/cosmic tags support magical material response."),
+                    Scene(nameof(SceneIntent.CosmicMood), tag is "lunar" or "cosmic" ? 0.12f : 0.04f, "Otherworldly tags support cosmic scene identity."),
+                    Material(MaterialIntent.CrystalAetherChannel, 0.18f, "Otherworldly tags raise crystal/aether material plausibility.")
+                ],
+                "ancient" or "cave" =>
+                [
+                    Scene(nameof(SceneIntent.IndustrialHardness), 0.06f, "Ancient/cave tags support structured hard surfaces."),
+                    Material(MaterialIntent.StoneRuinsChannel, 0.16f, "Ancient/cave tags raise stone/ruin material plausibility.")
+                ],
+                "volcanic" or "fire" =>
+                [
+                    Scene(nameof(SceneIntent.Heat), 0.16f, "Volcanic/fire tags support heat identity."),
+                    Scene(nameof(SceneIntent.SurfaceHeat), 0.12f, "Volcanic/fire tags support hot-surface response."),
+                    Material(MaterialIntent.FireLavaHeatChannel, 0.18f, "Volcanic/fire tags raise fire/lava/heat material plausibility.")
+                ],
+                _ => Array.Empty<SceneTagTuning>()
+            })
+            {
+                yield return tuning;
+            }
+        }
+
+        if (category == WeatherCategory)
+        {
+            foreach (var tuning in tag switch
+            {
+                "rain" or "storm" =>
+                [
+                    Scene(nameof(SceneIntent.Wetness), 0.12f, "Rain/storm tags support wet-surface response."),
+                    Scene(nameof(SceneIntent.Haze), 0.04f, "Rain/storm tags support mild atmospheric diffusion."),
+                    Material(MaterialIntent.WaterSpecularChannel, 0.08f, "Rain/storm tags raise wet/specular material plausibility.")
+                ],
+                "fog" or "clouds" or "overcast" =>
+                [
+                    Scene(nameof(SceneIntent.Haze), 0.10f, "Fog/cloud/overcast tags support atmospheric veil."),
+                    Scene(nameof(SceneIntent.HighlightProtection), 0.06f, "Cloud/fog tags protect bright atmospheric regions."),
+                    Material(MaterialIntent.SkyCloudFogChannel, 0.12f, "Fog/cloud/overcast tags raise sky/cloud/fog material plausibility.")
+                ],
+                "snow" =>
+                [
+                    Scene(nameof(SceneIntent.Cold), 0.12f, "Snow weather supports cold identity."),
+                    Scene(nameof(SceneIntent.HighlightProtection), 0.10f, "Snow weather protects white highlights."),
+                    Material(MaterialIntent.SnowIceChannel, 0.16f, "Snow weather raises snow/ice material plausibility.")
+                ],
+                "dust" or "heat" =>
+                [
+                    Scene(nameof(SceneIntent.Heat), 0.10f, "Dust/heat weather supports dry heat identity."),
+                    Scene(nameof(SceneIntent.Haze), 0.08f, "Dust/heat weather supports distance air."),
+                    Material(MaterialIntent.SandDustChannel, 0.12f, "Dust/heat weather raises sand/dust material plausibility.")
+                ],
+                "gloom" =>
+                [
+                    Scene(nameof(SceneIntent.AmbientDarkness), 0.08f, "Gloom supports darker ambient hierarchy."),
+                    Scene(nameof(SceneIntent.ShadowProtection), 0.06f, "Gloom gets restrained dark-detail protection.")
+                ],
+                _ => Array.Empty<SceneTagTuning>()
+            })
+            {
+                yield return tuning;
+            }
+        }
+
+        if (category == TimeCategory)
+        {
+            foreach (var tuning in tag switch
+            {
+                "night" =>
+                [
+                    Scene(nameof(SceneIntent.Night), 0.18f, "Night tag supports night context."),
+                    Scene(nameof(SceneIntent.AmbientDarkness), 0.08f, "Night tag supports darker ambient hierarchy."),
+                    Scene(nameof(SceneIntent.NightAtmosphere), 0.05f, "Night tag supports night air lanes.")
+                ],
+                "day" =>
+                [
+                    Scene(nameof(SceneIntent.Daylight), 0.18f, "Day tag supports day context."),
+                    Scene(nameof(SceneIntent.OpenSkyLight), 0.06f, "Day tag supports open sky light when receivers are valid.")
+                ],
+                "dawnDusk" =>
+                [
+                    Scene(nameof(SceneIntent.DayAtmosphere), 0.08f, "Dawn/dusk tag supports transition air."),
+                    Scene(nameof(SceneIntent.HighlightProtection), 0.04f, "Dawn/dusk tag protects low-sun highlights.")
+                ],
+                _ => Array.Empty<SceneTagTuning>()
+            })
+            {
+                yield return tuning;
+            }
+        }
+
+        if (category == MaterialCategory)
+        {
+            foreach (var tuning in tag switch
+            {
+                "water" or "specular" or "wet" =>
+                [
+                    Scene(nameof(SceneIntent.Wetness), 0.08f, "Water/specular/wet tags support wet response."),
+                    Material(MaterialIntent.WaterSpecularChannel, 0.16f, "Water/specular/wet tags raise water/specular material plausibility.")
+                ],
+                "foliage" =>
+                [
+                    Scene(nameof(SceneIntent.FoliageDensity), 0.10f, "Foliage tag supports foliage-aware lanes."),
+                    Material(MaterialIntent.FoliageChannel, 0.16f, "Foliage tag raises foliage material plausibility.")
+                ],
+                "dry" or "dust" =>
+                [
+                    Scene(nameof(SceneIntent.Heat), 0.06f, "Dry/dust tags support heat identity."),
+                    Material(MaterialIntent.SandDustChannel, 0.14f, "Dry/dust tags raise sand/dust material plausibility.")
+                ],
+                "snow" or "ice" or "cold" =>
+                [
+                    Scene(nameof(SceneIntent.Cold), 0.08f, "Snow/ice/cold tags support cold identity."),
+                    Material(MaterialIntent.SnowIceChannel, 0.16f, "Snow/ice/cold tags raise snow/ice material plausibility.")
+                ],
+                "metallic" or "steel" =>
+                [
+                    Scene(nameof(SceneIntent.IndustrialHardness), 0.08f, "Metal/steel tags support hard-surface lanes."),
+                    Material(MaterialIntent.MetalIndustrialChannel, 0.16f, "Metal/steel tags raise metal/industrial material plausibility.")
+                ],
+                "stone" =>
+                [
+                    Material(MaterialIntent.StoneRuinsChannel, 0.16f, "Stone tag raises stone/ruin material plausibility.")
+                ],
+                "crystal" =>
+                [
+                    Scene(nameof(SceneIntent.MagicGlow), 0.08f, "Crystal tag supports magical material response."),
+                    Material(MaterialIntent.CrystalAetherChannel, 0.16f, "Crystal tag raises crystal/aether material plausibility.")
+                ],
+                "fire" or "heat" =>
+                [
+                    Scene(nameof(SceneIntent.Heat), 0.10f, "Fire/heat tags support heat identity."),
+                    Material(MaterialIntent.FireLavaHeatChannel, 0.16f, "Fire/heat tags raise fire/lava/heat material plausibility.")
+                ],
+                _ => Array.Empty<SceneTagTuning>()
+            })
+            {
+                yield return tuning;
+            }
+        }
+    }
+
     private string SceneOverridesExportPath() => Path.Combine(Path.GetDirectoryName(OverrideFilePath) ?? ResolveRoot(string.Empty), "Exports", "scene-overrides-export.json");
 
     private string TagPresetsExportPath() => Path.Combine(Path.GetDirectoryName(TagPresetFilePath) ?? ResolveRoot(string.Empty), "Exports", "tag-presets-export.json");
+
+    private string BuildRegistryFingerprint()
+    {
+        return string.Join(
+            "|",
+            tagPresets.Presets
+                .OrderBy(preset => string.Join(",", preset.Categories), StringComparer.OrdinalIgnoreCase)
+                .ThenBy(preset => preset.Tag, StringComparer.OrdinalIgnoreCase)
+                .Select(preset => string.Join(
+                    ":",
+                    string.Join(",", preset.Categories.OrderBy(category => category, StringComparer.OrdinalIgnoreCase)),
+                    preset.Tag,
+                    string.Join(
+                        ",",
+                        preset.Tunings.Select(tuning => $"{tuning.Enabled}:{tuning.Target}:{tuning.Channel}:{tuning.Amount:0.###}:{tuning.Reason}")
+                            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)))));
+    }
 
     private SceneTagOverride? FindOverride(GameContext context)
     {

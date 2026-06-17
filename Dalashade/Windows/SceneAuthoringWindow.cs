@@ -55,7 +55,7 @@ public sealed class SceneAuthoringWindow : Window, IDisposable
             ImGui.EndTabItem();
         }
 
-        if (ImGui.BeginTabItem("Tag Presets"))
+        if (ImGui.BeginTabItem("Tag Registry"))
         {
             DrawTagPresetsEditor();
             ImGui.EndTabItem();
@@ -76,8 +76,8 @@ public sealed class SceneAuthoringWindow : Window, IDisposable
         }
 
         ImGui.TextWrapped(enabled
-            ? "Overrides are applied between automatic scene detection and visual profile generation."
-            : "Overrides are inactive. Dalashade is using the automatic scene/tag classifier.");
+            ? "Overrides and tag registry tunings are applied between automatic scene detection and visual profile generation."
+            : "Overrides and tag registry tunings are inactive. Dalashade is using the automatic scene/tag classifier.");
     }
 
     private void DrawCurrentScene()
@@ -356,12 +356,13 @@ public sealed class SceneAuthoringWindow : Window, IDisposable
 
     private void DrawTagPresetsEditor()
     {
-        ImGui.TextWrapped("Tag presets control authoring metadata: which tags appear in the editor, how they are described, and what systems they are known to influence. Built-in formula behavior is still code-owned.");
+        ImGui.TextWrapped("Tag registry presets define what active tags contribute to SceneIntent and MaterialIntent. They apply only while scene authoring is enabled, and edits stay in the plugin config folder.");
         DrawImportExportControls();
         ImGui.Separator();
 
         var categories = SceneAuthoringService.EditableCategories.ToArray();
         selectedPresetCategoryIndex = Math.Clamp(selectedPresetCategoryIndex, 0, categories.Length - 1);
+        ImGui.SetNextItemWidth(MathF.Min(520f, ImGui.GetContentRegionAvail().X * 0.70f));
         if (ImGui.Combo("Category###SceneAuthoringPresetCategory", ref selectedPresetCategoryIndex, string.Join('\0', categories) + '\0'))
         {
             selectedPresetTagIndex = 0;
@@ -377,6 +378,7 @@ public sealed class SceneAuthoringWindow : Window, IDisposable
         {
             selectedPresetTagIndex = Math.Clamp(selectedPresetTagIndex, 0, presets.Count - 1);
             var presetLabels = presets.Select(preset => string.IsNullOrWhiteSpace(preset.DisplayName) ? preset.Tag : $"{preset.DisplayName} ({preset.Tag})").ToArray();
+            ImGui.SetNextItemWidth(MathF.Min(520f, ImGui.GetContentRegionAvail().X * 0.70f));
             ImGui.Combo("Tag preset###SceneAuthoringPresetTag", ref selectedPresetTagIndex, string.Join('\0', presetLabels) + '\0');
             DrawPresetEditor(category, presets[selectedPresetTagIndex]);
         }
@@ -387,36 +389,36 @@ public sealed class SceneAuthoringWindow : Window, IDisposable
 
     private void DrawImportExportControls()
     {
-        if (ImGui.Button("Export Scene Overrides###SceneAuthoringExportOverrides"))
+        if (ImGui.Button("Export Overrides###SceneAuthoringExportOverrides"))
         {
             plugin.ExportSceneAuthoringOverrides();
         }
 
         ImGui.SameLine();
-        if (ImGui.Button("Import Scene Overrides###SceneAuthoringImportOverrides"))
+        if (ImGui.Button("Import Overrides###SceneAuthoringImportOverrides"))
         {
             plugin.ImportSceneAuthoringOverrides();
         }
 
         ImGui.SameLine();
-        if (ImGui.Button("Reset Scene Overrides###SceneAuthoringResetOverrides"))
+        if (ImGui.Button("Reset Overrides###SceneAuthoringResetOverrides"))
         {
             plugin.ResetAllSceneAuthoringOverrides();
         }
 
-        if (ImGui.Button("Export Tag Presets###SceneAuthoringExportTagPresets"))
+        if (ImGui.Button("Export Registry###SceneAuthoringExportTagPresets"))
         {
             plugin.ExportSceneAuthoringTagPresets();
         }
 
         ImGui.SameLine();
-        if (ImGui.Button("Import Tag Presets###SceneAuthoringImportTagPresets"))
+        if (ImGui.Button("Import Registry###SceneAuthoringImportTagPresets"))
         {
             plugin.ImportSceneAuthoringTagPresets();
         }
 
         ImGui.SameLine();
-        if (ImGui.Button("Reset Tag Presets###SceneAuthoringResetTagPresets"))
+        if (ImGui.Button("Reset Registry###SceneAuthoringResetTagPresets"))
         {
             plugin.ResetSceneAuthoringTagPresets();
         }
@@ -427,15 +429,17 @@ public sealed class SceneAuthoringWindow : Window, IDisposable
     private void DrawPresetEditor(string category, SceneTagPreset preset)
     {
         ImGui.TextUnformatted($"Tag key: {preset.Tag}");
-        ImGui.TextUnformatted(preset.IsBuiltIn ? "Source: built-in preset metadata" : "Source: user-created preset metadata");
+        ImGui.TextUnformatted(preset.IsBuiltIn ? "Source: built-in registry default" : "Source: user-created registry preset");
 
         var displayName = preset.DisplayName;
+        ImGui.SetNextItemWidth(MathF.Min(620f, ImGui.GetContentRegionAvail().X * 0.72f));
         if (ImGui.InputText("Display name###SceneAuthoringPresetDisplayName", ref displayName, 128))
         {
             plugin.UpdateSceneAuthoringTagPreset(category, preset.Tag, displayName, preset.Description);
         }
 
         var description = preset.Description;
+        ImGui.SetNextItemWidth(MathF.Min(620f, ImGui.GetContentRegionAvail().X * 0.72f));
         if (ImGui.InputText("Description###SceneAuthoringPresetDescription", ref description, 512))
         {
             plugin.UpdateSceneAuthoringTagPreset(category, preset.Tag, preset.DisplayName, description);
@@ -446,6 +450,9 @@ public sealed class SceneAuthoringWindow : Window, IDisposable
             plugin.ResetSceneAuthoringTagPreset(category, preset.Tag);
             selectedPresetTagIndex = 0;
         }
+
+        ImGui.Separator();
+        DrawTuningEditor(category, preset);
 
         ImGui.TextUnformatted("Known influence");
         if (preset.Effects.Count == 0)
@@ -459,12 +466,117 @@ public sealed class SceneAuthoringWindow : Window, IDisposable
                 ImGui.BulletText(effect);
             }
         }
+    }
 
-        ImGui.TextWrapped("Note: editing this metadata changes the authoring system and documentation shown to users. It does not rewrite hard-coded SceneIntent, VisualProfile, MaterialProfile, MaterialIntent, or shader formulas yet.");
+    private void DrawTuningEditor(string category, SceneTagPreset preset)
+    {
+        ImGui.TextUnformatted("Applied tuning");
+        if (preset.Tunings.Count == 0)
+        {
+            ImGui.TextDisabled("No tuning rows. This tag can still be used for scene overrides, but it has no registry-driven visual effect.");
+        }
+        else if (ImGui.BeginTable($"SceneAuthoringTunings{category}{preset.Tag}", 6, ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+        {
+            ImGui.TableSetupColumn("On", ImGuiTableColumnFlags.WidthFixed, 34f);
+            ImGui.TableSetupColumn("Target", ImGuiTableColumnFlags.WidthFixed, 96f);
+            ImGui.TableSetupColumn("Channel", ImGuiTableColumnFlags.WidthFixed, 170f);
+            ImGui.TableSetupColumn("Amount", ImGuiTableColumnFlags.WidthFixed, 92f);
+            ImGui.TableSetupColumn("Reason");
+            ImGui.TableSetupColumn("Action", ImGuiTableColumnFlags.WidthFixed, 64f);
+            ImGui.TableHeadersRow();
+
+            for (var i = 0; i < preset.Tunings.Count; i++)
+            {
+                var tuning = preset.Tunings[i];
+                var changed = false;
+                ImGui.TableNextRow();
+
+                ImGui.TableNextColumn();
+                var enabled = tuning.Enabled;
+                if (ImGui.Checkbox($"###{category}{preset.Tag}{i}TuningEnabled", ref enabled))
+                {
+                    tuning.Enabled = enabled;
+                    changed = true;
+                }
+
+                ImGui.TableNextColumn();
+                var targets = SceneAuthoringService.TuningTargets.ToArray();
+                var targetLabels = new[] { "Scene", "Material" };
+                var targetIndex = IndexOf(targets, tuning.Target);
+                ImGui.SetNextItemWidth(-1f);
+                if (ImGui.Combo($"###{category}{preset.Tag}{i}TuningTarget", ref targetIndex, string.Join('\0', targetLabels) + '\0'))
+                {
+                    tuning.Target = targets[targetIndex];
+                    var channelsForTarget = plugin.SceneAuthoringTuningChannels(tuning.Target);
+                    tuning.Channel = channelsForTarget.Contains(tuning.Channel, StringComparer.OrdinalIgnoreCase)
+                        ? tuning.Channel
+                        : channelsForTarget.FirstOrDefault() ?? string.Empty;
+                    changed = true;
+                }
+
+                ImGui.TableNextColumn();
+                var channels = plugin.SceneAuthoringTuningChannels(tuning.Target).ToArray();
+                if (channels.Length > 0)
+                {
+                    var channelIndex = IndexOf(channels, tuning.Channel);
+                    ImGui.SetNextItemWidth(-1f);
+                    if (ImGui.Combo($"###{category}{preset.Tag}{i}TuningChannel", ref channelIndex, string.Join('\0', channels) + '\0'))
+                    {
+                        tuning.Channel = channels[channelIndex];
+                        changed = true;
+                    }
+                }
+                else
+                {
+                    ImGui.TextDisabled("No channels");
+                }
+
+                ImGui.TableNextColumn();
+                var amount = tuning.Amount;
+                ImGui.SetNextItemWidth(-1f);
+                if (ImGui.SliderFloat($"###{category}{preset.Tag}{i}TuningAmount", ref amount, -1.0f, 1.0f, "%.3f"))
+                {
+                    tuning.Amount = amount;
+                    changed = true;
+                }
+
+                ImGui.TableNextColumn();
+                var reason = tuning.Reason;
+                ImGui.SetNextItemWidth(-1f);
+                if (ImGui.InputText($"###{category}{preset.Tag}{i}TuningReason", ref reason, 256))
+                {
+                    tuning.Reason = reason;
+                    changed = true;
+                }
+
+                ImGui.TableNextColumn();
+                if (ImGui.SmallButton($"Remove###{category}{preset.Tag}{i}RemoveTuning"))
+                {
+                    plugin.RemoveSceneAuthoringTagTuning(category, preset.Tag, i);
+                    ImGui.EndTable();
+                    return;
+                }
+
+                if (changed)
+                {
+                    plugin.UpdateSceneAuthoringTagTuning(category, preset.Tag, i, tuning);
+                }
+            }
+
+            ImGui.EndTable();
+        }
+
+        if (ImGui.Button($"Add Tuning Row###SceneAuthoringAddTuning{category}{preset.Tag}"))
+        {
+            plugin.AddSceneAuthoringTagTuning(category, preset.Tag);
+        }
+
+        ImGui.TextDisabled("Scene = shared scene lanes. Material = first-party material uniforms when material mapping is enabled.");
     }
 
     private void DrawAddCustomPreset(string category)
     {
+        ImGui.SetNextItemWidth(MathF.Min(520f, ImGui.GetContentRegionAvail().X * 0.66f));
         ImGui.InputText("New custom tag###SceneAuthoringNewPresetTag", ref newPresetTag, 96);
         ImGui.SameLine();
         if (ImGui.Button("Add Custom Tag###SceneAuthoringAddCustomPreset"))
@@ -483,4 +595,13 @@ public sealed class SceneAuthoringWindow : Window, IDisposable
     }
 
     private sealed record TagStateRow(string Tag, string SourceLabel, bool Applies, TagOverrideState OverrideState, Vector4 Color);
+
+    private static int IndexOf(IReadOnlyList<string> values, string value)
+    {
+        var index = values
+            .Select((item, i) => (item, i))
+            .FirstOrDefault(pair => string.Equals(pair.item, value, StringComparison.OrdinalIgnoreCase))
+            .i;
+        return Math.Clamp(index, 0, Math.Max(0, values.Count - 1));
+    }
 }

@@ -153,7 +153,7 @@ public sealed class Plugin : IDalamudPlugin
         RefreshEffectiveTags();
         imageAnalysisService.Refresh(Configuration, true);
         masterStyleService.Refresh(Configuration, CurrentImageAnalysis, true);
-        var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration, MasterStyleImageCount);
+        var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration, MasterStyleImageCount, ActiveTagRegistry());
         CurrentProfile = result.Profile;
         CurrentRules = result.Rules;
         CurrentMasterStyleDiagnostics = result.MasterStyleDiagnostics;
@@ -211,7 +211,7 @@ public sealed class Plugin : IDalamudPlugin
         RefreshEffectiveTags();
         imageAnalysisService.Refresh(Configuration, true);
         masterStyleService.Refresh(Configuration, CurrentImageAnalysis, true);
-        var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration, MasterStyleImageCount);
+        var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration, MasterStyleImageCount, ActiveTagRegistry());
         CurrentProfile = result.Profile;
         CurrentRules = result.Rules;
         CurrentMasterStyleDiagnostics = result.MasterStyleDiagnostics;
@@ -351,7 +351,7 @@ public sealed class Plugin : IDalamudPlugin
         RefreshEffectiveTags();
         imageAnalysisService.Refresh(Configuration);
         masterStyleService.Refresh(Configuration, CurrentImageAnalysis);
-        var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration, MasterStyleImageCount);
+        var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration, MasterStyleImageCount, ActiveTagRegistry());
         CurrentProfile = result.Profile;
         CurrentRules = result.Rules;
         CurrentMasterStyleDiagnostics = result.MasterStyleDiagnostics;
@@ -449,6 +449,7 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.AutoAdjustInCutscenes,
             Configuration.EnableSceneAuthoringOverrides,
             CurrentSceneAuthoringState.Fingerprint,
+            Configuration.EnableSceneAuthoringOverrides ? sceneAuthoringService.RegistryFingerprint : "registry-disabled",
             Configuration.Style,
             Configuration.PerformanceBudget);
     }
@@ -503,6 +504,8 @@ public sealed class Plugin : IDalamudPlugin
 
     public SceneTagPreset? FindSceneAuthoringTagPreset(string category, string tag) => sceneAuthoringService.FindPreset(category, tag);
 
+    public IReadOnlyList<string> SceneAuthoringTuningChannels(string target) => sceneAuthoringService.TuningChannelsForTarget(target);
+
     public void AddSceneAuthoringTagPreset(string category, string tag)
     {
         sceneAuthoringService.AddCustomTagPreset(category, tag);
@@ -512,6 +515,24 @@ public sealed class Plugin : IDalamudPlugin
     public void UpdateSceneAuthoringTagPreset(string category, string tag, string displayName, string description)
     {
         sceneAuthoringService.UpdateTagPreset(category, tag, displayName, description);
+    }
+
+    public void AddSceneAuthoringTagTuning(string category, string tag)
+    {
+        sceneAuthoringService.AddTagTuning(category, tag);
+        RefreshEffectiveTags();
+    }
+
+    public void UpdateSceneAuthoringTagTuning(string category, string tag, int index, SceneTagTuning tuning)
+    {
+        sceneAuthoringService.UpdateTagTuning(category, tag, index, tuning);
+        RefreshEffectiveTags();
+    }
+
+    public void RemoveSceneAuthoringTagTuning(string category, string tag, int index)
+    {
+        sceneAuthoringService.RemoveTagTuning(category, tag, index);
+        RefreshEffectiveTags();
     }
 
     public void ResetSceneAuthoringTagPreset(string category, string tag)
@@ -551,10 +572,17 @@ public sealed class Plugin : IDalamudPlugin
     private MaterialIntent RefreshMaterialIntent()
     {
         var rawIntent = Configuration.EnableMaterialIntent
-            ? MaterialIntentBuilder.Build(CurrentTagStackDiagnostics, CurrentImageAnalysis)
+            ? MaterialIntentBuilder.Build(CurrentTagStackDiagnostics, CurrentImageAnalysis, ActiveTagRegistry())
             : MaterialIntent.Neutral;
         CurrentMaterialIntent = rawIntent.WithStrength(Configuration.MaterialIntentStrength);
         return rawIntent;
+    }
+
+    private IReadOnlyList<SceneTagPreset>? ActiveTagRegistry()
+    {
+        return Configuration.EnableSceneAuthoringOverrides
+            ? sceneAuthoringService.AllTagPresets()
+            : null;
     }
 
     private void InitializePresetFolders()

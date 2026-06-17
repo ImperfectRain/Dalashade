@@ -43,11 +43,11 @@ Scene Authoring is a separate window opened from the main UI or `/dalashade tags
 Scene authoring data is stored under the plugin config folder:
 
 - `SceneAuthoring/scene-overrides.json`: current-territory tag overrides.
-- `SceneAuthoring/tag-presets.json`: editable tag metadata, descriptions, category membership, and known influence notes.
+- `SceneAuthoring/tag-presets.json`: editable tag registry definitions, descriptions, category membership, known influence notes, and SceneIntent/MaterialIntent tuning rows.
 - `SceneAuthoring/Exports/scene-overrides-export.json`: fixed export/import file for scene overrides.
-- `SceneAuthoring/Exports/tag-presets-export.json`: fixed export/import file for tag preset metadata.
+- `SceneAuthoring/Exports/tag-presets-export.json`: fixed export/import file for tag registry metadata and tuning rows.
 
-Scene overrides can add/remove grouped tags, reset the current scene override, and set a primary biome override. Tag presets can add custom tags to authoring categories and edit display metadata. Custom tags can be applied immediately, but they only change generated visuals if the existing SceneIntent, VisualProfile, MaterialProfile, MaterialIntent, or shader systems already recognize that tag. The later data-registry pass should move actual tag-to-value tuning out of hard-coded formulas.
+Scene overrides can add/remove grouped tags, reset the current scene override, and set a primary biome override. Tag registry presets can add custom tags to authoring categories, edit display metadata, and add tuning rows that contribute to `SceneIntent` or `MaterialIntent` when the tag is active and scene authoring is enabled. Registry edits are client-side and non-destructive: reset restores shipped defaults, import/export uses fixed config-folder paths, and base presets/shader source are not mutated.
 
 Developer Mode remains system-oriented. It should keep every low-level control reachable for shader authoring, resolver work, custom variable mapping, diagnostics, reports, and regression checks.
 
@@ -107,7 +107,7 @@ Debug shaders are intentionally unaffected by `FirstPartyShaderMode`.
 - `Dalashade_DepthAssistConfidenceFloor=0`
 - `Dalashade_DepthConfidenceFloor=0`
 
-The write is limited to known first-party Dalashade shader sections that declare those uniforms. It requires custom shader variable writes to be enabled, does not install `.fx` files, and does not activate techniques. Depth assist can improve resolver confidence when ReShade depth is reliable, but it can worsen masks when the depth buffer is flat, unavailable, reversed incorrectly, or contaminated by UI/overlay depth.
+The write is limited to known first-party Dalashade production shader sections that declare those uniforms: AdaptiveGrade, AtmosphereBloom, WeatherAtmosphere, SmartSharpen, SceneGI, and SurfaceReflection. It requires custom shader variable writes to be enabled, does not install `.fx` files, and does not activate techniques. Depth assist can improve resolver confidence when ReShade depth is reliable, but it can worsen masks when the depth buffer is flat, unavailable, reversed incorrectly, or contaminated by UI/overlay depth.
 
 Compatibility reports and debug bundles list `EnableFirstPartyDepthAssist`, whether generated-preset custom shader writes and section injection are enabled, and which production first-party sections received each depth-assist variable. Debug shaders remain manual diagnostic viewers. Reporting missing shader files or missing generated-preset sections should be diagnostic-only and must not fail generation.
 

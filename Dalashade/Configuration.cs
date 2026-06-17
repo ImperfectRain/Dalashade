@@ -118,11 +118,11 @@ public class Configuration : IPluginConfiguration
     public FirstPartyShaderMode FirstPartyShaderMode { get; set; } = FirstPartyShaderMode.Supportive;
     public bool AutoInjectDalashadeCustomShaderSections { get; set; } = false;
     public bool EnableDalashadeSceneGIShaderVariables { get; set; } = false;
-    public float DalashadeSceneGIStrength { get; set; } = 0.35f;
-    public float DalashadeSceneGIAOIntensity { get; set; } = 0.25f;
-    public float DalashadeSceneGIBounceStrength { get; set; } = 0.20f;
-    public float DalashadeSceneGINightLightStrength { get; set; } = 0.30f;
-    public float DalashadeSceneGIMaterialInfluence { get; set; } = 0.50f;
+    public float DalashadeSceneGIStrength { get; set; } = 0.45f;
+    public float DalashadeSceneGIAOIntensity { get; set; } = 0.30f;
+    public float DalashadeSceneGIBounceStrength { get; set; } = 0.30f;
+    public float DalashadeSceneGINightLightStrength { get; set; } = 0.42f;
+    public float DalashadeSceneGIMaterialInfluence { get; set; } = 0.58f;
     public int DalashadeSceneGIDebugMode { get; set; } = 0;
     public int DalashadeSceneGIDebugOutputMode { get; set; } = 0;
     public float DalashadeSceneGIDebugOpacity { get; set; } = 0.75f;

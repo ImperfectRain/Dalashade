@@ -92,6 +92,12 @@ public static class SceneTagRegressionHarness
             var service = new SceneAuthoringService();
             service.Load(root);
 
+            var coastalPreset = service.FindPreset(SceneAuthoringService.BiomeCategory, "coastal");
+            if (coastalPreset is null || coastalPreset.Tunings.Count == 0)
+            {
+                failures.Add(new SceneTagRegressionFailure("Scene authoring tag registry defaults", "Built-in coastal tag preset did not include default tuning rows."));
+            }
+
             var disabled = service.Apply(disabledConfiguration, context, detected);
             if (!ReferenceEquals(disabled.EffectiveTags, detected) && disabled.EffectiveTags != detected)
             {
@@ -131,6 +137,43 @@ public static class SceneTagRegressionHarness
             if (!service.KnownTagsForCategory(SceneAuthoringService.MoodCategory).Contains("regressionCustom", StringComparer.OrdinalIgnoreCase))
             {
                 failures.Add(new SceneTagRegressionFailure("Scene authoring custom tag preset", "Custom tag preset was not added to known mood tags."));
+            }
+
+            service.AddTagTuning(SceneAuthoringService.MoodCategory, "regressionCustom");
+            var customPreset = service.FindPreset(SceneAuthoringService.MoodCategory, "regressionCustom");
+            if (customPreset is null || customPreset.Tunings.Count == 0)
+            {
+                failures.Add(new SceneTagRegressionFailure("Scene authoring add tag tuning", "Custom tag tuning row was not added."));
+            }
+            else
+            {
+                service.UpdateTagTuning(
+                    SceneAuthoringService.MoodCategory,
+                    "regressionCustom",
+                    0,
+                    new SceneTagTuning
+                    {
+                        Target = SceneTagTuningTargets.MaterialIntent,
+                        Channel = MaterialIntent.FoliageChannel,
+                        Amount = 0.25f,
+                        Reason = "Regression tuning."
+                    });
+                customPreset = service.FindPreset(SceneAuthoringService.MoodCategory, "regressionCustom");
+                var updated = customPreset?.Tunings.FirstOrDefault();
+                if (updated is null
+                    || !string.Equals(updated.Target, SceneTagTuningTargets.MaterialIntent, StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(updated.Channel, MaterialIntent.FoliageChannel, StringComparison.OrdinalIgnoreCase)
+                    || MathF.Abs(updated.Amount - 0.25f) > 0.001f)
+                {
+                    failures.Add(new SceneTagRegressionFailure("Scene authoring update tag tuning", "Custom tag tuning row was not updated."));
+                }
+
+                service.RemoveTagTuning(SceneAuthoringService.MoodCategory, "regressionCustom", 0);
+                customPreset = service.FindPreset(SceneAuthoringService.MoodCategory, "regressionCustom");
+                if (customPreset is null || customPreset.Tunings.Count != 0)
+                {
+                    failures.Add(new SceneTagRegressionFailure("Scene authoring remove tag tuning", "Custom tag tuning row was not removed."));
+                }
             }
 
             service.ResetTagPresets();

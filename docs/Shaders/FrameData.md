@@ -223,3 +223,13 @@ When production shaders start using FrameData, migrate one shader at a time. The
 6. SceneGI receiver migration. Complete for the inline base/surface-data consumer pass.
 
 Each migration should keep before/after output equivalent unless the pass explicitly targets visuals.
+
+## Future Prepass Direction
+
+The likely next architectural step is a Dalapad prepass, but it should not be added until the inline contract has been validated in-game. A prepass would be useful when multiple first-party shaders need the same stable role data or when an effect needs history:
+
+- SceneGI needs stable material, receiver, source, normal, and edge evidence for wider diffuse gathers and temporal smoothing.
+- SurfaceReflection needs stable water receiver, reflection receiver, edge, horizon/source-only, and water-vs-sky conflict data for projected reflections.
+- WeatherAtmosphere and AtmosphereBloom could reuse source/safety lanes without rerunning every resolver inline.
+
+The first prepass should be conservative: one role/confidence buffer plus one optional surface buffer. It should not promise native FFXIV G-buffer access, motion vectors, or true world-space data. Later history buffers can be considered only after the role buffers prove stable and debug views show near-parity with inline FrameData.

@@ -13,7 +13,7 @@ public sealed class SceneTagOverrideSet
 
 public sealed class SceneTagPresetSet
 {
-    public int Version { get; set; } = 1;
+    public int Version { get; set; } = 2;
 
     public List<SceneTagPreset> Presets { get; set; } = [];
 }
@@ -30,7 +30,28 @@ public sealed class SceneTagPreset
 
     public List<string> Effects { get; set; } = [];
 
+    public List<SceneTagTuning> Tunings { get; set; } = [];
+
     public bool IsBuiltIn { get; set; }
+}
+
+public sealed class SceneTagTuning
+{
+    public bool Enabled { get; set; } = true;
+
+    public string Target { get; set; } = SceneTagTuningTargets.SceneIntent;
+
+    public string Channel { get; set; } = string.Empty;
+
+    public float Amount { get; set; }
+
+    public string Reason { get; set; } = string.Empty;
+}
+
+public static class SceneTagTuningTargets
+{
+    public const string SceneIntent = "SceneIntent";
+    public const string MaterialIntent = "MaterialIntent";
 }
 
 public sealed class SceneTagOverride

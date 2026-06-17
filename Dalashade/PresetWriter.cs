@@ -454,6 +454,7 @@ public sealed class PresetWriter
                 "Dalashade_IntentCinematicPermission")
                 .Concat(FirstPartyShaderModeVariables)
                 .Concat(NormalFieldShaderVariables)
+                .Concat(DepthAssistShaderOwnedVariables)
                 .ToArray()),
         new(
             "Dalashade_SurfaceReflection.fx",
@@ -500,6 +501,7 @@ public sealed class PresetWriter
                 "Dalashade_CinematicPermission")
                 .Concat(FirstPartyShaderModeVariables)
                 .Concat(NormalFieldShaderVariables)
+                .Concat(DepthAssistShaderOwnedVariables)
                 .ToArray())
     ];
 
@@ -946,13 +948,13 @@ public sealed class PresetWriter
         return variable switch
         {
             "Dalashade_GIEnabled" => "1.000000",
-            "Dalashade_GIStrength" => "0.350000",
+            "Dalashade_GIStrength" => "0.450000",
             "Dalashade_GIRadius" => "0.650000",
-            "Dalashade_GIBounceStrength" => "0.200000",
-            "Dalashade_GIAOIntensity" => "0.250000",
+            "Dalashade_GIBounceStrength" => "0.300000",
+            "Dalashade_GIAOIntensity" => "0.300000",
             "Dalashade_GIAORadius" => "0.450000",
-            "Dalashade_GINightLightStrength" => "0.300000",
-            "Dalashade_GIMaterialInfluence" => "0.500000",
+            "Dalashade_GINightLightStrength" => "0.420000",
+            "Dalashade_GIMaterialInfluence" => "0.580000",
             "Dalashade_GISkyReject" => "1.000000",
             "Dalashade_GISkinProtect" => "1.000000",
             "Dalashade_GIDebugOutputMode" => "0",

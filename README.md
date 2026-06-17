@@ -190,4 +190,4 @@ This is the practical MVP:
 - conservative shader mapping
 - clean generated-preset workflow
 
-Next sensible steps are live weather refresh between zone changes, better content-type classification, and eventually a ReShade add-on bridge so this stops relying on preset reloads.
+Next sensible steps are better content-type classification, a more transparent tag-definition registry for user-authored scene behavior, and eventually a ReShade add-on bridge so this stops relying on preset reloads. Weather is already refreshed from current client state during normal updates, with zone-entry weather retained only as a fallback.

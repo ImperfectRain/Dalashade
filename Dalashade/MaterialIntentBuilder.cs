@@ -1,17 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Dalashade.SceneAuthoring;
 
 namespace Dalashade;
 
 public static class MaterialIntentBuilder
 {
-    public static MaterialIntent Build(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis)
+    public static MaterialIntent Build(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, IReadOnlyList<SceneTagPreset>? tagRegistry = null)
     {
-        return Build(diagnostics, imageAnalysis, MaterialProfileBuilder.Build(diagnostics, imageAnalysis));
+        return Build(diagnostics, imageAnalysis, MaterialProfileBuilder.Build(diagnostics, imageAnalysis), tagRegistry);
     }
 
-    public static MaterialIntent Build(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, MaterialProfile profile)
+    public static MaterialIntent Build(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, MaterialProfile profile, IReadOnlyList<SceneTagPreset>? tagRegistry = null)
     {
         var state = new State(diagnostics, profile);
         AddMaterialProfilePriors(state, profile);
@@ -28,6 +29,7 @@ public static class MaterialIntentBuilder
         AddSkinProtection(state, imageAnalysis);
         AddVoidDarkness(state, imageAnalysis);
         AddSceneIntentHints(state);
+        AddTagRegistry(state, tagRegistry);
 
         return state.ToIntent();
     }
@@ -49,6 +51,37 @@ public static class MaterialIntentBuilder
             foreach (var suppression in suppressions)
             {
                 state.AddProfilePrior(channel, suppression.Amount, "MaterialProfile suppression", suppression.Reason);
+            }
+        }
+    }
+
+    private static void AddTagRegistry(State state, IReadOnlyList<SceneTagPreset>? tagRegistry)
+    {
+        if (tagRegistry is null || tagRegistry.Count == 0)
+        {
+            return;
+        }
+
+        var active = state.BuildActiveRegistryTags();
+        foreach (var preset in tagRegistry)
+        {
+            if (!preset.Categories.Any(category =>
+                    active.TryGetValue(category, out var tags)
+                    && tags.Contains(preset.Tag)))
+            {
+                continue;
+            }
+
+            foreach (var tuning in preset.Tunings.Where(tuning =>
+                         tuning.Enabled
+                         && string.Equals(tuning.Target, SceneTagTuningTargets.MaterialIntent, StringComparison.OrdinalIgnoreCase)
+                         && MaterialIntent.ChannelNames.Contains(tuning.Channel, StringComparer.OrdinalIgnoreCase)))
+            {
+                state.Add(
+                    MaterialIntent.ChannelNames.First(channel => string.Equals(channel, tuning.Channel, StringComparison.OrdinalIgnoreCase)),
+                    tuning.Amount,
+                    $"Tag registry: {preset.Tag}",
+                    string.IsNullOrWhiteSpace(tuning.Reason) ? "User-editable tag registry tuning." : tuning.Reason);
             }
         }
     }
@@ -518,6 +551,81 @@ public static class MaterialIntentBuilder
         public bool HasAny(params string[] candidates) => candidates.Any(candidate => tags.Contains(candidate));
 
         public bool ContainsAny(params string[] fragments) => fragments.Any(fragment => searchableText.Contains(fragment, StringComparison.OrdinalIgnoreCase));
+
+        public IReadOnlyDictionary<string, HashSet<string>> BuildActiveRegistryTags()
+        {
+            var active = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            void Add(string category, string value)
+            {
+                if (string.IsNullOrWhiteSpace(value) || value == "unknown")
+                {
+                    return;
+                }
+
+                if (!active.TryGetValue(category, out var values))
+                {
+                    values = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    active[category] = values;
+                }
+
+                values.Add(value);
+            }
+
+            Add(SceneAuthoringService.BiomeCategory, diagnostics.BiomeKey);
+            Add(SceneAuthoringService.WeatherCategory, diagnostics.WeatherKey);
+            Add(SceneAuthoringService.AreaCategory, diagnostics.AreaKey);
+            foreach (var tag in diagnostics.ActiveWeatherTags)
+            {
+                Add(SceneAuthoringService.WeatherCategory, tag);
+            }
+
+            foreach (var tag in diagnostics.AreaContextTags)
+            {
+                Add(SceneAuthoringService.AreaCategory, tag);
+            }
+
+            foreach (var tag in diagnostics.SecondaryTags)
+            {
+                Add(SceneAuthoringService.SecondaryCategory, tag);
+            }
+
+            foreach (var tag in diagnostics.MoodTags)
+            {
+                Add(SceneAuthoringService.MoodCategory, tag);
+            }
+
+            foreach (var tag in diagnostics.MaterialTags)
+            {
+                Add(SceneAuthoringService.MaterialCategory, tag);
+            }
+
+            foreach (var tag in diagnostics.ArtDirectionTags)
+            {
+                Add(SceneAuthoringService.ArtDirectionCategory, tag);
+                if (tag is "day" or "night")
+                {
+                    Add(SceneAuthoringService.TimeCategory, tag);
+                }
+            }
+
+            foreach (var tag in diagnostics.ActiveTags)
+            {
+                if (string.Equals(tag, "Day", StringComparison.OrdinalIgnoreCase))
+                {
+                    Add(SceneAuthoringService.TimeCategory, "day");
+                }
+                else if (string.Equals(tag, "Night", StringComparison.OrdinalIgnoreCase))
+                {
+                    Add(SceneAuthoringService.TimeCategory, "night");
+                }
+                else if (string.Equals(tag, "DawnDusk", StringComparison.OrdinalIgnoreCase))
+                {
+                    Add(SceneAuthoringService.TimeCategory, "dawnDusk");
+                }
+            }
+
+            return active;
+        }
 
         public MaterialIntent ToIntent() => new(
             Value(MaterialIntent.FoliageChannel),

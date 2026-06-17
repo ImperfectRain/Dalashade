@@ -10,7 +10,9 @@ SceneGI should own conservative contact shading, low-frequency material bounce, 
 
 ## Current implementation summary
 
-The shader samples nearby color/depth, builds receiver/source masks from inline FrameData material/water/safety/receiver and scene fields, then applies layered AO and restrained bounce/light pooling. Water and sky are protected from dirty AO; aether/neon/fire/glint sources can contribute localized light. Optional FrameData surface support adds small contact/structure grounding only after material and safety gates allow it.
+The shader samples nearby color/depth, builds receiver/source masks from inline FrameData material/water/safety/receiver and scene fields, then applies layered AO and restrained bounce/light pooling. Water and sky are protected from dirty AO; aether/neon/fire/glint sources can contribute localized light. Optional FrameData surface support adds contact/structure grounding only after material and safety gates allow it.
+
+The current GI path now includes a bounded screen-space diffuse gather. It samples visible nearby scene color in multiple directions, weights those samples by depth continuity, approximate facing, source brightness/chroma, emissive confidence, and receiver safety, then feeds the result into the material bounce lane. This is still screen-space GI, not world-space GI: it can only bounce color from visible current-frame pixels.
 
 SceneGI routes its major scene decisions through shared FrameData scene lanes before applying GI-specific math. `DayOpenAir`, `NightLocalLight`, `WetAir`, `HeatAir`, `ColdAir`, `AetherTech`, `ForestCanopy`, `Industrial`, and `InteriorMood` are the first stage for environment-sensitive AO, bounce, and local-light behavior. Shader-local terms still shape the final GI role, but they should not redefine scene tags independently.
 
@@ -34,9 +36,10 @@ Normal output is source color plus conservative AO/bounce modifications. Debug m
 2. Build GI scene lanes from shared FrameData derived tags: day/open air, night/local light, wet, heat, cold, aether/high-tech, forest/canopy, industrial, and interior.
 3. Build GI sources from light/glint/aether/neon/fire and local luminance. `frame.SourceLightConfidence` can strengthen source/light pooling, but it does not authorize receivers by itself.
 4. Build receivers from shared AO/structure receiver helpers, material hardness, water/sky/skin gates, surface support, and scene lanes.
-5. Optionally add small NormalField structure, AO, ground/contact, and edge-discontinuity support behind the same safety gates.
-6. Estimate local occlusion/bounce with small screen-space taps.
-7. Apply conservative darkening/lighting with safety clamps.
+5. Optionally add NormalField structure, AO, ground/contact, and edge-discontinuity support behind the same safety gates.
+6. Estimate local occlusion with layered depth taps.
+7. Estimate screen-space diffuse bounce from depth-aware visible-color gathers.
+8. Apply lane-shaped darkening/lighting with safety clamps.
 
 ## Material/Water/Normal dependencies
 
@@ -44,7 +47,9 @@ SceneGI consumes inline FrameData fields. The shared material confidence path pr
 
 SceneGI consumes the complete FrameData day/night scene contract: `Night`, `Moonlight`, `ArtificialLight`, `AmbientDarkness`, `NightAtmosphere`, `Daylight`, `Sunlight`, `OpenSkyLight`, `SurfaceHeat`, `DayAtmosphere`, `DayReflection`, and `DayHighlightPressure`. The generated preset can inject these keys for SceneGI, and the shader folds them into shared derived lanes instead of maintaining a separate night/day interpretation.
 
-Optional FrameData surface support uses `surface.StructureCandidate` as mild structure grounding, `surface.AOReceiverSupport` as mild AO/contact support, `surface.GroundCandidate` as mild ground/contact shaping, `surface.EdgeDiscontinuity` as localized contact support only under safety gates, and `surface.NormalConfidence`/`surface.OrientationConfidence` as stability terms. NormalField cannot override sky, skin, water AO, or material safety rejects.
+Optional FrameData surface support uses `surface.StructureCandidate` as structure grounding, `surface.AOReceiverSupport` as AO/contact support, `surface.GroundCandidate` as ground/contact shaping, `surface.EdgeDiscontinuity` as localized contact support only under safety gates, and `surface.NormalConfidence`/`surface.OrientationConfidence` as stability terms. NormalField cannot override sky, skin, water AO, or material safety rejects.
+
+The current visibility pass deliberately gives more weight to valid GI lanes instead of using a broad global multiplier. Interior, industrial, forest, heat, cold, wet, and aether/high-tech lanes can now lift bounce, contact, and night pooling when FrameData receiver/safety fields agree. Standalone mode adds extra bounce/night visibility behind the same gates.
 
 ## First-party shader mode
 
@@ -70,7 +75,9 @@ SceneGI debug modes are intended to show shared material usage, sources, receive
 | 9 | Emissive source | Local/aether/neon/fire/glint source confidence. |
 | 10 | Bounce receiver | Final bounce receiver mask. |
 | 11 | Adaptive limits/safety | Positive/negative contribution and safety clamps. |
-| 12 | Layered AO breakdown | Micro/medium/broad AO channels plus NormalField contact support when enabled. |
+| 12 | Layered AO breakdown | Micro/medium/broad/structure AO channels plus NormalField contact support when enabled. |
+| 13 | Clamp pressure | Red shows negative/AO clamp pressure, green shows safety pressure, blue shows positive/bounce clamp pressure. |
+| 14 | SSGI diffuse gather | Shows the screen-space diffuse gather color and confidence before final bounce/clamp shaping. |
 
 `Dalashade_GIDebugOutputMode`:
 
@@ -93,11 +100,24 @@ Source-vs-receiver separation is required: `frame.SourceLightConfidence` and emi
 - Screen-space samples cannot see off-screen lights.
 - Source/receiver masks are heuristic.
 - AO can only approximate contact and crevice behavior.
+- Diffuse gather can only use visible current-frame color; it cannot know hidden geometry, true albedo, or off-camera emitters.
 - It cannot infer true light direction or material albedo.
 
 ## Future direction
 
-Validate the FrameScene lane pass in coastal day/night, rain/storm, fog/overcast, desert/heat, snow/cold, forest/canopy, aether/high-tech, dungeon/interior, and combat scenes before increasing weights. Keep material source/receiver separation explicit.
+Validate the GI visibility pass in coastal day/night, rain/storm, fog/overcast, desert/heat, snow/cold, forest/canopy, aether/high-tech, dungeon/interior, and combat scenes. Use debug mode 13 when normal output looks too subtle; high green means safety gates are expected to suppress output, while high red/blue means the final contribution clamps are limiting visible AO or bounce.
+
+### Prepass path for GI and reflections
+
+A future Dalapad prepass would help both SceneGI and SurfaceReflection by moving repeated inline inference into stable intermediate buffers. The first useful prepass should export:
+
+- material/safety/receiver roles: sky reject, skin reject, water receiver, reflection receiver, AO receiver, structure receiver, source light confidence, aether/neon/fire source confidence.
+- surface evidence: depth confidence, inferred normal, normal confidence, edge discontinuity, ground/wall/structure support.
+- water/reflection support: water plane confidence, water receiver confidence, wet shoreline, horizon/source-only flags, water-vs-sky conflict.
+- scene lanes: day/open air, night/local light, wet, heat, cold, aether/high-tech, forest/canopy, industrial, interior, combat/readability dampening.
+- optional history targets after the first buffer proves stable: previous diffuse gather, previous reflection projection, and confidence/variance.
+
+SceneGI would use this to perform cheaper, broader, more stable diffuse gathers with less duplicated resolver work. SurfaceReflection would use it to distinguish actual water receivers from source/context hints and to stabilize projected/reflected shapes over multiple frames. This requires render targets and likely temporal handling, so it is intentionally outside the current inline FrameData pass.
 
 ## Do not do
 

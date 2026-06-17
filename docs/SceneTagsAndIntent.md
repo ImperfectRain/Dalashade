@@ -14,7 +14,8 @@ Scene context is collected in `Dalashade/GameContext.cs`.
 | Time buckets | `GameContextService.GetTimeBucket()` | Converts Eorzea hour into Dawn, Day, Dusk, or Night. |
 | Scene tags | `SceneClassifier.Classify(GameContext context)` | Converts raw context into weather, area, biome, mood, confidence, and gameplay tags. |
 | Scene authoring overrides | `SceneAuthoringService.Apply(...)` | Optional default-off user override layer that can replace the effective primary biome and add/remove grouped tags for the current territory. |
-| Scene intent | `SceneIntentBuilder.Build(...)` in `Dalashade/SceneIntent.cs` | Converts tags, screenshot analysis, target style, and performance budget into stack-aware intent values before profile stack budgets. |
+| Tag registry tuning | `SceneAuthoringService` + `SceneIntentBuilder.Build(...)` + `MaterialIntentBuilder.Build(...)` | When scene authoring is enabled, config-local tag definitions can add editable SceneIntent and MaterialIntent channel contributions when their tags are active. |
+| Scene intent | `SceneIntentBuilder.Build(...)` in `Dalashade/SceneIntent.cs` | Converts tags, screenshot analysis, target style, performance budget, and enabled tag registry tunings into stack-aware intent values before profile stack budgets. |
 | Material profile diagnostics | `MaterialProfileBuilder.Build(...)` in `Dalashade/MaterialProfileBuilder.cs` | Converts tags, territory/weather text, area context, screenshot metrics, and SceneIntent context into scene-level material plausibility priors. Does not change generated presets. |
 | Material intent diagnostics | `MaterialIntentBuilder.Build(...)` in `Dalashade/MaterialIntentBuilder.cs` | Converts the existing tag stack, MaterialProfile priors, screenshot metrics, and SceneIntent context into optional inferred material likelihoods. Does not change generated presets unless MaterialIntent shader mapping is explicitly enabled. |
 | Visual profile effects | `ProfileEngine.Create()` in `Dalashade/VisualProfile.cs` | Applies context adjustments, scene-intent stack budgets, screenshot analysis, master style, target style, and performance budget. |
@@ -41,16 +42,19 @@ Primary biome is the only single-choice bucket. The other buckets are diagnostic
 
 Scene authoring is an optional layer between automatic tag detection and profile generation. It is disabled by default. When `EnableSceneAuthoringOverrides` is off, Dalashade uses the automatic classifier output unchanged.
 
-The first authoring pass stores current-territory overrides in `SceneAuthoring/scene-overrides.json` under the plugin config folder. Overrides can:
+The current-scene authoring pass stores current-territory overrides in `SceneAuthoring/scene-overrides.json` under the plugin config folder. Overrides can:
 
 - set a primary biome override such as `desert`, `forest`, `coastal`, `snow`, or `highTech`;
 - add/remove area tags such as `city`, `field`, `interior`, `dungeon`, or `raid`;
 - add/remove weather and time tags for experimentation;
 - add/remove secondary, material, mood, and art-direction tags through the existing additive `MoodTags` path.
 
-This pass does not edit the built-in tag preset math. Default classifier rules, `SceneIntent` formulas, MaterialProfile formulas, MaterialIntent formulas, shader formulas, and generated-preset safety rules remain code-owned. The next authoring pass should expose editable tag preset definitions and show exactly which intent/profile/material channels each tag changes.
+The tag registry is stored in `SceneAuthoring/tag-presets.json`. This file controls which tags appear in the authoring UI, their display names, descriptions, category membership, known influence notes, and editable tuning rows. Registry tuning rows can target:
 
-Tag preset metadata is stored in `SceneAuthoring/tag-presets.json`. This file controls which tags appear in the authoring UI, their display names, descriptions, category membership, and known influence notes. Editing tag preset metadata does not rewrite formulas. It is intended as a transparent authoring vocabulary layer and a stepping stone toward a future data registry where recognized tags can own tunable values.
+- `SceneIntent` channels such as `Atmosphere`, `Wetness`, `Cold`, `Heat`, `DayReflection`, `NightAtmosphere`, or `CinematicPermission`;
+- `MaterialIntent` channels such as `Foliage`, `WaterSpecular`, `SandDust`, `SnowIce`, `MetalIndustrial`, `CrystalAether`, or `SkyCloudFog`.
+
+Registry tuning is additive, non-destructive, and gated by the scene authoring toggle. When scene authoring is disabled, Dalashade uses regular automatic detection and ignores registry tuning rows. When enabled, it lets users define what an active tag contributes before generated preset values are written. It does not rewrite the automatic classifier, `VisualProfile` rule code, MaterialProfile formulas, shader formulas, generated-preset safety rules, MaterialMasks, or NormalField. Built-in defaults can be reset, and user edits are saved only in the plugin config folder.
 
 Diagnostics should distinguish detected tags from effective tags once overrides are enabled. Users should be able to reset the current scene back to automatic detection without deleting global defaults.
 
@@ -58,7 +62,7 @@ Removed tags are carried as an authoring suppression map on effective `SceneTags
 
 The authoring state also emits conflict warnings for risky edits, such as removing readability tags, combining clear weather with other weather tags, adding bright day art-direction tags to night scenes, adding dark/night tags to day scenes, or combining unusual material tags with snow/desert biomes. These warnings are advisory only; they do not block generation.
 
-The Scene Authoring window supports fixed-path import/export for both `scene-overrides.json` and `tag-presets.json` through the `SceneAuthoring/Exports/` folder. This keeps import/export predictable and avoids base preset mutation.
+The Scene Authoring window supports fixed-path import/export for both `scene-overrides.json` and `tag-presets.json` through the `SceneAuthoring/Exports/` folder. This keeps import/export predictable and avoids base preset mutation. Sharing the exported tag preset file shares user-authored tag definitions and tuning rows, not base presets or shader source.
 
 ## Shader-Facing Tag Contract
 
@@ -138,6 +142,8 @@ Starter profile families include:
 | Interior/duty overlays | `dungeonInterior`, `raidArena` | Suppressed generic sky/cloud/fog and conservative cinematic material assumptions for gameplay. |
 
 `MaterialIntent` consumes MaterialProfile priors plus the older tag, territory, screenshot, and SceneIntent evidence. MaterialProfile acts as a plausibility prior/gate instead of a raw additive contribution: reports show the profile prior separately from non-profile evidence, and final values are blended and capped so repeated descriptions of the same scene do not max a channel by stacking. It outputs the same normalized channels and remains optional, conservative, and diagnosable.
+
+When scene authoring is enabled, MaterialIntent also consumes enabled tag registry tuning rows that target `MaterialIntent`. These rows are added as normal contribution diagnostics with a `Tag registry: <tag>` source, then pass through the existing MaterialIntent strength and shader-mapping gates.
 
 MaterialIntent is controlled by configuration:
 
@@ -327,6 +333,7 @@ Conflict handling currently works as follows:
 5. screenshot analysis when enabled and available
 6. target style
 7. performance budget
+8. active tag registry tuning rows when scene authoring is enabled
 
 All intent values are normalized from `0` to `1`.
 
@@ -364,7 +371,7 @@ Current stack budgets protect bloom, AO, shadow lift, bloom dirt, and saturation
 
 Biome intent contributions are confidence-aware. High-confidence territory mappings such as Eastern La Noscea, Rak'tika, Amh Araeng, Solution Nine, Ultima Thule, or Garlemald can push stronger art direction; low-confidence fallback mappings keep smaller changes.
 
-Intent contribution diagnostics are stored as `SceneIntentContribution` records so the UI/report can show which tags or systems contributed to each value.
+Intent contribution diagnostics are stored as `SceneIntentContribution` records so the UI/report can show which tags or systems contributed to each value. User-authored registry rows appear with a `Tag registry: <tag>` source.
 
 First-party Dalashade shaders consume these normalized values directly when custom shader support is enabled. `WeatherAtmosphere` owns depth haze, weather air, canopy air, heat/dust, and highlight shoulder behavior. `AdaptiveGrade` owns scene-aware tone and color, including `IndustrialHardness` and `CosmicMood`. `AtmosphereBloom` owns selective wet, heat, canopy, magic, and neon glow. `SmartSharpen` owns final clarity and dampens sharpening in haze, foliage, wet highlights, sky gradients, and combat. SmartSharpen also receives a preset-analysis-derived `Dalashade_SharpenAuthority` value so it can run as a restrained secondary pass when Marty Sharpen, Clarity-style sharpening, or another sharpen authority is already active.
 
@@ -412,16 +419,16 @@ Diagnostics currently include:
 
 ## Planned / Future
 
-This system is planned and not currently implemented. Do not treat this document as an implementation reference yet.
-
-Future work may move more direct weather/biome mutations into `SceneIntent` so tags contribute to a smaller set of normalized visual goals before variables are changed.
+Future work may move more direct visual-profile multipliers into the data registry. The current implemented registry affects SceneIntent and MaterialIntent only; VisualProfile rule math is still code-owned.
 
 ## When Editing Tags, Inspect These Files First
 
 1. `Dalashade/GameContext.cs`
 2. `Dalashade/SceneIntent.cs`
-3. `Dalashade/VisualProfile.cs`
-4. `Dalashade/Windows/MainWindow.cs`
-5. `docs/CompatibilityAndDiagnostics.md`
+3. `Dalashade/SceneAuthoring/SceneAuthoringService.cs`
+4. `Dalashade/MaterialIntentBuilder.cs`
+5. `Dalashade/VisualProfile.cs`
+6. `Dalashade/Windows/SceneAuthoringWindow.cs`
+7. `docs/CompatibilityAndDiagnostics.md`
 
 Do not add new context-derived behavior directly in the preset writer. Scene meaning belongs in context/profile code; preset output belongs in writer and mapper code.

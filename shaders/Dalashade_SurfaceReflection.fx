@@ -180,6 +180,7 @@ uniform float Dalashade_NormalSkySuppression < ui_type = "slider"; ui_min = 0.0;
 uniform bool Dalashade_EnableDepthAssist < ui_label = "Enable Depth Assist"; > = false;
 uniform float Dalashade_DepthAssistStrength < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Depth Assist Strength"; > = 0.0;
 uniform float Dalashade_DepthAssistConfidenceFloor < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Depth Assist Confidence Floor"; > = 0.0;
+uniform float Dalashade_DepthConfidenceFloor < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Depth Confidence Floor"; > = 0.0;
 
 float Dalashade_SurfaceReflectionLuma(float3 color)
 {
@@ -723,7 +724,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     frameSettings.HighlightProtection = Dalashade_HighlightProtection;
     frameSettings.DepthAssistEnabled = Dalashade_EnableDepthAssist ? 1.0 : 0.0;
     frameSettings.DepthAssistStrength = Dalashade_DepthAssistStrength;
-    frameSettings.DepthAssistConfidenceFloor = Dalashade_DepthAssistConfidenceFloor;
+    frameSettings.DepthAssistConfidenceFloor = max(Dalashade_DepthAssistConfidenceFloor, Dalashade_DepthConfidenceFloor);
     frameSettings.NormalFieldEnabled = Dalashade_NormalFieldEnabled;
     frameSettings.NormalFieldStrength = Dalashade_NormalFieldStrength;
     frameSettings.NormalDepthStrength = Dalashade_NormalDepthStrength;

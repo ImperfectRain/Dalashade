@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Dalashade.SceneAuthoring;
 
 namespace Dalashade;
 
@@ -78,20 +79,20 @@ public sealed class ProfileEngine
 {
     private readonly MasterStyleMatcher masterStyleMatcher = new();
 
-    public ProfileResult CreateWithRules(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration, int masterImageCount = 0)
+    public ProfileResult CreateWithRules(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration, int masterImageCount = 0, IReadOnlyList<SceneTagPreset>? tagRegistry = null)
     {
         var rules = new List<AppliedRule>();
-        var profile = Create(context, tags, imageAnalysis, masterStyle, configuration, masterImageCount, rules, out var diagnostics, out var tagStackDiagnostics);
+        var profile = Create(context, tags, imageAnalysis, masterStyle, configuration, masterImageCount, tagRegistry, rules, out var diagnostics, out var tagStackDiagnostics);
 
         return new ProfileResult(profile, rules, diagnostics, tagStackDiagnostics);
     }
 
-    public VisualProfile Create(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration, int masterImageCount = 0)
+    public VisualProfile Create(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration, int masterImageCount = 0, IReadOnlyList<SceneTagPreset>? tagRegistry = null)
     {
-        return Create(context, tags, imageAnalysis, masterStyle, configuration, masterImageCount, null, out _, out _);
+        return Create(context, tags, imageAnalysis, masterStyle, configuration, masterImageCount, tagRegistry, null, out _, out _);
     }
 
-    private VisualProfile Create(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration, int masterImageCount, List<AppliedRule>? rules, out MasterStyleDiagnostics masterDiagnostics, out TagStackDiagnostics tagStackDiagnostics)
+    private VisualProfile Create(GameContext context, SceneTags tags, ImageAnalysisResult imageAnalysis, ImageAnalysisResult masterStyle, Configuration configuration, int masterImageCount, IReadOnlyList<SceneTagPreset>? tagRegistry, List<AppliedRule>? rules, out MasterStyleDiagnostics masterDiagnostics, out TagStackDiagnostics tagStackDiagnostics)
     {
         var exposure = 1f;
         var contrast = 1f;
@@ -133,7 +134,7 @@ public sealed class ProfileEngine
             masterStyle,
             masterImageCount,
             configuration.MatchMasterPresetStyle ? "Master analysis unavailable." : "Master style disabled.");
-        var sceneIntent = new SceneIntentBuilder().Build(context, tags, imageAnalysis, configuration);
+        var sceneIntent = new SceneIntentBuilder().Build(context, tags, imageAnalysis, configuration, tagRegistry);
         var tagContributions = new List<TagStackContribution>();
 
         ApplyBasePolish(context, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift);

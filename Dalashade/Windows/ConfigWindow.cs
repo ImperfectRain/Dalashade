@@ -707,7 +707,7 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawFloatSlider("SceneGI night light strength", configuration.DalashadeSceneGINightLightStrength, 0f, 1f, value => configuration.DalashadeSceneGINightLightStrength = value);
         DrawFloatSlider("SceneGI material influence", configuration.DalashadeSceneGIMaterialInfluence, 0f, 1f, value => configuration.DalashadeSceneGIMaterialInfluence = value);
         var sceneGIDebugMode = configuration.DalashadeSceneGIDebugMode;
-        if (ImGui.SliderInt("SceneGI debug mode", ref sceneGIDebugMode, 0, 12))
+        if (ImGui.SliderInt("SceneGI debug mode", ref sceneGIDebugMode, 0, 14))
         {
             configuration.DalashadeSceneGIDebugMode = sceneGIDebugMode;
             configuration.Save();
