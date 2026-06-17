@@ -4,6 +4,7 @@ using Dalamud.IoC;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using Dalashade.SceneAuthoring;
 using Dalashade.Windows;
 using System;
 using System.Collections.Generic;
@@ -28,6 +29,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private readonly ConfigWindow configWindow;
     private readonly MainWindow mainWindow;
+    private readonly SceneAuthoringWindow sceneAuthoringWindow;
     private readonly GameContextService contextService = new();
     private readonly ImageAnalysisService imageAnalysisService = new();
     private readonly MasterStyleService masterStyleService = new();
@@ -39,6 +41,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly DebugBundleExporter debugBundleExporter = new();
     private readonly PresetRegressionReportHarness presetRegressionReportHarness = new();
     private readonly ReShadeController reShadeController = new();
+    private readonly SceneAuthoringService sceneAuthoringService = new();
 
     private DateTimeOffset lastWrite = DateTimeOffset.MinValue;
     private string lastProfileKey = string.Empty;
@@ -46,7 +49,9 @@ public sealed class Plugin : IDalamudPlugin
     public Configuration Configuration { get; }
     public WindowSystem WindowSystem { get; } = new("Dalashade");
     public GameContext CurrentContext => contextService.Current;
-    public SceneTags CurrentTags => contextService.CurrentTags;
+    public SceneTags CurrentDetectedTags => contextService.CurrentTags;
+    public SceneTags CurrentTags { get; private set; } = SceneTags.Empty;
+    public SceneAuthoringState CurrentSceneAuthoringState { get; private set; } = SceneAuthoringState.Disabled(SceneTags.Empty, string.Empty);
     public ImageAnalysisResult CurrentImageAnalysis => imageAnalysisService.Current;
     public ImageAnalysisResult CurrentMasterStyle => masterStyleService.Current;
     public string ImageAnalysisMessage => imageAnalysisService.LastMessage;
@@ -88,6 +93,8 @@ public sealed class Plugin : IDalamudPlugin
     public string CompatibilityReportDirectory => Path.Combine(SafePluginConfigDirectory, "Reports");
     public string DebugBundleDirectory => Path.Combine(SafePluginConfigDirectory, "DebugBundles");
     public string PresetRegressionReportDirectory => Path.Combine(SafePluginConfigDirectory, "PresetRegressionReports");
+    public string SceneAuthoringDirectory => Path.Combine(SafePluginConfigDirectory, "SceneAuthoring");
+    public string SceneAuthoringImportExportMessage => sceneAuthoringService.LastImportExportMessage;
     public string DefaultScreenshotFolderPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
         "My Games",
@@ -98,13 +105,16 @@ public sealed class Plugin : IDalamudPlugin
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         InitializePresetFolders();
+        sceneAuthoringService.Load(SafePluginConfigDirectory);
         RefreshBasePresetLibrary();
 
         configWindow = new ConfigWindow(this);
         mainWindow = new MainWindow(this);
+        sceneAuthoringWindow = new SceneAuthoringWindow(this);
 
         WindowSystem.AddWindow(configWindow);
         WindowSystem.AddWindow(mainWindow);
+        WindowSystem.AddWindow(sceneAuthoringWindow);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
@@ -131,6 +141,7 @@ public sealed class Plugin : IDalamudPlugin
         WindowSystem.RemoveAllWindows();
         configWindow.Dispose();
         mainWindow.Dispose();
+        sceneAuthoringWindow.Dispose();
 
         CommandManager.RemoveHandler(CommandName);
     }
@@ -139,6 +150,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         ResolveEffectiveBasePresetPath(true);
         contextService.Refresh();
+        RefreshEffectiveTags();
         imageAnalysisService.Refresh(Configuration, true);
         masterStyleService.Refresh(Configuration, CurrentImageAnalysis, true);
         var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration, MasterStyleImageCount);
@@ -183,6 +195,7 @@ public sealed class Plugin : IDalamudPlugin
             CurrentProfile,
             CurrentMasterStyleDiagnostics,
             CurrentTagStackDiagnostics,
+            CurrentSceneAuthoringState,
             CurrentImageAnalysis,
             CurrentMasterStyle,
             LastWriteResult,
@@ -195,6 +208,7 @@ public sealed class Plugin : IDalamudPlugin
     public DebugBundleExportResult ExportDebugBundle()
     {
         contextService.Refresh();
+        RefreshEffectiveTags();
         imageAnalysisService.Refresh(Configuration, true);
         masterStyleService.Refresh(Configuration, CurrentImageAnalysis, true);
         var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration, MasterStyleImageCount);
@@ -209,6 +223,7 @@ public sealed class Plugin : IDalamudPlugin
             Configuration,
             CurrentContext,
             CurrentTagStackDiagnostics,
+            CurrentSceneAuthoringState,
             CurrentImageAnalysis,
             CurrentMasterStyle,
             CurrentProfile,
@@ -333,6 +348,7 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         contextService.Refresh();
+        RefreshEffectiveTags();
         imageAnalysisService.Refresh(Configuration);
         masterStyleService.Refresh(Configuration, CurrentImageAnalysis);
         var result = profileEngine.CreateWithRules(CurrentContext, CurrentTags, CurrentImageAnalysis, CurrentMasterStyle, Configuration, MasterStyleImageCount);
@@ -375,6 +391,13 @@ public sealed class Plugin : IDalamudPlugin
         {
             RunPresetRegressionReports();
             mainWindow.IsOpen = true;
+            return;
+        }
+
+        if (args.Trim().Equals("authoring", StringComparison.OrdinalIgnoreCase)
+            || args.Trim().Equals("tags", StringComparison.OrdinalIgnoreCase))
+        {
+            sceneAuthoringWindow.Toggle();
             return;
         }
 
@@ -424,8 +447,105 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.AutoAdjustFromScreenshots,
             Configuration.MatchMasterPresetStyle,
             Configuration.AutoAdjustInCutscenes,
+            Configuration.EnableSceneAuthoringOverrides,
+            CurrentSceneAuthoringState.Fingerprint,
             Configuration.Style,
             Configuration.PerformanceBudget);
+    }
+
+    private void RefreshEffectiveTags()
+    {
+        CurrentSceneAuthoringState = sceneAuthoringService.Apply(Configuration, CurrentContext, CurrentDetectedTags);
+        CurrentTags = CurrentSceneAuthoringState.EffectiveTags;
+    }
+
+    public void AddSceneAuthoringTag(string category, string tag)
+    {
+        sceneAuthoringService.AddTag(CurrentContext, category, tag);
+        RefreshEffectiveTags();
+    }
+
+    public void RemoveSceneAuthoringTag(string category, string tag)
+    {
+        sceneAuthoringService.RemoveTag(CurrentContext, category, tag);
+        RefreshEffectiveTags();
+    }
+
+    public void ClearSceneAuthoringTagOverride(string category, string tag)
+    {
+        sceneAuthoringService.ClearTagOverride(CurrentContext, category, tag);
+        RefreshEffectiveTags();
+    }
+
+    public void SetSceneAuthoringPrimaryBiome(string biome)
+    {
+        sceneAuthoringService.SetPrimaryBiome(CurrentContext, biome);
+        RefreshEffectiveTags();
+    }
+
+    public void ClearSceneAuthoringPrimaryBiomeOverride()
+    {
+        sceneAuthoringService.ClearPrimaryBiomeOverride(CurrentContext);
+        RefreshEffectiveTags();
+    }
+
+    public void ResetCurrentSceneAuthoringOverride()
+    {
+        sceneAuthoringService.ResetCurrentScene(CurrentContext);
+        RefreshEffectiveTags();
+    }
+
+    public void RefreshSceneAuthoringState() => RefreshEffectiveTags();
+
+    public IReadOnlyList<string> SceneAuthoringKnownTags(string category) => sceneAuthoringService.KnownTagsForCategory(category);
+
+    public IReadOnlyList<SceneTagPreset> SceneAuthoringTagPresets(string category) => sceneAuthoringService.PresetsForCategory(category);
+
+    public SceneTagPreset? FindSceneAuthoringTagPreset(string category, string tag) => sceneAuthoringService.FindPreset(category, tag);
+
+    public void AddSceneAuthoringTagPreset(string category, string tag)
+    {
+        sceneAuthoringService.AddCustomTagPreset(category, tag);
+        RefreshEffectiveTags();
+    }
+
+    public void UpdateSceneAuthoringTagPreset(string category, string tag, string displayName, string description)
+    {
+        sceneAuthoringService.UpdateTagPreset(category, tag, displayName, description);
+    }
+
+    public void ResetSceneAuthoringTagPreset(string category, string tag)
+    {
+        sceneAuthoringService.ResetTagPreset(category, tag);
+        RefreshEffectiveTags();
+    }
+
+    public void ExportSceneAuthoringOverrides() => sceneAuthoringService.ExportOverrides();
+
+    public void ImportSceneAuthoringOverrides()
+    {
+        sceneAuthoringService.ImportOverrides();
+        RefreshEffectiveTags();
+    }
+
+    public void ResetAllSceneAuthoringOverrides()
+    {
+        sceneAuthoringService.ResetAllOverrides();
+        RefreshEffectiveTags();
+    }
+
+    public void ExportSceneAuthoringTagPresets() => sceneAuthoringService.ExportTagPresets();
+
+    public void ImportSceneAuthoringTagPresets()
+    {
+        sceneAuthoringService.ImportTagPresets();
+        RefreshEffectiveTags();
+    }
+
+    public void ResetSceneAuthoringTagPresets()
+    {
+        sceneAuthoringService.ResetTagPresets();
+        RefreshEffectiveTags();
     }
 
     private MaterialIntent RefreshMaterialIntent()
@@ -530,4 +650,6 @@ public sealed class Plugin : IDalamudPlugin
     public void ToggleConfigUi() => configWindow.Toggle();
 
     public void ToggleMainUi() => mainWindow.Toggle();
+
+    public void ToggleSceneAuthoringUi() => sceneAuthoringWindow.Toggle();
 }

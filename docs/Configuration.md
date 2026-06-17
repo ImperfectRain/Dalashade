@@ -6,6 +6,7 @@
 
 | Group | Purpose |
 | --- | --- |
+| Interface mode | Chooses the user-facing or developer-facing UI surface without changing generation behavior. |
 | Paths | Base preset, generated preset, ReShade ini, shader path, screenshot folders, master style folders. |
 | Generation | Target style, performance budget, compatibility mode, backup count, generation behavior. |
 | Shader mapping | Known shader matching mode, inactive writes, iMMERSE Pro/Ultimate support, custom shader support. |
@@ -16,6 +17,52 @@
 | NormalField | Optional inferred normal/surface-field diagnostics and shader mapping controls. |
 | Debug/export | Compatibility reports, debug bundles, diagnostics visibility. |
 | Reload | ReShade reload hotkey and reload behavior. |
+
+## Interface Mode
+
+`InterfaceMode` controls which UI surface Dalashade shows:
+
+- `User` is the default. It groups the main workflow into setup, look, scene awareness, effects, and health sections. It exposes common controls and actions without showing every low-level diagnostic field.
+- `Developer` shows the full existing settings and diagnostics surface. Use it for shader authoring, resolver tuning, compatibility analysis, and detailed generated-preset inspection.
+
+The mode only changes UI organization. It does not change preset generation, shader formulas, generated-preset safety, defaults, or technique activation behavior. All advanced controls remain available in Developer Mode.
+
+User Mode is workflow-oriented:
+
+- Home summarizes current scene, preset status, and basic generation health.
+- Setup and Generate keeps base/generated preset setup close to the Generate Now action.
+- Look owns target style, performance budget, Supportive/Standalone, and optional master-style matching.
+- Scene Awareness owns combat/night/weather/territory/cutscene and scene-lock behavior.
+- Effects presents first-party shader groups as status cards with a few safe controls.
+- Health exposes compatibility scan, debug bundle export, reload testing, and top warnings.
+
+User Mode should keep the primary workflow visible and keep secondary panels collapsed unless they need attention. Generation status should be concise and user-facing. Raw profile multipliers, injected-section details, authority damping, and low-level variable telemetry belong in Developer Mode.
+
+Scene Authoring is a separate window opened from the main UI or `/dalashade tags`. `EnableSceneAuthoringOverrides` is default-off. When enabled, Dalashade applies user scene-tag overrides after automatic detection and before `SceneIntent`, `VisualProfile`, `MaterialProfile`, and `MaterialIntent` are generated. When disabled, the automatic classifier output is used unchanged.
+
+Scene authoring data is stored under the plugin config folder:
+
+- `SceneAuthoring/scene-overrides.json`: current-territory tag overrides.
+- `SceneAuthoring/tag-presets.json`: editable tag metadata, descriptions, category membership, and known influence notes.
+- `SceneAuthoring/Exports/scene-overrides-export.json`: fixed export/import file for scene overrides.
+- `SceneAuthoring/Exports/tag-presets-export.json`: fixed export/import file for tag preset metadata.
+
+Scene overrides can add/remove grouped tags, reset the current scene override, and set a primary biome override. Tag presets can add custom tags to authoring categories and edit display metadata. Custom tags can be applied immediately, but they only change generated visuals if the existing SceneIntent, VisualProfile, MaterialProfile, MaterialIntent, or shader systems already recognize that tag. The later data-registry pass should move actual tag-to-value tuning out of hard-coded formulas.
+
+Developer Mode remains system-oriented. It should keep every low-level control reachable for shader authoring, resolver work, custom variable mapping, diagnostics, reports, and regression checks.
+
+Developer Mode uses searchable tabs in the main and settings windows. Search should find panels by title or summary, while tabs group controls by responsibility:
+
+- Main window: overview, preset pipeline, scene system, shader mapping, diagnostics.
+- Settings window: setup, generation, shader mapping, scene data, diagnostics.
+
+New UI features should declare where they belong:
+
+- User Mode: task-level decisions, setup state, safe controls, and actionable health.
+- Developer Mode: raw variables, debug modes, mapping switches, diagnostics, and shader-authoring details.
+- Both: only when the same control is genuinely useful to normal users and maintainers.
+
+First-party effect cards intentionally report what Dalashade can know from local state: inferred ReShade shader-file presence, preset entry/section visibility, technique activation state, variable detection, variable writes, FrameData expectation, and depth-assist state. They do not claim to prove ReShade compile success or true engine material state.
 
 ## MaterialIntent Settings
 

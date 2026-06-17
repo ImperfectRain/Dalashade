@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
+using Dalashade.Windows.UiPages;
 
 namespace Dalashade.Windows;
 
@@ -12,6 +15,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly Configuration configuration;
     private readonly KeybindCapture reloadHotkeyCapture = new();
     private bool capturingReloadHotkey;
+    private string developerSearch = string.Empty;
 
     public ConfigWindow(Plugin plugin) : base("Dalashade Settings###DalashadeConfig")
     {
@@ -28,18 +32,424 @@ public sealed class ConfigWindow : Window, IDisposable
 
     public override void Draw()
     {
-        UiSection.Draw("ConfigPaths", "Paths", true, PathsSummary(), DrawPaths);
-        UiSection.Draw("ConfigBasePresetLibrary", "Base Preset Library", true, BaseLibrarySummary(), DrawBasePresetLibrary);
-        UiSection.Draw("ConfigGenerationBehavior", "Generation Behavior", true, GenerationBehaviorSummary(), DrawGenerationBehavior);
-        UiSection.Draw("ConfigMaterialIntent", "Material Intent", false, MaterialIntentSummary(), DrawMaterialIntent);
-        UiSection.Draw("ConfigNormalField", "Normal Field", false, NormalFieldSummary(), DrawNormalField);
-        UiSection.Draw("ConfigCompatibilityMode", "Compatibility Mode", false, CompatibilitySummary(), DrawCompatibilityMode);
-        UiSection.Draw("ConfigShaderMatching", "Shader Matching", false, ShaderMatchingSummary(), DrawShaderMatching, ShaderMatchingWarningColor());
-        UiSection.Draw("ConfigReShadeReload", "ReShade Reload", false, ReShadeReloadSummary(), DrawReShadeReloadSection, ReShadeReloadWarningColor());
-        UiSection.Draw("ConfigScreenshotAnalysis", "Screenshot Analysis", false, ScreenshotAnalysisSummary(), DrawScreenshotAnalysis);
-        UiSection.Draw("ConfigMasterStyleMatching", "Master Style Matching", false, MasterStyleSummary(), DrawMasterStyleMatching);
-        UiSection.Draw("ConfigRegressionTesting", "Regression Testing", false, RegressionTestingSummary(), DrawRegressionTesting);
-        UiSection.Draw("ConfigAdvancedDebug", "Advanced / Debug", false, AdvancedDebugSummary(), DrawAdvancedDebug);
+        DrawInterfaceModeSwitch("Config");
+        ImGui.Spacing();
+
+        if (configuration.InterfaceMode == InterfaceMode.User)
+        {
+            DrawUserMode();
+            return;
+        }
+
+        DrawDeveloperMode();
+    }
+
+    private void DrawDeveloperMode()
+    {
+        ImGui.InputText("Search developer settings###ConfigDeveloperSearch", ref developerSearch, 128);
+
+        if (!string.IsNullOrWhiteSpace(developerSearch))
+        {
+            DrawDeveloperSearchResults();
+            return;
+        }
+
+        if (!ImGui.BeginTabBar("ConfigDeveloperTabs"))
+        {
+            return;
+        }
+
+        DrawDeveloperTab("Setup", BuildDeveloperSetupPages());
+        DrawDeveloperTab("Generation", BuildDeveloperGenerationPages());
+        DrawDeveloperTab("Shader Mapping", BuildDeveloperShaderMappingPages());
+        DrawDeveloperTab("Scene Data", BuildDeveloperSceneDataPages());
+        DrawDeveloperTab("Diagnostics", BuildDeveloperDiagnosticsPages());
+
+        ImGui.EndTabBar();
+    }
+
+    private void DrawDeveloperTab(string title, IReadOnlyList<IDalashadeUiPage> pages)
+    {
+        if (!ImGui.BeginTabItem(title))
+        {
+            return;
+        }
+
+        UiPageRenderer.Draw(pages, InterfaceMode.Developer);
+        ImGui.EndTabItem();
+    }
+
+    private void DrawDeveloperSearchResults()
+    {
+        var pages = BuildAllDeveloperPages()
+            .Where(page => DeveloperPageMatches(page, developerSearch))
+            .GroupBy(page => page.Id, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToArray();
+
+        if (pages.Length == 0)
+        {
+            ImGui.TextUnformatted("No developer settings match the search.");
+            return;
+        }
+
+        UiPageRenderer.Draw(pages, InterfaceMode.Developer);
+    }
+
+    private static bool DeveloperPageMatches(IDalashadeUiPage page, string query)
+    {
+        return page.Title.Contains(query, StringComparison.OrdinalIgnoreCase)
+               || page.Summary().Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private IReadOnlyList<IDalashadeUiPage> BuildAllDeveloperPages()
+    {
+        return BuildDeveloperSetupPages()
+            .Concat(BuildDeveloperGenerationPages())
+            .Concat(BuildDeveloperShaderMappingPages())
+            .Concat(BuildDeveloperSceneDataPages())
+            .Concat(BuildDeveloperDiagnosticsPages())
+            .ToArray();
+    }
+
+    private IReadOnlyList<IDalashadeUiPage> BuildDeveloperSetupPages()
+    {
+        return new IDalashadeUiPage[]
+        {
+            DeveloperPage("ConfigPaths", "Paths", true, PathsSummary, DrawPaths),
+            DeveloperPage("ConfigBasePresetLibrary", "Base Preset Library", true, BaseLibrarySummary, DrawBasePresetLibrary),
+            DeveloperPage("ConfigReShadeReload", "ReShade Reload", true, ReShadeReloadSummary, DrawReShadeReloadSection, ReShadeReloadWarningColor)
+        };
+    }
+
+    private IReadOnlyList<IDalashadeUiPage> BuildDeveloperGenerationPages()
+    {
+        return new IDalashadeUiPage[]
+        {
+            DeveloperPage("ConfigGenerationBehavior", "Generation Behavior", true, GenerationBehaviorSummary, DrawGenerationBehavior),
+            DeveloperPage("ConfigCompatibilityMode", "Compatibility Mode", false, CompatibilitySummary, DrawCompatibilityMode),
+            DeveloperPage("ConfigReShadeReload", "ReShade Reload", false, ReShadeReloadSummary, DrawReShadeReloadSection, ReShadeReloadWarningColor)
+        };
+    }
+
+    private IReadOnlyList<IDalashadeUiPage> BuildDeveloperShaderMappingPages()
+    {
+        return new IDalashadeUiPage[]
+        {
+            DeveloperPage("ConfigShaderMatching", "Shader Matching", true, ShaderMatchingSummary, DrawShaderMatching, ShaderMatchingWarningColor),
+            DeveloperPage("ConfigMaterialIntent", "Material Intent", false, MaterialIntentSummary, DrawMaterialIntent),
+            DeveloperPage("ConfigNormalField", "Normal Field", false, NormalFieldSummary, DrawNormalField)
+        };
+    }
+
+    private IReadOnlyList<IDalashadeUiPage> BuildDeveloperSceneDataPages()
+    {
+        return new IDalashadeUiPage[]
+        {
+            DeveloperPage("ConfigScreenshotAnalysis", "Screenshot Analysis", true, ScreenshotAnalysisSummary, DrawScreenshotAnalysis),
+            DeveloperPage("ConfigMasterStyleMatching", "Master Style Matching", false, MasterStyleSummary, DrawMasterStyleMatching),
+            DeveloperPage("ConfigMaterialIntent", "Material Intent", false, MaterialIntentSummary, DrawMaterialIntent),
+            DeveloperPage("ConfigNormalField", "Normal Field", false, NormalFieldSummary, DrawNormalField)
+        };
+    }
+
+    private IReadOnlyList<IDalashadeUiPage> BuildDeveloperDiagnosticsPages()
+    {
+        return new IDalashadeUiPage[]
+        {
+            DeveloperPage("ConfigCompatibilityMode", "Compatibility Mode", true, CompatibilitySummary, DrawCompatibilityMode),
+            DeveloperPage("ConfigRegressionTesting", "Regression Testing", false, RegressionTestingSummary, DrawRegressionTesting),
+            DeveloperPage("ConfigAdvancedDebug", "Advanced / Debug", false, AdvancedDebugSummary, DrawAdvancedDebug)
+        };
+    }
+
+    private static IDalashadeUiPage DeveloperPage(
+        string id,
+        string title,
+        bool defaultOpen,
+        Func<string> summary,
+        Action draw,
+        Func<Vector4?>? summaryColor = null)
+    {
+        return new DelegateDalashadeUiPage(id, title, defaultOpen, InterfaceModeVisibility.Developer, summary, draw, summaryColor);
+    }
+
+    private void DrawUserMode()
+    {
+        UiPageRenderer.Draw(BuildUserPages(), InterfaceMode.User);
+    }
+
+    private IReadOnlyList<IDalashadeUiPage> BuildUserPages()
+    {
+        var healthOpen = plugin.LastPresetAnalysis.Report.Level is PresetRiskLevel.High or PresetRiskLevel.VeryHigh;
+        return new IDalashadeUiPage[]
+        {
+            new DelegateDalashadeUiPage(
+                "ConfigUserSetup",
+                "Setup",
+                true,
+                InterfaceModeVisibility.User,
+                UserSetupSummary,
+                DrawUserSetup),
+            new DelegateDalashadeUiPage(
+                "ConfigUserLook",
+                "Look",
+                false,
+                InterfaceModeVisibility.User,
+                UserLookSummary,
+                DrawUserLook),
+            new DelegateDalashadeUiPage(
+                "ConfigUserSceneAwareness",
+                "Scene Awareness",
+                false,
+                InterfaceModeVisibility.User,
+                UserSceneAwarenessSummary,
+                DrawUserSceneAwareness),
+            new DelegateDalashadeUiPage(
+                "ConfigUserEffects",
+                "Effects",
+                false,
+                InterfaceModeVisibility.User,
+                UserEffectsSummary,
+                DrawUserEffects),
+            new DelegateDalashadeUiPage(
+                "ConfigUserHealth",
+                "Health",
+                healthOpen,
+                InterfaceModeVisibility.User,
+                UserHealthSummary,
+                DrawUserHealth,
+                UserHealthWarningColor)
+        };
+    }
+
+    private void DrawInterfaceModeSwitch(string idPrefix)
+    {
+        ImGui.TextUnformatted("Interface mode");
+        ImGui.SameLine();
+
+        var userSelected = configuration.InterfaceMode == InterfaceMode.User;
+        if (ImGui.RadioButton($"User###{idPrefix}InterfaceUser", userSelected))
+        {
+            configuration.InterfaceMode = InterfaceMode.User;
+            configuration.Save();
+        }
+
+        ImGui.SameLine();
+        var developerSelected = configuration.InterfaceMode == InterfaceMode.Developer;
+        if (ImGui.RadioButton($"Developer###{idPrefix}InterfaceDeveloper", developerSelected))
+        {
+            configuration.InterfaceMode = InterfaceMode.Developer;
+            configuration.Save();
+        }
+
+        ImGui.TextWrapped(configuration.InterfaceMode == InterfaceMode.User
+            ? "User Mode shows the setup, look, effect, and health controls most users need."
+            : "Developer Mode shows the full low-level settings surface for diagnostics, mapping, and shader authoring.");
+    }
+
+    private string UserSetupSummary()
+    {
+        var generatedReady = !string.IsNullOrWhiteSpace(configuration.GeneratedPresetPath);
+        var baseReady = !string.IsNullOrWhiteSpace(configuration.BasePresetPath) && File.Exists(configuration.BasePresetPath);
+        return baseReady && generatedReady ? "Ready to generate" : "Needs preset paths";
+    }
+
+    private void DrawUserSetup()
+    {
+        DrawSetupItem("Base preset selected", !string.IsNullOrWhiteSpace(configuration.BasePresetPath) && File.Exists(configuration.BasePresetPath));
+        DrawSetupItem("Generated preset path selected", !string.IsNullOrWhiteSpace(configuration.GeneratedPresetPath));
+        DrawSetupItem("Generated preset is separate", !string.Equals(configuration.BasePresetPath, configuration.GeneratedPresetPath, StringComparison.OrdinalIgnoreCase));
+
+        DrawBasePresetLibrary();
+        ImGui.Separator();
+        DrawPaths();
+
+        if (ImGui.Button("Generate Now###ConfigUserGenerateNow"))
+        {
+            plugin.GenerateNow();
+        }
+
+        ImGui.SameLine();
+        ImGui.TextWrapped(UserWriteSummary());
+    }
+
+    private string UserWriteSummary()
+    {
+        var result = plugin.LastWriteResult;
+        if (!result.Success)
+        {
+            return string.IsNullOrWhiteSpace(result.Message)
+                ? "Generated preset has not been updated yet."
+                : result.Message;
+        }
+
+        var clamped = result.Changes.Count(change => change.HitMin || change.HitMax);
+        var warnings = result.Changes.Count(change => !string.IsNullOrWhiteSpace(change.Warning));
+        return $"Generated preset updated. {result.ChangedVariables} supported values changed; {clamped} clamped; {warnings} warnings.";
+    }
+
+    private string UserLookSummary()
+    {
+        var master = configuration.MatchMasterPresetStyle ? $", master {configuration.MasterPresetStyleStrength}%" : string.Empty;
+        return $"{configuration.Style}, {configuration.PerformanceBudget}, {FormatFirstPartyShaderMode(configuration.FirstPartyShaderMode)}{master}";
+    }
+
+    private void DrawUserLook()
+    {
+        DrawCheckbox("Enable dynamic preset generation", configuration.Enabled, value => configuration.Enabled = value);
+
+        var style = (int)configuration.Style;
+        if (ImGui.Combo("Target style", ref style, "Gameplay\0Balanced\0Cinematic\0"))
+        {
+            configuration.Style = (TargetStyle)style;
+            configuration.Save();
+        }
+
+        var budget = (int)configuration.PerformanceBudget;
+        if (ImGui.Combo("Performance budget", ref budget, "Low\0Medium\0High\0Ultra\0"))
+        {
+            configuration.PerformanceBudget = (PerformanceBudget)budget;
+            configuration.Save();
+        }
+
+        var firstPartyMode = (int)configuration.FirstPartyShaderMode;
+        if (ImGui.Combo("Dalashade shader mode", ref firstPartyMode, "Supportive / Enhance Base Preset\0Standalone / First-Party Stack\0"))
+        {
+            configuration.FirstPartyShaderMode = (FirstPartyShaderMode)firstPartyMode;
+            configuration.Save();
+        }
+        DrawItemTooltip("Supportive keeps Dalashade first-party shaders conservative. Standalone lets installed Dalashade first-party shaders carry more of the look while keeping safety gates.");
+
+        DrawCheckbox("Match master preset style", configuration.MatchMasterPresetStyle, value => configuration.MatchMasterPresetStyle = value);
+        if (configuration.MatchMasterPresetStyle)
+        {
+            var masterStrength = configuration.MasterPresetStyleStrength;
+            if (ImGui.SliderInt("Master style strength", ref masterStrength, 0, 100))
+            {
+                configuration.MasterPresetStyleStrength = masterStrength;
+                configuration.Save();
+            }
+
+            DrawTextInput("Master preset image folder", configuration.MasterPresetFolderPath, value => configuration.MasterPresetFolderPath = value);
+        }
+    }
+
+    private string UserSceneAwarenessSummary()
+    {
+        var enabledCount = new[]
+        {
+            configuration.AutoAdjustInCombat,
+            configuration.AutoAdjustAtNight,
+            configuration.AutoAdjustForWeather,
+            configuration.AutoAdjustForTerritory,
+            configuration.AutoAdjustInCutscenes,
+            configuration.AutoAdjustFromScreenshots
+        }.Count(value => value);
+
+        return $"{enabledCount}/6 adaptive inputs enabled";
+    }
+
+    private void DrawUserSceneAwareness()
+    {
+        DrawCheckbox("Auto-adjust in combat", configuration.AutoAdjustInCombat, value => configuration.AutoAdjustInCombat = value);
+        DrawCheckbox("Auto-adjust at night", configuration.AutoAdjustAtNight, value => configuration.AutoAdjustAtNight = value);
+        DrawCheckbox("Auto-adjust for weather", configuration.AutoAdjustForWeather, value => configuration.AutoAdjustForWeather = value);
+        DrawCheckbox("Auto-adjust for territory type", configuration.AutoAdjustForTerritory, value => configuration.AutoAdjustForTerritory = value);
+        DrawCheckbox("Auto-adjust in cutscenes", configuration.AutoAdjustInCutscenes, value => configuration.AutoAdjustInCutscenes = value);
+        DrawCheckbox("Use scene authoring overrides", configuration.EnableSceneAuthoringOverrides, value =>
+        {
+            configuration.EnableSceneAuthoringOverrides = value;
+            plugin.RefreshSceneAuthoringState();
+        });
+        DrawCheckbox("Lock current generated preset", configuration.SceneLockEnabled, value => configuration.SceneLockEnabled = value);
+        DrawCheckbox("Auto-adjust from screenshots", configuration.AutoAdjustFromScreenshots, value => configuration.AutoAdjustFromScreenshots = value);
+        if (configuration.AutoAdjustFromScreenshots)
+        {
+            DrawTextInput("Screenshot folder", configuration.ScreenshotFolderPath, value => configuration.ScreenshotFolderPath = value);
+        }
+
+        if (ImGui.Button("Open Scene Authoring###ConfigUserOpenSceneAuthoring"))
+        {
+            plugin.ToggleSceneAuthoringUi();
+        }
+    }
+
+    private string UserEffectsSummary()
+    {
+        if (!configuration.EnableDalashadeCustomShaders)
+        {
+            return "First-party shader variable writes disabled";
+        }
+
+        var enabled = new[]
+        {
+            configuration.EnableDalashadeSceneGIShaderVariables,
+            configuration.EnableDalashadeSurfaceReflectionShaderVariables,
+            configuration.EnableMaterialIntentShaderMapping,
+            configuration.EnableNormalFieldShaderMapping,
+            configuration.EnableFirstPartyDepthAssist
+        }.Count(value => value);
+
+        return $"{enabled} optional effect systems enabled";
+    }
+
+    private void DrawUserEffects()
+    {
+        DrawCheckbox("Enable Dalashade custom shader variables", configuration.EnableDalashadeCustomShaders, value => configuration.EnableDalashadeCustomShaders = value);
+        DrawItemTooltip("Allows Dalashade to write known first-party shader variables into generated presets. Techniques still must be enabled manually in ReShade.");
+        DrawCheckbox("Auto-inject known Dalashade shader sections", configuration.AutoInjectDalashadeCustomShaderSections, value => configuration.AutoInjectDalashadeCustomShaderSections = value);
+        DrawCheckbox("Enable SceneGI variable writes", configuration.EnableDalashadeSceneGIShaderVariables, value => configuration.EnableDalashadeSceneGIShaderVariables = value);
+        DrawCheckbox("Enable SurfaceReflection variable writes", configuration.EnableDalashadeSurfaceReflectionShaderVariables, value => configuration.EnableDalashadeSurfaceReflectionShaderVariables = value);
+        DrawCheckbox("Enable depth assist for first-party Dalashade shaders", configuration.EnableFirstPartyDepthAssist, value => configuration.EnableFirstPartyDepthAssist = value);
+        DrawItemTooltip("Opt-in helper for first-party shader masks when ReShade depth is reliable. It does not enable techniques.");
+        DrawCheckbox("Enable MaterialIntent", configuration.EnableMaterialIntent, value => configuration.EnableMaterialIntent = value);
+        DrawCheckbox("Allow MaterialIntent shader variable writes", configuration.EnableMaterialIntentShaderMapping, value => configuration.EnableMaterialIntentShaderMapping = value);
+        DrawCheckbox("Enable Normal Field", configuration.EnableNormalField, value => configuration.EnableNormalField = value);
+        DrawCheckbox("Enable Normal Field Shader Mapping", configuration.EnableNormalFieldShaderMapping, value => configuration.EnableNormalFieldShaderMapping = value);
+        ImGui.TextWrapped("Detailed per-shader strengths, debug modes, and resolver diagnostics are available in Developer Mode.");
+    }
+
+    private string UserHealthSummary()
+    {
+        return $"{PresetAnalyzer.FormatCompatibilityMode(configuration.CompatibilityMode)}, risk {plugin.LastPresetAnalysis.Report.Level}";
+    }
+
+    private Vector4? UserHealthWarningColor()
+    {
+        return plugin.LastPresetAnalysis.Report.Level is PresetRiskLevel.High or PresetRiskLevel.VeryHigh
+            ? new Vector4(1.0f, 0.72f, 0.28f, 1.0f)
+            : null;
+    }
+
+    private void DrawUserHealth()
+    {
+        DrawSetupItem("Generated at least once", plugin.LastWriteResult.Success);
+        DrawSetupItem("Custom shader writes enabled", configuration.EnableDalashadeCustomShaders);
+        DrawSetupItem("Generated preset sections can be injected", configuration.AutoInjectDalashadeCustomShaderSections);
+        DrawSetupItem("Shader variables detected", plugin.LastShaderSupportScan.Items.Count > 0);
+        DrawSetupItem("ReShade.ini found", plugin.LastReloadResult.Diagnostics.ReShadeIniFound);
+
+        if (ImGui.Button("Scan Preset Compatibility###ConfigUserScanPresetCompatibility"))
+        {
+            plugin.ScanPresetCompatibility();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Export Debug Bundle###ConfigUserExportDebugBundle"))
+        {
+            plugin.ExportDebugBundle();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Test Reload###ConfigUserTestReload"))
+        {
+            plugin.ReloadShadersNow();
+        }
+
+        ImGui.TextWrapped(plugin.LastPresetAnalysis.Message);
+        ImGui.TextWrapped(plugin.LastDiagnosticsExportMessage);
+        ImGui.TextWrapped(plugin.LastReloadResult.Message);
     }
 
     private string PathsSummary()
@@ -105,6 +515,11 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawCheckbox("Auto-adjust for weather", configuration.AutoAdjustForWeather, value => configuration.AutoAdjustForWeather = value);
         DrawCheckbox("Auto-adjust for territory type", configuration.AutoAdjustForTerritory, value => configuration.AutoAdjustForTerritory = value);
         DrawCheckbox("Auto-adjust in cutscenes", configuration.AutoAdjustInCutscenes, value => configuration.AutoAdjustInCutscenes = value);
+        DrawCheckbox("Use scene authoring overrides", configuration.EnableSceneAuthoringOverrides, value =>
+        {
+            configuration.EnableSceneAuthoringOverrides = value;
+            plugin.RefreshSceneAuthoringState();
+        });
         DrawCheckbox("Lock current generated preset", configuration.SceneLockEnabled, value => configuration.SceneLockEnabled = value);
         DrawCheckbox("Enable depth assist for first-party Dalashade shaders", configuration.EnableFirstPartyDepthAssist, value => configuration.EnableFirstPartyDepthAssist = value);
         DrawItemTooltip("Requires Dalashade custom shader variable writes. When enabled, generation writes Dalashade_EnableDepthAssist=1 and full depth-assist strength into known first-party Dalashade shader sections that declare those uniforms. This does not enable shader techniques.");
@@ -597,6 +1012,11 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.BeginTooltip();
         ImGui.TextWrapped(text);
         ImGui.EndTooltip();
+    }
+
+    private static void DrawSetupItem(string label, bool complete)
+    {
+        ImGui.BulletText($"{(complete ? "OK" : "Missing")} - {label}");
     }
 
     private static string FormatFirstPartyShaderMode(FirstPartyShaderMode mode)

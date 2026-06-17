@@ -89,9 +89,11 @@ Implemented report paths:
 | Compatibility report | `CompatibilityReportExporter.Export(...)` |
 | Regression reports | `PresetRegressionReportHarness.Run(...)` |
 
-Compatibility reports include preset risk, authorities, role policies, shader support, changed variables, sanitize actions, master diagnostics, scene-tag diagnostics, FrameData diagnostics, first-party depth-assist diagnostics, and mapping validation.
+Compatibility reports include preset risk, authorities, role policies, shader support, changed variables, sanitize actions, master diagnostics, scene-tag diagnostics, scene-authoring diagnostics, FrameData diagnostics, first-party depth-assist diagnostics, and mapping validation.
 
 Scene-tag diagnostics include the primary biome, confidence, matched keyword/reason, active weather tags, secondary tags, material tags, area/context tags, gameplay-state tags, art-direction tags, and `SceneIntent` contributions grouped by tag category. Use these sections first when a generated preset has the wrong environmental identity.
+
+Scene-authoring diagnostics show whether authoring is enabled, the active override identity, detected versus effective area/weather/biome/mood tags, added/removed override maps, suppressed diagnostic tags, conflict warnings, and the authoring fingerprint used for profile cache invalidation. Use this section when a user-authored tag stack appears to be ignored or when derived tags seem to reappear after removal.
 
 Material diagnostics are split into plugin-side scene plausibility and shader-side mask calibration:
 

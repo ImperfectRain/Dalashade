@@ -5,6 +5,7 @@ using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
+using Dalashade.Windows.UiPages;
 
 namespace Dalashade.Windows;
 
@@ -15,6 +16,7 @@ public sealed class MainWindow : Window, IDisposable
 
     private readonly Plugin plugin;
     private bool showAllMasterColorFamilies;
+    private string developerSearch = string.Empty;
 
     public MainWindow(Plugin plugin)
         : base("Dalashade###DalashadeMain")
@@ -39,25 +41,619 @@ public sealed class MainWindow : Window, IDisposable
             plugin.ToggleConfigUi();
         }
 
+        ImGui.SameLine();
+        if (ImGui.Button("Scene Authoring"))
+        {
+            plugin.ToggleSceneAuthoringUi();
+        }
+
+        ImGui.Spacing();
+        DrawInterfaceModeSwitch("Main");
         ImGui.Spacing();
 
-        UiSection.Draw("MainCurrentStatus", "Current Status", true, CurrentStatusSummary(), DrawCurrentStatus);
-        UiSection.Draw("MainSceneTags", "Scene Tags", true, SceneTagsSummary(), DrawSceneTags);
-        UiSection.Draw("MainMaterialIntent", "Material Intent", false, MaterialIntentSummary(), DrawMaterialIntent);
-        UiSection.Draw("MainNormalField", "Normal Field", false, NormalFieldSummary(), DrawNormalField);
-        UiSection.Draw("MainBasePreset", "Base Preset", true, BasePresetSummary(), DrawBasePreset, BasePresetWarningColor());
-        UiSection.Draw("MainGeneration", "Generation", true, GenerationSummary(), DrawGeneration, GenerationWarningColor());
-        UiSection.Draw("MainReShadeReload", "ReShade Reload", true, ReShadeReloadSummary(), DrawReShadeReload, ReShadeReloadWarningColor());
+        if (plugin.Configuration.InterfaceMode == InterfaceMode.User)
+        {
+            DrawUserMode();
+            return;
+        }
 
-        var compatibilityDefaultOpen = plugin.LastPresetAnalysis.Report.Level is PresetRiskLevel.High or PresetRiskLevel.VeryHigh;
-        UiSection.Draw("MainPresetCompatibility", "Preset Compatibility", compatibilityDefaultOpen, PresetCompatibilitySummary(), DrawPresetCompatibility, PresetCompatibilityWarningColor());
-        UiSection.Draw("MainChangedVariables", "Changed Variables", false, ChangedVariablesSummary(), DrawChangedVariables, ChangedVariablesWarningColor());
-        UiSection.Draw("MainSanitizeActions", "Sanitize Actions", false, SanitizeActionsSummary(), DrawSanitizeActions);
-        UiSection.Draw("MainAppliedRules", "Applied Rules", false, $"{plugin.CurrentRules.Count} rules applied", DrawAppliedRules);
-        UiSection.Draw("MainScreenshotAnalysis", "Screenshot Analysis", false, ScreenshotSummary(), DrawScreenshotAnalysis);
-        UiSection.Draw("MainMasterStyle", "Master Style", false, MasterStyleSummary(), DrawMasterStyle);
-        UiSection.Draw("MainRegressionReports", "Regression Reports", false, RegressionSummary(), DrawRegressionReports);
-        UiSection.Draw("MainDebugDiagnostics", "Debug / Diagnostics", false, DebugSummary(), DrawDebugDiagnostics);
+        DrawDeveloperMode();
+    }
+
+    private void DrawDeveloperMode()
+    {
+        ImGui.InputText("Search developer panels###MainDeveloperSearch", ref developerSearch, 128);
+
+        if (!string.IsNullOrWhiteSpace(developerSearch))
+        {
+            DrawDeveloperSearchResults();
+            return;
+        }
+
+        if (!ImGui.BeginTabBar("MainDeveloperTabs"))
+        {
+            return;
+        }
+
+        DrawDeveloperTab("Overview", BuildDeveloperOverviewPages());
+        DrawDeveloperTab("Preset Pipeline", BuildDeveloperPresetPipelinePages());
+        DrawDeveloperTab("Scene System", BuildDeveloperSceneSystemPages());
+        DrawDeveloperTab("Shader Mapping", BuildDeveloperShaderMappingPages());
+        DrawDeveloperTab("Diagnostics", BuildDeveloperDiagnosticsPages());
+
+        ImGui.EndTabBar();
+    }
+
+    private void DrawDeveloperTab(string title, IReadOnlyList<IDalashadeUiPage> pages)
+    {
+        if (!ImGui.BeginTabItem(title))
+        {
+            return;
+        }
+
+        UiPageRenderer.Draw(pages, InterfaceMode.Developer);
+        ImGui.EndTabItem();
+    }
+
+    private void DrawDeveloperSearchResults()
+    {
+        var pages = BuildAllDeveloperPages()
+            .Where(page => DeveloperPageMatches(page, developerSearch))
+            .GroupBy(page => page.Id, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToArray();
+
+        if (pages.Length == 0)
+        {
+            ImGui.TextUnformatted("No developer panels match the search.");
+            return;
+        }
+
+        UiPageRenderer.Draw(pages, InterfaceMode.Developer);
+    }
+
+    private static bool DeveloperPageMatches(IDalashadeUiPage page, string query)
+    {
+        return page.Title.Contains(query, StringComparison.OrdinalIgnoreCase)
+               || page.Summary().Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private IReadOnlyList<IDalashadeUiPage> BuildAllDeveloperPages()
+    {
+        return BuildDeveloperOverviewPages()
+            .Concat(BuildDeveloperPresetPipelinePages())
+            .Concat(BuildDeveloperSceneSystemPages())
+            .Concat(BuildDeveloperShaderMappingPages())
+            .Concat(BuildDeveloperDiagnosticsPages())
+            .ToArray();
+    }
+
+    private IReadOnlyList<IDalashadeUiPage> BuildDeveloperOverviewPages()
+    {
+        return new IDalashadeUiPage[]
+        {
+            DeveloperPage("MainCurrentStatus", "Current Status", true, CurrentStatusSummary, DrawCurrentStatus),
+            DeveloperPage("MainBasePreset", "Base Preset", true, BasePresetSummary, DrawBasePreset, BasePresetWarningColor),
+            DeveloperPage("MainGeneration", "Generation", true, GenerationSummary, DrawGeneration, GenerationWarningColor),
+            DeveloperPage("MainReShadeReload", "ReShade Reload", true, ReShadeReloadSummary, DrawReShadeReload, ReShadeReloadWarningColor),
+            DeveloperPage("MainPresetCompatibility", "Preset Compatibility", plugin.LastPresetAnalysis.Report.Level is PresetRiskLevel.High or PresetRiskLevel.VeryHigh, PresetCompatibilitySummary, DrawPresetCompatibility, PresetCompatibilityWarningColor)
+        };
+    }
+
+    private IReadOnlyList<IDalashadeUiPage> BuildDeveloperPresetPipelinePages()
+    {
+        return new IDalashadeUiPage[]
+        {
+            DeveloperPage("MainBasePreset", "Base Preset", true, BasePresetSummary, DrawBasePreset, BasePresetWarningColor),
+            DeveloperPage("MainGeneration", "Generation", true, GenerationSummary, DrawGeneration, GenerationWarningColor),
+            DeveloperPage("MainReShadeReload", "ReShade Reload", true, ReShadeReloadSummary, DrawReShadeReload, ReShadeReloadWarningColor),
+            DeveloperPage("MainPresetCompatibility", "Preset Compatibility", true, PresetCompatibilitySummary, DrawPresetCompatibility, PresetCompatibilityWarningColor),
+            DeveloperPage("MainChangedVariables", "Changed Variables", false, ChangedVariablesSummary, DrawChangedVariables, ChangedVariablesWarningColor),
+            DeveloperPage("MainSanitizeActions", "Sanitize Actions", false, SanitizeActionsSummary, DrawSanitizeActions)
+        };
+    }
+
+    private IReadOnlyList<IDalashadeUiPage> BuildDeveloperSceneSystemPages()
+    {
+        return new IDalashadeUiPage[]
+        {
+            DeveloperPage("MainCurrentStatus", "Current Status", true, CurrentStatusSummary, DrawCurrentStatus),
+            DeveloperPage("MainSceneTags", "Scene Tags", true, SceneTagsSummary, DrawSceneTags),
+            DeveloperPage("MainMaterialIntent", "Material Intent", false, MaterialIntentSummary, DrawMaterialIntent),
+            DeveloperPage("MainNormalField", "Normal Field", false, NormalFieldSummary, DrawNormalField),
+            DeveloperPage("MainScreenshotAnalysis", "Screenshot Analysis", false, ScreenshotSummary, DrawScreenshotAnalysis),
+            DeveloperPage("MainMasterStyle", "Master Style", false, MasterStyleSummary, DrawMasterStyle)
+        };
+    }
+
+    private IReadOnlyList<IDalashadeUiPage> BuildDeveloperShaderMappingPages()
+    {
+        return new IDalashadeUiPage[]
+        {
+            DeveloperPage("MainMaterialIntent", "Material Intent", true, MaterialIntentSummary, DrawMaterialIntent),
+            DeveloperPage("MainNormalField", "Normal Field", true, NormalFieldSummary, DrawNormalField),
+            DeveloperPage("MainDebugDiagnostics", "Debug / Diagnostics", true, DebugSummary, DrawDebugDiagnostics),
+            DeveloperPage("MainChangedVariables", "Changed Variables", false, ChangedVariablesSummary, DrawChangedVariables, ChangedVariablesWarningColor)
+        };
+    }
+
+    private IReadOnlyList<IDalashadeUiPage> BuildDeveloperDiagnosticsPages()
+    {
+        return new IDalashadeUiPage[]
+        {
+            DeveloperPage("MainPresetCompatibility", "Preset Compatibility", true, PresetCompatibilitySummary, DrawPresetCompatibility, PresetCompatibilityWarningColor),
+            DeveloperPage("MainChangedVariables", "Changed Variables", false, ChangedVariablesSummary, DrawChangedVariables, ChangedVariablesWarningColor),
+            DeveloperPage("MainSanitizeActions", "Sanitize Actions", false, SanitizeActionsSummary, DrawSanitizeActions),
+            DeveloperPage("MainAppliedRules", "Applied Rules", false, () => $"{plugin.CurrentRules.Count} rules applied", DrawAppliedRules),
+            DeveloperPage("MainRegressionReports", "Regression Reports", false, RegressionSummary, DrawRegressionReports),
+            DeveloperPage("MainDebugDiagnostics", "Debug / Diagnostics", false, DebugSummary, DrawDebugDiagnostics)
+        };
+    }
+
+    private static IDalashadeUiPage DeveloperPage(
+        string id,
+        string title,
+        bool defaultOpen,
+        Func<string> summary,
+        Action draw,
+        Func<Vector4?>? summaryColor = null)
+    {
+        return new DelegateDalashadeUiPage(id, title, defaultOpen, InterfaceModeVisibility.Developer, summary, draw, summaryColor);
+    }
+
+    private void DrawUserMode()
+    {
+        UiPageRenderer.Draw(BuildUserPages(), InterfaceMode.User);
+    }
+
+    private IReadOnlyList<IDalashadeUiPage> BuildUserPages()
+    {
+        var healthOpen = plugin.LastPresetAnalysis.Report.Level is PresetRiskLevel.High or PresetRiskLevel.VeryHigh;
+        return new IDalashadeUiPage[]
+        {
+            new DelegateDalashadeUiPage(
+                "MainUserHome",
+                "Home",
+                true,
+                InterfaceModeVisibility.User,
+                UserHomeSummary,
+                DrawUserHome),
+            new DelegateDalashadeUiPage(
+                "MainUserSetupGenerate",
+                "Setup & Generate",
+                false,
+                InterfaceModeVisibility.User,
+                BasePresetSummary,
+                DrawUserSetupGenerate,
+                BasePresetWarningColor),
+            new DelegateDalashadeUiPage(
+                "MainUserLook",
+                "Look",
+                false,
+                InterfaceModeVisibility.User,
+                UserLookSummary,
+                DrawUserLook),
+            new DelegateDalashadeUiPage(
+                "MainUserSceneAwareness",
+                "Scene Awareness",
+                false,
+                InterfaceModeVisibility.User,
+                UserSceneAwarenessSummary,
+                DrawUserSceneAwareness),
+            new DelegateDalashadeUiPage(
+                "MainUserEffects",
+                "Effects",
+                false,
+                InterfaceModeVisibility.User,
+                UserEffectsSummary,
+                DrawUserEffects),
+            new DelegateDalashadeUiPage(
+                "MainUserHealth",
+                "Health",
+                healthOpen,
+                InterfaceModeVisibility.User,
+                UserHealthSummary,
+                DrawUserHealth,
+                PresetCompatibilityWarningColor)
+        };
+    }
+
+    private void DrawInterfaceModeSwitch(string idPrefix)
+    {
+        var configuration = plugin.Configuration;
+
+        ImGui.TextUnformatted("Interface mode");
+        ImGui.SameLine();
+
+        if (ImGui.RadioButton($"User###{idPrefix}InterfaceUser", configuration.InterfaceMode == InterfaceMode.User))
+        {
+            configuration.InterfaceMode = InterfaceMode.User;
+            configuration.Save();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.RadioButton($"Developer###{idPrefix}InterfaceDeveloper", configuration.InterfaceMode == InterfaceMode.Developer))
+        {
+            configuration.InterfaceMode = InterfaceMode.Developer;
+            configuration.Save();
+        }
+    }
+
+    private string UserHomeSummary()
+    {
+        var configuration = plugin.Configuration;
+        return $"{configuration.Style}, {configuration.PerformanceBudget}, {configuration.FirstPartyShaderMode}";
+    }
+
+    private void DrawUserHome()
+    {
+        var context = plugin.CurrentContext;
+        var configuration = plugin.Configuration;
+        var diagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(configuration, plugin.LastShaderSupportScan, plugin.LastWriteResult, plugin.LastPresetAnalysis);
+        var readyToGenerate = !string.IsNullOrWhiteSpace(configuration.BasePresetPath)
+                              && File.Exists(configuration.BasePresetPath)
+                              && !string.IsNullOrWhiteSpace(configuration.GeneratedPresetPath)
+                              && !string.Equals(configuration.BasePresetPath, configuration.GeneratedPresetPath, StringComparison.OrdinalIgnoreCase);
+
+        ImGui.TextUnformatted($"{context.TerritoryName} - {context.WeatherName} - {context.TimeBucket}");
+        ImGui.TextWrapped($"Active tags: {(plugin.CurrentTags.MoodTags.Count == 0 ? "none" : string.Join(", ", plugin.CurrentTags.MoodTags))}");
+        ImGui.TextUnformatted($"Current look: {configuration.Style} / {configuration.PerformanceBudget} / {configuration.FirstPartyShaderMode}");
+        ImGui.Separator();
+        DrawSetupItem("Ready to generate", readyToGenerate);
+        DrawSetupItem("Generated preset updated", plugin.LastWriteResult.Success);
+        DrawSetupItem("First-party shader values written", diagnostics.ValuesWritten);
+
+        if (ImGui.Button("Generate Now###MainUserHomeGenerateNow"))
+        {
+            plugin.GenerateNow();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Health Check###MainUserHomeHealthCheck"))
+        {
+            plugin.ScanPresetCompatibility();
+        }
+
+        ImGui.TextWrapped(UserWriteSummary());
+    }
+
+    private void DrawUserSetupGenerate()
+    {
+        DrawBasePreset();
+        ImGui.Separator();
+        if (ImGui.Button("Generate Now###MainUserSetupGenerateNow"))
+        {
+            plugin.GenerateNow();
+        }
+
+        ImGui.SameLine();
+        ImGui.TextWrapped(UserWriteSummary());
+    }
+
+    private string UserLookSummary()
+    {
+        var configuration = plugin.Configuration;
+        var master = configuration.MatchMasterPresetStyle ? $", master {configuration.MasterPresetStyleStrength}%" : string.Empty;
+        return $"{configuration.Style}, {configuration.PerformanceBudget}, {configuration.FirstPartyShaderMode}{master}";
+    }
+
+    private void DrawUserLook()
+    {
+        var configuration = plugin.Configuration;
+
+        DrawCheckbox("Enable dynamic preset generation", configuration.Enabled, value => configuration.Enabled = value);
+
+        var style = (int)configuration.Style;
+        if (ImGui.Combo("Target style", ref style, "Gameplay\0Balanced\0Cinematic\0"))
+        {
+            configuration.Style = (TargetStyle)style;
+            configuration.Save();
+        }
+
+        var budget = (int)configuration.PerformanceBudget;
+        if (ImGui.Combo("Performance budget", ref budget, "Low\0Medium\0High\0Ultra\0"))
+        {
+            configuration.PerformanceBudget = (PerformanceBudget)budget;
+            configuration.Save();
+        }
+
+        var firstPartyMode = (int)configuration.FirstPartyShaderMode;
+        if (ImGui.Combo("Dalashade shader mode", ref firstPartyMode, "Supportive / Enhance Base Preset\0Standalone / First-Party Stack\0"))
+        {
+            configuration.FirstPartyShaderMode = (FirstPartyShaderMode)firstPartyMode;
+            configuration.Save();
+        }
+
+        DrawCheckbox("Match master preset style", configuration.MatchMasterPresetStyle, value => configuration.MatchMasterPresetStyle = value);
+        if (configuration.MatchMasterPresetStyle)
+        {
+            var diagnostics = plugin.CurrentMasterStyleDiagnostics;
+            ImGui.TextWrapped(plugin.MasterStyleMessage);
+            ImGui.TextUnformatted($"Effective master style strength: {diagnostics.EffectiveStrength:P0}");
+            ImGui.TextUnformatted($"Scene similarity: {diagnostics.SceneSimilarityMultiplier:0.###}");
+        }
+    }
+
+    private string UserSceneAwarenessSummary()
+    {
+        var diagnostics = plugin.CurrentTagStackDiagnostics;
+        return $"{diagnostics.WeatherKey}, {diagnostics.BiomeKey}, {diagnostics.ActiveTags.Count} active tags";
+    }
+
+    private void DrawUserSceneAwareness()
+    {
+        var configuration = plugin.Configuration;
+        var diagnostics = plugin.CurrentTagStackDiagnostics;
+
+        ImGui.TextWrapped($"Weather tags: {FormatTagList(diagnostics.ActiveWeatherTags)}");
+        ImGui.TextWrapped($"Material tags: {FormatTagList(diagnostics.MaterialTags)}");
+        ImGui.TextWrapped($"Mood tags: {(diagnostics.MoodTags.Count == 0 ? "none" : string.Join(", ", diagnostics.MoodTags))}");
+        ImGui.TextWrapped($"Gameplay-state tags: {FormatTagList(diagnostics.GameplayStateTags)}");
+        ImGui.Separator();
+        DrawCheckbox("Auto-adjust in combat", configuration.AutoAdjustInCombat, value => configuration.AutoAdjustInCombat = value);
+        DrawCheckbox("Auto-adjust at night", configuration.AutoAdjustAtNight, value => configuration.AutoAdjustAtNight = value);
+        DrawCheckbox("Auto-adjust for weather", configuration.AutoAdjustForWeather, value => configuration.AutoAdjustForWeather = value);
+        DrawCheckbox("Auto-adjust for territory type", configuration.AutoAdjustForTerritory, value => configuration.AutoAdjustForTerritory = value);
+        DrawCheckbox("Auto-adjust in cutscenes", configuration.AutoAdjustInCutscenes, value => configuration.AutoAdjustInCutscenes = value);
+        DrawCheckbox("Use scene authoring overrides", configuration.EnableSceneAuthoringOverrides, value =>
+        {
+            configuration.EnableSceneAuthoringOverrides = value;
+            plugin.RefreshSceneAuthoringState();
+        });
+        DrawCheckbox("Lock current generated preset", configuration.SceneLockEnabled, value => configuration.SceneLockEnabled = value);
+
+        if (ImGui.Button("Open Scene Authoring###MainUserOpenSceneAuthoring"))
+        {
+            plugin.ToggleSceneAuthoringUi();
+        }
+    }
+
+    private string UserEffectsSummary()
+    {
+        var configuration = plugin.Configuration;
+        if (!configuration.EnableDalashadeCustomShaders)
+        {
+            return "First-party shader variables disabled";
+        }
+
+        var enabled = new[]
+        {
+            configuration.EnableDalashadeSceneGIShaderVariables,
+            configuration.EnableDalashadeSurfaceReflectionShaderVariables,
+            configuration.EnableMaterialIntentShaderMapping,
+            configuration.EnableNormalFieldShaderMapping,
+            configuration.EnableFirstPartyDepthAssist
+        }.Count(value => value);
+
+        return $"{enabled} optional effect systems enabled";
+    }
+
+    private void DrawUserEffects()
+    {
+        var configuration = plugin.Configuration;
+
+        DrawCheckbox("Enable Dalashade custom shader variables", configuration.EnableDalashadeCustomShaders, value => configuration.EnableDalashadeCustomShaders = value);
+        DrawCheckbox("Auto-inject known Dalashade shader sections", configuration.AutoInjectDalashadeCustomShaderSections, value => configuration.AutoInjectDalashadeCustomShaderSections = value);
+        DrawCheckbox("Enable depth assist for first-party Dalashade shaders", configuration.EnableFirstPartyDepthAssist, value => configuration.EnableFirstPartyDepthAssist = value);
+        ImGui.TextWrapped("Cards show whether each effect appears wired enough to work. Per-shader debug modes and raw variables are in Developer Mode.");
+
+        DrawToneAndColorCard();
+        DrawAtmosphereCard();
+        DrawIndirectLightingCard();
+        DrawReflectionCard();
+        DrawBloomCard();
+        DrawSharpeningCard();
+    }
+
+    private void DrawToneAndColorCard()
+    {
+        FeatureStatusCardRenderer.Draw(BuildFeatureStatusCard(
+            "Tone and Color",
+            "AdaptiveGrade handles broad tone, color, and Standalone identity shaping.",
+            "Dalashade_AdaptiveGrade",
+            frameData: true));
+
+        var configuration = plugin.Configuration;
+        var style = (int)configuration.Style;
+        if (ImGui.Combo("Tone target style###UserToneStyle", ref style, "Gameplay\0Balanced\0Cinematic\0"))
+        {
+            configuration.Style = (TargetStyle)style;
+            configuration.Save();
+        }
+
+        var firstPartyMode = (int)configuration.FirstPartyShaderMode;
+        if (ImGui.Combo("First-party stack mode###UserToneFirstPartyMode", ref firstPartyMode, "Supportive / Enhance Base Preset\0Standalone / First-Party Stack\0"))
+        {
+            configuration.FirstPartyShaderMode = (FirstPartyShaderMode)firstPartyMode;
+            configuration.Save();
+        }
+    }
+
+    private void DrawAtmosphereCard()
+    {
+        FeatureStatusCardRenderer.Draw(BuildFeatureStatusCard(
+            "Atmosphere and Weather",
+            "WeatherAtmosphere steers air, fog, storm, heat, cold, and weather response.",
+            "Dalashade_WeatherAtmosphere",
+            frameData: true));
+
+        var configuration = plugin.Configuration;
+        DrawCheckbox("Auto-adjust for weather###UserAtmosphereWeather", configuration.AutoAdjustForWeather, value => configuration.AutoAdjustForWeather = value);
+        DrawCheckbox("Auto-adjust for territory type###UserAtmosphereTerritory", configuration.AutoAdjustForTerritory, value => configuration.AutoAdjustForTerritory = value);
+    }
+
+    private void DrawIndirectLightingCard()
+    {
+        var configuration = plugin.Configuration;
+        FeatureStatusCardRenderer.Draw(BuildFeatureStatusCard(
+            "Indirect Lighting",
+            "SceneGI adds material-aware contact grounding, bounce, and local-light pooling.",
+            "Dalashade_SceneGI",
+            frameData: true));
+
+        DrawCheckbox("Enable indirect lighting variable writes###UserSceneGIEnabled", configuration.EnableDalashadeSceneGIShaderVariables, value => configuration.EnableDalashadeSceneGIShaderVariables = value);
+        DrawFloatSlider("Indirect lighting strength###UserSceneGIStrength", configuration.DalashadeSceneGIStrength, 0f, 1f, value => configuration.DalashadeSceneGIStrength = value);
+        DrawFloatSlider("Contact grounding###UserSceneGIAO", configuration.DalashadeSceneGIAOIntensity, 0f, 1f, value => configuration.DalashadeSceneGIAOIntensity = value);
+        DrawFloatSlider("Color bounce###UserSceneGIBounce", configuration.DalashadeSceneGIBounceStrength, 0f, 1f, value => configuration.DalashadeSceneGIBounceStrength = value);
+    }
+
+    private void DrawReflectionCard()
+    {
+        var configuration = plugin.Configuration;
+        FeatureStatusCardRenderer.Draw(BuildFeatureStatusCard(
+            "Reflections",
+            "SurfaceReflection controls water sheen, wetness, and material glints.",
+            "Dalashade_SurfaceReflection",
+            frameData: true));
+
+        DrawCheckbox("Enable reflection variable writes###UserReflectionEnabled", configuration.EnableDalashadeSurfaceReflectionShaderVariables, value => configuration.EnableDalashadeSurfaceReflectionShaderVariables = value);
+        DrawFloatSlider("Reflection strength###UserReflectionStrength", configuration.DalashadeSurfaceReflectionStrength, 0f, 1f, value => configuration.DalashadeSurfaceReflectionStrength = value);
+        DrawFloatSlider("Water sheen###UserReflectionWater", configuration.DalashadeSurfaceReflectionWaterSheenStrength, 0f, 1f, value => configuration.DalashadeSurfaceReflectionWaterSheenStrength = value);
+        DrawFloatSlider("Wet surface response###UserReflectionWet", configuration.DalashadeSurfaceReflectionWetStrength, 0f, 1f, value => configuration.DalashadeSurfaceReflectionWetStrength = value);
+    }
+
+    private void DrawBloomCard()
+    {
+        FeatureStatusCardRenderer.Draw(BuildFeatureStatusCard(
+            "Bloom and Glow",
+            "AtmosphereBloom handles restrained bloom, glow, and source-class response.",
+            "Dalashade_AtmosphereBloom",
+            frameData: true));
+
+        ImGui.TextWrapped("Bloom-specific tuning is currently shader-owned. Use Developer Mode for raw variables and debug state.");
+    }
+
+    private void DrawSharpeningCard()
+    {
+        FeatureStatusCardRenderer.Draw(BuildFeatureStatusCard(
+            "Sharpening",
+            "SmartSharpen preserves clarity while respecting sky, skin, water, foliage, and highlight safety.",
+            "Dalashade_SmartSharpen",
+            frameData: true));
+
+        var configuration = plugin.Configuration;
+        var budget = (int)configuration.PerformanceBudget;
+        if (ImGui.Combo("Clarity performance budget###UserSharpenBudget", ref budget, "Low\0Medium\0High\0Ultra\0"))
+        {
+            configuration.PerformanceBudget = (PerformanceBudget)budget;
+            configuration.Save();
+        }
+    }
+
+    private FeatureStatusCard BuildFeatureStatusCard(string title, string description, string family, bool frameData)
+    {
+        var diagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(plugin.Configuration, plugin.LastShaderSupportScan, plugin.LastWriteResult, plugin.LastPresetAnalysis);
+        var technique = FindTechnique(family);
+        var shaderFile = ShaderFileLocator.Find(plugin.Configuration, $"{family}.fx");
+        var sectionPresent = technique is not null || diagnostics.Sections.Any(section => SectionMatches(section.Section, family));
+        var activation = technique?.ActivationState
+                         ?? diagnostics.Sections.FirstOrDefault(section => SectionMatches(section.Section, family))?.ActivationState
+                         ?? TechniqueActivationState.Unknown;
+        var variablesDetected = diagnostics.KnownVariables.Any(variable => SectionMatches(variable.Section, family));
+        var variablesWritten = diagnostics.WrittenVariables.Any(variable => SectionMatches(variable.Section, family));
+        var status = BuildFeatureStatus(sectionPresent, activation, variablesDetected, variablesWritten);
+
+        return new FeatureStatusCard(
+            title,
+            description,
+            status,
+            ShaderFileFound: shaderFile.Found,
+            PresetEntryPresent: sectionPresent,
+            PresetSectionPresent: sectionPresent,
+            TechniqueActivation: activation,
+            VariablesDetected: variablesDetected,
+            VariablesWritten: variablesWritten,
+            UsesFrameData: frameData,
+            DepthAssistEnabled: plugin.Configuration.EnableFirstPartyDepthAssist);
+    }
+
+    private string BuildFeatureStatus(bool sectionPresent, TechniqueActivationState activation, bool variablesDetected, bool variablesWritten)
+    {
+        if (!plugin.Configuration.EnableDalashadeCustomShaders)
+        {
+            return "Needs custom shader variables";
+        }
+
+        if (!sectionPresent)
+        {
+            return plugin.Configuration.AutoInjectDalashadeCustomShaderSections ? "Generate to inject section" : "Needs setup";
+        }
+
+        if (activation == TechniqueActivationState.Active)
+        {
+            return variablesWritten ? "Active" : variablesDetected ? "Active, no new writes" : "Active, variables missing";
+        }
+
+        if (activation == TechniqueActivationState.Inactive)
+        {
+            return "Manual enable needed";
+        }
+
+        return "Activation unknown";
+    }
+
+    private PresetTechnique? FindTechnique(string family)
+    {
+        return plugin.LastPresetAnalysis.Techniques.FirstOrDefault(technique =>
+            SectionMatches(technique.Section, family)
+            || SectionMatches(technique.ShaderFile, family)
+            || SectionMatches(technique.TechniqueName, family));
+    }
+
+    private static bool SectionMatches(string value, string family)
+    {
+        return !string.IsNullOrWhiteSpace(value)
+               && value.Contains(family, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string UserHealthSummary()
+    {
+        var report = plugin.LastPresetAnalysis.Report;
+        return $"Risk {report.Level}, {report.Warnings.Count} warnings";
+    }
+
+    private void DrawUserHealth()
+    {
+        var configuration = plugin.Configuration;
+        var report = plugin.LastPresetAnalysis.Report;
+        var diagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(configuration, plugin.LastShaderSupportScan, plugin.LastWriteResult, plugin.LastPresetAnalysis);
+
+        DrawSetupItem("Generated at least once", plugin.LastWriteResult.Success);
+        DrawSetupItem("Reload attempted", plugin.LastReloadResult.Success);
+        DrawSetupItem("Shader variables detected", plugin.LastShaderSupportScan.Items.Count > 0);
+        DrawSetupItem("Generated preset sections injected", diagnostics.SectionInjected);
+        DrawSetupItem("Technique activation remains manual", !diagnostics.TechniqueInjected);
+
+        if (ImGui.Button("Scan Preset Compatibility###MainUserScanPreset"))
+        {
+            plugin.ScanPresetCompatibility();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Export Debug Bundle###MainUserExportDebugBundle"))
+        {
+            plugin.ExportDebugBundle();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Test Reload###MainUserTestReload"))
+        {
+            plugin.ReloadShadersNow();
+        }
+
+        ImGui.TextWrapped(plugin.LastPresetAnalysis.Message);
+        ImGui.TextWrapped(plugin.LastDiagnosticsExportMessage);
+        ImGui.TextWrapped(plugin.LastReloadResult.Message);
+
+        if (report.Warnings.Count > 0)
+        {
+            ImGui.Separator();
+            ImGui.TextUnformatted("Top warnings");
+            foreach (var warning in report.Warnings.Take(6))
+            {
+                ImGui.BulletText(warning);
+            }
+        }
     }
 
     private string CurrentStatusSummary()
@@ -362,6 +958,21 @@ public sealed class MainWindow : Window, IDisposable
         }
 
         return $"{result.ChangedVariables} changes, {result.Changes.Count(change => change.HitMin || change.HitMax)} clamped";
+    }
+
+    private string UserWriteSummary()
+    {
+        var result = plugin.LastWriteResult;
+        if (!result.Success)
+        {
+            return string.IsNullOrWhiteSpace(result.Message)
+                ? "Generated preset has not been updated yet."
+                : result.Message;
+        }
+
+        var clamped = result.Changes.Count(change => change.HitMin || change.HitMax);
+        var warnings = result.Changes.Count(change => !string.IsNullOrWhiteSpace(change.Warning));
+        return $"Generated preset updated. {result.ChangedVariables} supported values changed; {clamped} clamped; {warnings} warnings.";
     }
 
     private Vector4? GenerationWarningColor()
@@ -936,6 +1547,26 @@ public sealed class MainWindow : Window, IDisposable
     private static void DrawSetupItem(string label, bool complete)
     {
         ImGui.BulletText($"{(complete ? "OK" : "Missing")} - {label}");
+    }
+
+    private void DrawCheckbox(string label, bool currentValue, Action<bool> update)
+    {
+        var value = currentValue;
+        if (ImGui.Checkbox(label, ref value))
+        {
+            update(value);
+            plugin.Configuration.Save();
+        }
+    }
+
+    private void DrawFloatSlider(string label, float currentValue, float min, float max, Action<float> update)
+    {
+        var value = currentValue;
+        if (ImGui.SliderFloat(label, ref value, min, max, "%.3f"))
+        {
+            update(value);
+            plugin.Configuration.Save();
+        }
     }
 
     private static void DrawColorFamilyStats(IReadOnlyDictionary<ColorFamily, ColorFamilyStats> families)

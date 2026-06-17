@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Dalashade.SceneAuthoring;
 
 namespace Dalashade;
 
@@ -186,6 +187,7 @@ public sealed class CompatibilityReportExporter
         VisualProfile profile,
         MasterStyleDiagnostics masterDiagnostics,
         TagStackDiagnostics tagStackDiagnostics,
+        SceneAuthoringState sceneAuthoringState,
         ImageAnalysisResult currentImage,
         ImageAnalysisResult masterStyle,
         PresetWriteResult writeResult,
@@ -214,7 +216,7 @@ public sealed class CompatibilityReportExporter
             Directory.CreateDirectory(reportDirectory);
 
             stage = "building report content";
-            var reportContent = BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, tagStackDiagnostics, currentImage, masterStyle, writeResult, effectiveBasePresetPath);
+            var reportContent = BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, tagStackDiagnostics, sceneAuthoringState, currentImage, masterStyle, writeResult, effectiveBasePresetPath);
             stage = "writing report file";
             File.WriteAllText(path, reportContent, Encoding.UTF8);
             if (!File.Exists(path))
@@ -237,6 +239,7 @@ public sealed class CompatibilityReportExporter
         VisualProfile profile,
         MasterStyleDiagnostics masterDiagnostics,
         TagStackDiagnostics tagStackDiagnostics,
+        SceneAuthoringState sceneAuthoringState,
         ImageAnalysisResult currentImage,
         ImageAnalysisResult masterStyle,
         PresetWriteResult writeResult,
@@ -267,6 +270,7 @@ public sealed class CompatibilityReportExporter
         AppendLines(builder, "Warnings", report.Warnings);
         AppendLines(builder, "Multiple Authority Warnings", report.MultipleAuthorityWarnings);
         AppendTagStackDiagnostics(builder, tagStackDiagnostics);
+        AppendSceneAuthoringDiagnostics(builder, configuration, sceneAuthoringState);
         AppendMaterialIntentDiagnostics(builder, configuration, tagStackDiagnostics, currentImage, writeResult);
         AppendNormalFieldDiagnostics(builder, configuration, analysis, writeResult);
         AppendFrameDataDiagnostics(builder, configuration, analysis, writeResult);
@@ -751,6 +755,26 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- AdaptiveGrade: {FormatNormalFieldProductionConsumption("Dalashade_AdaptiveGrade.fx")}");
         builder.AppendLine("- WeatherParticles/LightHierarchy/CombatClarity: not applicable unless present.");
         builder.AppendLine();
+    }
+
+    private static void AppendSceneAuthoringDiagnostics(StringBuilder builder, Configuration configuration, SceneAuthoringState state)
+    {
+        builder.AppendLine("## Scene Authoring");
+        builder.AppendLine();
+        builder.AppendLine($"- Config enabled: {configuration.EnableSceneAuthoringOverrides}");
+        builder.AppendLine($"- State enabled: {state.Enabled}");
+        builder.AppendLine($"- Message: {state.Message}");
+        builder.AppendLine($"- Override file: `{state.StoragePath}`");
+        builder.AppendLine($"- Active override: {(state.ActiveOverride is null ? "none" : $"{state.ActiveOverride.Scope}:{state.ActiveOverride.TerritoryId} {state.ActiveOverride.TerritoryName}")}");
+        builder.AppendLine($"- Fingerprint: `{state.Fingerprint}`");
+        builder.AppendLine($"- Detected area/weather/biome: {state.DetectedTags.AreaKey} / {state.DetectedTags.WeatherKey} / {state.DetectedTags.BiomeKey}");
+        builder.AppendLine($"- Effective area/weather/biome: {state.EffectiveTags.AreaKey} / {state.EffectiveTags.WeatherKey} / {state.EffectiveTags.BiomeKey}");
+        builder.AppendLine($"- Detected mood tags: {FormatPlainList(state.DetectedTags.MoodTags)}");
+        builder.AppendLine($"- Effective mood tags: {FormatPlainList(state.EffectiveTags.MoodTags)}");
+        builder.AppendLine($"- Added overrides: {FormatTagOverrideMap(state.AddedTags)}");
+        builder.AppendLine($"- Removed overrides: {FormatTagOverrideMap(state.RemovedTags)}");
+        builder.AppendLine($"- Suppressed diagnostic tags: {FormatTagOverrideMap(state.EffectiveTags.SuppressedAuthoringTags)}");
+        AppendLines(builder, "Scene Authoring Warnings", state.Warnings);
     }
 
     private static void AppendFrameDataDiagnostics(StringBuilder builder, Configuration configuration, PresetAnalysisResult analysis, PresetWriteResult writeResult)
@@ -1725,6 +1749,21 @@ public sealed class CompatibilityReportExporter
     private static string FormatPlainList(IReadOnlyList<string> values)
     {
         return values.Count == 0 ? "none" : string.Join(", ", values);
+    }
+
+    private static string FormatTagOverrideMap(IReadOnlyDictionary<string, IReadOnlyList<string>> values)
+    {
+        if (values.Count == 0)
+        {
+            return "none";
+        }
+
+        return string.Join(
+            "; ",
+            values
+                .Where(pair => pair.Value.Count > 0)
+                .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(pair => $"{pair.Key}: {FormatPlainList(pair.Value)}"));
     }
 
     private static bool IsNightTag(string tag)

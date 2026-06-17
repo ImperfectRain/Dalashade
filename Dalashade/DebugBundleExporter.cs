@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Dalashade.SceneAuthoring;
 
 namespace Dalashade;
 
@@ -81,6 +82,7 @@ public sealed class DebugBundleExporter
         Configuration configuration,
         GameContext context,
         TagStackDiagnostics diagnostics,
+        SceneAuthoringState sceneAuthoringState,
         ImageAnalysisResult imageAnalysis,
         ImageAnalysisResult masterStyle,
         VisualProfile profile,
@@ -121,6 +123,9 @@ public sealed class DebugBundleExporter
             log.Add($"{stage}: ok");
             stage = "write scene-context.json";
             WriteJson(Path.Combine(folderPath, "scene-context.json"), BuildSceneContextDump(context, diagnostics), included);
+            log.Add($"{stage}: ok");
+            stage = "write scene-authoring.json";
+            WriteJson(Path.Combine(folderPath, "scene-authoring.json"), BuildSceneAuthoringDump(sceneAuthoringState), included);
             log.Add($"{stage}: ok");
             stage = "write scene-intent.json";
             WriteJson(Path.Combine(folderPath, "scene-intent.json"), BuildSceneIntentDump(diagnostics.Intent), included);
@@ -205,6 +210,47 @@ public sealed class DebugBundleExporter
             NightTags = combinedTags.Where(IsNightTag).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             DayTags = combinedTags.Where(IsDayTag).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
             diagnostics.ActiveTags
+        };
+    }
+
+    private static object BuildSceneAuthoringDump(SceneAuthoringState state)
+    {
+        return new
+        {
+            state.Enabled,
+            state.Message,
+            state.StoragePath,
+            state.Fingerprint,
+            ActiveOverride = state.ActiveOverride is null
+                ? null
+                : new
+                {
+                    state.ActiveOverride.Scope,
+                    state.ActiveOverride.TerritoryId,
+                    state.ActiveOverride.TerritoryName,
+                    state.ActiveOverride.Mode,
+                    state.ActiveOverride.PrimaryBiomeOverride,
+                    state.ActiveOverride.AddedTags,
+                    state.ActiveOverride.RemovedTags
+                },
+            Detected = new
+            {
+                state.DetectedTags.AreaKey,
+                state.DetectedTags.WeatherKey,
+                state.DetectedTags.BiomeKey,
+                state.DetectedTags.MoodTags
+            },
+            Effective = new
+            {
+                state.EffectiveTags.AreaKey,
+                state.EffectiveTags.WeatherKey,
+                state.EffectiveTags.BiomeKey,
+                state.EffectiveTags.MoodTags,
+                state.EffectiveTags.SuppressedAuthoringTags
+            },
+            state.AddedTags,
+            state.RemovedTags,
+            state.Warnings
         };
     }
 

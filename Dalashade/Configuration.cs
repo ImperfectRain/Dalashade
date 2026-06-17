@@ -74,6 +74,12 @@ public enum FirstPartyShaderMode
     Standalone
 }
 
+public enum InterfaceMode
+{
+    User,
+    Developer
+}
+
 [Serializable]
 public class Configuration : IPluginConfiguration
 {
@@ -91,6 +97,7 @@ public class Configuration : IPluginConfiguration
     public bool ReloadHotkeyCtrl { get; set; } = false;
     public bool ReloadHotkeyShift { get; set; } = false;
     public bool ReloadHotkeyAlt { get; set; } = false;
+    public InterfaceMode InterfaceMode { get; set; } = InterfaceMode.User;
 
     public TargetStyle Style { get; set; } = TargetStyle.Balanced;
     public PerformanceBudget PerformanceBudget { get; set; } = PerformanceBudget.Medium;
@@ -101,6 +108,7 @@ public class Configuration : IPluginConfiguration
     public bool AutoAdjustForWeather { get; set; } = true;
     public bool AutoAdjustForTerritory { get; set; } = true;
     public bool AutoAdjustFromScreenshots { get; set; } = false;
+    public bool EnableSceneAuthoringOverrides { get; set; } = false;
     public bool MatchMasterPresetStyle { get; set; } = false;
     public bool SceneLockEnabled { get; set; } = false;
     public bool EnableFirstPartyDepthAssist { get; set; } = false;

@@ -12,6 +12,7 @@ Implemented plugin support:
 - MaterialProfile builds scene-level material plausibility priors for diagnostics and MaterialIntent. MaterialIntent uniforms are optional and zero-impact by default. Dalashade writes them only when `EnableMaterialIntent`, `EnableMaterialIntentShaderMapping`, and positive `MaterialIntentStrength` are all active.
 - `Configuration.AutoInjectDalashadeCustomShaderSections` can optionally add known Dalashade custom shader sections to the generated preset only.
 - Main window and compatibility reports show whether custom shader support is enabled, which custom sections were detected, and which custom variables were written.
+- User Mode surfaces first-party shader families as effect status cards. These cards should stay user-facing: setup state, local shader-file presence, active/inactive status, safe controls, and actionable warnings only. Raw shader variables, debug modes, resolver diagnostics, and authoring details belong in Developer Mode.
 
 Implemented shader prototypes:
 
@@ -42,6 +43,13 @@ Not implemented yet:
 Bridge/add-on integration is planned and not currently implemented. Do not treat this document as a native bridge or IPC implementation reference.
 
 ## Safety Rules
+
+UI controls for new shader features must respect the User/Developer split:
+
+1. Add normal-player controls to User Mode only when they are safe, task-level decisions with clear wording.
+2. Keep raw variable names, debug modes, resolver gates, and diagnostics in Developer Mode.
+3. Reuse the shared UI page registry and feature status card patterns instead of adding one-off sections.
+4. Do not make a User Mode toggle imply ReShade compile success or true runtime effect visibility. Local `.fx` file presence only means a file was found in an inferred ReShade shader search path.
 
 Custom shader writes are intentionally conservative:
 

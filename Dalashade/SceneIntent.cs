@@ -750,14 +750,14 @@ public sealed record TagStackDiagnostics(
             context.TerritoryName,
             context.WeatherId,
             context.WeatherName,
-            BuildActiveTags(context, tags),
-            BuildActiveWeatherTags(tags),
-            BuildSecondaryTags(tags),
-            tags.MoodTags,
-            BuildMaterialTags(tags),
-            BuildAreaContextTags(tags),
+            FilterSuppressedTags(tags, "active", BuildActiveTags(context, tags)),
+            FilterSuppressedTags(tags, "weather", BuildActiveWeatherTags(tags)),
+            FilterSuppressedTags(tags, "secondary", BuildSecondaryTags(tags)),
+            FilterSuppressedTags(tags, "mood", tags.MoodTags),
+            FilterSuppressedTags(tags, "material", BuildMaterialTags(tags)),
+            FilterSuppressedTags(tags, "area", BuildAreaContextTags(tags)),
             BuildGameplayStateTags(context, tags),
-            BuildArtDirectionTags(tags),
+            FilterSuppressedTags(tags, "artDirection", BuildArtDirectionTags(tags)),
             tags.WeatherKey,
             tags.BiomeKey,
             tags.BiomeConfidence,
@@ -770,6 +770,18 @@ public sealed record TagStackDiagnostics(
             intent,
             intent.Contributions,
             contributions);
+    }
+
+    private static IReadOnlyList<string> FilterSuppressedTags(SceneTags tags, string category, IReadOnlyList<string> values)
+    {
+        if (!tags.SuppressedAuthoringTags.TryGetValue(category, out var suppressed) || suppressed.Count == 0)
+        {
+            return values;
+        }
+
+        return values
+            .Where(value => !suppressed.Contains(value, StringComparer.OrdinalIgnoreCase))
+            .ToArray();
     }
 
     private static IReadOnlyList<string> BuildActiveTags(GameContext context, SceneTags tags)

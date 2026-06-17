@@ -24,6 +24,7 @@ Current bundle contents include:
 - `active-preset.ini` or `active-preset-unavailable.txt`
 - `plugin-config.json`
 - `scene-context.json`
+- `scene-authoring.json`
 - `scene-intent.json`
 - `material-intent.json`
 - `normal-field-diagnostics.json`
@@ -61,11 +62,15 @@ Start with:
 2. `bundle-export-log.txt`: exact stage-level failures.
 3. `compatibility-report.md`: preset stack, material parity, NormalField diagnostics, shader support.
 4. `plugin-config.json`: settings that controlled the generation.
-5. `scene-context.json`, `scene-intent.json`, `material-intent.json`: scene and material reasoning.
+5. `scene-context.json`, `scene-authoring.json`, `scene-intent.json`, `material-intent.json`: scene, override, and material reasoning.
 6. `normal-field-diagnostics.json`: NormalField settings, shader presence, debug technique state, and first-party consumption.
 7. `frame-data-diagnostics.json`: FrameData include/debug shader presence, FrameDataDebug section/variables, inline/prepass status, and production migration status.
 8. `first-party-depth-assist.json`: opt-in depth-assist setting state and known first-party sections that received depth-assist writes.
 9. `installed-dalashade-shaders.txt`: installed first-party shader files and hashes.
+
+`scene-authoring.json` records whether scene authoring was enabled, the override file path, active territory override metadata, detected area/weather/biome/mood tags, effective area/weather/biome/mood tags, added/removed override maps, suppressed diagnostic tags, and authoring warnings. This file is the first place to check when a user says tags were removed but still appeared to influence the generated profile.
+
+Editable tag preset metadata lives in `SceneAuthoring/tag-presets.json`. It is not a shader formula dump; it documents and extends the authoring vocabulary. Exported tag preset metadata uses `SceneAuthoring/Exports/tag-presets-export.json`.
 
 FrameData is currently inline only. `frame-data-diagnostics.json` should report `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SurfaceReflection, and SceneGI as production FrameData consumers. `Dalashade_FrameDataDebug.fx` is a manual debug shader; section/variable injection must not make the technique active by default.
 

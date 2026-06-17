@@ -95,6 +95,8 @@ public sealed record SceneTags(
     string BiomeReason,
     IReadOnlyList<string> MoodTags)
 {
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> SuppressedAuthoringTags { get; init; } = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+
     public static SceneTags Empty { get; } = new(false, false, false, false, false, false, false, false, false, false, false, true, false, false, false, false, false, false, false, true, "unknown", 0f, "No scene tags have been classified yet.", Array.Empty<string>());
 
     public bool IsDay => !IsNight && !IsDawnOrDusk;

@@ -13,6 +13,7 @@ Scene context is collected in `Dalashade/GameContext.cs`.
 | Weather lookup | `GameContextService.GetCurrentWeather()` | Uses `FFXIVClientStructs` weather data first, then zone-init fallback. |
 | Time buckets | `GameContextService.GetTimeBucket()` | Converts Eorzea hour into Dawn, Day, Dusk, or Night. |
 | Scene tags | `SceneClassifier.Classify(GameContext context)` | Converts raw context into weather, area, biome, mood, confidence, and gameplay tags. |
+| Scene authoring overrides | `SceneAuthoringService.Apply(...)` | Optional default-off user override layer that can replace the effective primary biome and add/remove grouped tags for the current territory. |
 | Scene intent | `SceneIntentBuilder.Build(...)` in `Dalashade/SceneIntent.cs` | Converts tags, screenshot analysis, target style, and performance budget into stack-aware intent values before profile stack budgets. |
 | Material profile diagnostics | `MaterialProfileBuilder.Build(...)` in `Dalashade/MaterialProfileBuilder.cs` | Converts tags, territory/weather text, area context, screenshot metrics, and SceneIntent context into scene-level material plausibility priors. Does not change generated presets. |
 | Material intent diagnostics | `MaterialIntentBuilder.Build(...)` in `Dalashade/MaterialIntentBuilder.cs` | Converts the existing tag stack, MaterialProfile priors, screenshot metrics, and SceneIntent context into optional inferred material likelihoods. Does not change generated presets unless MaterialIntent shader mapping is explicitly enabled. |
@@ -35,6 +36,29 @@ Dalashade keeps tags hierarchical instead of treating every hint as a primary cl
 | Art-direction tags | `TagStackDiagnostics.ArtDirectionTags` | Visual treatment hints such as `sunlit`, `colorful`, `canopyLight`, `haunted`, `luminous`, `highDepth`, `smoky`, or `crisp`. |
 
 Primary biome is the only single-choice bucket. The other buckets are diagnostic and additive, and should be added only when they drive useful intent, profile, shader, or report behavior.
+
+## Scene Authoring Overrides
+
+Scene authoring is an optional layer between automatic tag detection and profile generation. It is disabled by default. When `EnableSceneAuthoringOverrides` is off, Dalashade uses the automatic classifier output unchanged.
+
+The first authoring pass stores current-territory overrides in `SceneAuthoring/scene-overrides.json` under the plugin config folder. Overrides can:
+
+- set a primary biome override such as `desert`, `forest`, `coastal`, `snow`, or `highTech`;
+- add/remove area tags such as `city`, `field`, `interior`, `dungeon`, or `raid`;
+- add/remove weather and time tags for experimentation;
+- add/remove secondary, material, mood, and art-direction tags through the existing additive `MoodTags` path.
+
+This pass does not edit the built-in tag preset math. Default classifier rules, `SceneIntent` formulas, MaterialProfile formulas, MaterialIntent formulas, shader formulas, and generated-preset safety rules remain code-owned. The next authoring pass should expose editable tag preset definitions and show exactly which intent/profile/material channels each tag changes.
+
+Tag preset metadata is stored in `SceneAuthoring/tag-presets.json`. This file controls which tags appear in the authoring UI, their display names, descriptions, category membership, and known influence notes. Editing tag preset metadata does not rewrite formulas. It is intended as a transparent authoring vocabulary layer and a stepping stone toward a future data registry where recognized tags can own tunable values.
+
+Diagnostics should distinguish detected tags from effective tags once overrides are enabled. Users should be able to reset the current scene back to automatic detection without deleting global defaults.
+
+Removed tags are carried as an authoring suppression map on effective `SceneTags`. This matters because some diagnostic buckets are derived after the override layer runs. For example, `aetherNight`, `lamplitNight`, or `sunlitDay` can be regenerated from biome/time/material context unless the removal is preserved as a category-specific suppression. Compatibility reports and debug bundles should show both the detected tags and effective tags so support can tell whether a tag is automatic, added, removed, or suppressed.
+
+The authoring state also emits conflict warnings for risky edits, such as removing readability tags, combining clear weather with other weather tags, adding bright day art-direction tags to night scenes, adding dark/night tags to day scenes, or combining unusual material tags with snow/desert biomes. These warnings are advisory only; they do not block generation.
+
+The Scene Authoring window supports fixed-path import/export for both `scene-overrides.json` and `tag-presets.json` through the `SceneAuthoring/Exports/` folder. This keeps import/export predictable and avoids base preset mutation.
 
 ## Shader-Facing Tag Contract
 

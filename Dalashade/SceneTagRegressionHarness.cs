@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using Dalashade.SceneAuthoring;
 
 namespace Dalashade;
 
@@ -39,6 +41,7 @@ public static class SceneTagRegressionHarness
         var failures = new List<SceneTagRegressionFailure>();
         var cases = CreateCases();
         ValidateMaterialReportSnapshot(failures);
+        ValidateSceneAuthoringOverrides(failures);
 
         foreach (var testCase in cases)
         {
@@ -55,6 +58,125 @@ public static class SceneTagRegressionHarness
         return failures.Count == 0
             ? SceneTagRegressionResult.Passed(cases.Select(testCase => testCase.Name).ToArray())
             : new SceneTagRegressionResult(false, failures, cases.Select(testCase => testCase.Name).ToArray());
+    }
+
+    private static void ValidateSceneAuthoringOverrides(List<SceneTagRegressionFailure> failures)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "DalashadeSceneAuthoringRegression", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var context = new GameContext(
+                9999,
+                "Authoring Regression Territory",
+                WorldCategory.Field,
+                1,
+                "Clear Skies",
+                23f,
+                TimeBucket.Night,
+                false,
+                false,
+                false,
+                false,
+                false,
+                "Unknown",
+                "Unknown");
+            var detected = SceneClassifier.Classify(context) with
+            {
+                BiomeKey = "aetherial",
+                BiomeConfidence = 0.95f,
+                BiomeReason = "Regression seed.",
+                MoodTags = new[] { "aetherial", "clean", "luminous" }
+            };
+            var disabledConfiguration = new Configuration { EnableSceneAuthoringOverrides = false };
+            var enabledConfiguration = new Configuration { EnableSceneAuthoringOverrides = true };
+            var service = new SceneAuthoringService();
+            service.Load(root);
+
+            var disabled = service.Apply(disabledConfiguration, context, detected);
+            if (!ReferenceEquals(disabled.EffectiveTags, detected) && disabled.EffectiveTags != detected)
+            {
+                failures.Add(new SceneTagRegressionFailure("Scene authoring disabled", "Disabled authoring did not pass detected tags through unchanged."));
+            }
+
+            service.AddTag(context, SceneAuthoringService.WeatherCategory, "rain");
+            service.RemoveTag(context, SceneAuthoringService.MoodCategory, "clean");
+            service.RemoveTag(context, SceneAuthoringService.SecondaryCategory, "aetherNight");
+            service.SetPrimaryBiome(context, "forest");
+            var applied = service.Apply(enabledConfiguration, context, detected);
+            var diagnostics = TagStackDiagnostics.Create(context, applied.EffectiveTags, SceneIntent.Neutral, Array.Empty<TagStackContribution>());
+
+            if (!applied.EffectiveTags.IsRain)
+            {
+                failures.Add(new SceneTagRegressionFailure("Scene authoring add tag", "Added rain weather tag did not apply to effective tags."));
+            }
+
+            if (applied.EffectiveTags.MoodTags.Contains("clean", StringComparer.OrdinalIgnoreCase))
+            {
+                failures.Add(new SceneTagRegressionFailure("Scene authoring remove mood tag", "Removed mood tag remained in effective tags."));
+            }
+
+            if (diagnostics.SecondaryTags.Contains("aetherNight", StringComparer.OrdinalIgnoreCase))
+            {
+                failures.Add(new SceneTagRegressionFailure("Scene authoring suppress derived tag", "Removed derived secondary tag was regenerated in diagnostics."));
+            }
+
+            if (!string.Equals(applied.EffectiveTags.BiomeKey, "forest", StringComparison.OrdinalIgnoreCase))
+            {
+                failures.Add(new SceneTagRegressionFailure("Scene authoring primary biome", $"Expected forest biome override, got {applied.EffectiveTags.BiomeKey}."));
+            }
+
+            service.ExportOverrides();
+            service.ExportTagPresets();
+            service.AddCustomTagPreset(SceneAuthoringService.MoodCategory, "regressionCustom");
+            if (!service.KnownTagsForCategory(SceneAuthoringService.MoodCategory).Contains("regressionCustom", StringComparer.OrdinalIgnoreCase))
+            {
+                failures.Add(new SceneTagRegressionFailure("Scene authoring custom tag preset", "Custom tag preset was not added to known mood tags."));
+            }
+
+            service.ResetTagPresets();
+            service.ImportTagPresets();
+            if (service.KnownTagsForCategory(SceneAuthoringService.MoodCategory).Contains("regressionCustom", StringComparer.OrdinalIgnoreCase))
+            {
+                failures.Add(new SceneTagRegressionFailure("Scene authoring tag preset import", "Import did not restore exported tag preset state."));
+            }
+
+            var fingerprintWithOverride = applied.Fingerprint;
+            service.ClearTagOverride(context, SceneAuthoringService.MoodCategory, "clean");
+            service.ClearPrimaryBiomeOverride(context);
+            var cleared = service.Apply(enabledConfiguration, context, detected);
+            if (string.Equals(fingerprintWithOverride, cleared.Fingerprint, StringComparison.OrdinalIgnoreCase))
+            {
+                failures.Add(new SceneTagRegressionFailure("Scene authoring cache fingerprint", "Fingerprint did not change after clearing overrides."));
+            }
+
+            service.ResetCurrentScene(context);
+            var reset = service.Apply(enabledConfiguration, context, detected);
+            if (reset.ActiveOverride is not null && reset.ActiveOverride.HasEdits)
+            {
+                failures.Add(new SceneTagRegressionFailure("Scene authoring reset", "Reset current scene left edited override state behind."));
+            }
+
+            service.ImportOverrides();
+            var imported = service.Apply(enabledConfiguration, context, detected);
+            if (!imported.EffectiveTags.IsRain || !string.Equals(imported.EffectiveTags.BiomeKey, "forest", StringComparison.OrdinalIgnoreCase))
+            {
+                failures.Add(new SceneTagRegressionFailure("Scene authoring override import", "Import did not restore exported scene override state."));
+            }
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(root))
+                {
+                    Directory.Delete(root, true);
+                }
+            }
+            catch
+            {
+                // Regression cleanup is best-effort.
+            }
+        }
     }
 
     private static void ValidateMaterialReportSnapshot(List<SceneTagRegressionFailure> failures)
