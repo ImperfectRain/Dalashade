@@ -18,6 +18,7 @@ These docs are for users who want to understand what Dalashade is doing, maintai
 | Code map and ownership | [CodebaseIndex.md](CodebaseIndex.md) |
 | Generate button to written preset flow | [GenerationPipeline.md](GenerationPipeline.md) |
 | Territory, weather, time, combat tags | [SceneTagsAndIntent.md](SceneTagsAndIntent.md) |
+| Zone tag coverage audit | [ZoneTagCoverageAudit.md](ZoneTagCoverageAudit.md) |
 | MaterialProfile and MaterialIntent | [MaterialIntent.md](MaterialIntent.md) |
 | Generated preset write behavior | [PresetWriting.md](PresetWriting.md) |
 | Shader support and mappings | [ShaderMapping.md](ShaderMapping.md) |

@@ -11,6 +11,7 @@ public sealed record SceneTagRegressionCase(
     GameContext Context,
     Configuration Configuration,
     string ExpectedBiome,
+    string ExpectedArea,
     IReadOnlyList<string> ExpectedWeatherTags,
     IReadOnlyList<string> ExpectedMoodTags,
     IReadOnlyList<string> ExpectedSecondaryTags,
@@ -259,7 +260,17 @@ public static class SceneTagRegressionHarness
             Create("East Shroud night forest material false-positive guard", "East Shroud", "Clear Skies", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "forest", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "foliage" }, expectedSecondaryTags: new[] { "lush", "verdant", "wildNight", "canopyNight" }, expectedMaterialMinimums: Materials((MaterialIntent.FoliageChannel, 0.55f), (MaterialIntent.SkyCloudFogChannel, 0.08f)), expectedMaterialMaximums: Materials((MaterialIntent.VoidDarknessChannel, 0.05f))),
             Create("Allagan hard-surface material", "Azys Lla", "Fair Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "ancient", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "ancient", "ruins", "structured" }, expectedSecondaryTags: new[] { "ruins", "structured", "sunlitDay" }, expectedMaterialProfileFamily: "ancient/ruins", expectedMaterialMinimums: Materials((MaterialIntent.StoneRuinsChannel, 0.35f), (MaterialIntent.MetalIndustrialChannel, 0.20f), (MaterialIntent.CrystalAetherChannel, 0.15f))),
             Create("Solution Nine high-tech day", "Solution Nine", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, true, expectedBiome: "highTech", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "neon", "highTech", "urban" }, expectedSecondaryTags: new[] { "neon", "urban", "sunlitDay", "settlementDay", "industrialDay", "highTechDay" }, expectedMaterialProfileFamily: "neon/high-tech", expectedMaterialMinimums: Materials((MaterialIntent.NeonGlassChannel, 0.70f), (MaterialIntent.MetalIndustrialChannel, 0.55f))),
-            Create("Heritage Found neon material", "Heritage Found", "Clear Skies", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "highTech", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "neon", "highTech", "urban" }, expectedSecondaryTags: new[] { "neon", "urban", "lamplitNight", "settlementNight", "industrialNight", "aetherNight" }, expectedMaterialProfileFamily: "neon/high-tech", expectedMaterialMinimums: Materials((MaterialIntent.NeonGlassChannel, 0.70f), (MaterialIntent.MetalIndustrialChannel, 0.55f)))
+            Create("Heritage Found neon material", "Heritage Found", "Clear Skies", false, false, false, false, TimeBucket.Night, PerformanceBudget.Medium, expectedBiome: "highTech", expectedWeatherTags: new[] { "clear" }, expectedMoodTags: new[] { "neon", "highTech", "urban" }, expectedSecondaryTags: new[] { "neon", "urban", "lamplitNight", "settlementNight", "industrialNight", "aetherNight" }, expectedMaterialProfileFamily: "neon/high-tech", expectedMaterialMinimums: Materials((MaterialIntent.NeonGlassChannel, 0.70f), (MaterialIntent.MetalIndustrialChannel, 0.55f))),
+            Create("Idyllshire exact hub profile", "Idyllshire", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "ancient", expectedArea: "city", expectedMoodTags: new[] { "settlement", "ruins", "scholarly" }),
+            Create("Rhalgr's Reach exact hub profile", "Rhalgr's Reach", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "desert", expectedArea: "city", expectedMoodTags: new[] { "highland", "settlement", "dry" }),
+            Create("Eulmore exact hub profile", "Eulmore", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "coastal", expectedArea: "city", expectedMoodTags: new[] { "coastal", "urban", "decadent" }),
+            Create("Radz-at-Han exact hub profile", "Radz-at-Han", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "tropical", expectedArea: "city", expectedMoodTags: new[] { "tropical", "colorful", "alchemical" }),
+            Create("Sea of Clouds exact sky profile", "The Sea of Clouds", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "alpine", expectedArea: "field", expectedMoodTags: new[] { "sky", "clouds", "highAltitude" }),
+            Create("The Tempest exact underwater profile", "The Tempest", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "underwater", expectedArea: "field", expectedMoodTags: new[] { "underwater", "ancient", "depth" }),
+            Create("Labyrinthos exact research profile", "Labyrinthos", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "aetherial", expectedArea: "field", expectedMoodTags: new[] { "artificial", "greenhouse", "scholarly" }),
+            Create("Urqopacha exact mountain profile", "Urqopacha", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "alpine", expectedArea: "field", expectedMoodTags: new[] { "highAltitude", "mountain", "warm" }),
+            Create("Eureka Pagos exact exploration profile", "The Forbidden Land, Eureka Pagos", "Clear Skies", true, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "snow", expectedArea: "dungeon", expectedMoodTags: new[] { "snow", "ice", "aetherial" }),
+            Create("Phaenna exact cosmic profile", "Phaenna", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "aetherial", expectedArea: "field", expectedMoodTags: new[] { "crystal", "cosmic", "glass" })
         };
     }
 
@@ -275,6 +286,7 @@ public static class SceneTagRegressionHarness
         PerformanceBudget budget,
         bool sanctuary = false,
         string expectedBiome = "",
+        string expectedArea = "",
         IReadOnlyList<string>? expectedWeatherTags = null,
         IReadOnlyList<string>? expectedMoodTags = null,
         IReadOnlyList<string>? expectedSecondaryTags = null,
@@ -323,6 +335,7 @@ public static class SceneTagRegressionHarness
             context,
             configuration,
             expectedBiome,
+            expectedArea,
             expectedWeatherTags ?? Array.Empty<string>(),
             expectedMoodTags ?? Array.Empty<string>(),
             expectedSecondaryTags ?? Array.Empty<string>(),
@@ -353,6 +366,11 @@ public static class SceneTagRegressionHarness
         if (!string.IsNullOrWhiteSpace(testCase.ExpectedBiome) && !string.Equals(diagnostics.BiomeKey, testCase.ExpectedBiome, StringComparison.OrdinalIgnoreCase))
         {
             failures.Add(new SceneTagRegressionFailure(testCase.Name, $"Expected biome {testCase.ExpectedBiome}, got {diagnostics.BiomeKey}."));
+        }
+
+        if (!string.IsNullOrWhiteSpace(testCase.ExpectedArea) && !string.Equals(diagnostics.AreaKey, testCase.ExpectedArea, StringComparison.OrdinalIgnoreCase))
+        {
+            failures.Add(new SceneTagRegressionFailure(testCase.Name, $"Expected area {testCase.ExpectedArea}, got {diagnostics.AreaKey}."));
         }
 
         foreach (var expected in testCase.ExpectedWeatherTags)

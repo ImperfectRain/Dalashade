@@ -138,6 +138,8 @@ public static class SceneClassifier
 {
     private sealed record BiomeKeywordRule(string Biome, float Confidence, string Reason, string[] MoodTags, string[] Keywords);
 
+    private sealed record TerritoryProfile(string Biome, float Confidence, string Reason, string[] MoodTags, string AreaKey = "");
+
     private sealed record BiomeMatch(string Biome, float Confidence, string Reason, IReadOnlyList<string> MoodTags);
 
     // Territory/content names come from Lumina/Dalamud when available. These rules
@@ -169,11 +171,14 @@ public static class SceneClassifier
         new("fire", 0.78f, "Matched fire/flame/inferno keywords.", new[] { "heat", "fire" }, new[] { "fire", "flame", "inferno" })
     };
 
+    private static readonly IReadOnlyDictionary<string, TerritoryProfile> TerritoryProfiles = BuildTerritoryProfiles();
+
     public static SceneTags Classify(GameContext context)
     {
         var weather = context.WeatherName.ToLowerInvariant();
         var content = $"{context.ContentName} {context.ContentType}".ToLowerInvariant();
         var territory = context.TerritoryName.ToLowerInvariant();
+        var territoryProfile = FindTerritoryProfile(territory);
 
         var isRain = ContainsAny(weather, "rain", "showers", "drizzle");
         var isFog = ContainsAny(weather, "fog", "mist");
@@ -187,12 +192,13 @@ public static class SceneClassifier
 
         var isDungeon = context.InDuty && ContainsAny(content, "dungeon", "deep dungeon", "variant", "criterion");
         var isRaid = context.InDuty && ContainsAny(content, "raid", "trial", "ultimate", "savage", "unreal");
-        var isCity = context.InSanctuary && !context.InDuty;
-        var isInterior = context.WorldCategory == WorldCategory.Interior || isDungeon || isRaid;
+        var profileArea = territoryProfile?.AreaKey ?? string.Empty;
+        var isCity = (context.InSanctuary || string.Equals(profileArea, "city", StringComparison.OrdinalIgnoreCase)) && !context.InDuty;
+        var isInterior = context.WorldCategory == WorldCategory.Interior || isDungeon || isRaid || string.Equals(profileArea, "interior", StringComparison.OrdinalIgnoreCase);
         var isField = !context.InDuty && !isCity && !isInterior;
         var needsCombatClarity = context.InCombat;
         var needsDutyReadability = context.InDuty && !context.InCombat;
-        var biome = InferBiome(territory, weather, content, isSnow, isFog, isCloudy || isOvercast);
+        var biome = InferBiome(territory, weather, content, isSnow, isFog, isCloudy || isOvercast, territoryProfile);
         var moodTags = BuildMoodTags(biome, isRain, isFog, isCloudy, isOvercast, isGloom, isSnow, isStorm, isDustStorm, isHeatWave);
 
         return new SceneTags(
@@ -222,12 +228,21 @@ public static class SceneClassifier
             moodTags);
     }
 
-    private static BiomeMatch InferBiome(string territory, string weather, string content, bool isSnow, bool isFog, bool isCloudMood)
+    private static BiomeMatch InferBiome(string territory, string weather, string content, bool isSnow, bool isFog, bool isCloudMood, TerritoryProfile? territoryProfile)
     {
         var text = NormalizeSearchText($"{territory} {weather} {content}");
         if (isSnow)
         {
             return new BiomeMatch("snow", 1.0f, "Snow or blizzard weather overrides terrain biome to avoid missing active snow scenes.", new[] { "snow", "cold", "ice", "clean", "weatherOverride" });
+        }
+
+        if (territoryProfile is not null)
+        {
+            return new BiomeMatch(
+                territoryProfile.Biome,
+                territoryProfile.Confidence,
+                territoryProfile.Reason,
+                AddContextualMoodTags(territoryProfile.MoodTags, text));
         }
 
         foreach (var rule in BiomeRules)
@@ -249,6 +264,94 @@ public static class SceneClassifier
         return isFog || isCloudMood
             ? new BiomeMatch("overcast", 0.55f, "No territory biome matched; fog/cloud/overcast weather supplied an overcast mood fallback.", new[] { "overcast", "haze", "softLight" })
             : new BiomeMatch("neutral", 0.25f, "No specific territory, content, or weather biome keyword matched.", Array.Empty<string>());
+    }
+
+    private static TerritoryProfile? FindTerritoryProfile(string territory)
+    {
+        return TerritoryProfiles.TryGetValue(NormalizeSearchText(territory), out var profile)
+            ? profile
+            : null;
+    }
+
+    private static IReadOnlyDictionary<string, TerritoryProfile> BuildTerritoryProfiles()
+    {
+        var profiles = new Dictionary<string, TerritoryProfile>(StringComparer.OrdinalIgnoreCase);
+
+        void Add(string name, string biome, float confidence, string reason, string[] moodTags, string areaKey = "")
+        {
+            profiles[NormalizeSearchText(name)] = new TerritoryProfile(
+                biome,
+                confidence,
+                $"Matched built-in territory profile for {name}. {reason}",
+                moodTags,
+                areaKey);
+        }
+
+        void City(string name, string biome, string reason, params string[] moodTags)
+        {
+            Add(name, biome, 0.96f, reason, moodTags, "city");
+        }
+
+        void Interior(string name, string biome, string reason, params string[] moodTags)
+        {
+            Add(name, biome, 0.92f, reason, moodTags, "interior");
+        }
+
+        void Field(string name, string biome, string reason, params string[] moodTags)
+        {
+            Add(name, biome, 0.92f, reason, moodTags);
+        }
+
+        City("Mist", "coastal", "Housing ward keeps coastal settlement identity.", "coastal", "seaside", "water", "settlement", "clean");
+        Field("Wolves' Den Pier", "coastal", "Pier and naval arena keep coastal water identity.", "coastal", "seaside", "water", "naval", "specular");
+        City("The Lavender Beds", "forest", "Housing ward keeps Shroud garden settlement identity.", "foliage", "lush", "verdant", "settlement", "garden");
+        City("Ul'dah - Steps of Nald", "desert", "City hub keeps Thanalan stone, gold, and dry settlement identity.", "desert", "stone", "gold", "urban", "dry", "settlement");
+        City("Ul'dah - Steps of Thal", "desert", "City hub keeps Thanalan stone, gold, and dry settlement identity.", "desert", "stone", "gold", "urban", "dry", "settlement");
+        City("The Goblet", "desert", "Housing ward keeps Thanalan settlement identity.", "desert", "stone", "dry", "settlement", "garden");
+        Interior("The Gold Saucer", "highTech", "Entertainment interior uses bright neon/gold spectacle cues.", "neon", "gold", "urban", "clean", "luminous");
+        City("Foundation", "snow", "Ishgard city hub keeps cold stone settlement identity.", "snow", "alpine", "cold", "stone", "structured", "settlement");
+        City("The Pillars", "snow", "Ishgard city hub keeps cold stone settlement identity.", "snow", "alpine", "cold", "stone", "structured", "settlement");
+        City("The Firmament", "snow", "Ishgard reconstruction hub keeps cold stone and workshop identity.", "snow", "alpine", "cold", "stone", "industrial", "settlement");
+        City("Empyreum", "snow", "Housing ward keeps Ishgard cold settlement identity.", "snow", "alpine", "cold", "stone", "settlement");
+        Field("Mor Dhona", "aetherial", "Crystal-heavy frontier needs aetherial ruin identity.", "aetherial", "crystal", "ruins", "gloom", "stone");
+        Field("The Sea of Clouds", "alpine", "Floating high-altitude zone needs sky, cloud, and crisp air identity.", "sky", "clouds", "highAltitude", "open", "crisp");
+        City("Idyllshire", "ancient", "Hub is a settlement built into Sharlayan ruins.", "settlement", "ruins", "stone", "scholarly", "clean");
+        Field("The Dravanian Forelands", "forest", "River and highland wilderness should not fall to neutral.", "foliage", "river", "highland", "dragon", "lush");
+        Field("The Dravanian Hinterlands", "ancient", "Sharlayan ruins and riverlands need ruin/stone identity.", "ruins", "stone", "river", "scholarly", "structured");
+        Field("The Churning Mists", "alpine", "Floating dragon highlands need cloud and high-altitude identity.", "clouds", "highAltitude", "dragon", "open", "cool");
+        City("Rhalgr's Reach", "desert", "Resistance hub keeps arid highland temple identity.", "desert", "highland", "stone", "settlement", "dry");
+        Field("The Fringes", "wasteland", "Arid resistance frontier should not fall to neutral.", "dry", "highland", "foliage", "resistance", "badlands");
+        Field("The Peaks", "alpine", "Ala Mhigan highlands need mountain/arid identity.", "alpine", "highAltitude", "dry", "stone", "crisp");
+        Field("The Lochs", "wasteland", "Salt lake and military ruins need dry waterline/stone identity.", "dry", "lake", "salt", "ruins", "military");
+        City("Kugane", "coastal", "Far Eastern port hub keeps coastal lantern-lit urban identity.", "coastal", "urban", "lantern", "water", "colorful", "settlement");
+        City("Shirogane", "coastal", "Housing ward keeps Far Eastern coastal settlement identity.", "coastal", "seaside", "water", "settlement", "garden");
+        Field("Yanxia", "forest", "Far Eastern river fields should carry foliage and water identity.", "foliage", "river", "farEastern", "water", "verdant");
+        City("The Doman Enclave", "forest", "Reconstruction hub keeps Far Eastern river settlement identity.", "settlement", "farEastern", "river", "stone", "foliage");
+        City("Eulmore", "coastal", "Major hub keeps bright coastal city identity.", "coastal", "urban", "clean", "highKey", "decadent", "settlement");
+        Field("Kholusia", "coastal", "Cliffside Norvrandt coast should not fall to neutral.", "coastal", "cliff", "industrial", "water", "stone");
+        Field("The Tempest", "underwater", "Deep-sea and Amaurot zone needs underwater/ancient identity.", "underwater", "water", "depth", "ancient", "amaurot", "cool");
+        City("Old Sharlayan", "coastal", "Scholarly coastal city hub needs clean stone identity.", "coastal", "scholarly", "stone", "clean", "settlement");
+        Field("Labyrinthos", "aetherial", "Artificial underground research ecosystem needs facility and greenhouse identity.", "aetherial", "artificial", "greenhouse", "scholarly", "underground", "clean");
+        City("Radz-at-Han", "tropical", "Thavnairian city hub keeps colorful tropical/alchemical identity.", "tropical", "coastal", "colorful", "warm", "alchemical", "settlement");
+        Field("Thavnair", "tropical", "Island field zone needs tropical/coastal/colorful identity.", "tropical", "coastal", "warm", "colorful", "foliage", "water");
+        Field("Urqopacha", "alpine", "Tural mountain highlands need altitude and warm/cold split identity.", "alpine", "highAltitude", "mountain", "cool", "warm", "stone");
+        Field("Gangos", "imperial", "Resistance military camp needs industrial battlefield identity.", "military", "resistance", "industrial", "metallic", "structured");
+        Field("Unnamed Island", "tropical", "Island Sanctuary needs pastoral tropical/coastal identity.", "tropical", "coastal", "pastoral", "foliage", "water", "noncombat");
+
+        Field("The Forbidden Land, Eureka Anemos", "coastal", "Eureka Anemos should read as windy aetherial island.", "coastal", "aetherial", "wind", "island", "water");
+        Field("The Forbidden Land, Eureka Pagos", "snow", "Eureka Pagos should read as ice and snow.", "snow", "ice", "cold", "aetherial", "crisp");
+        Field("The Forbidden Land, Eureka Pyros", "volcanic", "Eureka Pyros should read as volcanic fire.", "volcanic", "fire", "heat", "aetherial", "smoky");
+        Field("The Forbidden Land, Eureka Hydatos", "coastal", "Eureka Hydatos should read as water and storm aether.", "coastal", "water", "storm", "aetherial", "specular");
+        Field("The Bozjan Southern Front", "wasteland", "Bozjan battlefield needs dry industrial warfront identity.", "dry", "battlefield", "industrial", "imperial", "metallic");
+        Field("Zadnor", "alpine", "Zadnor battlefield needs highland industrial warfront identity.", "highland", "battlefield", "industrial", "metallic", "structured");
+        Field("The Occult Crescent: South Horn", "coastal", "Occult Crescent island field operation needs coastal/aetherial exploration identity.", "coastal", "island", "aetherial", "haunted", "water");
+        Field("The Occult Crescent: North Horn", "coastal", "Occult Crescent island field operation profile reserved for release verification.", "coastal", "island", "aetherial", "haunted", "water");
+        Field("Sinus Ardorum", "lunar", "Cosmic Exploration moon base needs lunar/cosmic identity.", "lunar", "moonlit", "cosmic", "base", "clean");
+        Field("Phaenna", "aetherial", "Cosmic Exploration glass star needs crystalline cosmic identity.", "crystal", "cosmic", "glass", "aetherial", "cool");
+        Field("Oizys", "cosmic", "Cosmic Exploration ruins planet needs floating rock and cosmic ruin identity.", "cosmic", "ruins", "floating", "stone", "highDepth");
+        Field("Auxesia", "forest", "Cosmic Exploration forest planet needs overgrown ruin identity.", "foliage", "forest", "ruins", "lush", "ancient");
+
+        return profiles;
     }
 
     private static IReadOnlyList<string> BuildMoodTags(BiomeMatch biome, bool isRain, bool isFog, bool isCloudy, bool isOvercast, bool isGloom, bool isSnow, bool isStorm, bool isDustStorm, bool isHeatWave)

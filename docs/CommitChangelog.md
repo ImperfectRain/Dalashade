@@ -31,6 +31,24 @@ Use Unix timestamps so entries are easy to sort and compare across local time zo
 
 ## Entries
 
+### 1781731543 - Add exact territory profiles for risky FFXIV zones
+
+- Changed: Added exact built-in territory profiles for high-risk hubs, under-tagged field zones, field-operation zones, and Cosmic Exploration planets, with keyword rules kept as fallback. Added regression harness expectations for representative risky zones and area classification.
+- Why: The audit showed many places players explore would fall to `neutral` or `field` despite having strong visual identities.
+- Related goals: Make Dalashade aware of every explorable area, preserve place identity before visual math, and add regression coverage before expanding tag behavior further.
+- Documentation: Updated `docs/SceneTagsAndIntent.md`, revised `docs/ZoneTagCoverageAudit.md` from pure audit to implemented-first-pass reference, and updated this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors. Direct PowerShell reflection execution of `SceneTagRegressionHarness.Run()` was blocked by runtime dependency loading outside the Dalamud/.NET 10 context.
+- Next steps: Consider moving territory profiles out of `GameContext.cs` during the planned service split, add more exact-profile regression cases, and add territory id support if name matching proves fragile.
+
+### 1781731175 - Audit FFXIV zone tag coverage
+
+- Changed: Added a researched zone tag coverage audit comparing FFXIV persistent exploration zones, hubs, field operations, and Cosmic Exploration zones against Dalashade's current classifier.
+- Why: The plugin should become aware of every area a player might explore and adapt visuals to the actual place identity instead of relying only on broad keyword matches.
+- Related goals: Expand scene tagging coverage, add tests before major tag changes, make tag behavior diagnosable, and move toward a built-in territory profile registry with keyword fallback.
+- Documentation: Added `docs/ZoneTagCoverageAudit.md` and linked it from the docs landing page and codebase index.
+- Verification: Documentation-only research/audit change; no build run.
+- Next steps: Implement exact territory profiles for high-risk hubs, under-tagged field zones, and exploration zones, then add regression harness cases before changing visual behavior.
+
 ### 1781730713 - Align README with current project scope and roadmap
 
 - Changed: Reviewed the README against the current docs and expanded it with implemented scene authoring, optional first-party shaders, inline FrameData scope, project evolution, maintainability pressure, and a bottom roadmap.

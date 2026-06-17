@@ -97,6 +97,7 @@ Status meanings:
 | `docs/CodebaseIndex.md` | File ownership and audit map. | Contributors/Codex. | Stable. |
 | `docs/GenerationPipeline.md` | Generate-button to preset-write flow. | Maintainers/Codex. | Stable. |
 | `docs/SceneTagsAndIntent.md` | Scene tags, night/day layers, SceneIntent behavior. | Scene/tag work. | Stable. |
+| `docs/ZoneTagCoverageAudit.md` | Researched FFXIV zone coverage gaps for current tag classifier. | Scene/tag work. | Stable audit doc. |
 | `docs/MaterialIntent.md` | MaterialProfile/MaterialIntent and shader-side material distinction. | Material/shader work. | Stable. |
 | `docs/ShaderMapping.md` | Known shader variable mapping behavior. | Preset writer work. | Stable. |
 | `docs/ShaderAuthoring.md` | First-party shader authoring notes. | Shader work. | Stable. |

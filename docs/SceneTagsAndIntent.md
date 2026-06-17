@@ -12,7 +12,7 @@ Scene context is collected in `Dalashade/GameContext.cs`.
 | Territory lookup | `GameContextService.Refresh()` | Uses `DataManager.GetExcelSheet<TerritoryType>()`. |
 | Weather lookup | `GameContextService.GetCurrentWeather()` | Uses `FFXIVClientStructs` weather data first, then zone-init fallback. |
 | Time buckets | `GameContextService.GetTimeBucket()` | Converts Eorzea hour into Dawn, Day, Dusk, or Night. |
-| Scene tags | `SceneClassifier.Classify(GameContext context)` | Converts raw context into weather, area, biome, mood, confidence, and gameplay tags. |
+| Scene tags | `SceneClassifier.Classify(GameContext context)` | Converts raw context into weather, area, biome, mood, confidence, and gameplay tags. Exact built-in territory profiles are checked before broad keyword fallback. |
 | Scene authoring overrides | `SceneAuthoringService.Apply(...)` | Optional default-off user override layer that can replace the effective primary biome and add/remove grouped tags for the current territory. |
 | Tag registry tuning | `SceneAuthoringService` + `SceneIntentBuilder.Build(...)` + `MaterialIntentBuilder.Build(...)` | When scene authoring is enabled, config-local tag definitions can add editable SceneIntent and MaterialIntent channel contributions when their tags are active. |
 | Scene intent | `SceneIntentBuilder.Build(...)` in `Dalashade/SceneIntent.cs` | Converts tags, screenshot analysis, target style, performance budget, and enabled tag registry tunings into stack-aware intent values before profile stack budgets. |
@@ -234,7 +234,9 @@ Area tags are inferred in `SceneClassifier.Classify`:
 | `interior` | Territory world category is Interior, or the scene is tagged dungeon or raid. |
 | `field` | Not duty, not city, and not interior. |
 
-Biome tags are inferred in `SceneClassifier.InferBiome` from territory, weather, and content names. Each biome result also records a confidence value, a reason string, and one or more mood tags when useful. Mood tags are diagnostic/context hints such as `neon`, `industrial`, `dreamlike`, `rainforest`, `cold`, `coastal`, or `cosmic`; they do not replace the single primary `BiomeKey`.
+Biome tags are inferred in `SceneClassifier.InferBiome` from territory, weather, and content names. Exact built-in territory profiles are checked first for known hubs, under-tagged field zones, field-operation zones, and Cosmic Exploration planets. Broad keyword rules remain as fallback for unknown or future territories. Each biome result also records a confidence value, a reason string, and one or more mood tags when useful. Mood tags are diagnostic/context hints such as `neon`, `industrial`, `dreamlike`, `rainforest`, `cold`, `coastal`, or `cosmic`; they do not replace the single primary `BiomeKey`.
+
+Exact territory profiles are intentionally descriptive, not final shader presets. They set place identity and optional area context so existing `SceneIntent`, `MaterialProfile`, `MaterialIntent`, `VisualProfile`, and shader contracts can make the visual decisions. They currently cover high-risk hubs and under-tagged zones identified in `docs/ZoneTagCoverageAudit.md`, including Idyllshire, Rhalgr's Reach, Eulmore, Radz-at-Han, Mor Dhona, Sea of Clouds, Dravania, Gyr Abania, Yanxia, Kholusia, The Tempest, Labyrinthos, Thavnair, Urqopacha, Eureka, Bozja/Zadnor, Occult Crescent, and Cosmic Exploration planets.
 
 | Tag | Current trigger examples |
 | --- | --- |
