@@ -240,8 +240,8 @@ public sealed class ProfileEngine
 
         if (configuration.AutoAdjustFromScreenshots && imageAnalysis.Available)
         {
-            ApplyImageAnalysis(imageAnalysis, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift, ref highlightRecovery, ref whitePoint, ref blackPoint, ref bloomThreshold, ref bloomDirt, ref debandStrength);
-            rules?.Add(new AppliedRule("Screenshot feedback", $"Current image reads as {imageAnalysis.ProfileBucket}.", "brightness, clipping, saturation, and contrast correction"));
+            ApplyImageAnalysis(imageAnalysis, configuration.ScreenshotAnalysisStrength, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift, ref highlightRecovery, ref whitePoint, ref blackPoint, ref bloomThreshold, ref bloomDirt, ref debandStrength);
+            rules?.Add(new AppliedRule("Screenshot feedback", $"Current image reads as {imageAnalysis.ProfileBucket}. {imageAnalysis.OpinionSummary}", $"strength {configuration.ScreenshotAnalysisStrength:0.##}; brightness, clipping, saturation, material-opinion, and contrast correction"));
         }
 
         if (configuration.MatchMasterPresetStyle && masterStyle.Available)
@@ -786,48 +786,92 @@ public sealed class ProfileEngine
         return tags.MoodTags.Contains(mood, StringComparer.OrdinalIgnoreCase);
     }
 
-    private static void ApplyImageAnalysis(ImageAnalysisResult image, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float clarity, ref float shadowLift, ref float highlightRecovery, ref float whitePoint, ref float blackPoint, ref float bloomThreshold, ref float bloomDirt, ref float debandStrength)
+    private static void ApplyImageAnalysis(ImageAnalysisResult image, float configuredStrength, ref float exposure, ref float contrast, ref float saturation, ref float bloom, ref float ao, ref float sharpness, ref float clarity, ref float shadowLift, ref float highlightRecovery, ref float whitePoint, ref float blackPoint, ref float bloomThreshold, ref float bloomDirt, ref float debandStrength)
     {
+        var strength = Clamp(configuredStrength, 0f, 2f);
+        if (strength <= 0f)
+        {
+            return;
+        }
+
         if (image.AverageLuminance < 0.30f)
         {
-            exposure += Scale01(0.30f - image.AverageLuminance, 0.30f) * 0.14f;
-            shadowLift += Scale01(image.ShadowClipping, 0.30f) * 0.16f;
-            contrast -= Scale01(image.ShadowClipping, 0.25f) * 0.10f;
-            ao -= Scale01(image.ShadowClipping, 0.25f) * 0.16f;
-            blackPoint *= 1f - (Scale01(image.ShadowClipping, 0.30f) * 0.05f);
-            debandStrength *= 1f + (Scale01(image.ShadowClipping, 0.30f) * 0.10f);
+            exposure += Scale01(0.30f - image.AverageLuminance, 0.30f) * 0.14f * strength;
+            shadowLift += Scale01(image.ShadowClipping, 0.30f) * 0.16f * strength;
+            contrast -= Scale01(image.ShadowClipping, 0.25f) * 0.10f * strength;
+            ao -= Scale01(image.ShadowClipping, 0.25f) * 0.16f * strength;
+            blackPoint *= 1f - (Scale01(image.ShadowClipping, 0.30f) * 0.05f * strength);
+            debandStrength *= 1f + (Scale01(image.ShadowClipping, 0.30f) * 0.10f * strength);
         }
 
         if (image.AverageLuminance > 0.72f || image.HighlightClipping > 0.04f)
         {
-            exposure -= Scale01(image.AverageLuminance - 0.72f, 0.28f) * 0.11f;
-            bloom -= Scale01(image.HighlightClipping, 0.12f) * 0.25f;
-            contrast -= Scale01(image.HighlightClipping, 0.12f) * 0.07f;
-            highlightRecovery *= 1f + (Scale01(image.HighlightClipping, 0.12f) * 0.20f);
-            whitePoint *= 1f - (Scale01(image.HighlightClipping, 0.12f) * 0.035f);
-            bloomThreshold *= 1f + (Scale01(image.HighlightClipping, 0.12f) * 0.12f);
-            bloomDirt *= 1f - (Scale01(image.HighlightClipping, 0.12f) * 0.20f);
+            exposure -= Scale01(image.AverageLuminance - 0.72f, 0.28f) * 0.11f * strength;
+            bloom -= Scale01(image.HighlightClipping, 0.12f) * 0.25f * strength;
+            contrast -= Scale01(image.HighlightClipping, 0.12f) * 0.07f * strength;
+            highlightRecovery *= 1f + (Scale01(image.HighlightClipping, 0.12f) * 0.20f * strength);
+            whitePoint *= 1f - (Scale01(image.HighlightClipping, 0.12f) * 0.035f * strength);
+            bloomThreshold *= 1f + (Scale01(image.HighlightClipping, 0.12f) * 0.12f * strength);
+            bloomDirt *= 1f - (Scale01(image.HighlightClipping, 0.12f) * 0.20f * strength);
         }
 
         if (image.AverageSaturation < 0.24f)
         {
-            saturation += 0.07f;
+            saturation += 0.07f * strength;
         }
         else if (image.AverageSaturation > 0.62f)
         {
-            saturation -= 0.08f;
-            bloom -= 0.05f;
+            saturation -= 0.08f * strength;
+            bloom -= 0.05f * strength;
         }
 
         if (image.Contrast < 0.14f)
         {
-            contrast += 0.08f;
-            clarity += 0.07f;
+            contrast += 0.08f * strength;
+            clarity += 0.07f * strength;
         }
         else if (image.Contrast > 0.32f)
         {
-            contrast -= 0.07f;
-            sharpness -= 0.06f;
+            contrast -= 0.07f * strength;
+            sharpness -= 0.06f * strength;
+        }
+
+        var skyAir = image.OpinionConfidence(ImageSceneOpinionKeys.SkyAir) * strength;
+        if (skyAir > 0.18f)
+        {
+            bloomThreshold *= 1f + (skyAir * 0.06f);
+            highlightRecovery *= 1f + (skyAir * 0.05f);
+        }
+
+        var water = image.OpinionConfidence(ImageSceneOpinionKeys.WaterSurface) * strength;
+        if (water > 0.18f)
+        {
+            bloom -= water * 0.04f;
+            whitePoint *= 1f - (water * 0.012f);
+        }
+
+        var foliage = image.OpinionConfidence(ImageSceneOpinionKeys.Foliage) * strength;
+        if (foliage > 0.18f)
+        {
+            saturation += foliage * 0.025f;
+            clarity += foliage * 0.025f;
+            sharpness += foliage * 0.015f;
+        }
+
+        var snow = image.OpinionConfidence(ImageSceneOpinionKeys.SnowIce) * strength;
+        if (snow > 0.18f)
+        {
+            exposure -= snow * 0.025f;
+            highlightRecovery *= 1f + (snow * 0.08f);
+            bloom -= snow * 0.04f;
+        }
+
+        var skin = image.OpinionConfidence(ImageSceneOpinionKeys.SkinProtection) * strength;
+        if (skin > 0.18f)
+        {
+            sharpness -= skin * 0.025f;
+            contrast -= skin * 0.025f;
+            saturation -= skin * 0.018f;
         }
     }
 

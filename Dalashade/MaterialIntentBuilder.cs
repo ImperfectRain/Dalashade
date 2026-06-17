@@ -7,14 +7,14 @@ namespace Dalashade;
 
 public static class MaterialIntentBuilder
 {
-    public static MaterialIntent Build(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, IReadOnlyList<SceneTagPreset>? tagRegistry = null)
+    public static MaterialIntent Build(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, IReadOnlyList<SceneTagPreset>? tagRegistry = null, float screenshotStrength = 1f)
     {
-        return Build(diagnostics, imageAnalysis, MaterialProfileBuilder.Build(diagnostics, imageAnalysis), tagRegistry);
+        return Build(diagnostics, imageAnalysis, MaterialProfileBuilder.Build(diagnostics, imageAnalysis, screenshotStrength), tagRegistry, screenshotStrength);
     }
 
-    public static MaterialIntent Build(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, MaterialProfile profile, IReadOnlyList<SceneTagPreset>? tagRegistry = null)
+    public static MaterialIntent Build(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, MaterialProfile profile, IReadOnlyList<SceneTagPreset>? tagRegistry = null, float screenshotStrength = 1f)
     {
-        var state = new State(diagnostics, profile);
+        var state = new State(diagnostics, profile, screenshotStrength);
         AddMaterialProfilePriors(state, profile);
         AddFoliage(state);
         AddWaterSpecular(state);
@@ -28,6 +28,7 @@ public static class MaterialIntentBuilder
         AddSkyCloudFog(state, imageAnalysis);
         AddSkinProtection(state, imageAnalysis);
         AddVoidDarkness(state, imageAnalysis);
+        AddScreenshotOpinions(state, imageAnalysis);
         AddSceneIntentHints(state);
         AddTagRegistry(state, tagRegistry);
 
@@ -323,7 +324,7 @@ public static class MaterialIntentBuilder
 
         if (imageAnalysis.Available && imageAnalysis.Contrast < 0.16f && imageAnalysis.HighlightClipping < 0.03f)
         {
-            state.Add(MaterialIntent.SkyCloudFogChannel, 0.08f, "screenshot analysis", "Low-contrast, unclipped image analysis weakly suggests sky, cloud, fog, or atmospheric gradients.");
+            state.Add(MaterialIntent.SkyCloudFogChannel, 0.08f * state.ScreenshotStrength, "screenshot analysis", "Low-contrast, unclipped image analysis weakly suggests sky, cloud, fog, or atmospheric gradients.");
         }
 
         if (TryGetRegion(imageAnalysis, ImageAnalysisRegion.UpperThird, out var upper))
@@ -333,7 +334,7 @@ public static class MaterialIntentBuilder
                                 + MathF.Max(0f, upper.BrightTendency - 0.20f);
             if (upper.SmoothTendency > 0.45f && upperSkyColor > 0.24f)
             {
-                state.Add(MaterialIntent.SkyCloudFogChannel, MathF.Min(0.08f, upperSkyColor * 0.04f), "screenshot region", "Smooth upper blue, cyan, or bright region weakly supports sky/cloud plausibility.");
+                state.Add(MaterialIntent.SkyCloudFogChannel, MathF.Min(0.08f, upperSkyColor * 0.04f) * state.ScreenshotStrength, "screenshot region", "Smooth upper blue, cyan, or bright region weakly supports sky/cloud plausibility.");
             }
         }
 
@@ -362,7 +363,7 @@ public static class MaterialIntentBuilder
             var skinLike = MathF.Min(1f, (orange * 0.75f) + (red * 0.35f));
             if (skinLike > 0.20f && imageAnalysis.AverageLuminance is > 0.18f and < 0.82f)
             {
-                state.Add(MaterialIntent.SkinProtectionChannel, skinLike * 0.14f, "screenshot analysis", "Moderate warm color-family confidence weakly suggests skin-tone protection risk.");
+                state.Add(MaterialIntent.SkinProtectionChannel, skinLike * 0.14f * state.ScreenshotStrength, "screenshot analysis", "Moderate warm color-family confidence weakly suggests skin-tone protection risk.");
             }
         }
 
@@ -371,7 +372,7 @@ public static class MaterialIntentBuilder
             var warmCenter = RegionFamilyConfidence(center, ColorFamily.Orange) + (RegionFamilyConfidence(center, ColorFamily.Red) * 0.45f);
             if (warmCenter > 0.18f && center.AverageLuminance is > 0.18f and < 0.82f && center.SmoothTendency > 0.25f)
             {
-                state.Add(MaterialIntent.SkinProtectionChannel, MathF.Min(0.06f, warmCenter * 0.05f), "screenshot region", "Smooth warm center-region color weakly supports skin/character protection.");
+                state.Add(MaterialIntent.SkinProtectionChannel, MathF.Min(0.06f, warmCenter * 0.05f) * state.ScreenshotStrength, "screenshot region", "Smooth warm center-region color weakly supports skin/character protection.");
             }
         }
 
@@ -401,7 +402,7 @@ public static class MaterialIntentBuilder
 
         if (imageAnalysis.Available && explicitDarkness && imageAnalysis.AverageLuminance < 0.28f)
         {
-            state.Add(MaterialIntent.VoidDarknessChannel, 0.10f, "screenshot analysis", "Dark screenshot analysis reinforces explicit void/gloom/haunted tags.");
+            state.Add(MaterialIntent.VoidDarknessChannel, 0.10f * state.ScreenshotStrength, "screenshot analysis", "Dark screenshot analysis reinforces explicit void/gloom/haunted tags.");
         }
 
         if (state.HasAny("forest", "jungle", "lush", "verdant") && !explicitDarkness)
@@ -418,6 +419,34 @@ public static class MaterialIntentBuilder
         {
             state.Add(MaterialIntent.VoidDarknessChannel, -0.06f, "time suppression", "Night alone is not treated as void material evidence.");
         }
+    }
+
+    private static void AddScreenshotOpinions(State state, ImageAnalysisResult imageAnalysis)
+    {
+        if (!imageAnalysis.Available || state.ScreenshotStrength <= 0f)
+        {
+            return;
+        }
+
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.SkyAir, MaterialIntent.SkyCloudFogChannel, 0.12f, "Screenshot opinion found likely visible sky or air.");
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.WaterSurface, MaterialIntent.WaterSpecularChannel, 0.12f, "Screenshot opinion found likely water surface color.");
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.Foliage, MaterialIntent.FoliageChannel, 0.12f, "Screenshot opinion found likely foliage.");
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.SandDust, MaterialIntent.SandDustChannel, 0.10f, "Screenshot opinion found likely sand or warm ground.");
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.SnowIce, MaterialIntent.SnowIceChannel, 0.10f, "Screenshot opinion found likely snow or ice.");
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.SkinProtection, MaterialIntent.SkinProtectionChannel, 0.10f, "Screenshot opinion found likely character skin risk.");
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.NeonAether, MaterialIntent.NeonGlassChannel, 0.08f, "Screenshot opinion found likely neon or aether color.");
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.NeonAether, MaterialIntent.CrystalAetherChannel, 0.08f, "Screenshot opinion found likely neon or aether color.");
+    }
+
+    private static void AddScreenshotOpinion(State state, ImageAnalysisResult imageAnalysis, string opinionKey, string channel, float amount, string reason)
+    {
+        var confidence = imageAnalysis.OpinionConfidence(opinionKey);
+        if (confidence < 0.18f)
+        {
+            return;
+        }
+
+        state.Add(channel, confidence * amount * state.ScreenshotStrength, "screenshot opinion", reason);
     }
 
     private static void AddSceneIntentHints(State state)
@@ -497,10 +526,11 @@ public static class MaterialIntentBuilder
         private readonly TagStackDiagnostics diagnostics;
         private readonly MaterialProfile profile;
 
-        public State(TagStackDiagnostics diagnostics, MaterialProfile profile)
+        public State(TagStackDiagnostics diagnostics, MaterialProfile profile, float screenshotStrength)
         {
             this.diagnostics = diagnostics;
             this.profile = profile;
+            ScreenshotStrength = Clamp(screenshotStrength, 0f, 2f);
             tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             AddTags(diagnostics.ActiveTags);
             AddTags(diagnostics.ActiveWeatherTags);
@@ -524,6 +554,7 @@ public static class MaterialIntentBuilder
         }
 
         public float ConfidenceScale => 0.55f + (Clamp01(diagnostics.BiomeConfidence) * 0.45f);
+        public float ScreenshotStrength { get; }
 
         public SceneIntent SceneIntent => diagnostics.Intent;
 
@@ -670,4 +701,6 @@ public static class MaterialIntentBuilder
     }
 
     private static float Clamp01(float value) => MathF.Min(1f, MathF.Max(0f, value));
+
+    private static float Clamp(float value, float min, float max) => MathF.Min(max, MathF.Max(min, value));
 }

@@ -131,7 +131,8 @@ public sealed class DebugBundleExporter
             WriteJson(Path.Combine(folderPath, "scene-intent.json"), BuildSceneIntentDump(diagnostics.Intent), included);
             log.Add($"{stage}: ok");
 
-            TryBundleStep("write material-intent.json", () => WriteJson(Path.Combine(folderPath, "material-intent.json"), BuildMaterialIntentDump(diagnostics, imageAnalysis, materialIntent, writeResult), included), log, skipped);
+            TryBundleStep("write screenshot-analysis.json", () => WriteJson(Path.Combine(folderPath, "screenshot-analysis.json"), BuildScreenshotAnalysisDump(configuration, imageAnalysis), included), log, skipped);
+            TryBundleStep("write material-intent.json", () => WriteJson(Path.Combine(folderPath, "material-intent.json"), BuildMaterialIntentDump(configuration, diagnostics, imageAnalysis, materialIntent, writeResult), included), log, skipped);
             TryBundleStep("write normal-field-diagnostics.json", () => WriteJson(Path.Combine(folderPath, "normal-field-diagnostics.json"), BuildNormalFieldDiagnosticsDump(configuration, analysis, writeResult), included), log, skipped);
             TryBundleStep("write frame-data-diagnostics.json", () => WriteJson(Path.Combine(folderPath, "frame-data-diagnostics.json"), BuildFrameDataDiagnosticsDump(configuration, analysis, writeResult), included), log, skipped);
             TryBundleStep("write first-party-depth-assist.json", () => WriteJson(Path.Combine(folderPath, "first-party-depth-assist.json"), BuildFirstPartyDepthAssistDump(configuration, writeResult), included), log, skipped);
@@ -298,10 +299,63 @@ public sealed class DebugBundleExporter
         };
     }
 
-    private static object BuildMaterialIntentDump(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, MaterialIntent currentMaterialIntent, PresetWriteResult writeResult)
+    private static object BuildScreenshotAnalysisDump(Configuration configuration, ImageAnalysisResult imageAnalysis)
     {
-        var profile = MaterialProfileBuilder.Build(diagnostics, imageAnalysis);
-        var rawIntent = MaterialIntentBuilder.Build(diagnostics, imageAnalysis, profile);
+        return new
+        {
+            Enabled = configuration.AutoAdjustFromScreenshots,
+            Strength = configuration.ScreenshotAnalysisStrength,
+            imageAnalysis.Available,
+            imageAnalysis.SourcePath,
+            imageAnalysis.SourceTimestamp,
+            imageAnalysis.ProfileBucket,
+            imageAnalysis.OpinionSummary,
+            Metrics = new
+            {
+                imageAnalysis.AverageLuminance,
+                imageAnalysis.Contrast,
+                imageAnalysis.AverageSaturation,
+                imageAnalysis.ShadowClipping,
+                imageAnalysis.HighlightClipping,
+                imageAnalysis.Warmth,
+                imageAnalysis.GreenBias,
+                imageAnalysis.LuminanceP05,
+                imageAnalysis.LuminanceP50,
+                imageAnalysis.LuminanceP95
+            },
+            Opinions = imageAnalysis.Opinions.Select(opinion => new
+            {
+                opinion.Key,
+                opinion.Label,
+                opinion.Confidence,
+                opinion.Target,
+                opinion.Reason
+            }).ToArray(),
+            Regions = imageAnalysis.Regions.Select(pair => new
+            {
+                Region = pair.Key,
+                pair.Value.AverageLuminance,
+                pair.Value.Contrast,
+                pair.Value.AverageSaturation,
+                pair.Value.BrightTendency,
+                pair.Value.DarkTendency,
+                pair.Value.SmoothTendency,
+                ColorFamilies = pair.Value.ColorFamilies.Values
+                    .Where(family => family.Confidence > 0.02f)
+                    .Select(family => new { family.Family, family.Hue, family.Saturation, family.Luminance, family.Coverage, family.Confidence })
+                    .ToArray()
+            }).ToArray(),
+            ColorFamilies = imageAnalysis.ColorFamilies.Values
+                .Where(family => family.Confidence > 0.02f)
+                .Select(family => new { family.Family, family.Hue, family.Saturation, family.Luminance, family.Coverage, family.Confidence })
+                .ToArray()
+        };
+    }
+
+    private static object BuildMaterialIntentDump(Configuration configuration, TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, MaterialIntent currentMaterialIntent, PresetWriteResult writeResult)
+    {
+        var profile = MaterialProfileBuilder.Build(diagnostics, imageAnalysis, configuration.ScreenshotAnalysisStrength);
+        var rawIntent = MaterialIntentBuilder.Build(diagnostics, imageAnalysis, profile, screenshotStrength: configuration.ScreenshotAnalysisStrength);
         return new
         {
             MaterialProfile = new

@@ -159,6 +159,7 @@ public class Configuration : IPluginConfiguration
     public int MinimumSecondsBetweenWrites { get; set; } = 10;
     public int MinimumSecondsBetweenImageSamples { get; set; } = 10;
     public ImageSamplingMode ImageSamplingMode { get; set; } = ImageSamplingMode.CenterWeighted;
+    public float ScreenshotAnalysisStrength { get; set; } = 1.0f;
     public int MasterPresetStyleStrength { get; set; } = 75;
     public MasterStyleTuningPreset MasterStyleTuningPreset { get; set; } = MasterStyleTuningPreset.Balanced;
     public float MasterTonalMatchStrength { get; set; } = 1.0f;

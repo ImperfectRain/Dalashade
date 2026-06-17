@@ -31,6 +31,15 @@ Use Unix timestamps so entries are easy to sort and compare across local time zo
 
 ## Entries
 
+### 1781718347 - Make screenshot analysis opinion-driven and strength-scaled
+
+- Changed: Added named screenshot scene opinions, a `ScreenshotAnalysisStrength` slider, strength-scaled VisualProfile/SceneIntent/MaterialProfile/MaterialIntent influence, legible screenshot diagnostics in UI/reports/debug bundles, and synthetic image regression coverage in the existing harness.
+- Why: Screenshot analysis had useful metrics but weak visibility and limited control; users needed opinions that actually affect output and a way to dial them back.
+- Related goals: Make scene adaptation more explainable, keep optional analysis safe, improve debug data, and add tests before expanding image-driven behavior further.
+- Documentation: Updated `README.md`, `docs/GenerationPipeline.md`, `docs/SceneTagsAndIntent.md`, `docs/Configuration.md`, `docs/CompatibilityAndDiagnostics.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors.
+- Next steps: Add a proper test project when repo structure allows it, collect real screenshot pairs to tune opinion thresholds, and keep screenshot analysis below true material/segmentation claims until live frame or ReShade bridge data exists.
+
 ### 1781731543 - Add exact territory profiles for risky FFXIV zones
 
 - Changed: Added exact built-in territory profiles for high-risk hubs, under-tagged field zones, field-operation zones, and Cosmic Exploration planets, with keyword rules kept as fallback. Added regression harness expectations for representative risky zones and area classification.

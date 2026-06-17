@@ -135,7 +135,7 @@ The main window includes sections for:
 | Sanitize Actions | Gameplay sanitize changes. |
 | Applied Rules | Profile generation rules. |
 | Scene Tags | Weather, primary biome, secondary/material/art-direction tags, area/gameplay context, intent values, and stack-budget contributions. |
-| Screenshot Analysis | Current screenshot stats. |
+| Screenshot Analysis | Current screenshot stats, named opinions, strength, regions, and top regional color families. |
 | Master Style | Master style diagnostics. |
 | Regression Reports | Last regression run status. |
 | Debug / Diagnostics | Additional low-level status. |

@@ -367,6 +367,12 @@ public sealed class ConfigWindow : Window, IDisposable
         if (configuration.AutoAdjustFromScreenshots)
         {
             DrawTextInput("Screenshot folder", configuration.ScreenshotFolderPath, value => configuration.ScreenshotFolderPath = value);
+            var screenshotStrengthPercent = (int)MathF.Round(configuration.ScreenshotAnalysisStrength * 100f);
+            if (ImGui.SliderInt("Screenshot influence", ref screenshotStrengthPercent, 0, 200, "%d%%"))
+            {
+                configuration.ScreenshotAnalysisStrength = screenshotStrengthPercent / 100f;
+                configuration.Save();
+            }
         }
 
         if (ImGui.Button("Open Scene Authoring###ConfigUserOpenSceneAuthoring"))
@@ -764,7 +770,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private string ScreenshotAnalysisSummary()
     {
         return configuration.AutoAdjustFromScreenshots
-            ? $"{configuration.ImageSamplingMode}, every {configuration.MinimumSecondsBetweenImageSamples}s"
+            ? $"{configuration.ImageSamplingMode}, {configuration.ScreenshotAnalysisStrength * 100f:0}% strength, every {configuration.MinimumSecondsBetweenImageSamples}s"
             : "Disabled";
     }
 
@@ -772,6 +778,12 @@ public sealed class ConfigWindow : Window, IDisposable
     {
         DrawCheckbox("Auto-adjust from screenshots", configuration.AutoAdjustFromScreenshots, value => configuration.AutoAdjustFromScreenshots = value);
         DrawTextInput("Screenshot folder", configuration.ScreenshotFolderPath, value => configuration.ScreenshotFolderPath = value);
+        var screenshotStrengthPercent = (int)MathF.Round(configuration.ScreenshotAnalysisStrength * 100f);
+        if (ImGui.SliderInt("Screenshot influence", ref screenshotStrengthPercent, 0, 200, "%d%%"))
+        {
+            configuration.ScreenshotAnalysisStrength = screenshotStrengthPercent / 100f;
+            configuration.Save();
+        }
 
         var samplingMode = (int)configuration.ImageSamplingMode;
         if (ImGui.Combo("Screenshot sampling", ref samplingMode, "Full image\0Center-weighted\0Ignore bottom UI\0Letterbox safe\0GPose clean\0"))

@@ -56,6 +56,32 @@ public enum ImageAnalysisRegion
     Center
 }
 
+public static class ImageSceneOpinionKeys
+{
+    public const string ShadowRecovery = "shadowRecovery";
+    public const string HighlightProtection = "highlightProtection";
+    public const string ClarityBoost = "clarityBoost";
+    public const string SaturationLift = "saturationLift";
+    public const string SaturationRestraint = "saturationRestraint";
+    public const string SkyAir = "skyAir";
+    public const string WaterSurface = "waterSurface";
+    public const string Foliage = "foliage";
+    public const string SandDust = "sandDust";
+    public const string SnowIce = "snowIce";
+    public const string SkinProtection = "skinProtection";
+    public const string NeonAether = "neonAether";
+}
+
+public sealed record ImageSceneOpinion(
+    string Key,
+    string Label,
+    float Confidence,
+    string Target,
+    string Reason)
+{
+    public static IReadOnlyList<ImageSceneOpinion> EmptyList { get; } = Array.Empty<ImageSceneOpinion>();
+}
+
 public sealed record ImageRegionStats(
     ImageAnalysisRegion Region,
     float AverageLuminance,
@@ -89,17 +115,43 @@ public sealed record ImageAnalysisResult(
     TonalColorBias MidtoneColor,
     TonalColorBias HighlightColor,
     IReadOnlyDictionary<ColorFamily, ColorFamilyStats> ColorFamilies,
-    IReadOnlyDictionary<ImageAnalysisRegion, ImageRegionStats> Regions)
+    IReadOnlyDictionary<ImageAnalysisRegion, ImageRegionStats> Regions,
+    IReadOnlyList<ImageSceneOpinion> Opinions)
 {
     public static IReadOnlyDictionary<ImageAnalysisRegion, ImageRegionStats> EmptyRegionMap { get; } = Enum.GetValues<ImageAnalysisRegion>()
         .ToDictionary(region => region, ImageRegionStats.Empty);
 
-    public static ImageAnalysisResult Empty { get; } = new(false, string.Empty, DateTimeOffset.MinValue, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, TonalColorBias.Empty, TonalColorBias.Empty, TonalColorBias.Empty, ColorFamilyStats.EmptyMap, EmptyRegionMap);
+    public static ImageAnalysisResult Empty { get; } = new(false, string.Empty, DateTimeOffset.MinValue, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, TonalColorBias.Empty, TonalColorBias.Empty, TonalColorBias.Empty, ColorFamilyStats.EmptyMap, EmptyRegionMap, ImageSceneOpinion.EmptyList);
 
     public float ShadowFloor => LuminanceP05;
     public float MidtoneLevel => LuminanceP50;
     public float HighlightCeiling => LuminanceP95;
     public float ContrastSpread => MathF.Max(0f, LuminanceP75 - LuminanceP25);
+    public IReadOnlyList<ImageSceneOpinion> StrongOpinions => Opinions
+        .Where(opinion => opinion.Confidence >= 0.18f)
+        .OrderByDescending(opinion => opinion.Confidence)
+        .ToArray();
+
+    public string OpinionSummary
+    {
+        get
+        {
+            if (!Available)
+            {
+                return "No screenshot analysis is available.";
+            }
+
+            var strong = StrongOpinions.Take(4).ToArray();
+            return strong.Length == 0
+                ? "Screenshot analysis found no strong scene opinion."
+                : string.Join("; ", strong.Select(opinion => $"{opinion.Label} ({opinion.Confidence:0.##})"));
+        }
+    }
+
+    public float OpinionConfidence(string key)
+    {
+        return Opinions.FirstOrDefault(opinion => string.Equals(opinion.Key, key, StringComparison.OrdinalIgnoreCase))?.Confidence ?? 0f;
+    }
 
     public string MetricsKey
     {
@@ -111,7 +163,7 @@ public sealed record ImageAnalysisResult(
             }
 
             return FormattableString.Invariant(
-                $"l{AverageLuminance:0.00}:c{Contrast:0.00}:s{AverageSaturation:0.00}:sh{ShadowClipping:0.00}:hi{HighlightClipping:0.00}:p05{LuminanceP05:0.00}:p50{LuminanceP50:0.00}:p95{LuminanceP95:0.00}:w{Warmth:0.00}:g{GreenBias:0.00}:sc{ShadowColor.Hue:0.00}/{ShadowColor.Saturation:0.00}:mc{MidtoneColor.Hue:0.00}/{MidtoneColor.Saturation:0.00}:hc{HighlightColor.Hue:0.00}/{HighlightColor.Saturation:0.00}:cf{ColorFamilyMetricsKey(ColorFamilies)}:rg{RegionMetricsKey(Regions)}");
+                $"l{AverageLuminance:0.00}:c{Contrast:0.00}:s{AverageSaturation:0.00}:sh{ShadowClipping:0.00}:hi{HighlightClipping:0.00}:p05{LuminanceP05:0.00}:p50{LuminanceP50:0.00}:p95{LuminanceP95:0.00}:w{Warmth:0.00}:g{GreenBias:0.00}:sc{ShadowColor.Hue:0.00}/{ShadowColor.Saturation:0.00}:mc{MidtoneColor.Hue:0.00}/{MidtoneColor.Saturation:0.00}:hc{HighlightColor.Hue:0.00}/{HighlightColor.Saturation:0.00}:cf{ColorFamilyMetricsKey(ColorFamilies)}:rg{RegionMetricsKey(Regions)}:op{OpinionMetricsKey(Opinions)}");
         }
     }
 
@@ -158,6 +210,15 @@ public sealed record ImageAnalysisResult(
                 var stats = regions.TryGetValue(region, out var value) ? value : ImageRegionStats.Empty(region);
                 return FormattableString.Invariant($"{region.ToString()[0]}{stats.AverageLuminance:0.00}/{stats.AverageSaturation:0.00}/{stats.SmoothTendency:0.00}");
             }));
+    }
+
+    private static string OpinionMetricsKey(IReadOnlyList<ImageSceneOpinion> opinions)
+    {
+        return string.Join(
+            ";",
+            opinions
+                .OrderBy(opinion => opinion.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(opinion => FormattableString.Invariant($"{opinion.Key}:{opinion.Confidence:0.00}")));
     }
 }
 
@@ -214,7 +275,7 @@ public sealed class ImageAnalysisService
             Current = Analyze(latest.FullName, latest.LastWriteTimeUtc, configuration.ImageSamplingMode);
             lastSourcePath = latest.FullName;
             lastSourceWriteTime = latest.LastWriteTimeUtc;
-            LastMessage = $"Analyzed {latest.Name}: {Current.ProfileBucket}, {Current.MetricsKey}.";
+            LastMessage = $"Analyzed {latest.Name}: {Current.ProfileBucket}. {Current.OpinionSummary}";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or OutOfMemoryException)
         {
@@ -323,7 +384,8 @@ public sealed class ImageAnalysisService
         var highlightColor = AverageTonalColor(colorSamples.Where(sample => sample.Luminance >= percentiles.P75));
         var colorFamilies = AnalyzeColorFamilies(colorSamples, (float)weightSum);
 
-        return new ImageAnalysisResult(
+        var regions = regionAccumulators.ToDictionary(pair => pair.Key, pair => pair.Value.ToStats(pair.Key));
+        var preliminary = new ImageAnalysisResult(
             true,
             imagePath,
             new DateTimeOffset(sourceWriteTimeUtc, TimeSpan.Zero),
@@ -343,7 +405,171 @@ public sealed class ImageAnalysisService
             midtoneColor,
             highlightColor,
             colorFamilies,
-            regionAccumulators.ToDictionary(pair => pair.Key, pair => pair.Value.ToStats(pair.Key)));
+            regions,
+            ImageSceneOpinion.EmptyList);
+
+        return preliminary with { Opinions = BuildSceneOpinions(preliminary) };
+    }
+
+    private static IReadOnlyList<ImageSceneOpinion> BuildSceneOpinions(ImageAnalysisResult image)
+    {
+        var opinions = new List<ImageSceneOpinion>();
+        AddOpinion(
+            opinions,
+            ImageSceneOpinionKeys.ShadowRecovery,
+            "Open dark shadows",
+            MathF.Max(Scale01(0.30f - image.AverageLuminance, 0.30f), Scale01(image.ShadowClipping - 0.05f, 0.25f)),
+            "VisualProfile.ShadowLift, SceneIntent.ShadowProtection, readability",
+            "The screenshot is dark or has crushed shadow mass.");
+        AddOpinion(
+            opinions,
+            ImageSceneOpinionKeys.HighlightProtection,
+            "Protect bright highlights",
+            MathF.Max(Scale01(image.AverageLuminance - 0.70f, 0.30f), Scale01(image.HighlightClipping - 0.02f, 0.12f)),
+            "VisualProfile.Exposure/Bloom, SceneIntent.HighlightProtection",
+            "The screenshot is bright or already clipping highlights.");
+        AddOpinion(
+            opinions,
+            ImageSceneOpinionKeys.ClarityBoost,
+            "Recover flat contrast",
+            image.HighlightClipping < 0.05f ? Scale01(0.16f - image.Contrast, 0.16f) : 0f,
+            "VisualProfile.Contrast/Clarity, SceneIntent.Readability",
+            "The screenshot has low contrast without major highlight clipping.");
+        AddOpinion(
+            opinions,
+            ImageSceneOpinionKeys.SaturationLift,
+            "Lift muted color",
+            Scale01(0.25f - image.AverageSaturation, 0.25f),
+            "VisualProfile.Saturation",
+            "The screenshot is globally muted.");
+        AddOpinion(
+            opinions,
+            ImageSceneOpinionKeys.SaturationRestraint,
+            "Restrain oversaturation",
+            Scale01(image.AverageSaturation - 0.58f, 0.32f),
+            "VisualProfile.Saturation/Bloom",
+            "The screenshot is already highly saturated.");
+
+        var skyConfidence = RegionConfidence(image, ImageAnalysisRegion.UpperThird, region =>
+        {
+            var blueCyan = FamilyConfidence(region, ColorFamily.Blue) + FamilyConfidence(region, ColorFamily.Cyan);
+            return MathF.Min(1f, (blueCyan * 0.65f) + (region.BrightTendency * 0.35f) + (region.SmoothTendency * 0.25f));
+        });
+        AddOpinion(
+            opinions,
+            ImageSceneOpinionKeys.SkyAir,
+            "Likely visible sky or air",
+            skyConfidence,
+            "SceneIntent.OpenSkyLight/DayAtmosphere, Material SkyCloudFog",
+            "The upper image is smooth and blue, cyan, or bright.");
+
+        var lowerBlue = RegionConfidence(image, ImageAnalysisRegion.LowerThird, region => FamilyConfidence(region, ColorFamily.Blue) + FamilyConfidence(region, ColorFamily.Cyan));
+        AddOpinion(
+            opinions,
+            ImageSceneOpinionKeys.WaterSurface,
+            "Likely water surface",
+            MathF.Min(1f, lowerBlue * 0.75f),
+            "SceneIntent.DayReflection/Wetness, Material WaterSpecular",
+            "The lower image contains confident blue/cyan surface color.");
+
+        var green = MathF.Max(
+            FamilyConfidence(image, ColorFamily.Green),
+            RegionConfidence(image, ImageAnalysisRegion.MiddleThird, region => FamilyConfidence(region, ColorFamily.Green)));
+        AddOpinion(
+            opinions,
+            ImageSceneOpinionKeys.Foliage,
+            "Likely foliage",
+            green,
+            "SceneIntent.FoliageDensity, Material Foliage",
+            "The screenshot contains confident green mid-image or global color evidence.");
+
+        var lowerWarm = RegionConfidence(image, ImageAnalysisRegion.LowerThird, region => FamilyConfidence(region, ColorFamily.Yellow) + FamilyConfidence(region, ColorFamily.Orange));
+        AddOpinion(
+            opinions,
+            ImageSceneOpinionKeys.SandDust,
+            "Likely sand or warm ground",
+            MathF.Min(1f, lowerWarm * 0.75f),
+            "SceneIntent.SurfaceHeat, Material SandDust",
+            "The lower image contains warm yellow/orange surface color.");
+
+        var snow = RegionConfidence(image, ImageAnalysisRegion.LowerThird, region =>
+            region.BrightTendency > 0.18f && region.AverageSaturation < 0.30f
+                ? MathF.Min(1f, region.BrightTendency + (0.30f - region.AverageSaturation))
+                : 0f);
+        AddOpinion(
+            opinions,
+            ImageSceneOpinionKeys.SnowIce,
+            "Likely snow or ice",
+            snow,
+            "SceneIntent.Cold, Material SnowIce",
+            "The lower image is bright and low saturation.");
+
+        var skinLike = MathF.Min(1f, (FamilyConfidence(image, ColorFamily.Orange) * 0.75f) + (FamilyConfidence(image, ColorFamily.Red) * 0.35f));
+        var centerWarm = RegionConfidence(image, ImageAnalysisRegion.Center, region => (FamilyConfidence(region, ColorFamily.Orange) + (FamilyConfidence(region, ColorFamily.Red) * 0.45f)) * MathF.Min(1f, region.SmoothTendency + 0.25f));
+        AddOpinion(
+            opinions,
+            ImageSceneOpinionKeys.SkinProtection,
+            "Protect likely character skin",
+            image.AverageLuminance is > 0.18f and < 0.82f ? MathF.Max(skinLike, centerWarm) : 0f,
+            "Material SkinProtection, grade warmth restraint",
+            "The screenshot contains warm moderate-luminance color that may be skin.");
+
+        var neon = MathF.Min(1f, FamilyConfidence(image, ColorFamily.Cyan) + FamilyConfidence(image, ColorFamily.Purple) + FamilyConfidence(image, ColorFamily.Magenta));
+        AddOpinion(
+            opinions,
+            ImageSceneOpinionKeys.NeonAether,
+            "Likely neon or aether color",
+            image.AverageSaturation > 0.30f ? neon * 0.75f : 0f,
+            "SceneIntent.MagicGlow/NeonGlow, Material CrystalAether/NeonGlass",
+            "The screenshot contains confident cyan, purple, or magenta color.");
+
+        return opinions
+            .Where(opinion => opinion.Confidence > 0.01f)
+            .OrderByDescending(opinion => opinion.Confidence)
+            .ToArray();
+    }
+
+    private static void AddOpinion(List<ImageSceneOpinion> opinions, string key, string label, float confidence, string target, string reason)
+    {
+        confidence = Clamp01(confidence);
+        if (confidence <= 0.01f)
+        {
+            return;
+        }
+
+        opinions.Add(new ImageSceneOpinion(key, label, confidence, target, reason));
+    }
+
+    private static float RegionConfidence(ImageAnalysisResult image, ImageAnalysisRegion region, Func<ImageRegionStats, float> score)
+    {
+        return image.Regions.TryGetValue(region, out var stats)
+            ? Clamp01(score(stats))
+            : 0f;
+    }
+
+    private static float FamilyConfidence(ImageAnalysisResult image, ColorFamily family)
+    {
+        return image.ColorFamilies.TryGetValue(family, out var stats) ? stats.Confidence : 0f;
+    }
+
+    private static float FamilyConfidence(ImageRegionStats stats, ColorFamily family)
+    {
+        return stats.ColorFamilies.TryGetValue(family, out var familyStats) ? familyStats.Confidence : 0f;
+    }
+
+    private static float Scale01(float value, float span)
+    {
+        if (span <= 0f)
+        {
+            return value > 0f ? 1f : 0f;
+        }
+
+        return Clamp01(value / span);
+    }
+
+    private static float Clamp01(float value)
+    {
+        return MathF.Min(1f, MathF.Max(0f, value));
     }
 
     private static IEnumerable<ImageAnalysisRegion> RegionsForSample(int x, int y, int width, int height)

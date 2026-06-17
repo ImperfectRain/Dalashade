@@ -67,15 +67,18 @@ Reload is best-effort because ReShade input can depend on focus, overlays, Windo
 
 Screenshot analysis is optional.
 
-Turn on `Auto-adjust from screenshots`, set the screenshot folder, then take screenshots as you move around. Dalashade reads the newest image and uses rough scene metrics to nudge the generated preset:
+Turn on `Auto-adjust from screenshots`, set the screenshot folder, then take screenshots as you move around. Dalashade reads the newest image and uses rough scene metrics plus named scene opinions to nudge the generated preset:
 
 - dark or crushed scenes get more lift and less heavy AO
 - bright or clipped scenes back off exposure and bloom
 - very muted scenes get a little saturation
 - oversaturated scenes get cooled down a bit
 - very flat scenes get a little contrast and clarity
+- likely sky, water, foliage, sand, snow, skin, and neon/aether cues can push matching SceneIntent and MaterialIntent channels
 
-It is not live video analysis yet. Think of it as the first rung on the ladder before a ReShade add-on bridge.
+The `Screenshot influence` slider controls how much those opinions matter. `0%` keeps analysis visible but stops it from changing output; `100%` is the default; higher values are for deliberate stronger screenshot-led behavior.
+
+It is not live video analysis, segmentation, object recognition, or true material detection. Think of it as the first rung on the ladder before a ReShade add-on bridge.
 
 The screenshot sampler can use the full image, but the default is center-weighted because game UI, chat, hotbars, ReShade windows, and letterboxing can lie to the analysis. If your screenshots are clean GPose captures, the GPose clean sampler is there too.
 

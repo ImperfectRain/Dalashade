@@ -64,6 +64,14 @@ New UI features should declare where they belong:
 
 First-party effect cards intentionally report what Dalashade can know from local state: inferred ReShade shader-file presence, preset entry/section visibility, technique activation state, variable detection, variable writes, FrameData expectation, and depth-assist state. They do not claim to prove ReShade compile success or true engine material state.
 
+## Screenshot Analysis Settings
+
+Screenshot analysis is disabled by default. When enabled, Dalashade scans the newest supported image in `ScreenshotFolderPath`, samples it according to `ImageSamplingMode`, and converts the metrics into named scene opinions.
+
+`ScreenshotAnalysisStrength` scales all screenshot-driven output. `0.0` keeps the analyzer and diagnostics available but prevents screenshot opinions from changing VisualProfile, SceneIntent, MaterialProfile, or MaterialIntent. `1.0` is the default. Values above `1.0` intentionally make screenshot opinions more assertive.
+
+The analyzer is still image-statistic based. It does not capture live frames, inspect game buffers, segment objects, or identify true engine materials.
+
 ## MaterialIntent Settings
 
 MaterialIntent settings control plugin-side material plausibility and generated material uniforms. Disabled MaterialIntent should produce neutral values and no material uniform writes.

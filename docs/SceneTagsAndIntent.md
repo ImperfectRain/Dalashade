@@ -187,7 +187,9 @@ Shader-side material masks use separate debug vocabulary:
 
 MaterialProfile and MaterialIntent provide scene gates. They do not decide that a specific pixel is foliage, sky, water, snow, or skin by themselves.
 
-Screenshot analysis includes weak region-aware hints for MaterialProfile/MaterialIntent. Upper-third smooth blue/cyan/bright regions can support sky/cloud plausibility; lower-third blue/cyan can support water only when water/coastal tags already exist; lower warm regions can support sand only with desert/coastal context; lower or middle bright cold regions can support snow only with cold/snow tags; and middle-region green can support foliage only in field/forest/jungle contexts. These hints are intentionally weak and do not affect `SceneIntent` or `VisualProfile`.
+Screenshot analysis includes weak region-aware hints and named scene opinions. It can adjust `VisualProfile` tone controls, add `SceneIntent` contributions, and support MaterialProfile/MaterialIntent channels when `AutoAdjustFromScreenshots` is enabled. Its impact is scaled by `ScreenshotAnalysisStrength`, so users can reduce or disable screenshot-led output without losing diagnostics.
+
+Current screenshot opinions include dark-shadow recovery, highlight protection, flat-contrast recovery, saturation lift/restraint, likely sky/air, likely water surface, likely foliage, likely sand/warm ground, likely snow/ice, skin-protection risk, and likely neon/aether color. These opinions are scene-level priors. They still do not prove pixel material identity, and shader-side masks remain responsible for `RawCandidate`, `SceneGatedCandidate`, and `FinalMask`.
 
 `shaders/Dalashade_MaterialMasks.fxh` implements the current MaterialMasks v2 shader-side layer. It computes raw visual candidates, scales them by scene material plausibility, resolves conflicts, and exposes final masks to first-party shaders. Depth assist exists as an optional shader-owned helper for sky/water/snow/foreground separation, but it is disabled by default and is never required for mask output.
 

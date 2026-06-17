@@ -180,7 +180,8 @@ public sealed class MasterStyleService
             AverageColor(images.Select(image => image.MidtoneColor)),
             AverageColor(images.Select(image => image.HighlightColor)),
             AverageFamilies(images),
-            ImageAnalysisResult.EmptyRegionMap);
+            ImageAnalysisResult.EmptyRegionMap,
+            ImageSceneOpinion.EmptyList);
     }
 
     private static ImageAnalysisResult Median(ImageAnalysisResult[] images, string folderPath, DateTime newestWriteTime)
@@ -205,7 +206,8 @@ public sealed class MasterStyleService
             MedianColor(images.Select(image => image.MidtoneColor)),
             MedianColor(images.Select(image => image.HighlightColor)),
             MedianFamilies(images),
-            ImageAnalysisResult.EmptyRegionMap);
+            ImageAnalysisResult.EmptyRegionMap,
+            ImageSceneOpinion.EmptyList);
     }
 
     private static IReadOnlyDictionary<ColorFamily, ColorFamilyStats> AverageFamilies(ImageAnalysisResult[] images)

@@ -1207,6 +1207,7 @@ public sealed class MainWindow : Window, IDisposable
             return;
         }
 
+        ImGui.TextWrapped(image.OpinionSummary);
         ImGui.TextUnformatted($"Image Luma: {image.AverageLuminance:0.###}");
         ImGui.TextUnformatted($"Image Contrast: {image.Contrast:0.###}");
         ImGui.TextUnformatted($"Image Saturation: {image.AverageSaturation:0.###}");
@@ -1221,6 +1222,18 @@ public sealed class MainWindow : Window, IDisposable
         if (ImGui.TreeNode("Image color families###MainImageColorFamilies"))
         {
             DrawColorFamilyStats(image.ColorFamilies);
+            ImGui.TreePop();
+        }
+
+        if (ImGui.TreeNode("Screenshot opinions###MainScreenshotOpinions"))
+        {
+            DrawScreenshotOpinions(image);
+            ImGui.TreePop();
+        }
+
+        if (ImGui.TreeNode("Screenshot regions###MainScreenshotRegions"))
+        {
+            DrawScreenshotRegions(image);
             ImGui.TreePop();
         }
 
@@ -1580,6 +1593,37 @@ public sealed class MainWindow : Window, IDisposable
             }
 
             ImGui.BulletText($"{family}: H {stats.Hue:0.###}, S {stats.Saturation:0.###}, L {stats.Luminance:0.###}, coverage {stats.Coverage:P1}, confidence {stats.Confidence:0.##}");
+        }
+    }
+
+    private static void DrawScreenshotOpinions(ImageAnalysisResult image)
+    {
+        if (image.Opinions.Count == 0)
+        {
+            ImGui.TextUnformatted("No confident screenshot opinions.");
+            return;
+        }
+
+        foreach (var opinion in image.Opinions.OrderByDescending(opinion => opinion.Confidence))
+        {
+            ImGui.BulletText($"{opinion.Label}: {opinion.Confidence:0.##}");
+            ImGui.TextWrapped($"{opinion.Target}. {opinion.Reason}");
+        }
+    }
+
+    private static void DrawScreenshotRegions(ImageAnalysisResult image)
+    {
+        foreach (var region in Enum.GetValues<ImageAnalysisRegion>())
+        {
+            var stats = image.Regions.TryGetValue(region, out var value) ? value : ImageRegionStats.Empty(region);
+            ImGui.BulletText($"{region}: L {stats.AverageLuminance:0.###}, C {stats.Contrast:0.###}, S {stats.AverageSaturation:0.###}, bright {stats.BrightTendency:0.##}, dark {stats.DarkTendency:0.##}, smooth {stats.SmoothTendency:0.##}");
+            var topFamilies = stats.ColorFamilies.Values
+                .Where(family => family.Confidence > 0.05f)
+                .OrderByDescending(family => family.Confidence)
+                .Take(4)
+                .Select(family => $"{family.Family} {family.Confidence:0.##}")
+                .ToArray();
+            ImGui.TextDisabled(topFamilies.Length == 0 ? "Top colors: none" : $"Top colors: {string.Join(", ", topFamilies)}");
         }
     }
 

@@ -6,13 +6,13 @@ namespace Dalashade;
 
 public static class MaterialProfileBuilder
 {
-    public static MaterialProfile Build(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis)
+    public static MaterialProfile Build(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, float screenshotStrength = 1f)
     {
         var state = new State(diagnostics);
         ApplyRepresentativeProfile(state);
         AddAreaContext(state);
         AddWeatherAndTime(state);
-        AddScreenshotHints(state, imageAnalysis);
+        AddScreenshotHints(state, imageAnalysis, screenshotStrength);
         AddSceneIntentHints(state);
         AddGameplayRestraint(state);
         return state.ToProfile();
@@ -181,27 +181,33 @@ public static class MaterialProfileBuilder
         }
     }
 
-    private static void AddScreenshotHints(State state, ImageAnalysisResult imageAnalysis)
+    private static void AddScreenshotHints(State state, ImageAnalysisResult imageAnalysis, float configuredStrength)
     {
         if (!imageAnalysis.Available)
         {
             return;
         }
 
+        var strength = Clamp(configuredStrength, 0f, 2f);
+        if (strength <= 0f)
+        {
+            return;
+        }
+
         if (imageAnalysis.Contrast < 0.16f && imageAnalysis.HighlightClipping < 0.03f)
         {
-            state.Add(MaterialIntent.SkyCloudFogChannel, 0.06f, "screenshot analysis", "Low-contrast unclipped image can indicate sky, cloud, fog, or broad atmosphere.");
+            state.Add(MaterialIntent.SkyCloudFogChannel, 0.06f * strength, "screenshot analysis", "Low-contrast unclipped image can indicate sky, cloud, fog, or broad atmosphere.");
         }
 
         if (FamilyConfidence(imageAnalysis, ColorFamily.Green) > 0.20f)
         {
-            state.Add(MaterialIntent.FoliageChannel, 0.06f, "screenshot analysis", "Green color-family confidence weakly supports foliage plausibility.");
+            state.Add(MaterialIntent.FoliageChannel, 0.06f * strength, "screenshot analysis", "Green color-family confidence weakly supports foliage plausibility.");
         }
 
         if (FamilyConfidence(imageAnalysis, ColorFamily.Cyan) + FamilyConfidence(imageAnalysis, ColorFamily.Blue) > 0.28f)
         {
-            state.Add(MaterialIntent.WaterSpecularChannel, 0.04f, "screenshot analysis", "Blue/cyan color families weakly support water/specular plausibility.");
-            state.Add(MaterialIntent.SkyCloudFogChannel, 0.05f, "screenshot analysis", "Blue/cyan color families weakly support sky/cloud plausibility.");
+            state.Add(MaterialIntent.WaterSpecularChannel, 0.04f * strength, "screenshot analysis", "Blue/cyan color families weakly support water/specular plausibility.");
+            state.Add(MaterialIntent.SkyCloudFogChannel, 0.05f * strength, "screenshot analysis", "Blue/cyan color families weakly support sky/cloud plausibility.");
         }
 
         if (TryGetRegion(imageAnalysis, ImageAnalysisRegion.UpperThird, out var upper))
@@ -211,7 +217,7 @@ public static class MaterialProfileBuilder
                            + MathF.Max(0f, upper.BrightTendency - 0.20f);
             if (upper.SmoothTendency > 0.45f && upperSky > 0.24f)
             {
-                state.Add(MaterialIntent.SkyCloudFogChannel, MathF.Min(0.08f, upperSky * 0.04f), "screenshot region", "Smooth upper blue, cyan, or bright region weakly supports sky/cloud plausibility.");
+                state.Add(MaterialIntent.SkyCloudFogChannel, MathF.Min(0.08f, upperSky * 0.04f) * strength, "screenshot region", "Smooth upper blue, cyan, or bright region weakly supports sky/cloud plausibility.");
             }
         }
 
@@ -220,18 +226,18 @@ public static class MaterialProfileBuilder
             var lowerBlueCyan = RegionFamilyConfidence(lower, ColorFamily.Blue) + RegionFamilyConfidence(lower, ColorFamily.Cyan);
             if (lowerBlueCyan > 0.24f && state.HasAny("coastal", "water", "seaside", "wet", "rain"))
             {
-                state.Add(MaterialIntent.WaterSpecularChannel, MathF.Min(0.08f, lowerBlueCyan * 0.05f), "screenshot region", "Lower blue/cyan region plus water/coastal context weakly supports water plausibility.");
+                state.Add(MaterialIntent.WaterSpecularChannel, MathF.Min(0.08f, lowerBlueCyan * 0.05f) * strength, "screenshot region", "Lower blue/cyan region plus water/coastal context weakly supports water plausibility.");
             }
 
             var lowerWarm = RegionFamilyConfidence(lower, ColorFamily.Yellow) + RegionFamilyConfidence(lower, ColorFamily.Orange);
             if (lowerWarm > 0.20f && state.HasAny("desert", "badlands", "coastal", "beach", "dry"))
             {
-                state.Add(MaterialIntent.SandDustChannel, MathF.Min(0.08f, lowerWarm * 0.05f), "screenshot region", "Lower warm region plus desert/coastal context weakly supports sand/dust plausibility.");
+                state.Add(MaterialIntent.SandDustChannel, MathF.Min(0.08f, lowerWarm * 0.05f) * strength, "screenshot region", "Lower warm region plus desert/coastal context weakly supports sand/dust plausibility.");
             }
 
             if (lower.BrightTendency > 0.25f && lower.AverageSaturation < 0.28f && state.HasAny("snow", "ice", "cold", "alpine"))
             {
-                state.Add(MaterialIntent.SnowIceChannel, 0.06f, "screenshot region", "Lower bright low-saturation region plus snow/cold context weakly supports snow/ice plausibility.");
+                state.Add(MaterialIntent.SnowIceChannel, 0.06f * strength, "screenshot region", "Lower bright low-saturation region plus snow/cold context weakly supports snow/ice plausibility.");
             }
         }
 
@@ -240,9 +246,29 @@ public static class MaterialProfileBuilder
             var green = RegionFamilyConfidence(middle, ColorFamily.Green);
             if (green > 0.20f && state.HasAny("field", "jungle", "forest", "foliage", "lush", "verdant"))
             {
-                state.Add(MaterialIntent.FoliageChannel, MathF.Min(0.08f, green * 0.05f), "screenshot region", "Middle-region green plus field/forest/jungle context weakly supports foliage plausibility.");
+                state.Add(MaterialIntent.FoliageChannel, MathF.Min(0.08f, green * 0.05f) * strength, "screenshot region", "Middle-region green plus field/forest/jungle context weakly supports foliage plausibility.");
             }
         }
+
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.SkyAir, MaterialIntent.SkyCloudFogChannel, 0.14f, strength, "Screenshot opinion found likely visible sky or air.");
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.WaterSurface, MaterialIntent.WaterSpecularChannel, 0.14f, strength, "Screenshot opinion found likely water surface color.");
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.Foliage, MaterialIntent.FoliageChannel, 0.14f, strength, "Screenshot opinion found likely foliage.");
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.SandDust, MaterialIntent.SandDustChannel, 0.12f, strength, "Screenshot opinion found likely sand or warm ground.");
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.SnowIce, MaterialIntent.SnowIceChannel, 0.12f, strength, "Screenshot opinion found likely snow or ice.");
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.SkinProtection, MaterialIntent.SkinProtectionChannel, 0.10f, strength, "Screenshot opinion found likely character skin risk.");
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.NeonAether, MaterialIntent.NeonGlassChannel, 0.08f, strength, "Screenshot opinion found likely neon or aether color.");
+        AddScreenshotOpinion(state, imageAnalysis, ImageSceneOpinionKeys.NeonAether, MaterialIntent.CrystalAetherChannel, 0.08f, strength, "Screenshot opinion found likely neon or aether color.");
+    }
+
+    private static void AddScreenshotOpinion(State state, ImageAnalysisResult imageAnalysis, string opinionKey, string channel, float amount, float strength, string reason)
+    {
+        var confidence = imageAnalysis.OpinionConfidence(opinionKey);
+        if (confidence < 0.18f)
+        {
+            return;
+        }
+
+        state.Add(channel, confidence * amount * strength, "screenshot opinion", reason);
     }
 
     private static void AddSceneIntentHints(State state)
@@ -303,6 +329,8 @@ public static class MaterialProfileBuilder
     {
         return stats.ColorFamilies.TryGetValue(family, out var familyStats) ? familyStats.Confidence : 0f;
     }
+
+    private static float Clamp(float value, float min, float max) => MathF.Min(max, MathF.Max(min, value));
 
     private sealed class State
     {

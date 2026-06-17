@@ -271,6 +271,7 @@ public sealed class CompatibilityReportExporter
         AppendLines(builder, "Multiple Authority Warnings", report.MultipleAuthorityWarnings);
         AppendTagStackDiagnostics(builder, tagStackDiagnostics);
         AppendSceneAuthoringDiagnostics(builder, configuration, sceneAuthoringState);
+        AppendScreenshotAnalysisDiagnostics(builder, configuration, currentImage);
         AppendMaterialIntentDiagnostics(builder, configuration, tagStackDiagnostics, currentImage, writeResult);
         AppendNormalFieldDiagnostics(builder, configuration, analysis, writeResult);
         AppendFrameDataDiagnostics(builder, configuration, analysis, writeResult);
@@ -292,6 +293,69 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("- Unknown effects are active shaders Dalashade does not understand well enough yet.");
 
         return builder.ToString();
+    }
+
+    private static void AppendScreenshotAnalysisDiagnostics(StringBuilder builder, Configuration configuration, ImageAnalysisResult currentImage)
+    {
+        builder.AppendLine("## Screenshot Analysis");
+        builder.AppendLine();
+        builder.AppendLine($"- Enabled: {(configuration.AutoAdjustFromScreenshots ? "yes" : "no")}");
+        builder.AppendLine($"- Strength: {configuration.ScreenshotAnalysisStrength:0.##}");
+        builder.AppendLine($"- Sampling mode: {configuration.ImageSamplingMode}");
+        if (!currentImage.Available)
+        {
+            builder.AppendLine("- Current image: unavailable");
+            builder.AppendLine();
+            return;
+        }
+
+        builder.AppendLine($"- Source: `{currentImage.SourcePath}`");
+        builder.AppendLine($"- Source timestamp: {currentImage.SourceTimestamp:O}");
+        builder.AppendLine($"- Bucket: {currentImage.ProfileBucket}");
+        builder.AppendLine($"- Summary: {currentImage.OpinionSummary}");
+        builder.AppendLine($"- Luminance / contrast / saturation: {currentImage.AverageLuminance:0.###} / {currentImage.Contrast:0.###} / {currentImage.AverageSaturation:0.###}");
+        builder.AppendLine($"- Shadow clip / highlight clip: {currentImage.ShadowClipping:P1} / {currentImage.HighlightClipping:P1}");
+        builder.AppendLine($"- Tonal P05/P50/P95: {currentImage.LuminanceP05:0.###} / {currentImage.LuminanceP50:0.###} / {currentImage.LuminanceP95:0.###}");
+        builder.AppendLine();
+
+        builder.AppendLine("### Screenshot Opinions");
+        builder.AppendLine();
+        var opinions = currentImage.Opinions.OrderByDescending(opinion => opinion.Confidence).ToArray();
+        if (opinions.Length == 0)
+        {
+            builder.AppendLine("- None");
+        }
+        else
+        {
+            foreach (var opinion in opinions)
+            {
+                builder.AppendLine($"- {opinion.Label}: confidence {opinion.Confidence:0.##}; target {opinion.Target}; {opinion.Reason}");
+            }
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### Screenshot Regions");
+        builder.AppendLine();
+        builder.AppendLine("| Region | Luma | Contrast | Saturation | Bright | Dark | Smooth | Top colors |");
+        builder.AppendLine("| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |");
+        foreach (var region in Enum.GetValues<ImageAnalysisRegion>())
+        {
+            var stats = currentImage.Regions.TryGetValue(region, out var value) ? value : ImageRegionStats.Empty(region);
+            builder.AppendLine($"| {region} | {stats.AverageLuminance:0.###} | {stats.Contrast:0.###} | {stats.AverageSaturation:0.###} | {stats.BrightTendency:0.###} | {stats.DarkTendency:0.###} | {stats.SmoothTendency:0.###} | {FormatImageColorFamilies(stats.ColorFamilies)} |");
+        }
+
+        builder.AppendLine();
+    }
+
+    private static string FormatImageColorFamilies(IReadOnlyDictionary<ColorFamily, ColorFamilyStats> families)
+    {
+        var visible = families.Values
+            .Where(family => family.Confidence > 0.05f)
+            .OrderByDescending(family => family.Confidence)
+            .Take(4)
+            .Select(family => $"{family.Family} {family.Confidence:0.##}")
+            .ToArray();
+        return visible.Length == 0 ? "none" : string.Join(", ", visible);
     }
 
     private static void AppendCustomShaderDiagnostics(
@@ -551,9 +615,9 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- SurfaceReflection debug mode {writeLabel} value: {ClampInt(configuration.DalashadeSurfaceReflectionDebugMode, 0, 14)} ({FormatSurfaceReflectionDebugMode(configuration.DalashadeSurfaceReflectionDebugMode)}).");
         builder.AppendLine($"- SurfaceReflection debug output mode {writeLabel} value: 0 ({FormatSurfaceReflectionDebugOutputMode(0)}).");
         builder.AppendLine($"- SurfaceReflection debug opacity {writeLabel} value: {Math.Clamp(configuration.DalashadeSurfaceReflectionDebugOpacity, 0f, 1f):0.###}.");
-        var materialProfile = MaterialProfileBuilder.Build(tagStackDiagnostics, currentImage);
+        var materialProfile = MaterialProfileBuilder.Build(tagStackDiagnostics, currentImage, configuration.ScreenshotAnalysisStrength);
         var materialIntent = configuration.EnableMaterialIntent
-            ? MaterialIntentBuilder.Build(tagStackDiagnostics, currentImage, materialProfile).WithStrength(configuration.MaterialIntentStrength)
+            ? MaterialIntentBuilder.Build(tagStackDiagnostics, currentImage, materialProfile, screenshotStrength: configuration.ScreenshotAnalysisStrength).WithStrength(configuration.MaterialIntentStrength)
             : MaterialIntent.Neutral;
         builder.AppendLine($"- Water resolver context: WaterContext={materialIntent.WaterSpecular:0.###}, CoastalContext={materialIntent.WaterSpecular:0.###}, OpenOceanContext={materialIntent.WaterSpecular * 0.85f:0.###}, ShallowWaterContext={Math.Max(materialIntent.WaterSpecular * 0.72f, Math.Min(materialIntent.WaterSpecular, materialIntent.SandDust) * 0.20f):0.###}, WetSurfaceContext={tagStackDiagnostics.Intent.Wetness:0.###}.");
         builder.AppendLine("- Water resolver note: scene context values are generated-preset priors; shader-side `Dalashade_ResolveWater` still performs per-pixel water classification and rejects sky, sand, skin, and isolated glints.");
@@ -580,8 +644,8 @@ public sealed class CompatibilityReportExporter
             return;
         }
 
-        var profile = MaterialProfileBuilder.Build(tagStackDiagnostics, currentImage);
-        var intent = MaterialIntentBuilder.Build(tagStackDiagnostics, currentImage, profile).WithStrength(configuration.MaterialIntentStrength);
+        var profile = MaterialProfileBuilder.Build(tagStackDiagnostics, currentImage, configuration.ScreenshotAnalysisStrength);
+        var intent = MaterialIntentBuilder.Build(tagStackDiagnostics, currentImage, profile, screenshotStrength: configuration.ScreenshotAnalysisStrength).WithStrength(configuration.MaterialIntentStrength);
         var writtenUniforms = writeResult.Changes
             .Where(change => string.Equals(change.ReasonCategory, CustomShaderVariableMapper.MaterialReasonCategory, StringComparison.OrdinalIgnoreCase))
             .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
@@ -1947,8 +2011,8 @@ public sealed class CompatibilityReportExporter
             return "MaterialIntent disabled";
         }
 
-        var profile = MaterialProfileBuilder.Build(diagnostics, currentImage);
-        var intent = MaterialIntentBuilder.Build(diagnostics, currentImage, profile).WithStrength(configuration.MaterialIntentStrength);
+        var profile = MaterialProfileBuilder.Build(diagnostics, currentImage, configuration.ScreenshotAnalysisStrength);
+        var intent = MaterialIntentBuilder.Build(diagnostics, currentImage, profile, screenshotStrength: configuration.ScreenshotAnalysisStrength).WithStrength(configuration.MaterialIntentStrength);
         var selected = MaterialIntent.ChannelNames
             .Where(channelNames.Contains)
             .Select(channel => new

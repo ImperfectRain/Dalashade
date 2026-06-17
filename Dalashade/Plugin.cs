@@ -429,6 +429,7 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.ShaderMatchingMode,
             Configuration.InactiveShaderWriteMode,
             Configuration.ImageSamplingMode,
+            Configuration.ScreenshotAnalysisStrength,
             Configuration.MasterStyleMode,
             Configuration.MasterPresetMaxImages,
             Configuration.MasterPresetIncludeSubfolders,
@@ -572,7 +573,7 @@ public sealed class Plugin : IDalamudPlugin
     private MaterialIntent RefreshMaterialIntent()
     {
         var rawIntent = Configuration.EnableMaterialIntent
-            ? MaterialIntentBuilder.Build(CurrentTagStackDiagnostics, CurrentImageAnalysis, ActiveTagRegistry())
+            ? MaterialIntentBuilder.Build(CurrentTagStackDiagnostics, CurrentImageAnalysis, ActiveTagRegistry(), Configuration.ScreenshotAnalysisStrength)
             : MaterialIntent.Neutral;
         CurrentMaterialIntent = rawIntent.WithStrength(Configuration.MaterialIntentStrength);
         return rawIntent;

@@ -492,21 +492,48 @@ public sealed class SceneIntentBuilder
             return;
         }
 
+        var strength = Clamp(configuration.ScreenshotAnalysisStrength, 0f, 2f);
+        if (strength <= 0f)
+        {
+            return;
+        }
+
         if (imageAnalysis.HighlightClipping > 0.04f || imageAnalysis.AverageLuminance > 0.72f)
         {
-            Add("Screenshot analysis", nameof(SceneIntent.HighlightProtection), Scale01(imageAnalysis.HighlightClipping, 0.12f) * 0.35f, "Current image analysis found bright or clipped highlights.");
+            Add("Screenshot analysis", nameof(SceneIntent.HighlightProtection), Scale01(imageAnalysis.HighlightClipping, 0.12f) * 0.35f * strength, "Current image analysis found bright or clipped highlights.");
         }
 
         if (imageAnalysis.ShadowClipping > 0.08f || imageAnalysis.AverageLuminance < 0.30f)
         {
-            Add("Screenshot analysis", nameof(SceneIntent.ShadowProtection), Scale01(imageAnalysis.ShadowClipping, 0.30f) * 0.35f, "Current image analysis found dark or clipped shadows.");
-            Add("Screenshot analysis", nameof(SceneIntent.Readability), Scale01(0.30f - imageAnalysis.AverageLuminance, 0.30f) * 0.20f, "Current image analysis found low luminance.");
+            Add("Screenshot analysis", nameof(SceneIntent.ShadowProtection), Scale01(imageAnalysis.ShadowClipping, 0.30f) * 0.35f * strength, "Current image analysis found dark or clipped shadows.");
+            Add("Screenshot analysis", nameof(SceneIntent.Readability), Scale01(0.30f - imageAnalysis.AverageLuminance, 0.30f) * 0.20f * strength, "Current image analysis found low luminance.");
         }
 
         if (imageAnalysis.Contrast < 0.14f)
         {
-            Add("Screenshot analysis", nameof(SceneIntent.Readability), 0.12f, "Current image analysis found low contrast.");
+            Add("Screenshot analysis", nameof(SceneIntent.Readability), 0.12f * strength, "Current image analysis found low contrast.");
         }
+
+        AddScreenshotOpinion(imageAnalysis, ImageSceneOpinionKeys.SkyAir, nameof(SceneIntent.OpenSkyLight), 0.20f, strength, "Screenshot opinion found likely visible sky or air.");
+        AddScreenshotOpinion(imageAnalysis, ImageSceneOpinionKeys.SkyAir, nameof(SceneIntent.DayAtmosphere), 0.12f, strength, "Screenshot opinion found likely broad sky/air gradients.");
+        AddScreenshotOpinion(imageAnalysis, ImageSceneOpinionKeys.WaterSurface, nameof(SceneIntent.DayReflection), 0.18f, strength, "Screenshot opinion found likely water surface color.");
+        AddScreenshotOpinion(imageAnalysis, ImageSceneOpinionKeys.WaterSurface, nameof(SceneIntent.Wetness), 0.12f, strength, "Screenshot opinion found likely water surface color.");
+        AddScreenshotOpinion(imageAnalysis, ImageSceneOpinionKeys.Foliage, nameof(SceneIntent.FoliageDensity), 0.20f, strength, "Screenshot opinion found likely foliage.");
+        AddScreenshotOpinion(imageAnalysis, ImageSceneOpinionKeys.SandDust, nameof(SceneIntent.SurfaceHeat), 0.14f, strength, "Screenshot opinion found likely sand or warm ground.");
+        AddScreenshotOpinion(imageAnalysis, ImageSceneOpinionKeys.SnowIce, nameof(SceneIntent.Cold), 0.16f, strength, "Screenshot opinion found likely snow or ice.");
+        AddScreenshotOpinion(imageAnalysis, ImageSceneOpinionKeys.NeonAether, nameof(SceneIntent.MagicGlow), 0.12f, strength, "Screenshot opinion found likely neon or aether color.");
+        AddScreenshotOpinion(imageAnalysis, ImageSceneOpinionKeys.NeonAether, nameof(SceneIntent.NeonGlow), 0.10f, strength, "Screenshot opinion found likely neon or aether color.");
+    }
+
+    private void AddScreenshotOpinion(ImageAnalysisResult imageAnalysis, string opinionKey, string intent, float amount, float strength, string reason)
+    {
+        var confidence = imageAnalysis.OpinionConfidence(opinionKey);
+        if (confidence < 0.18f)
+        {
+            return;
+        }
+
+        Add("Screenshot opinion", intent, confidence * amount * strength, reason);
     }
 
     private void AddStyle(TargetStyle style)
@@ -672,6 +699,8 @@ public sealed class SceneIntentBuilder
     }
 
     private static float Clamp01(float value) => MathF.Min(1f, MathF.Max(0f, value));
+
+    private static float Clamp(float value, float min, float max) => MathF.Min(max, MathF.Max(min, value));
 
     private static float Scale01(float value, float range) => Clamp01(value / range);
 

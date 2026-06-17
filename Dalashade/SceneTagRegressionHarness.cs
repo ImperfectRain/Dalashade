@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Dalashade.SceneAuthoring;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace Dalashade;
 
@@ -43,6 +45,7 @@ public static class SceneTagRegressionHarness
         var cases = CreateCases();
         ValidateMaterialReportSnapshot(failures);
         ValidateSceneAuthoringOverrides(failures);
+        ValidateImageAnalysisOpinions(failures);
 
         foreach (var testCase in cases)
         {
@@ -232,6 +235,127 @@ public static class SceneTagRegressionHarness
             {
                 failures.Add(new SceneTagRegressionFailure("Material report snapshot", $"MaterialIntent report header missing '{required}'."));
             }
+        }
+    }
+
+    private static void ValidateImageAnalysisOpinions(List<SceneTagRegressionFailure> failures)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "DalashadeImageAnalysisRegression", Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(root);
+            var coastalPath = Path.Combine(root, "coastal.png");
+            using (var image = new Image<Rgba32>(120, 90))
+            {
+                for (var y = 0; y < image.Height; y++)
+                {
+                    for (var x = 0; x < image.Width; x++)
+                    {
+                        image[x, y] = y < 30
+                            ? new Rgba32(90, 170, 245)
+                            : y > 58
+                                ? new Rgba32(20, 160, 220)
+                                : new Rgba32(80, 130, 95);
+                    }
+                }
+
+                image.SaveAsPng(coastalPath);
+            }
+
+            var coastal = ImageAnalysisService.Analyze(coastalPath, File.GetLastWriteTimeUtc(coastalPath), ImageSamplingMode.FullImage);
+            ExpectOpinion(failures, "Image analysis coastal synthetic", coastal, ImageSceneOpinionKeys.SkyAir, 0.18f);
+            ExpectOpinion(failures, "Image analysis coastal synthetic", coastal, ImageSceneOpinionKeys.WaterSurface, 0.18f);
+
+            var brightPath = Path.Combine(root, "bright.png");
+            using (var image = new Image<Rgba32>(48, 48))
+            {
+                for (var y = 0; y < image.Height; y++)
+                {
+                    for (var x = 0; x < image.Width; x++)
+                    {
+                        image[x, y] = new Rgba32(255, 250, 240);
+                    }
+                }
+
+                image.SaveAsPng(brightPath);
+            }
+
+            var bright = ImageAnalysisService.Analyze(brightPath, File.GetLastWriteTimeUtc(brightPath), ImageSamplingMode.FullImage);
+            ExpectOpinion(failures, "Image analysis bright synthetic", bright, ImageSceneOpinionKeys.HighlightProtection, 0.18f);
+
+            var context = new GameContext(
+                1,
+                "Eastern La Noscea",
+                WorldCategory.Field,
+                1,
+                "Clear Skies",
+                12f,
+                TimeBucket.Day,
+                false,
+                false,
+                false,
+                false,
+                false,
+                "Unknown",
+                "Unknown");
+            var tags = SceneClassifier.Classify(context);
+            var muted = new Configuration
+            {
+                AutoAdjustFromScreenshots = true,
+                ScreenshotAnalysisStrength = 0f,
+                AutoAdjustForWeather = true,
+                AutoAdjustForTerritory = true,
+                PerformanceBudget = PerformanceBudget.Medium
+            };
+            var active = new Configuration
+            {
+                AutoAdjustFromScreenshots = true,
+                ScreenshotAnalysisStrength = 1f,
+                AutoAdjustForWeather = true,
+                AutoAdjustForTerritory = true,
+                PerformanceBudget = PerformanceBudget.Medium
+            };
+
+            var mutedResult = new ProfileEngine().CreateWithRules(context, tags, coastal, ImageAnalysisResult.Empty, muted);
+            var activeResult = new ProfileEngine().CreateWithRules(context, tags, coastal, ImageAnalysisResult.Empty, active);
+            if (activeResult.TagStackDiagnostics.Intent.DayReflection <= mutedResult.TagStackDiagnostics.Intent.DayReflection)
+            {
+                failures.Add(new SceneTagRegressionFailure("Image analysis strength", "Water screenshot opinion did not increase DayReflection when strength was enabled."));
+            }
+
+            var activeProfile = MaterialProfileBuilder.Build(activeResult.TagStackDiagnostics, coastal, active.ScreenshotAnalysisStrength);
+            var mutedProfile = MaterialProfileBuilder.Build(mutedResult.TagStackDiagnostics, coastal, muted.ScreenshotAnalysisStrength);
+            if (activeProfile.ValueFor(MaterialIntent.WaterSpecularChannel) <= mutedProfile.ValueFor(MaterialIntent.WaterSpecularChannel))
+            {
+                failures.Add(new SceneTagRegressionFailure("Image analysis strength", "Water screenshot opinion did not increase WaterSpecular material plausibility when strength was enabled."));
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            failures.Add(new SceneTagRegressionFailure("Image analysis synthetic tests", $"Synthetic image validation failed: {ex.Message}"));
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(root))
+                {
+                    Directory.Delete(root, true);
+                }
+            }
+            catch
+            {
+                // Regression cleanup is best-effort.
+            }
+        }
+    }
+
+    private static void ExpectOpinion(List<SceneTagRegressionFailure> failures, string caseName, ImageAnalysisResult image, string opinionKey, float minimum)
+    {
+        var confidence = image.OpinionConfidence(opinionKey);
+        if (confidence < minimum)
+        {
+            failures.Add(new SceneTagRegressionFailure(caseName, $"Expected opinion {opinionKey} >= {minimum:0.##}, got {confidence:0.##}. Summary: {image.OpinionSummary}"));
         }
     }
 
