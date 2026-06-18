@@ -46,6 +46,10 @@ public static class SceneTagRegressionHarness
         ValidateMaterialReportSnapshot(failures);
         ValidateSceneAuthoringOverrides(failures);
         ValidateImageAnalysisOpinions(failures);
+        ValidateScreenshotMaterialEvidence(failures);
+        ValidateScreenshotMaterialEvidenceControls(failures);
+        ValidateScreenshotMaterialEvidenceIntentInfluence(failures);
+        ValidateMaterialTagRegistryTuningSafety(failures);
         ValidateGeneratedPresetLoadOrderOptimization(failures);
         ValidateGeneratedPresetDalashadeTechniqueSync(failures);
 
@@ -231,7 +235,7 @@ public static class SceneTagRegressionHarness
     private static void ValidateMaterialReportSnapshot(List<SceneTagRegressionFailure> failures)
     {
         var header = CompatibilityReportExporter.MaterialIntentDiagnosticsTableHeader;
-        foreach (var required in new[] { "Profile prior", "Non-profile evidence", "Final value", "suppressions" })
+        foreach (var required in new[] { "Profile prior", "Tag/other evidence", "Screenshot material evidence", "Final value", "suppressions/caps" })
         {
             if (!header.Contains(required, StringComparison.OrdinalIgnoreCase))
             {
@@ -430,6 +434,198 @@ public static class SceneTagRegressionHarness
         }
     }
 
+    private static void ValidateScreenshotMaterialEvidence(List<SceneTagRegressionFailure> failures)
+    {
+        var context = new GameContext(
+            7777,
+            "Material Evidence Regression Field",
+            WorldCategory.Field,
+            1,
+            "Clear Skies",
+            12f,
+            TimeBucket.Day,
+            false,
+            false,
+            false,
+            false,
+            false,
+            "Unknown",
+            "Unknown");
+        var tags = SceneClassifier.Classify(context) with
+        {
+            IsFieldLike = true,
+            BiomeKey = "unknown",
+            MoodTags = Array.Empty<string>()
+        };
+
+        var missing = ScreenshotMaterialEvidenceAnalyzer.BuildDiagnostics(ImageAnalysisResult.Empty, tags, context, MaterialIntent.Neutral);
+        if (missing.Evidence.Confidence != 0f || missing.Evidence.Evidence.Count == 0)
+        {
+            failures.Add(new SceneTagRegressionFailure("Screenshot material evidence missing image", "Missing screenshot did not produce neutral evidence with a diagnostic reason."));
+        }
+
+        var greenRegions = Enum.GetValues<ImageAnalysisRegion>()
+            .ToDictionary(
+                region => region,
+                region => new ImageRegionStats(
+                    region,
+                    region == ImageAnalysisRegion.UpperThird ? 0.58f : 0.42f,
+                    region == ImageAnalysisRegion.UpperThird ? 0.12f : 0.42f,
+                    region == ImageAnalysisRegion.UpperThird ? 0.18f : 0.54f,
+                    region == ImageAnalysisRegion.UpperThird ? 0.35f : 0.20f,
+                    0.08f,
+                    region == ImageAnalysisRegion.UpperThird ? 0.78f : 0.22f,
+                    new Dictionary<ColorFamily, ColorFamilyStats>
+                    {
+                        [ColorFamily.Green] = new(ColorFamily.Green, 0.33f, region == ImageAnalysisRegion.UpperThird ? 0.16f : 0.62f, 0.42f, region == ImageAnalysisRegion.UpperThird ? 0.03f : 0.35f, region == ImageAnalysisRegion.UpperThird ? 0.05f : 0.55f),
+                        [ColorFamily.Blue] = new(ColorFamily.Blue, 0.62f, 0.20f, 0.58f, region == ImageAnalysisRegion.UpperThird ? 0.25f : 0.04f, region == ImageAnalysisRegion.UpperThird ? 0.38f : 0.03f)
+                    }));
+        var image = new ImageAnalysisResult(
+            true,
+            "synthetic-foliage.png",
+            DateTimeOffset.UtcNow,
+            0.42f,
+            0.38f,
+            0.48f,
+            0.01f,
+            0.01f,
+            -0.04f,
+            0.30f,
+            0.08f,
+            0.22f,
+            0.42f,
+            0.64f,
+            0.88f,
+            TonalColorBias.Empty,
+            TonalColorBias.Empty,
+            TonalColorBias.Empty,
+            ColorFamilyStats.EmptyMap,
+            greenRegions,
+            new[] { new ImageSceneOpinion(ImageSceneOpinionKeys.Foliage, "Foliage", 0.36f, "MaterialIntent/Foliage", "Synthetic regression foliage opinion.") });
+        var diagnostics = ScreenshotMaterialEvidenceAnalyzer.BuildDiagnostics(image, tags, context, MaterialIntent.Neutral);
+        if (diagnostics.Evidence.FoliageVisible < 0.42f || diagnostics.Evidence.GrassTerrainVisible < 0.35f)
+        {
+            failures.Add(new SceneTagRegressionFailure("Screenshot material evidence foliage", $"Expected foliage/grass evidence from lower green textured regions, got foliage={diagnostics.Evidence.FoliageVisible:0.###}, grass={diagnostics.Evidence.GrassTerrainVisible:0.###}."));
+        }
+
+        if (!diagnostics.Mismatches.Any(mismatch => string.Equals(mismatch.Channel, MaterialIntent.FoliageChannel, StringComparison.OrdinalIgnoreCase)))
+        {
+            failures.Add(new SceneTagRegressionFailure("Screenshot material evidence mismatch", "Expected high visible foliage with neutral MaterialIntent to produce a foliage mismatch warning."));
+        }
+
+        var modestFoliageIntent = new MaterialIntent(
+            0.20f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            Array.Empty<MaterialIntentContribution>());
+        var modestFoliageDiagnostics = ScreenshotMaterialEvidenceAnalyzer.BuildDiagnostics(image, tags, context, modestFoliageIntent);
+        if (!modestFoliageDiagnostics.Mismatches.Any(mismatch =>
+                string.Equals(mismatch.Channel, MaterialIntent.FoliageChannel, StringComparison.OrdinalIgnoreCase)
+                && mismatch.Message.Contains("only modest", StringComparison.OrdinalIgnoreCase)))
+        {
+            failures.Add(new SceneTagRegressionFailure("Screenshot material evidence modest foliage mismatch", "Expected high visible foliage with modest MaterialIntent to produce a softer foliage warning."));
+        }
+
+        var warmCharacterRegions = Enum.GetValues<ImageAnalysisRegion>()
+            .ToDictionary(
+                region => region,
+                region => new ImageRegionStats(
+                    region,
+                    region == ImageAnalysisRegion.LowerThird ? 0.29f : 0.14f,
+                    region == ImageAnalysisRegion.LowerThird ? 0.30f : 0.15f,
+                    0.34f,
+                    region == ImageAnalysisRegion.LowerThird ? 0.12f : 0.00f,
+                    0.04f,
+                    region == ImageAnalysisRegion.LowerThird ? 0.00f : 0.30f,
+                    new Dictionary<ColorFamily, ColorFamilyStats>
+                    {
+                        [ColorFamily.Orange] = new(ColorFamily.Orange, 0.08f, 0.34f, 0.22f, 0.62f, region is ImageAnalysisRegion.Center or ImageAnalysisRegion.MiddleThird or ImageAnalysisRegion.LowerThird ? 0.93f : 0.70f),
+                        [ColorFamily.Yellow] = new(ColorFamily.Yellow, 0.16f, 0.22f, 0.24f, 0.05f, region == ImageAnalysisRegion.LowerThird ? 0.06f : 0.02f),
+                        [ColorFamily.Blue] = new(ColorFamily.Blue, 0.62f, 0.20f, 0.18f, 0.06f, 0.16f)
+                    }));
+        var warmCharacterImage = new ImageAnalysisResult(
+            true,
+            "synthetic-warm-character-dialogue.png",
+            DateTimeOffset.UtcNow,
+            0.18f,
+            0.26f,
+            0.34f,
+            0.02f,
+            0.01f,
+            0.42f,
+            0.00f,
+            0.04f,
+            0.11f,
+            0.20f,
+            0.36f,
+            0.62f,
+            TonalColorBias.Empty,
+            TonalColorBias.Empty,
+            TonalColorBias.Empty,
+            ColorFamilyStats.EmptyMap,
+            warmCharacterRegions,
+            new[] { new ImageSceneOpinion(ImageSceneOpinionKeys.SkinProtection, "Skin protection", 0.45f, "MaterialIntent/SkinProtection", "Synthetic regression skin/character opinion.") });
+        var warmCharacterDiagnostics = ScreenshotMaterialEvidenceAnalyzer.BuildDiagnostics(warmCharacterImage, tags, context, MaterialIntent.Neutral);
+        if (warmCharacterDiagnostics.Evidence.SandVisible >= 0.36f
+            || warmCharacterDiagnostics.Mismatches.Any(mismatch => string.Equals(mismatch.Channel, MaterialIntent.SandDustChannel, StringComparison.OrdinalIgnoreCase)))
+        {
+            failures.Add(new SceneTagRegressionFailure("Screenshot material evidence warm character", $"Warm character/dialogue image should not produce strong SandDust evidence, got sand={warmCharacterDiagnostics.Evidence.SandVisible:0.###}."));
+        }
+
+        var blueSkyRegions = Enum.GetValues<ImageAnalysisRegion>()
+            .ToDictionary(
+                region => region,
+                region => new ImageRegionStats(
+                    region,
+                    region == ImageAnalysisRegion.UpperThird ? 0.70f : 0.36f,
+                    region == ImageAnalysisRegion.UpperThird ? 0.08f : 0.18f,
+                    region == ImageAnalysisRegion.UpperThird ? 0.28f : 0.18f,
+                    region == ImageAnalysisRegion.UpperThird ? 0.58f : 0.12f,
+                    0.02f,
+                    region == ImageAnalysisRegion.UpperThird ? 0.86f : 0.24f,
+                    new Dictionary<ColorFamily, ColorFamilyStats>
+                    {
+                        [ColorFamily.Blue] = new(ColorFamily.Blue, 0.62f, 0.30f, 0.66f, region == ImageAnalysisRegion.UpperThird ? 0.45f : 0.04f, region == ImageAnalysisRegion.UpperThird ? 0.72f : 0.05f),
+                        [ColorFamily.Cyan] = new(ColorFamily.Cyan, 0.50f, 0.22f, 0.62f, region == ImageAnalysisRegion.UpperThird ? 0.25f : 0.04f, region == ImageAnalysisRegion.UpperThird ? 0.42f : 0.04f)
+                    }));
+        var skyImage = new ImageAnalysisResult(
+            true,
+            "synthetic-blue-sky.png",
+            DateTimeOffset.UtcNow,
+            0.54f,
+            0.12f,
+            0.24f,
+            0.00f,
+            0.01f,
+            -0.12f,
+            0.00f,
+            0.10f,
+            0.30f,
+            0.52f,
+            0.74f,
+            0.92f,
+            TonalColorBias.Empty,
+            TonalColorBias.Empty,
+            TonalColorBias.Empty,
+            ColorFamilyStats.EmptyMap,
+            blueSkyRegions,
+            new[] { new ImageSceneOpinion(ImageSceneOpinionKeys.SkyAir, "Sky air", 0.52f, "SceneIntent/SkyAir", "Synthetic regression sky opinion.") });
+        var skyDiagnostics = ScreenshotMaterialEvidenceAnalyzer.BuildDiagnostics(skyImage, tags, context, MaterialIntent.Neutral);
+        if (skyDiagnostics.Evidence.SkyVisible < 0.48f || skyDiagnostics.Evidence.WaterVisible >= 0.28f)
+        {
+            failures.Add(new SceneTagRegressionFailure("Screenshot material evidence sky water split", $"Blue sky should stay sky-dominant without strong water evidence, got sky={skyDiagnostics.Evidence.SkyVisible:0.###}, water={skyDiagnostics.Evidence.WaterVisible:0.###}."));
+        }
+    }
+
     private static void ValidateGeneratedPresetDalashadeTechniqueSync(List<SceneTagRegressionFailure> failures)
     {
         var root = Path.Combine(Path.GetTempPath(), "DalashadeTechniqueSyncRegression", Guid.NewGuid().ToString("N"));
@@ -537,6 +733,360 @@ public static class SceneTagRegressionHarness
         }
     }
 
+    private static void ValidateScreenshotMaterialEvidenceIntentInfluence(List<SceneTagRegressionFailure> failures)
+    {
+        var context = new GameContext(
+            8888,
+            "Material Evidence Influence Field",
+            WorldCategory.Field,
+            1,
+            "Clear Skies",
+            12f,
+            TimeBucket.Day,
+            false,
+            false,
+            false,
+            false,
+            false,
+            "Unknown",
+            "Unknown");
+        var tags = SceneClassifier.Classify(context) with
+        {
+            IsFieldLike = true,
+            BiomeKey = "unknown",
+            MoodTags = Array.Empty<string>()
+        };
+        var diagnostics = TagStackDiagnostics.Create(context, tags, SceneIntent.Neutral, Array.Empty<TagStackContribution>());
+        var profile = MaterialProfileBuilder.Build(diagnostics, ImageAnalysisResult.Empty);
+        var baseline = MaterialIntentBuilder.Build(diagnostics, ImageAnalysisResult.Empty, profile);
+        var disabledConfig = new Configuration
+        {
+            EnableScreenshotMaterialEvidenceInfluence = false,
+            ScreenshotMaterialEvidenceStrength = 1f
+        };
+        var highFoliage = Evidence(foliage: 1f, grass: 1f, confidence: 1f);
+        var disabledContributions = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(disabledConfig, diagnostics, highFoliage);
+        var disabledIntent = MaterialIntentBuilder.Build(diagnostics, ImageAnalysisResult.Empty, profile, screenshotMaterialEvidenceContributions: disabledContributions);
+        ExpectIntentEqual(failures, "Screenshot material evidence influence disabled", baseline, disabledIntent);
+
+        var enabledConfig = new Configuration
+        {
+            EnableScreenshotMaterialEvidenceInfluence = true,
+            ScreenshotMaterialEvidenceStrength = 1f
+        };
+        var foliageContributions = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(enabledConfig, diagnostics, highFoliage);
+        ExpectContributionRange(failures, "Screenshot material evidence foliage cap", foliageContributions, MaterialIntent.FoliageChannel, min: 0.20f, max: 0.2201f);
+        var lowConfidenceFoliage = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(enabledConfig, diagnostics, Evidence(foliage: 1f, grass: 1f, confidence: 0.10f));
+        ExpectContributionRange(failures, "Screenshot material evidence low confidence", lowConfidenceFoliage, MaterialIntent.FoliageChannel, min: 0.015f, max: 0.023f);
+
+        var waterContextTags = tags with
+        {
+            BiomeKey = "coastal",
+            MoodTags = new[] { "coastal", "water" }
+        };
+        var waterDiagnostics = TagStackDiagnostics.Create(context with { TerritoryName = "Eastern La Noscea" }, waterContextTags, SceneIntent.Neutral, Array.Empty<TagStackContribution>());
+        var waterContributions = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(enabledConfig, waterDiagnostics, Evidence(water: 1f, confidence: 1f));
+        ExpectContributionRange(failures, "Screenshot material evidence water cap", waterContributions, MaterialIntent.WaterSpecularChannel, min: 0.15f, max: 0.1601f);
+
+        var skyOnlyContributions = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(enabledConfig, diagnostics, Evidence(sky: 1f, confidence: 1f));
+        if (skyOnlyContributions.Any(contribution => string.Equals(contribution.Channel, MaterialIntent.WaterSpecularChannel, StringComparison.Ordinal)))
+        {
+            failures.Add(new SceneTagRegressionFailure("Screenshot material evidence sky water guard", "High sky evidence produced a WaterSpecular contribution."));
+        }
+
+        var ambiguousCyan = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(enabledConfig, diagnostics, Evidence(water: 0.55f, aether: 0.60f, confidence: 1f));
+        if (ambiguousCyan.Any(contribution => string.Equals(contribution.Channel, MaterialIntent.WaterSpecularChannel, StringComparison.Ordinal) && contribution.Amount > 0f))
+        {
+            failures.Add(new SceneTagRegressionFailure("Screenshot material evidence cyan water guard", "Aether/neon ambiguity produced a positive WaterSpecular contribution."));
+        }
+
+        if (!ambiguousCyan.Any(contribution => string.Equals(contribution.Channel, MaterialIntent.WaterSpecularChannel, StringComparison.Ordinal) && contribution.Amount < 0f))
+        {
+            failures.Add(new SceneTagRegressionFailure("Screenshot material evidence cyan water suppression", "Aether/neon ambiguity did not record a WaterSpecular suppression."));
+        }
+
+        var sandContextTags = tags with
+        {
+            BiomeKey = "desert",
+            MoodTags = new[] { "desert", "sand", "dry" }
+        };
+        var sandDiagnostics = TagStackDiagnostics.Create(context with { TerritoryName = "Thanalan" }, sandContextTags, SceneIntent.Neutral, Array.Empty<TagStackContribution>());
+        var sandContributions = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(enabledConfig, sandDiagnostics, Evidence(sand: 1f, confidence: 1f));
+        ExpectContributionRange(failures, "Screenshot material evidence sand cap", sandContributions, MaterialIntent.SandDustChannel, min: 0.15f, max: 0.1601f);
+
+        var skinSandContributions = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(enabledConfig, diagnostics, Evidence(sand: 0.60f, skin: 0.90f, confidence: 1f));
+        if (skinSandContributions.Any(contribution => string.Equals(contribution.Channel, MaterialIntent.SandDustChannel, StringComparison.Ordinal) && contribution.Amount > 0f))
+        {
+            failures.Add(new SceneTagRegressionFailure("Screenshot material evidence skin sand guard", "High skin/character evidence produced a positive SandDust contribution."));
+        }
+
+        var snowContributions = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(enabledConfig, diagnostics, Evidence(snow: 1f, confidence: 1f));
+        ExpectContributionRange(failures, "Screenshot material evidence snow cap", snowContributions, MaterialIntent.SnowIceChannel, min: 0.09f, max: 0.1001f);
+
+        var aetherContributions = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(enabledConfig, diagnostics, Evidence(aether: 1f, confidence: 1f));
+        ExpectContributionRange(failures, "Screenshot material evidence aether cap", aetherContributions, MaterialIntent.CrystalAetherChannel, min: 0.07f, max: 0.0801f);
+        ExpectContributionRange(failures, "Screenshot material evidence neon cap", aetherContributions, MaterialIntent.NeonGlassChannel, min: 0.07f, max: 0.0801f);
+        if (aetherContributions.Any(contribution => string.Equals(contribution.Channel, MaterialIntent.WaterSpecularChannel, StringComparison.Ordinal)))
+        {
+            failures.Add(new SceneTagRegressionFailure("Screenshot material evidence aether water guard", "Aether/neon evidence produced a WaterSpecular contribution."));
+        }
+    }
+
+    private static void ValidateScreenshotMaterialEvidenceControls(List<SceneTagRegressionFailure> failures)
+    {
+        var defaults = new Configuration();
+        if (defaults.EnableScreenshotMaterialEvidenceInfluence)
+        {
+            failures.Add(new SceneTagRegressionFailure("Screenshot material evidence controls default", "Screenshot material evidence influence must be disabled by default."));
+        }
+
+        if (MathF.Abs(defaults.ScreenshotMaterialEvidenceStrength - 0.35f) > 0.001f)
+        {
+            failures.Add(new SceneTagRegressionFailure("Screenshot material evidence controls default", $"Expected default strength 0.35, got {defaults.ScreenshotMaterialEvidenceStrength:0.###}."));
+        }
+
+        var context = new GameContext(
+            8889,
+            "Material Evidence Control Field",
+            WorldCategory.Field,
+            1,
+            "Clear Skies",
+            12f,
+            TimeBucket.Day,
+            false,
+            false,
+            false,
+            false,
+            false,
+            "Unknown",
+            "Unknown");
+        var tags = SceneClassifier.Classify(context) with
+        {
+            IsFieldLike = true,
+            BiomeKey = "unknown",
+            MoodTags = Array.Empty<string>()
+        };
+        var diagnostics = TagStackDiagnostics.Create(context, tags, SceneIntent.Neutral, Array.Empty<TagStackContribution>());
+        var profile = MaterialProfileBuilder.Build(diagnostics, ImageAnalysisResult.Empty);
+        var baseline = MaterialIntentBuilder.Build(diagnostics, ImageAnalysisResult.Empty, profile);
+        var evidence = Evidence(foliage: 1f, grass: 1f, confidence: 1f);
+        var disabledConfig = new Configuration
+        {
+            EnableScreenshotMaterialEvidenceInfluence = false,
+            ScreenshotMaterialEvidenceStrength = 0.6f
+        };
+        var disabledContributions = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(disabledConfig, diagnostics, evidence);
+        var disabledIntent = MaterialIntentBuilder.Build(diagnostics, ImageAnalysisResult.Empty, profile, screenshotMaterialEvidenceContributions: disabledContributions);
+        ExpectIntentEqual(failures, "Screenshot material evidence controls disabled parity", baseline, disabledIntent);
+
+        var enabledConfig = new Configuration
+        {
+            EnableScreenshotMaterialEvidenceInfluence = true,
+            ScreenshotMaterialEvidenceStrength = 0.6f
+        };
+        var enabledContributions = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(enabledConfig, diagnostics, evidence);
+        ExpectContributionRange(failures, "Screenshot material evidence controls enabled cap", enabledContributions, MaterialIntent.FoliageChannel, min: 0.13f, max: 0.133f);
+    }
+
+    private static void ValidateMaterialTagRegistryTuningSafety(List<SceneTagRegressionFailure> failures)
+    {
+        var context = new GameContext(
+            8890,
+            "Registry Material Tuning Field",
+            WorldCategory.Field,
+            1,
+            "Clear Skies",
+            12f,
+            TimeBucket.Day,
+            false,
+            false,
+            false,
+            false,
+            false,
+            "Unknown",
+            "Unknown");
+        var tags = SceneClassifier.Classify(context) with
+        {
+            IsFieldLike = true,
+            BiomeKey = "unknown",
+            MoodTags = new[] { "customFoliage" }
+        };
+        var diagnostics = TagStackDiagnostics.Create(context, tags, SceneIntent.Neutral, Array.Empty<TagStackContribution>());
+        var profile = MaterialProfileBuilder.Build(diagnostics, ImageAnalysisResult.Empty);
+        var baseline = MaterialIntentBuilder.Build(diagnostics, ImageAnalysisResult.Empty, profile);
+
+        var registryDisabled = MaterialIntentBuilder.Build(diagnostics, ImageAnalysisResult.Empty, profile, tagRegistry: null);
+        ExpectIntentEqual(failures, "Material tag registry disabled parity", baseline, registryDisabled);
+
+        var invalidChannelRegistry = RegistryPreset("customFoliage", SceneAuthoringService.MoodCategory, new SceneTagTuning
+        {
+            Target = SceneTagTuningTargets.MaterialIntent,
+            Channel = "NotAChannel",
+            Amount = 0.10f,
+            Reason = "Invalid channel regression."
+        });
+        var invalidResult = MaterialTagRegistryTuningAnalyzer.Build(diagnostics, invalidChannelRegistry);
+        if (invalidResult.Contributions.Count != 0 || invalidResult.Diagnostics.InvalidTunings.Count == 0)
+        {
+            failures.Add(new SceneTagRegressionFailure("Material tag registry invalid channel", "Invalid MaterialIntent channel was not ignored and reported."));
+        }
+
+        var invalidAmountRegistry = RegistryPreset("customFoliage", SceneAuthoringService.MoodCategory, new SceneTagTuning
+        {
+            Target = SceneTagTuningTargets.MaterialIntent,
+            Channel = MaterialIntent.FoliageChannel,
+            Amount = 1.50f,
+            Reason = "Invalid amount regression."
+        });
+        var invalidAmountResult = MaterialTagRegistryTuningAnalyzer.Build(diagnostics, invalidAmountRegistry);
+        if (invalidAmountResult.Contributions.Count != 0 || invalidAmountResult.Diagnostics.InvalidTunings.Count == 0)
+        {
+            failures.Add(new SceneTagRegressionFailure("Material tag registry invalid amount", "Out-of-range material tuning amount was not ignored and reported."));
+        }
+
+        var disabledRegistry = RegistryPreset("customFoliage", SceneAuthoringService.MoodCategory, new SceneTagTuning
+        {
+            Enabled = false,
+            Target = SceneTagTuningTargets.MaterialIntent,
+            Channel = MaterialIntent.FoliageChannel,
+            Amount = 0.10f,
+            Reason = "Disabled regression."
+        });
+        var disabledResult = MaterialTagRegistryTuningAnalyzer.Build(diagnostics, disabledRegistry);
+        if (disabledResult.Contributions.Count != 0 || disabledResult.Diagnostics.InactiveTunings.Count == 0)
+        {
+            failures.Add(new SceneTagRegressionFailure("Material tag registry disabled tuning", "Disabled material tuning was not ignored and reported inactive."));
+        }
+
+        var perTagCap = RegistryPreset("customFoliage", SceneAuthoringService.MoodCategory, new SceneTagTuning
+        {
+            Target = SceneTagTuningTargets.MaterialIntent,
+            Channel = MaterialIntent.FoliageChannel,
+            Amount = 0.80f,
+            Reason = "Per-tag cap regression."
+        });
+        var perTagResult = MaterialTagRegistryTuningAnalyzer.Build(diagnostics, perTagCap);
+        ExpectContributionRange(failures, "Material tag registry per-tag cap", perTagResult.Contributions, MaterialIntent.FoliageChannel, min: 0.199f, max: 0.2001f);
+        if (perTagResult.Diagnostics.CappedTunings.Count == 0)
+        {
+            failures.Add(new SceneTagRegressionFailure("Material tag registry per-tag cap diagnostics", "Per-tag cap was not reported."));
+        }
+
+        var perChannelCap = RegistryPreset(
+            "customFoliage",
+            SceneAuthoringService.MoodCategory,
+            new SceneTagTuning { Target = SceneTagTuningTargets.MaterialIntent, Channel = MaterialIntent.FoliageChannel, Amount = 0.20f, Reason = "First stack." },
+            new SceneTagTuning { Target = SceneTagTuningTargets.MaterialIntent, Channel = MaterialIntent.FoliageChannel, Amount = 0.20f, Reason = "Second stack." },
+            new SceneTagTuning { Target = SceneTagTuningTargets.MaterialIntent, Channel = MaterialIntent.FoliageChannel, Amount = 0.20f, Reason = "Third stack." });
+        var perChannelResult = MaterialTagRegistryTuningAnalyzer.Build(diagnostics, perChannelCap);
+        var totalFoliage = perChannelResult.Contributions
+            .Where(contribution => string.Equals(contribution.Channel, MaterialIntent.FoliageChannel, StringComparison.Ordinal))
+            .Sum(contribution => contribution.Amount);
+        if (MathF.Abs(totalFoliage - MaterialTagRegistryTuningAnalyzer.PerChannelContributionCap) > 0.001f)
+        {
+            failures.Add(new SceneTagRegressionFailure("Material tag registry per-channel cap", $"Expected channel cap {MaterialTagRegistryTuningAnalyzer.PerChannelContributionCap:0.###}, got {totalFoliage:0.###}."));
+        }
+
+        var inactiveTagRegistry = RegistryPreset("notActiveHere", SceneAuthoringService.MoodCategory, new SceneTagTuning
+        {
+            Target = SceneTagTuningTargets.MaterialIntent,
+            Channel = MaterialIntent.FoliageChannel,
+            Amount = 0.10f,
+            Reason = "Inactive tag regression."
+        });
+        var inactiveTagResult = MaterialTagRegistryTuningAnalyzer.Build(diagnostics, inactiveTagRegistry);
+        if (inactiveTagResult.Contributions.Count != 0 || inactiveTagResult.Diagnostics.InactiveTunings.Count == 0)
+        {
+            failures.Add(new SceneTagRegressionFailure("Material tag registry inactive tag", "Inactive tag tuning was not ignored and reported inactive."));
+        }
+
+        var activeCustomRegistry = RegistryPreset("customFoliage", SceneAuthoringService.MoodCategory, new SceneTagTuning
+        {
+            Target = SceneTagTuningTargets.MaterialIntent,
+            Channel = MaterialIntent.FoliageChannel,
+            Amount = 0.12f,
+            Reason = "Active custom tag regression."
+        });
+        var activeCustomResult = MaterialTagRegistryTuningAnalyzer.Build(diagnostics, activeCustomRegistry);
+        ExpectContributionRange(failures, "Material tag registry active custom tag", activeCustomResult.Contributions, MaterialIntent.FoliageChannel, min: 0.119f, max: 0.1201f);
+
+        var removedTags = tags with
+        {
+            MoodTags = Array.Empty<string>()
+        };
+        var removedDiagnostics = TagStackDiagnostics.Create(context, removedTags, SceneIntent.Neutral, Array.Empty<TagStackContribution>());
+        var removedTagResult = MaterialTagRegistryTuningAnalyzer.Build(removedDiagnostics, activeCustomRegistry);
+        if (removedTagResult.Contributions.Count != 0 || removedTagResult.Diagnostics.InactiveTunings.Count == 0)
+        {
+            failures.Add(new SceneTagRegressionFailure("Material tag registry removed tag", "Removed/inactive tag still applied a material tuning."));
+        }
+    }
+
+    private static IReadOnlyList<SceneTagPreset> RegistryPreset(string tag, string category, params SceneTagTuning[] tunings)
+    {
+        return
+        [
+            new SceneTagPreset
+            {
+                Tag = tag,
+                DisplayName = tag,
+                Description = "Regression registry preset.",
+                Categories = [category],
+                Tunings = tunings.ToList()
+            }
+        ];
+    }
+
+    private static ScreenshotMaterialEvidence Evidence(
+        float foliage = 0f,
+        float grass = 0f,
+        float water = 0f,
+        float sand = 0f,
+        float snow = 0f,
+        float stone = 0f,
+        float metal = 0f,
+        float sky = 0f,
+        float aether = 0f,
+        float skin = 0f,
+        float confidence = 1f)
+    {
+        return new ScreenshotMaterialEvidence(
+            foliage,
+            grass,
+            water,
+            sand,
+            snow,
+            stone,
+            metal,
+            sky,
+            aether,
+            skin,
+            confidence,
+            Array.Empty<string>());
+    }
+
+    private static void ExpectContributionRange(List<SceneTagRegressionFailure> failures, string caseName, IReadOnlyList<MaterialIntentContribution> contributions, string channel, float min, float max)
+    {
+        var value = contributions
+            .Where(contribution => string.Equals(contribution.Channel, channel, StringComparison.Ordinal) && contribution.Amount > 0f)
+            .Sum(contribution => contribution.Amount);
+        if (value < min || value > max)
+        {
+            failures.Add(new SceneTagRegressionFailure(caseName, $"Expected {channel} contribution in [{min:0.###}, {max:0.###}], got {value:0.###}."));
+        }
+    }
+
+    private static void ExpectIntentEqual(List<SceneTagRegressionFailure> failures, string caseName, MaterialIntent expected, MaterialIntent actual)
+    {
+        foreach (var channel in MaterialIntent.ChannelNames)
+        {
+            if (MathF.Abs(expected.ValueFor(channel) - actual.ValueFor(channel)) > 0.0001f)
+            {
+                failures.Add(new SceneTagRegressionFailure(caseName, $"Expected disabled screenshot evidence to preserve {channel}; before={expected.ValueFor(channel):0.###}, after={actual.ValueFor(channel):0.###}."));
+            }
+        }
+    }
+
     private static string[] ReadPresetEntries(string presetPath, string key)
     {
         var line = File.ReadAllLines(presetPath).FirstOrDefault(candidate => candidate.StartsWith($"{key}=", StringComparison.OrdinalIgnoreCase)) ?? string.Empty;
@@ -590,7 +1140,7 @@ public static class SceneTagRegressionHarness
             Create("Radz-at-Han exact hub profile", "Radz-at-Han", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "tropical", expectedArea: "city", expectedMoodTags: new[] { "tropical", "colorful", "alchemical" }),
             Create("Sea of Clouds exact sky profile", "The Sea of Clouds", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "alpine", expectedArea: "field", expectedMoodTags: new[] { "sky", "clouds", "highAltitude" }),
             Create("The Tempest exact underwater profile", "The Tempest", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "underwater", expectedArea: "field", expectedMoodTags: new[] { "underwater", "ancient", "depth" }),
-            Create("Labyrinthos exact research profile", "Labyrinthos", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "aetherial", expectedArea: "field", expectedMoodTags: new[] { "artificial", "greenhouse", "scholarly" }),
+            Create("Labyrinthos exact research profile", "Labyrinthos", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "aetherial", expectedArea: "field", expectedMoodTags: new[] { "artificial", "greenhouse", "scholarly" }, expectedMaterialMaximums: Materials((MaterialIntent.WaterSpecularChannel, 0.18f))),
             Create("Urqopacha exact mountain profile", "Urqopacha", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "alpine", expectedArea: "field", expectedMoodTags: new[] { "highAltitude", "mountain", "warm" }),
             Create("Eureka Pagos exact exploration profile", "The Forbidden Land, Eureka Pagos", "Clear Skies", true, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "snow", expectedArea: "dungeon", expectedMoodTags: new[] { "snow", "ice", "aetherial" }),
             Create("Phaenna exact cosmic profile", "Phaenna", "Clear Skies", false, false, false, false, TimeBucket.Day, PerformanceBudget.Medium, expectedBiome: "aetherial", expectedArea: "field", expectedMoodTags: new[] { "crystal", "cosmic", "glass" })
@@ -804,7 +1354,7 @@ public static class SceneTagRegressionHarness
 
         if (!materialIntent.Contributions.Any(contribution => contribution.Amount > 0f && !contribution.Source.StartsWith("MaterialProfile", StringComparison.OrdinalIgnoreCase)))
         {
-            failures.Add(new SceneTagRegressionFailure(testCase.Name, "Material report shape missing non-profile evidence contribution."));
+            failures.Add(new SceneTagRegressionFailure(testCase.Name, "Material report shape missing tag/other evidence contribution."));
         }
 
         if (!MaterialIntent.ChannelNames.Any(channel => materialIntent.ValueFor(channel) > 0.001f))

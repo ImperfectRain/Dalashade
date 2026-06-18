@@ -7,12 +7,23 @@ namespace Dalashade;
 
 public static class MaterialIntentBuilder
 {
-    public static MaterialIntent Build(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, IReadOnlyList<SceneTagPreset>? tagRegistry = null, float screenshotStrength = 1f)
+    public static MaterialIntent Build(
+        TagStackDiagnostics diagnostics,
+        ImageAnalysisResult imageAnalysis,
+        IReadOnlyList<SceneTagPreset>? tagRegistry = null,
+        float screenshotStrength = 1f,
+        IReadOnlyList<MaterialIntentContribution>? screenshotMaterialEvidenceContributions = null)
     {
-        return Build(diagnostics, imageAnalysis, MaterialProfileBuilder.Build(diagnostics, imageAnalysis, screenshotStrength), tagRegistry, screenshotStrength);
+        return Build(diagnostics, imageAnalysis, MaterialProfileBuilder.Build(diagnostics, imageAnalysis, screenshotStrength), tagRegistry, screenshotStrength, screenshotMaterialEvidenceContributions);
     }
 
-    public static MaterialIntent Build(TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, MaterialProfile profile, IReadOnlyList<SceneTagPreset>? tagRegistry = null, float screenshotStrength = 1f)
+    public static MaterialIntent Build(
+        TagStackDiagnostics diagnostics,
+        ImageAnalysisResult imageAnalysis,
+        MaterialProfile profile,
+        IReadOnlyList<SceneTagPreset>? tagRegistry = null,
+        float screenshotStrength = 1f,
+        IReadOnlyList<MaterialIntentContribution>? screenshotMaterialEvidenceContributions = null)
     {
         var state = new State(diagnostics, profile, screenshotStrength);
         AddMaterialProfilePriors(state, profile);
@@ -30,6 +41,7 @@ public static class MaterialIntentBuilder
         AddVoidDarkness(state, imageAnalysis);
         AddScreenshotOpinions(state, imageAnalysis);
         AddSceneIntentHints(state);
+        AddScreenshotMaterialEvidence(state, screenshotMaterialEvidenceContributions);
         AddTagRegistry(state, tagRegistry);
 
         return state.ToIntent();
@@ -42,7 +54,7 @@ public static class MaterialIntentBuilder
             var value = profile.ValueFor(channel);
             if (value > 0f)
             {
-                state.AddProfilePrior(channel, value, "MaterialProfile prior", $"Profile family '{profile.Family}' set scene plausibility before non-profile evidence.");
+                state.AddProfilePrior(channel, value, "MaterialProfile prior", $"Profile family '{profile.Family}' set scene plausibility before tag/other and screenshot material evidence.");
             }
 
             var suppressions = profile.Contributions
@@ -58,32 +70,10 @@ public static class MaterialIntentBuilder
 
     private static void AddTagRegistry(State state, IReadOnlyList<SceneTagPreset>? tagRegistry)
     {
-        if (tagRegistry is null || tagRegistry.Count == 0)
+        var registry = MaterialTagRegistryTuningAnalyzer.Build(state.Diagnostics, tagRegistry);
+        foreach (var contribution in registry.Contributions)
         {
-            return;
-        }
-
-        var active = state.BuildActiveRegistryTags();
-        foreach (var preset in tagRegistry)
-        {
-            if (!preset.Categories.Any(category =>
-                    active.TryGetValue(category, out var tags)
-                    && tags.Contains(preset.Tag)))
-            {
-                continue;
-            }
-
-            foreach (var tuning in preset.Tunings.Where(tuning =>
-                         tuning.Enabled
-                         && string.Equals(tuning.Target, SceneTagTuningTargets.MaterialIntent, StringComparison.OrdinalIgnoreCase)
-                         && MaterialIntent.ChannelNames.Contains(tuning.Channel, StringComparer.OrdinalIgnoreCase)))
-            {
-                state.Add(
-                    MaterialIntent.ChannelNames.First(channel => string.Equals(channel, tuning.Channel, StringComparison.OrdinalIgnoreCase)),
-                    tuning.Amount,
-                    $"Tag registry: {preset.Tag}",
-                    string.IsNullOrWhiteSpace(tuning.Reason) ? "User-editable tag registry tuning." : tuning.Reason);
-            }
+            state.Add(contribution.Channel, contribution.Amount, contribution.Source, contribution.Reason);
         }
     }
 
@@ -125,7 +115,7 @@ public static class MaterialIntentBuilder
             state.Add(MaterialIntent.WaterSpecularChannel, 0.25f, "tag stack", "Water, wetness, beach, seaside, or rain tags increase reflective material likelihood.");
         }
 
-        if (state.ContainsAny("la noscea", "costa", "bloodshore", "raincatcher", "ruby sea", "limsa", "mist", "beach", "sea", "coast", "isle"))
+        if (state.ContainsTerritoryKeyword("la noscea", "costa", "bloodshore", "raincatcher", "ruby sea", "limsa", "mist", "beach", "sea", "coast", "isle"))
         {
             state.Add(MaterialIntent.WaterSpecularChannel, 0.18f, "territory keyword", "Territory name is in a coastal or seaside family.");
         }
@@ -152,7 +142,7 @@ public static class MaterialIntentBuilder
             state.Add(MaterialIntent.SandDustChannel, 0.24f, "tag stack", "Dry, heat, dust, badlands, or beach tags increase sand/dust likelihood.");
         }
 
-        if (state.ContainsAny("thanalan", "amh araeng", "shaaloani", "sagolii", "costa", "beach"))
+        if (state.ContainsTerritoryKeyword("thanalan", "amh araeng", "shaaloani", "sagolii", "costa", "beach"))
         {
             state.Add(MaterialIntent.SandDustChannel, 0.18f, "territory keyword", "Territory name is associated with desert, badlands, or beach surfaces.");
         }
@@ -175,7 +165,7 @@ public static class MaterialIntentBuilder
             state.Add(MaterialIntent.SnowIceChannel, 0.28f, "tag stack", "Snow, ice, cold, alpine, or crisp tags increase frozen material likelihood.");
         }
 
-        if (state.ContainsAny("coerthas", "snowcloak", "garlemald", "mare lamentorum", "magna glacies"))
+        if (state.ContainsTerritoryKeyword("coerthas", "snowcloak", "garlemald", "mare lamentorum", "magna glacies"))
         {
             state.Add(MaterialIntent.SnowIceChannel, 0.18f, "territory keyword", "Territory name is associated with cold, snow, or lunar ice surfaces.");
         }
@@ -198,7 +188,7 @@ public static class MaterialIntentBuilder
             state.Add(MaterialIntent.StoneRuinsChannel, 0.30f, "tag stack", "Ruins, stone, ancient, or structured tags increase hard stone material likelihood.");
         }
 
-        if (state.ContainsAny("ruin", "allagan", "azys", "amaurot", "temple", "palace", "stone"))
+        if (state.ContainsTerritoryKeyword("ruin", "allagan", "azys", "amaurot", "temple", "palace", "stone"))
         {
             state.Add(MaterialIntent.StoneRuinsChannel, 0.18f, "territory keyword", "Territory name contains ruin, Allagan, temple, or stone cues.");
         }
@@ -221,7 +211,7 @@ public static class MaterialIntentBuilder
             state.Add(MaterialIntent.MetalIndustrialChannel, 0.28f, "tag stack", "Industrial, metallic, magitek, smoky, or structured tags increase hard-surface material likelihood.");
         }
 
-        if (state.ContainsAny("garlemald", "castrum", "solution nine", "heritage found", "alexandria", "factory", "magitek", "babil", "ceruleum", "allagan", "azys lla"))
+        if (state.ContainsTerritoryKeyword("garlemald", "castrum", "solution nine", "heritage found", "alexandria", "factory", "magitek", "babil", "ceruleum", "allagan", "azys lla"))
         {
             state.Add(MaterialIntent.MetalIndustrialChannel, 0.20f, "territory keyword", "Territory name belongs to an imperial, magitek, high-tech, or Allagan hard-surface family.");
         }
@@ -244,7 +234,7 @@ public static class MaterialIntentBuilder
             state.Add(MaterialIntent.CrystalAetherChannel, 0.30f, "tag stack", "Aetherial, crystal, fae, cosmic, lunar, alien, or luminous tags increase magical material likelihood.");
         }
 
-        if (state.ContainsAny("ultima thule", "elpis", "il mheg", "crystarium", "lakeland", "azys lla", "mare lamentorum", "omphalos"))
+        if (state.ContainsTerritoryKeyword("ultima thule", "elpis", "il mheg", "crystarium", "lakeland", "azys lla", "mare lamentorum", "omphalos"))
         {
             state.Add(MaterialIntent.CrystalAetherChannel, 0.20f, "territory keyword", "Territory name is associated with aetherial, cosmic, fae, or crystalline scene families.");
         }
@@ -267,7 +257,7 @@ public static class MaterialIntentBuilder
             state.Add(MaterialIntent.NeonGlassChannel, 0.30f, "tag stack", "Neon, high-tech, clean, luminous, urban, or electrope tags increase neon/glass likelihood.");
         }
 
-        if (state.ContainsAny("solution nine", "heritage found", "alexandria", "living memory", "electrope"))
+        if (state.ContainsTerritoryKeyword("solution nine", "heritage found", "alexandria", "living memory", "electrope"))
         {
             state.Add(MaterialIntent.NeonGlassChannel, 0.20f, "territory keyword", "Territory name belongs to a neon/high-tech scene family.");
         }
@@ -395,7 +385,7 @@ public static class MaterialIntentBuilder
             state.Add(MaterialIntent.VoidDarknessChannel, 0.24f, "tag stack", "Void, umbral, haunted, gloom, gothic, abyss, or darkness tags support dark material likelihood.");
         }
 
-        if (state.ContainsAny("void", "darkness", "abyss", "ascian", "umbral"))
+        if (state.ContainsTerritoryKeyword("void", "darkness", "abyss", "ascian", "umbral"))
         {
             state.Add(MaterialIntent.VoidDarknessChannel, 0.20f, "territory/weather keyword", "Territory or weather text contains explicit void/darkness cues.");
         }
@@ -418,6 +408,19 @@ public static class MaterialIntentBuilder
         if (state.HasAny("Night") && !explicitDarkness)
         {
             state.Add(MaterialIntent.VoidDarknessChannel, -0.06f, "time suppression", "Night alone is not treated as void material evidence.");
+        }
+    }
+
+    private static void AddScreenshotMaterialEvidence(State state, IReadOnlyList<MaterialIntentContribution>? contributions)
+    {
+        if (contributions is null || contributions.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var contribution in contributions.Where(contribution => MaterialIntent.ChannelNames.Contains(contribution.Channel, StringComparer.Ordinal)))
+        {
+            state.Add(contribution.Channel, contribution.Amount, contribution.Source, contribution.Reason);
         }
     }
 
@@ -523,6 +526,8 @@ public static class MaterialIntentBuilder
         private readonly List<MaterialIntentContribution> contributions = [];
         private readonly HashSet<string> tags;
         private readonly string searchableText;
+        private readonly string normalizedSearchableText;
+        private readonly HashSet<string> searchableTokens;
         private readonly TagStackDiagnostics diagnostics;
         private readonly MaterialProfile profile;
 
@@ -551,12 +556,17 @@ public static class MaterialIntentBuilder
                 diagnostics.BiomeKey,
                 diagnostics.BiomeReason,
                 diagnostics.AreaKey).ToLowerInvariant();
+            normalizedSearchableText = $" {NormalizeSearchableText(searchableText)} ";
+            searchableTokens = normalizedSearchableText
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
 
         public float ConfidenceScale => 0.55f + (Clamp01(diagnostics.BiomeConfidence) * 0.45f);
         public float ScreenshotStrength { get; }
 
         public SceneIntent SceneIntent => diagnostics.Intent;
+        public TagStackDiagnostics Diagnostics => diagnostics;
 
         public void AddProfilePrior(string channel, float amount, string source, string reason)
         {
@@ -581,81 +591,33 @@ public static class MaterialIntentBuilder
 
         public bool HasAny(params string[] candidates) => candidates.Any(candidate => tags.Contains(candidate));
 
-        public bool ContainsAny(params string[] fragments) => fragments.Any(fragment => searchableText.Contains(fragment, StringComparison.OrdinalIgnoreCase));
-
-        public IReadOnlyDictionary<string, HashSet<string>> BuildActiveRegistryTags()
+        public bool ContainsTerritoryKeyword(params string[] keywords)
         {
-            var active = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-            void Add(string category, string value)
+            foreach (var keyword in keywords)
             {
-                if (string.IsNullOrWhiteSpace(value) || value == "unknown")
+                var normalized = NormalizeSearchableText(keyword);
+                if (string.IsNullOrWhiteSpace(normalized))
                 {
-                    return;
+                    continue;
                 }
 
-                if (!active.TryGetValue(category, out var values))
+                if (normalized.Contains(' ', StringComparison.Ordinal))
                 {
-                    values = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    active[category] = values;
+                    if (normalizedSearchableText.Contains($" {normalized} ", StringComparison.Ordinal))
+                    {
+                        return true;
+                    }
+
+                    continue;
                 }
 
-                values.Add(value);
-            }
-
-            Add(SceneAuthoringService.BiomeCategory, diagnostics.BiomeKey);
-            Add(SceneAuthoringService.WeatherCategory, diagnostics.WeatherKey);
-            Add(SceneAuthoringService.AreaCategory, diagnostics.AreaKey);
-            foreach (var tag in diagnostics.ActiveWeatherTags)
-            {
-                Add(SceneAuthoringService.WeatherCategory, tag);
-            }
-
-            foreach (var tag in diagnostics.AreaContextTags)
-            {
-                Add(SceneAuthoringService.AreaCategory, tag);
-            }
-
-            foreach (var tag in diagnostics.SecondaryTags)
-            {
-                Add(SceneAuthoringService.SecondaryCategory, tag);
-            }
-
-            foreach (var tag in diagnostics.MoodTags)
-            {
-                Add(SceneAuthoringService.MoodCategory, tag);
-            }
-
-            foreach (var tag in diagnostics.MaterialTags)
-            {
-                Add(SceneAuthoringService.MaterialCategory, tag);
-            }
-
-            foreach (var tag in diagnostics.ArtDirectionTags)
-            {
-                Add(SceneAuthoringService.ArtDirectionCategory, tag);
-                if (tag is "day" or "night")
+                if (searchableTokens.Contains(normalized))
                 {
-                    Add(SceneAuthoringService.TimeCategory, tag);
+                    return true;
                 }
             }
 
-            foreach (var tag in diagnostics.ActiveTags)
-            {
-                if (string.Equals(tag, "Day", StringComparison.OrdinalIgnoreCase))
-                {
-                    Add(SceneAuthoringService.TimeCategory, "day");
-                }
-                else if (string.Equals(tag, "Night", StringComparison.OrdinalIgnoreCase))
-                {
-                    Add(SceneAuthoringService.TimeCategory, "night");
-                }
-                else if (string.Equals(tag, "DawnDusk", StringComparison.OrdinalIgnoreCase))
-                {
-                    Add(SceneAuthoringService.TimeCategory, "dawnDusk");
-                }
-            }
-
-            return active;
+            return false;
         }
 
         public MaterialIntent ToIntent() => new(
@@ -697,6 +659,25 @@ public static class MaterialIntentBuilder
             var blended = (nonProfileEvidence * 0.76f) + (profilePrior * 0.24f);
             var suppressed = blended - (MathF.Max(0f, suppression - 0.18f) * 0.18f);
             return Clamp01(MathF.Min(profileCap, suppressed));
+        }
+
+        private static string NormalizeSearchableText(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return string.Empty;
+            }
+
+            var chars = text.ToLowerInvariant().ToCharArray();
+            for (var i = 0; i < chars.Length; i++)
+            {
+                if (!char.IsLetterOrDigit(chars[i]))
+                {
+                    chars[i] = ' ';
+                }
+            }
+
+            return string.Join(' ', new string(chars).Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
         }
     }
 

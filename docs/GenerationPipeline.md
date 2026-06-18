@@ -88,10 +88,12 @@ Compatibility report export can build `MaterialProfile` and `MaterialIntent` dia
 
 - MaterialProfile is the scene plausibility stage. It chooses a broad family such as `jungle/rainforest`, `coastal/tropical`, `snow/cold`, `desert/badlands`, `neon/high-tech`, or `aetherial/cosmic`, adds profile tags such as `forestCanopy`, `coastalWaterline`, `snowfield`, `desertOpen`, `neonUrban`, `aetherialLandscape`, `dungeonInterior`, or `raidArena`, then records material priors and suppressions.
 - MaterialIntent is inferred material likelihood, not true engine material ID detection.
-- MaterialIntent consumes MaterialProfile priors plus older tag, territory, screenshot, and SceneIntent evidence. MaterialProfile shapes plausibility and caps rather than stacking directly, so reports separate profile prior, non-profile evidence, final value, and suppressions.
+- MaterialIntent consumes MaterialProfile priors plus older tag, territory, screenshot, and SceneIntent evidence. MaterialProfile shapes plausibility and caps rather than stacking directly, so reports separate profile prior, tag/other evidence, screenshot material evidence, final value, and suppressions/caps.
 - `EnableMaterialIntent` controls whether MaterialIntent is calculated; disabled returns neutral values.
 - `EnableMaterialIntentDiagnostics` controls whether reports/UI show the diagnostics.
 - `EnableMaterialIntentShaderMapping` allows generated-preset MaterialIntent uniform writes only when MaterialIntent is enabled, strength is greater than `0.0`, and matching known Dalashade custom shader keys exist.
+- `EnableScreenshotMaterialEvidenceInfluence` is off by default. When enabled, `ScreenshotMaterialEvidenceIntentAdapter` turns broad visible material evidence into capped MaterialIntent contributions before the existing shader-mapping gates run.
+- Scene authoring tag registry MaterialIntent rows are used only when scene authoring is enabled. They are validated, capped at +/-0.20 per tag and +/-0.35 per channel total, and reported separately from screenshot material evidence.
 - When MaterialIntent shader mapping is disabled, MaterialIntent variables are skipped entirely. Generated-preset-only injection does not add material keys in that state.
 - MaterialProfile and MaterialIntent do not directly change `SceneIntent` or `VisualProfile`; they shape scene material plausibility and optional shader uniform output.
 - Screenshot analysis can affect `VisualProfile` and `SceneIntent` when `AutoAdjustFromScreenshots` is enabled. Its impact is scaled by `ScreenshotAnalysisStrength`.

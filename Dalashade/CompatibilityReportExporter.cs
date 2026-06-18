@@ -14,7 +14,7 @@ public sealed record CompatibilityReportExportResult(bool Success, string Messag
 
 public sealed class CompatibilityReportExporter
 {
-    public const string MaterialIntentDiagnosticsTableHeader = "| Channel | Profile prior | Non-profile evidence | Final value | Top suppressions |";
+    public const string MaterialIntentDiagnosticsTableHeader = "| Channel | Profile prior | Tag/other evidence | Screenshot material evidence | Final value | Top suppressions/caps |";
     private sealed record GeneratedPresetSectionValues(bool SectionPresent, IReadOnlyDictionary<string, string> Values, string Warning);
     private sealed record GeneratedPresetVariableValue(string Section, string Key, string Value);
     private sealed record MaterialParityChannel(string Uniform, string Label);
@@ -189,6 +189,8 @@ public sealed class CompatibilityReportExporter
         TagStackDiagnostics tagStackDiagnostics,
         SceneAuthoringState sceneAuthoringState,
         ImageAnalysisResult currentImage,
+        ScreenshotMaterialEvidenceDiagnostics screenshotMaterialEvidence,
+        IReadOnlyList<SceneTagPreset>? activeTagRegistry,
         ImageAnalysisResult masterStyle,
         PresetWriteResult writeResult,
         string effectiveBasePresetPath,
@@ -216,7 +218,7 @@ public sealed class CompatibilityReportExporter
             Directory.CreateDirectory(reportDirectory);
 
             stage = "building report content";
-            var reportContent = BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, tagStackDiagnostics, sceneAuthoringState, currentImage, masterStyle, writeResult, effectiveBasePresetPath);
+            var reportContent = BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, tagStackDiagnostics, sceneAuthoringState, currentImage, screenshotMaterialEvidence, activeTagRegistry, masterStyle, writeResult, effectiveBasePresetPath);
             stage = "writing report file";
             File.WriteAllText(path, reportContent, Encoding.UTF8);
             if (!File.Exists(path))
@@ -241,6 +243,8 @@ public sealed class CompatibilityReportExporter
         TagStackDiagnostics tagStackDiagnostics,
         SceneAuthoringState sceneAuthoringState,
         ImageAnalysisResult currentImage,
+        ScreenshotMaterialEvidenceDiagnostics screenshotMaterialEvidence,
+        IReadOnlyList<SceneTagPreset>? activeTagRegistry,
         ImageAnalysisResult masterStyle,
         PresetWriteResult writeResult,
         string effectiveBasePresetPath)
@@ -269,10 +273,18 @@ public sealed class CompatibilityReportExporter
         AppendAuthorities(builder, report.Authorities, authorityPolicy);
         AppendLines(builder, "Warnings", report.Warnings);
         AppendLines(builder, "Multiple Authority Warnings", report.MultipleAuthorityWarnings);
+        var reportMaterialProfile = MaterialProfileBuilder.Build(tagStackDiagnostics, currentImage, configuration.ScreenshotAnalysisStrength);
+        var reportScreenshotEvidenceContributions = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(configuration, tagStackDiagnostics, screenshotMaterialEvidence.Evidence);
+        var reportTagRegistry = configuration.EnableSceneAuthoringOverrides ? activeTagRegistry : null;
+        var reportMaterialIntent = configuration.EnableMaterialIntent
+            ? MaterialIntentBuilder.Build(tagStackDiagnostics, currentImage, reportMaterialProfile, reportTagRegistry, screenshotStrength: configuration.ScreenshotAnalysisStrength, screenshotMaterialEvidenceContributions: reportScreenshotEvidenceContributions).WithStrength(configuration.MaterialIntentStrength)
+            : MaterialIntent.Neutral;
         AppendTagStackDiagnostics(builder, tagStackDiagnostics);
         AppendSceneAuthoringDiagnostics(builder, configuration, sceneAuthoringState);
         AppendScreenshotAnalysisDiagnostics(builder, configuration, currentImage);
-        AppendMaterialIntentDiagnostics(builder, configuration, tagStackDiagnostics, currentImage, writeResult);
+        AppendScreenshotMaterialEvidenceDiagnostics(builder, configuration, screenshotMaterialEvidence, reportMaterialIntent);
+        AppendMaterialIntentDiagnostics(builder, configuration, tagStackDiagnostics, currentImage, screenshotMaterialEvidence, reportTagRegistry, writeResult);
+        AppendMaterialCalibrationDiagnostics(builder, configuration, tagStackDiagnostics, reportMaterialProfile, screenshotMaterialEvidence, reportMaterialIntent, reportTagRegistry, shaderSupport, writeResult);
         AppendNormalFieldDiagnostics(builder, configuration, analysis, writeResult);
         AppendFrameDataDiagnostics(builder, configuration, analysis, writeResult);
         AppendFirstPartyDepthAssistDiagnostics(builder, configuration, writeResult);
@@ -280,7 +292,7 @@ public sealed class CompatibilityReportExporter
         AppendColorFamilyAdjustments(builder, profile);
         AppendColorFamilyComparison(builder, currentImage, masterStyle, profile);
         AppendMappingValidation(builder, configuration, analysis, shaderSupport, effectiveBasePresetPath);
-        AppendCustomShaderDiagnostics(builder, configuration, analysis, shaderSupport, writeResult, tagStackDiagnostics, currentImage);
+        AppendCustomShaderDiagnostics(builder, configuration, analysis, shaderSupport, writeResult, tagStackDiagnostics, currentImage, screenshotMaterialEvidence);
         AppendMaterialParityAudit(builder, configuration);
         AppendShaderSupport(builder, shaderSupport);
         AppendChangedVariables(builder, writeResult);
@@ -358,6 +370,114 @@ public sealed class CompatibilityReportExporter
         return visible.Length == 0 ? "none" : string.Join(", ", visible);
     }
 
+    private static void AppendScreenshotMaterialEvidenceDiagnostics(StringBuilder builder, Configuration configuration, ScreenshotMaterialEvidenceDiagnostics diagnostics, MaterialIntent currentMaterialIntent)
+    {
+        builder.AppendLine("## Screenshot Material Evidence");
+        builder.AppendLine();
+        builder.AppendLine(configuration.EnableScreenshotMaterialEvidenceInfluence
+            ? $"- Influence enabled: this layer can contribute capped scene-level MaterialIntent priors at strength {configuration.ScreenshotMaterialEvidenceStrength:0.##}; shader-side masks still decide per-pixel material behavior."
+            : "- Influence disabled: this layer is diagnostic-only and does not change MaterialIntent, generated preset values, shader variables, shader code, or technique/load-order behavior.");
+        builder.AppendLine("- Evidence is broad scene-level screenshot evidence, not true engine material ID detection and not per-pixel classification.");
+        builder.AppendLine($"- Confidence: {diagnostics.Evidence.Confidence:0.###}");
+        builder.AppendLine();
+
+        builder.AppendLine("| Evidence channel | Visible evidence | Current MaterialIntent comparison |");
+        builder.AppendLine("| --- | ---: | --- |");
+        foreach (var row in ScreenshotMaterialEvidenceRows(diagnostics.Evidence, currentMaterialIntent))
+        {
+            builder.AppendLine($"| {row.Label} | {row.Visible:0.###} | {row.IntentLabel} |");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### Evidence Notes");
+        builder.AppendLine();
+        foreach (var item in diagnostics.Evidence.Evidence)
+        {
+            builder.AppendLine($"- {item}");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### Material Evidence Mismatch Warnings");
+        builder.AppendLine();
+        if (diagnostics.Mismatches.Count == 0)
+        {
+            builder.AppendLine("- None.");
+        }
+        else
+        {
+            foreach (var mismatch in diagnostics.Mismatches)
+            {
+                builder.AppendLine($"- {mismatch.Channel}: severity {mismatch.Severity:0.###}; visible {mismatch.VisibleEvidence:0.###}; current intent {mismatch.CurrentIntent:0.###}. {mismatch.Message}");
+            }
+        }
+
+        builder.AppendLine();
+    }
+
+    private static IReadOnlyList<(string Label, float Visible, string IntentLabel)> ScreenshotMaterialEvidenceRows(ScreenshotMaterialEvidence evidence, MaterialIntent intent)
+    {
+        return
+        [
+            ("FoliageVisible", evidence.FoliageVisible, $"{MaterialIntent.FoliageChannel} {intent.Foliage:0.###}"),
+            ("GrassTerrainVisible", evidence.GrassTerrainVisible, $"{MaterialIntent.FoliageChannel} {intent.Foliage:0.###}"),
+            ("WaterVisible", evidence.WaterVisible, $"{MaterialIntent.WaterSpecularChannel} {intent.WaterSpecular:0.###}"),
+            ("SandVisible", evidence.SandVisible, $"{MaterialIntent.SandDustChannel} {intent.SandDust:0.###}"),
+            ("SnowVisible", evidence.SnowVisible, $"{MaterialIntent.SnowIceChannel} {intent.SnowIce:0.###}"),
+            ("StoneVisible", evidence.StoneVisible, $"{MaterialIntent.StoneRuinsChannel} {intent.StoneRuins:0.###}"),
+            ("MetalVisible", evidence.MetalVisible, $"{MaterialIntent.MetalIndustrialChannel} {intent.MetalIndustrial:0.###}"),
+            ("SkyVisible", evidence.SkyVisible, $"{MaterialIntent.SkyCloudFogChannel} {intent.SkyCloudFog:0.###}"),
+            ("AetherOrNeonVisible", evidence.AetherOrNeonVisible, $"{MaterialIntent.CrystalAetherChannel} {intent.CrystalAether:0.###}; {MaterialIntent.NeonGlassChannel} {intent.NeonGlass:0.###}"),
+            ("SkinOrCharacterVisible", evidence.SkinOrCharacterVisible, $"{MaterialIntent.SkinProtectionChannel} {intent.SkinProtection:0.###}")
+        ];
+    }
+
+    private static void AppendMaterialCalibrationDiagnostics(
+        StringBuilder builder,
+        Configuration configuration,
+        TagStackDiagnostics tagStackDiagnostics,
+        MaterialProfile materialProfile,
+        ScreenshotMaterialEvidenceDiagnostics screenshotMaterialEvidence,
+        MaterialIntent materialIntent,
+        IReadOnlyList<SceneTagPreset>? activeTagRegistry,
+        ShaderSupportScan shaderSupport,
+        PresetWriteResult writeResult)
+    {
+        var calibration = MaterialCalibrationDiagnosticsBuilder.Build(
+            configuration,
+            tagStackDiagnostics,
+            materialProfile,
+            screenshotMaterialEvidence,
+            materialIntent,
+            activeTagRegistry,
+            shaderSupport,
+            writeResult);
+
+        builder.AppendLine("## Material Calibration");
+        builder.AppendLine();
+        builder.AppendLine("- Purpose: one-place comparison of SceneTags/MaterialProfile, tag registry tuning, screenshot material evidence, current MaterialIntent, shader mapping availability, and mismatch warnings.");
+        builder.AppendLine("- Scope: diagnostics only. This section does not change generated preset values, shader code, FrameData, MaterialMasks, NormalField, or technique activation behavior.");
+        builder.AppendLine();
+        builder.AppendLine("| Channel | Scene/profile prior | Tag registry | Screenshot evidence | Current MaterialIntent | Shader mapping | Shader keys/sections | Warnings |");
+        builder.AppendLine("| --- | ---: | ---: | ---: | ---: | --- | --- | --- |");
+        foreach (var channel in calibration.Channels)
+        {
+            var mapping = channel.ShaderMappingEnabled
+                ? channel.ShaderMappingAvailable ? "enabled; key found" : "enabled; key missing"
+                : channel.ShaderMappingAvailable ? "disabled; key found" : "disabled; key missing";
+            builder.AppendLine($"| {channel.Channel} | {channel.ProfilePrior:0.###} | {channel.TagRegistryContribution:+0.###;-0.###;0} | {channel.ScreenshotEvidence:0.###} | {channel.MaterialIntent:0.###} | {mapping} | {FormatCalibrationShaderTargets(channel)} | {FormatCalibrationWarnings(channel.Warnings)} |");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### Scene Matrix Checklist");
+        builder.AppendLine();
+        foreach (var row in calibration.SceneMatrix)
+        {
+            builder.AppendLine($"- {row}");
+        }
+
+        builder.AppendLine();
+    }
+
     private static void AppendCustomShaderDiagnostics(
         StringBuilder builder,
         Configuration configuration,
@@ -365,7 +485,8 @@ public sealed class CompatibilityReportExporter
         ShaderSupportScan shaderSupport,
         PresetWriteResult writeResult,
         TagStackDiagnostics tagStackDiagnostics,
-        ImageAnalysisResult currentImage)
+        ImageAnalysisResult currentImage,
+        ScreenshotMaterialEvidenceDiagnostics screenshotMaterialEvidence)
     {
         builder.AppendLine("## Dalashade Custom Shader Diagnostics");
         builder.AppendLine();
@@ -375,7 +496,9 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Generated preset only injection: {(diagnostics.GeneratedPresetOnlyInjection ? "yes" : "no")}");
         builder.AppendLine($"- Generated-preset-only sections injected: {(diagnostics.SectionInjected ? "yes" : "no")}");
         builder.AppendLine($"- Generated-preset-only variables injected: {(diagnostics.VariablesInjected ? "yes" : "no")}");
-        builder.AppendLine("- Technique activation: manual; generated-preset injection does not append custom shaders to `Techniques=`.");
+        builder.AppendLine(configuration.SyncDalashadeTechniqueActivation
+            ? "- Technique activation sync: enabled for Dalashade production techniques in the generated preset only."
+            : "- Technique activation: manual; generated-preset injection does not append custom shaders to `Techniques=` unless activation sync is enabled.");
         builder.AppendLine($"- Generated-preset injected sections: {FormatInlineList(writeResult.CustomShaderInjection.Sections)}");
         builder.AppendLine($"- Generated-preset injected variables: {FormatInlineList(writeResult.CustomShaderInjection.Variables)}");
         builder.AppendLine($"- Generated-preset injected techniques: {FormatInlineList(writeResult.CustomShaderInjection.Techniques)}");
@@ -391,8 +514,8 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Material debug shader listed: {(materialDebugTechnique is null ? "no" : "yes")}");
         builder.AppendLine($"- Material debug technique activation: {(materialDebugTechnique is null ? "absent" : PresetAnalyzer.FormatActivationState(materialDebugTechnique.ActivationState))}");
         builder.AppendLine("- Split water/specular debug support: available when `Dalashade_MaterialDebug.fx` and `Dalashade_MaterialMasks.fxh` are installed. `WaterPlane` and `SpecularGlint` are shader-side heuristic masks derived from the existing WaterSpecular scene likelihood.");
-        AppendSceneGIDiagnostics(builder, configuration, analysis, writeResult, tagStackDiagnostics, currentImage);
-        AppendSurfaceReflectionDiagnostics(builder, configuration, analysis, writeResult, tagStackDiagnostics, currentImage);
+        AppendSceneGIDiagnostics(builder, configuration, analysis, writeResult, tagStackDiagnostics, currentImage, screenshotMaterialEvidence);
+        AppendSurfaceReflectionDiagnostics(builder, configuration, analysis, writeResult, tagStackDiagnostics, currentImage, screenshotMaterialEvidence);
         builder.AppendLine("- Material debug controls: shader-owned in ReShade UI; Dalashade does not write debug mode, overlay mode, opacity, or strength.");
         builder.AppendLine($"- First-party custom shader status: {FormatFirstPartyCustomShaderStatus(analysis)}");
         builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, NormalField uniforms are Dalashade-controlled only when NormalField shader mapping is enabled, SceneGI and SurfaceReflection debug controls can be written by their separate generated-variable toggles, and other shader-owned controls are recognized/injected but not actively written by Dalashade.");
@@ -559,7 +682,8 @@ public sealed class CompatibilityReportExporter
         PresetAnalysisResult analysis,
         PresetWriteResult writeResult,
         TagStackDiagnostics tagStackDiagnostics,
-        ImageAnalysisResult currentImage)
+        ImageAnalysisResult currentImage,
+        ScreenshotMaterialEvidenceDiagnostics screenshotMaterialEvidence)
     {
         var technique = FindFirstPartyTechnique(analysis, "Dalashade_SceneGI");
         var writeLabel = configuration.EnableDalashadeSceneGIShaderVariables ? "written" : "configured";
@@ -581,7 +705,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- SceneGI debug opacity {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugOpacity, 0f, 1f):0.###}.");
         builder.AppendLine($"- SceneGI debug boost {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f):0.###}. Debug boost affects diagnostic masks only, not normal GI output.");
         builder.AppendLine($"- Dominant SceneIntent drivers: {FormatDominantSceneDrivers(tagStackDiagnostics, SceneGIIntentNames)}");
-        builder.AppendLine($"- Dominant MaterialIntent drivers: {FormatDominantMaterialDrivers(configuration, tagStackDiagnostics, currentImage, SceneGIMaterialNames)}");
+        builder.AppendLine($"- Dominant MaterialIntent drivers: {FormatDominantMaterialDrivers(configuration, tagStackDiagnostics, currentImage, screenshotMaterialEvidence, SceneGIMaterialNames)}");
         builder.AppendLine($"- Generated SceneGI variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.SceneGIReasonCategory, "Dalashade_SceneGI")}");
         builder.AppendLine($"- Generated SceneGI material variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.MaterialReasonCategory, "Dalashade_SceneGI")}");
         builder.AppendLine("- Technique activation remains manual; Dalashade never appends `Dalashade_SceneGI` to `Techniques=`.");
@@ -593,7 +717,8 @@ public sealed class CompatibilityReportExporter
         PresetAnalysisResult analysis,
         PresetWriteResult writeResult,
         TagStackDiagnostics tagStackDiagnostics,
-        ImageAnalysisResult currentImage)
+        ImageAnalysisResult currentImage,
+        ScreenshotMaterialEvidenceDiagnostics screenshotMaterialEvidence)
     {
         var technique = FindFirstPartyTechnique(analysis, "Dalashade_SurfaceReflection");
         var writeLabel = configuration.EnableDalashadeSurfaceReflectionShaderVariables ? "written" : "configured";
@@ -616,18 +741,26 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- SurfaceReflection debug output mode {writeLabel} value: 0 ({FormatSurfaceReflectionDebugOutputMode(0)}).");
         builder.AppendLine($"- SurfaceReflection debug opacity {writeLabel} value: {Math.Clamp(configuration.DalashadeSurfaceReflectionDebugOpacity, 0f, 1f):0.###}.");
         var materialProfile = MaterialProfileBuilder.Build(tagStackDiagnostics, currentImage, configuration.ScreenshotAnalysisStrength);
+        var screenshotEvidenceContributions = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(configuration, tagStackDiagnostics, screenshotMaterialEvidence.Evidence);
         var materialIntent = configuration.EnableMaterialIntent
-            ? MaterialIntentBuilder.Build(tagStackDiagnostics, currentImage, materialProfile, screenshotStrength: configuration.ScreenshotAnalysisStrength).WithStrength(configuration.MaterialIntentStrength)
+            ? MaterialIntentBuilder.Build(tagStackDiagnostics, currentImage, materialProfile, screenshotStrength: configuration.ScreenshotAnalysisStrength, screenshotMaterialEvidenceContributions: screenshotEvidenceContributions).WithStrength(configuration.MaterialIntentStrength)
             : MaterialIntent.Neutral;
         builder.AppendLine($"- Water resolver context: WaterContext={materialIntent.WaterSpecular:0.###}, CoastalContext={materialIntent.WaterSpecular:0.###}, OpenOceanContext={materialIntent.WaterSpecular * 0.85f:0.###}, ShallowWaterContext={Math.Max(materialIntent.WaterSpecular * 0.72f, Math.Min(materialIntent.WaterSpecular, materialIntent.SandDust) * 0.20f):0.###}, WetSurfaceContext={tagStackDiagnostics.Intent.Wetness:0.###}.");
         builder.AppendLine("- Water resolver note: scene context values are generated-preset priors; shader-side `Dalashade_ResolveWater` still performs per-pixel water classification and rejects sky, sand, skin, and isolated glints.");
-        builder.AppendLine($"- Dominant MaterialIntent drivers: {FormatDominantMaterialDrivers(configuration, tagStackDiagnostics, currentImage, SurfaceReflectionMaterialNames)}");
+        builder.AppendLine($"- Dominant MaterialIntent drivers: {FormatDominantMaterialDrivers(configuration, tagStackDiagnostics, currentImage, screenshotMaterialEvidence, SurfaceReflectionMaterialNames)}");
         builder.AppendLine($"- Generated SurfaceReflection variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.SurfaceReflectionReasonCategory, "Dalashade_SurfaceReflection")}");
         builder.AppendLine($"- Generated SurfaceReflection material variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.MaterialReasonCategory, "Dalashade_SurfaceReflection")}");
         builder.AppendLine("- Technique activation remains manual; Dalashade never appends `Dalashade_SurfaceReflection` to `Techniques=`.");
     }
 
-    private static void AppendMaterialIntentDiagnostics(StringBuilder builder, Configuration configuration, TagStackDiagnostics tagStackDiagnostics, ImageAnalysisResult currentImage, PresetWriteResult writeResult)
+    private static void AppendMaterialIntentDiagnostics(
+        StringBuilder builder,
+        Configuration configuration,
+        TagStackDiagnostics tagStackDiagnostics,
+        ImageAnalysisResult currentImage,
+        ScreenshotMaterialEvidenceDiagnostics screenshotMaterialEvidence,
+        IReadOnlyList<SceneTagPreset>? activeTagRegistry,
+        PresetWriteResult writeResult)
     {
         if (!configuration.EnableMaterialIntentDiagnostics)
         {
@@ -645,7 +778,9 @@ public sealed class CompatibilityReportExporter
         }
 
         var profile = MaterialProfileBuilder.Build(tagStackDiagnostics, currentImage, configuration.ScreenshotAnalysisStrength);
-        var intent = MaterialIntentBuilder.Build(tagStackDiagnostics, currentImage, profile, screenshotStrength: configuration.ScreenshotAnalysisStrength).WithStrength(configuration.MaterialIntentStrength);
+        var screenshotEvidenceContributions = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(configuration, tagStackDiagnostics, screenshotMaterialEvidence.Evidence);
+        var registry = MaterialTagRegistryTuningAnalyzer.Build(tagStackDiagnostics, configuration.EnableSceneAuthoringOverrides ? activeTagRegistry : null);
+        var intent = MaterialIntentBuilder.Build(tagStackDiagnostics, currentImage, profile, configuration.EnableSceneAuthoringOverrides ? activeTagRegistry : null, screenshotStrength: configuration.ScreenshotAnalysisStrength, screenshotMaterialEvidenceContributions: screenshotEvidenceContributions).WithStrength(configuration.MaterialIntentStrength);
         var writtenUniforms = writeResult.Changes
             .Where(change => string.Equals(change.ReasonCategory, CustomShaderVariableMapper.MaterialReasonCategory, StringComparison.OrdinalIgnoreCase))
             .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
@@ -656,6 +791,8 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("- MaterialProfile is a scene-level plausibility layer between SceneTags/MaterialIntent and shader-side pixel masks. Shader masks still decide per-pixel `RawCandidate`, `SceneGatedCandidate`, and `FinalMask` behavior.");
         builder.AppendLine("- MaterialIntent does not change SceneIntent or VisualProfile. Generated shader variables are written only when MaterialIntent shader mapping is explicitly enabled and matching Dalashade custom shader keys exist.");
         builder.AppendLine($"- MaterialIntent strength: {configuration.MaterialIntentStrength:0.###}");
+        builder.AppendLine($"- Screenshot material evidence influence: {(configuration.EnableScreenshotMaterialEvidenceInfluence ? $"enabled at {configuration.ScreenshotMaterialEvidenceStrength:0.##}" : "disabled")}");
+        builder.AppendLine($"- Tag registry material caps: per tag +/-{MaterialTagRegistryTuningAnalyzer.PerTagContributionCap:0.##}; per channel total +/-{MaterialTagRegistryTuningAnalyzer.PerChannelContributionCap:0.##}");
         builder.AppendLine($"- Shader mapping: {(configuration.EnableMaterialIntentShaderMapping ? "enabled" : "disabled")}");
         builder.AppendLine("- Material debug overlay controls: shader-owned in ReShade UI. Reports show MaterialIntent values and written material channel uniforms only.");
         builder.AppendLine("- Safety switch: disable `EnableMaterialIntentShaderMapping` to stop all MaterialIntent uniform writes on the next generation. Disable `EnableMaterialIntent` to return neutral material diagnostics.");
@@ -691,15 +828,19 @@ public sealed class CompatibilityReportExporter
         }
 
         builder.AppendLine();
+        AppendMaterialTagRegistryDiagnostics(builder, configuration, registry.Diagnostics);
+
+        builder.AppendLine();
         builder.AppendLine(MaterialIntentDiagnosticsTableHeader);
-        builder.AppendLine("| --- | --- | --- | --- | --- |");
+        builder.AppendLine("| --- | --- | --- | --- | --- | --- |");
 
         foreach (var channel in MaterialIntent.ChannelNames)
         {
             var profilePrior = profile.ValueFor(channel);
             var evidence = FormatMaterialNonProfileEvidence(intent.Contributions, channel);
+            var screenshotEvidenceText = FormatMaterialScreenshotEvidence(intent.Contributions, channel);
             var suppressions = FormatMaterialContributions(intent.Contributions, channel, positive: false);
-            builder.AppendLine($"| {channel} | {profilePrior:0.###} | {evidence} | {intent.ValueFor(channel):0.###} | {suppressions} |");
+            builder.AppendLine($"| {channel} | {profilePrior:0.###} | {evidence} | {screenshotEvidenceText} | {intent.ValueFor(channel):0.###} | {suppressions} |");
         }
 
         builder.AppendLine();
@@ -760,6 +901,65 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("- Likely failure sources to inspect: scene profile plausibility, MaterialIntent strength/gating, raw pixel heuristic, final conflict suppression, optional depth assist, then the specific production shader debug view.");
 
         builder.AppendLine();
+    }
+
+    private static void AppendMaterialTagRegistryDiagnostics(StringBuilder builder, Configuration configuration, MaterialTagRegistryDiagnostics diagnostics)
+    {
+        builder.AppendLine("### Tag Registry Material Tunings");
+        builder.AppendLine();
+        if (!configuration.EnableSceneAuthoringOverrides)
+        {
+            builder.AppendLine("- Scene authoring/tag registry is disabled, so registry material tunings are not applied.");
+            return;
+        }
+
+        builder.AppendLine($"- Caps: per-tag contribution +/-{MaterialTagRegistryTuningAnalyzer.PerTagContributionCap:0.##}; per-channel registry total +/-{MaterialTagRegistryTuningAnalyzer.PerChannelContributionCap:0.##}.");
+        builder.AppendLine("- Invalid rows are ignored. Disabled rows and inactive tags are listed for audit but do not contribute.");
+        builder.AppendLine();
+        builder.AppendLine("| Channel | Final registry contribution | Capped |");
+        builder.AppendLine("| --- | ---: | --- |");
+        var visibleChannels = diagnostics.Channels
+            .Where(channel => Math.Abs(channel.FinalContribution) > 0.0001f || channel.Capped)
+            .ToArray();
+        if (visibleChannels.Length == 0)
+        {
+            builder.AppendLine("| None | 0 | no |");
+        }
+        else
+        {
+            foreach (var channel in visibleChannels)
+            {
+                builder.AppendLine($"| {channel.Channel} | {channel.FinalContribution:+0.###;-0.###;0} | {(channel.Capped ? "yes" : "no")} |");
+            }
+        }
+
+        AppendRegistryTuningRows(builder, "Active registry tunings", diagnostics.ActiveTunings);
+        AppendRegistryTuningRows(builder, "Capped registry tunings", diagnostics.CappedTunings);
+        AppendRegistryTuningRows(builder, "Invalid registry tunings", diagnostics.InvalidTunings);
+        AppendRegistryTuningRows(builder, "Inactive registry tunings", diagnostics.InactiveTunings.Take(12).ToArray());
+        if (diagnostics.InactiveTunings.Count > 12)
+        {
+            builder.AppendLine($"- Inactive registry tunings truncated: showing 12 of {diagnostics.InactiveTunings.Count}.");
+        }
+    }
+
+    private static void AppendRegistryTuningRows(StringBuilder builder, string title, IReadOnlyList<MaterialTagRegistryTuningDiagnostic> rows)
+    {
+        builder.AppendLine();
+        builder.AppendLine($"#### {title}");
+        builder.AppendLine();
+        if (rows.Count == 0)
+        {
+            builder.AppendLine("- None.");
+            return;
+        }
+
+        builder.AppendLine("| Status | Category | Tag | Channel | Requested | Applied | Reason / message |");
+        builder.AppendLine("| --- | --- | --- | --- | ---: | ---: | --- |");
+        foreach (var row in rows)
+        {
+            builder.AppendLine($"| {EscapeTable(row.Status)} | {EscapeTable(row.Category)} | {EscapeTable(row.Tag)} | {EscapeTable(row.Channel)} | {row.RequestedAmount:+0.###;-0.###;0} | {row.AppliedAmount:+0.###;-0.###;0} | {EscapeTable(row.Reason)} {EscapeTable(row.Message)} |");
+        }
     }
 
     private static void AppendNormalFieldDiagnostics(StringBuilder builder, Configuration configuration, PresetAnalysisResult analysis, PresetWriteResult writeResult)
@@ -2004,6 +2204,7 @@ public sealed class CompatibilityReportExporter
         Configuration configuration,
         TagStackDiagnostics diagnostics,
         ImageAnalysisResult currentImage,
+        ScreenshotMaterialEvidenceDiagnostics screenshotMaterialEvidence,
         IReadOnlySet<string> channelNames)
     {
         if (!configuration.EnableMaterialIntent)
@@ -2012,7 +2213,8 @@ public sealed class CompatibilityReportExporter
         }
 
         var profile = MaterialProfileBuilder.Build(diagnostics, currentImage, configuration.ScreenshotAnalysisStrength);
-        var intent = MaterialIntentBuilder.Build(diagnostics, currentImage, profile, screenshotStrength: configuration.ScreenshotAnalysisStrength).WithStrength(configuration.MaterialIntentStrength);
+        var screenshotEvidenceContributions = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(configuration, diagnostics, screenshotMaterialEvidence.Evidence);
+        var intent = MaterialIntentBuilder.Build(diagnostics, currentImage, profile, screenshotStrength: configuration.ScreenshotAnalysisStrength, screenshotMaterialEvidenceContributions: screenshotEvidenceContributions).WithStrength(configuration.MaterialIntentStrength);
         var selected = MaterialIntent.ChannelNames
             .Where(channelNames.Contains)
             .Select(channel => new
@@ -2083,13 +2285,45 @@ public sealed class CompatibilityReportExporter
         var selected = contributions
             .Where(contribution => string.Equals(contribution.Channel, channel, StringComparison.Ordinal)
                                    && contribution.Amount > 0f
-                                   && !contribution.Source.StartsWith("MaterialProfile", StringComparison.OrdinalIgnoreCase))
+                                   && !contribution.Source.StartsWith("MaterialProfile", StringComparison.OrdinalIgnoreCase)
+                                   && !contribution.Source.StartsWith("Screenshot evidence:", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(contribution => Math.Abs(contribution.Amount))
             .Take(3)
             .Select(contribution => $"{EscapeTable(contribution.Source)} +{contribution.Amount:0.##}: {EscapeTable(contribution.Reason)}")
             .ToArray();
 
         return selected.Length == 0 ? "none" : string.Join("<br>", selected);
+    }
+
+    private static string FormatMaterialScreenshotEvidence(IReadOnlyList<MaterialIntentContribution> contributions, string channel)
+    {
+        var selected = contributions
+            .Where(contribution => string.Equals(contribution.Channel, channel, StringComparison.Ordinal)
+                                   && contribution.Amount > 0f
+                                   && contribution.Source.StartsWith("Screenshot evidence:", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(contribution => Math.Abs(contribution.Amount))
+            .Take(3)
+            .Select(contribution => $"{EscapeTable(contribution.Source)} +{contribution.Amount:0.##}: {EscapeTable(contribution.Reason)}")
+            .ToArray();
+
+        return selected.Length == 0 ? "none" : string.Join("<br>", selected);
+    }
+
+    private static string FormatCalibrationShaderTargets(MaterialCalibrationChannelDiagnostic channel)
+    {
+        var keys = channel.ShaderKeys.Count == 0 ? "none" : string.Join(", ", channel.ShaderKeys.Select(key => $"`{EscapeTable(key)}`"));
+        var sections = channel.ShaderSections.Count == 0 ? "no detected section" : string.Join(", ", channel.ShaderSections.Select(section => $"`{EscapeTable(section)}`"));
+        return $"{keys}<br>{sections}";
+    }
+
+    private static string FormatCalibrationWarnings(IReadOnlyList<MaterialCalibrationWarning> warnings)
+    {
+        if (warnings.Count == 0)
+        {
+            return "none";
+        }
+
+        return string.Join("<br>", warnings.Select(warning => $"{EscapeTable(warning.Severity)}: {EscapeTable(warning.Message)}"));
     }
 
     private static string FormatMaterialProfilePriors(MaterialProfile profile)

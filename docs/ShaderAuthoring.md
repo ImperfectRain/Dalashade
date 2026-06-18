@@ -69,7 +69,7 @@ Material flow is layered:
 
 1. SceneTags describe biome, weather, mood, area, gameplay, material, and art-direction context.
 2. MaterialProfile turns those tags plus territory/weather text, screenshot metrics, and SceneIntent values into scene plausibility priors such as `jungleCanopy`, `coastalWaterline`, `snowfield`, `desertOpen`, `neonUrban`, `aetherialLandscape`, `dungeonInterior`, or `raidArena`.
-3. MaterialIntent consumes those priors and outputs normalized scene-level material channels. MaterialProfile is treated as a plausibility prior/gate instead of a direct additive boost; reports separate profile prior, non-profile evidence, final value, and suppressions.
+3. MaterialIntent consumes those priors and outputs normalized scene-level material channels. MaterialProfile is treated as a plausibility prior/gate instead of a direct additive boost; reports separate profile prior, tag/other evidence, screenshot material evidence, final value, and suppressions/caps.
 4. Shader-side MaterialMasks still decide pixel-level influence. Debug docs use `RawCandidate` for local pixel evidence, `SceneGatedCandidate` for local evidence scaled by scene plausibility, and `FinalMask` for the shader-specific result after conflicts and depth/smoothness checks.
 
 MaterialProfile and MaterialIntent are plausibility gates, not true engine material IDs. A high scene-level value should make matching pixels eligible; it should not tint or alter the whole frame by itself.

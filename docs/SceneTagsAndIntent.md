@@ -17,6 +17,7 @@ Scene context is collected in `Dalashade/GameContext.cs`.
 | Tag registry tuning | `SceneAuthoringService` + `SceneIntentBuilder.Build(...)` + `MaterialIntentBuilder.Build(...)` | When scene authoring is enabled, config-local tag definitions can add editable SceneIntent and MaterialIntent channel contributions when their tags are active. |
 | Scene intent | `SceneIntentBuilder.Build(...)` in `Dalashade/SceneIntent.cs` | Converts tags, screenshot analysis, target style, performance budget, and enabled tag registry tunings into stack-aware intent values before profile stack budgets. |
 | Material profile diagnostics | `MaterialProfileBuilder.Build(...)` in `Dalashade/MaterialProfileBuilder.cs` | Converts tags, territory/weather text, area context, screenshot metrics, and SceneIntent context into scene-level material plausibility priors. Does not change generated presets. |
+| Screenshot material evidence | `ScreenshotMaterialEvidenceAnalyzer.BuildDiagnostics(...)` in `Dalashade/ScreenshotMaterialEvidence.cs` | Estimates broad visible material families from existing screenshot region/color/opinion metrics and compares them to current MaterialIntent. Diagnostic-only in Phase 1. |
 | Material intent diagnostics | `MaterialIntentBuilder.Build(...)` in `Dalashade/MaterialIntentBuilder.cs` | Converts the existing tag stack, MaterialProfile priors, screenshot metrics, and SceneIntent context into optional inferred material likelihoods. Does not change generated presets unless MaterialIntent shader mapping is explicitly enabled. |
 | Visual profile effects | `ProfileEngine.Create()` in `Dalashade/VisualProfile.cs` | Applies context adjustments, scene-intent stack budgets, screenshot analysis, master style, target style, and performance budget. |
 
@@ -54,7 +55,7 @@ The tag registry is stored in `SceneAuthoring/tag-presets.json`. This file contr
 - `SceneIntent` channels such as `Atmosphere`, `Wetness`, `Cold`, `Heat`, `DayReflection`, `NightAtmosphere`, or `CinematicPermission`;
 - `MaterialIntent` channels such as `Foliage`, `WaterSpecular`, `SandDust`, `SnowIce`, `MetalIndustrial`, `CrystalAether`, or `SkyCloudFog`.
 
-Registry tuning is additive, non-destructive, and gated by the scene authoring toggle. When scene authoring is disabled, Dalashade uses regular automatic detection and ignores registry tuning rows. When enabled, it lets users define what an active tag contributes before generated preset values are written. It does not rewrite the automatic classifier, `VisualProfile` rule code, MaterialProfile formulas, shader formulas, generated-preset safety rules, MaterialMasks, or NormalField. Built-in defaults can be reset, and user edits are saved only in the plugin config folder.
+Registry tuning is additive, non-destructive, and gated by the scene authoring toggle. When scene authoring is disabled, Dalashade uses regular automatic detection and ignores registry tuning rows. When enabled, it lets users define what an active tag contributes before generated preset values are written. MaterialIntent registry rows are validated, capped at +/-0.20 per tag row and +/-0.35 per channel total, and reported as active, inactive, invalid, or capped. Invalid user/imported rows are ignored instead of being silently applied. Registry tuning does not rewrite the automatic classifier, `VisualProfile` rule code, MaterialProfile formulas, shader formulas, generated-preset safety rules, MaterialMasks, or NormalField. Built-in defaults can be reset, and user edits are saved only in the plugin config folder.
 
 Diagnostics should distinguish detected tags from effective tags once overrides are enabled. Users should be able to reset the current scene back to automatic detection without deleting global defaults.
 
@@ -141,9 +142,9 @@ Starter profile families include:
 | `aetherial/cosmic` | `aetherialLandscape`, `openSkyField` | Crystal/aether and sky/space atmosphere, suppressed mundane sand/metal unless tags support them. |
 | Interior/duty overlays | `dungeonInterior`, `raidArena` | Suppressed generic sky/cloud/fog and conservative cinematic material assumptions for gameplay. |
 
-`MaterialIntent` consumes MaterialProfile priors plus the older tag, territory, screenshot, and SceneIntent evidence. MaterialProfile acts as a plausibility prior/gate instead of a raw additive contribution: reports show the profile prior separately from non-profile evidence, and final values are blended and capped so repeated descriptions of the same scene do not max a channel by stacking. It outputs the same normalized channels and remains optional, conservative, and diagnosable.
+`MaterialIntent` consumes MaterialProfile priors plus the older tag, territory, screenshot, and SceneIntent evidence. MaterialProfile acts as a plausibility prior/gate instead of a raw additive contribution: reports show the profile prior separately from tag/other evidence and screenshot material evidence, and final values are blended and capped so repeated descriptions of the same scene do not max a channel by stacking. It outputs the same normalized channels and remains optional, conservative, and diagnosable.
 
-When scene authoring is enabled, MaterialIntent also consumes enabled tag registry tuning rows that target `MaterialIntent`. These rows are added as normal contribution diagnostics with a `Tag registry: <tag>` source, then pass through the existing MaterialIntent strength and shader-mapping gates.
+When scene authoring is enabled, MaterialIntent also consumes enabled tag registry tuning rows that target `MaterialIntent`. These rows are validated and capped before being added as normal contribution diagnostics with a `Tag registry: <tag>` source, then pass through the existing MaterialIntent strength and shader-mapping gates. Reports, debug bundles, and the developer Material Intent panel show active, inactive, invalid, capped, and final per-channel registry contributions.
 
 MaterialIntent is controlled by configuration:
 
@@ -153,6 +154,8 @@ MaterialIntent is controlled by configuration:
 | `EnableMaterialIntentDiagnostics` | `true` | Shows MaterialIntent values and contribution diagnostics in reports/UI when MaterialIntent is enabled. |
 | `EnableMaterialIntentShaderMapping` | `false` | Allows generated-preset MaterialIntent uniform writes when matching known Dalashade custom shader keys exist. Default is off. |
 | `MaterialIntentStrength` | `0.25` | Scales MaterialIntent diagnostic values and generated material channel uniforms from `0.0` to `1.0`. |
+| `EnableScreenshotMaterialEvidenceInfluence` | `false` | Allows screenshot material evidence to contribute capped scene-level MaterialIntent priors. Default is off. |
+| `ScreenshotMaterialEvidenceStrength` | `0.35` | Scales screenshot material-evidence contributions before they enter MaterialIntent. |
 
 Material debug mode, overlay mode, opacity, and strength are owned by the relevant ReShade `.fx` shader UI. Dalashade does not write those debug controls during generation.
 
@@ -173,7 +176,7 @@ MaterialIntent currently reports these normalized channels:
 | `SkinProtection` | Likely character/skin protection risk, inferred conservatively from presentation, city/combat context, and warm screenshot color families. |
 | `VoidDarkness` | Likely void, umbral, haunted, abyssal, gothic, or darkness material identity. Night alone is explicitly not enough. |
 
-Every channel records positive and negative contribution diagnostics. Compatibility reports show profile prior, non-profile evidence, final channel value, and suppressions. These diagnostics do not alter `SceneIntent` or `VisualProfile`.
+Every channel records positive and negative contribution diagnostics. Compatibility reports show profile prior, tag/other evidence, screenshot material evidence, final channel value, and suppressions/caps. These diagnostics do not alter `SceneIntent` or `VisualProfile`.
 
 MaterialIntent shader variable plumbing is zero-impact by default. When `EnableMaterialIntentShaderMapping` is off, Dalashade skips MaterialIntent variables entirely: it does not update existing material keys and generated-preset-only injection does not add material keys. When mapping is on, `EnableMaterialIntent` is on, and `MaterialIntentStrength` is greater than `0.0`, matching known material keys in Dalashade custom shader sections can be written as `MaterialIntent value * MaterialIntentStrength`. Missing uniforms and missing custom shader sections are skipped safely.
 
@@ -188,6 +191,8 @@ Shader-side material masks use separate debug vocabulary:
 MaterialProfile and MaterialIntent provide scene gates. They do not decide that a specific pixel is foliage, sky, water, snow, or skin by themselves.
 
 Screenshot analysis includes weak region-aware hints and named scene opinions. It can adjust `VisualProfile` tone controls, add `SceneIntent` contributions, and support MaterialProfile/MaterialIntent channels when `AutoAdjustFromScreenshots` is enabled. Its impact is scaled by `ScreenshotAnalysisStrength`, so users can reduce or disable screenshot-led output without losing diagnostics.
+
+`ScreenshotMaterialEvidence` is a separate material-evidence layer. It estimates broad visible material families such as foliage, grass terrain, water, sand, snow, stone, metal, sky, aether/neon, and skin/character presence from the same screenshot metrics, then compares those values against current MaterialIntent. By default it remains diagnostic-only. When `EnableScreenshotMaterialEvidenceInfluence` is enabled, the adapter may add or dampen capped MaterialIntent contributions such as visible foliage, visible snow, or cyan-ambiguity-suppressed water. It still does not change MaterialProfile, shader code, FrameData, MaterialMasks, NormalField, or technique/load-order behavior.
 
 Current screenshot opinions include dark-shadow recovery, highlight protection, flat-contrast recovery, saturation lift/restraint, likely sky/air, likely water surface, likely foliage, likely sand/warm ground, likely snow/ice, skin-protection risk, and likely neon/aether color. These opinions are scene-level priors. They still do not prove pixel material identity, and shader-side masks remain responsible for `RawCandidate`, `SceneGatedCandidate`, and `FinalMask`.
 

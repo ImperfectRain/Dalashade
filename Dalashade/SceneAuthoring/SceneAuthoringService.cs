@@ -607,18 +607,18 @@ public sealed class SceneAuthoringService
     private static SceneTagTuning NormalizeTuning(SceneTagTuning tuning)
     {
         var target = TuningTargets.FirstOrDefault(candidate => string.Equals(candidate, tuning.Target, StringComparison.OrdinalIgnoreCase))
-                     ?? SceneTagTuningTargets.SceneIntent;
+                     ?? (tuning.Target ?? string.Empty).Trim();
         var channelList = string.Equals(target, SceneTagTuningTargets.MaterialIntent, StringComparison.OrdinalIgnoreCase)
             ? MaterialIntent.ChannelNames
             : SceneIntentTuningChannels;
         var channel = channelList.FirstOrDefault(candidate => string.Equals(candidate, tuning.Channel, StringComparison.OrdinalIgnoreCase))
-                      ?? channelList.First();
+                      ?? (tuning.Channel ?? string.Empty).Trim();
         return new SceneTagTuning
         {
             Enabled = tuning.Enabled,
-            Target = target,
+            Target = string.IsNullOrWhiteSpace(target) ? SceneTagTuningTargets.SceneIntent : target,
             Channel = channel,
-            Amount = Math.Clamp(tuning.Amount, -1f, 1f),
+            Amount = float.IsFinite(tuning.Amount) ? tuning.Amount : 0f,
             Reason = string.IsNullOrWhiteSpace(tuning.Reason) ? "Tag registry tuning." : tuning.Reason.Trim()
         };
     }

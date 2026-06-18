@@ -76,8 +76,11 @@ Turn on `Auto-adjust from screenshots`, set the screenshot folder, then take scr
 - oversaturated scenes get cooled down a bit
 - very flat scenes get a little contrast and clarity
 - likely sky, water, foliage, sand, snow, skin, and neon/aether cues can push matching SceneIntent and MaterialIntent channels
+- screenshot material evidence can compare broad visible material-family cues against current MaterialIntent values, and can optionally feed capped MaterialIntent priors when its separate toggle is enabled
 
 The `Screenshot influence` slider controls how much those opinions matter. `0%` keeps analysis visible but stops it from changing output; `100%` is the default; higher values are for deliberate stronger screenshot-led behavior.
+
+Screenshot material evidence is separate from the older screenshot-opinion path. It reports broad visible families such as foliage, grass terrain, water, sand, snow, stone, metal, sky, aether/neon, and skin/character presence, then warns when the current MaterialIntent looks too low or ambiguous. Its MaterialIntent influence toggle is off by default; when enabled, it contributes capped scene-level priors through the existing MaterialIntent mapping path. It does not write shader variables directly, tune shaders, bypass shader masks, or claim true material IDs.
 
 It is not live video analysis, segmentation, object recognition, or true material detection. Think of it as the first rung on the ladder before a ReShade add-on bridge.
 

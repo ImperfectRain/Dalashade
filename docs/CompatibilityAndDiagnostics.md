@@ -89,7 +89,7 @@ Implemented report paths:
 | Compatibility report | `CompatibilityReportExporter.Export(...)` |
 | Regression reports | `PresetRegressionReportHarness.Run(...)` |
 
-Compatibility reports include preset risk, authorities, role policies, shader support, changed variables, sanitize actions, master diagnostics, scene-tag diagnostics, scene-authoring diagnostics, FrameData diagnostics, first-party depth-assist diagnostics, and mapping validation.
+Compatibility reports include preset risk, authorities, role policies, shader support, changed variables, sanitize actions, master diagnostics, scene-tag diagnostics, scene-authoring diagnostics, screenshot material evidence, FrameData diagnostics, first-party depth-assist diagnostics, and mapping validation.
 
 Scene-tag diagnostics include the primary biome, confidence, matched keyword/reason, active weather tags, secondary tags, material tags, area/context tags, gameplay-state tags, art-direction tags, and `SceneIntent` contributions grouped by tag category. Use these sections first when a generated preset has the wrong environmental identity.
 
@@ -100,8 +100,11 @@ Material diagnostics are split into plugin-side scene plausibility and shader-si
 | Report item | Meaning |
 | --- | --- |
 | MaterialProfile family and tags | Scene-level material plausibility such as jungle canopy, coastal waterline, snowfield, neon urban, aetherial landscape, dungeon interior, or raid arena. |
-| MaterialIntent values | Optional inferred material likelihood channels. Reports separate profile prior, non-profile evidence, final value, and suppressions. These are not true engine material IDs and do not affect visuals unless MaterialIntent shader mapping is enabled. |
+| MaterialIntent values | Optional inferred material likelihood channels. Reports separate profile prior, tag/other evidence, screenshot material evidence, final value, and suppressions/caps. These are not true engine material IDs and do not affect visuals unless MaterialIntent shader mapping is enabled. |
+| Tag registry material tunings | Active, inactive, invalid, and capped user/built-in registry rows that target MaterialIntent. Registry material tunings are capped at +/-0.20 per tag and +/-0.35 per channel total, and invalid rows are ignored with diagnostics. |
 | MaterialIntent shader uniform output | Which first-party Dalashade shader sections received material channel values in the generated preset. |
+| Screenshot material evidence | Broad visible material-family estimates from screenshot regions/opinions, compared against current MaterialIntent values. Influence is off by default; when enabled, capped contributions enter MaterialIntent through the normal mapping path. |
+| Material Calibration | Per-channel matrix comparing profile prior, tag registry contribution, screenshot evidence, current MaterialIntent, shader mapping availability, shader keys/sections, and severity-ranked warnings. |
 | MaterialMasks v2 notes | Debug vocabulary for `RawCandidate`, `SceneGatedCandidate`, `FinalMask`, optional depth assist, and likely failure sources. |
 | First-party custom shader status | Whether WeatherAtmosphere, AdaptiveGrade, AtmosphereBloom, SmartSharpen, MaterialDebug, SceneGI, and SurfaceReflection appear active, inactive, unknown, or absent in preset analysis. |
 
@@ -121,6 +124,20 @@ Depth assist remains disabled by default. It can help material masks when ReShad
 
 Material calibration failures should be traced in this order: scene profile plausibility, MaterialIntent strength/gating, raw pixel heuristic, final conflict suppression, optional depth assist, then production shader behavior. The master `Dalashade_MaterialDebug.fx` answers what Dalashade thinks a pixel might be; each production shader's local debug mode answers why that shader is affecting or suppressing the pixel.
 
+Screenshot material evidence adds an earlier report-only check before changing formulas. It can warn when visible foliage/grass, water, sand, snow, aether/neon, or sky evidence conflicts with the current MaterialIntent. Treat those warnings as calibration leads, not as proof of true material identity.
+
+The Material Calibration scene matrix uses these expected patterns:
+
+| Representative scene | Expected material evidence |
+| --- | --- |
+| forest/canopy | foliage high, sky moderate, water variable |
+| coastal | water/sand/sky variable by view |
+| snow | snow/sky/stone variable |
+| desert | sand/stone/sky high |
+| high-tech/aether | metal/aether/neon high, water only if actual water evidence |
+| dungeon/interior | stone/metal/interior high, sky low |
+| combat/UI-heavy | confidence lower, skin/character/UI risk higher |
+
 Regression reports scan a folder of `.ini` presets and write timestamped markdown summaries. They do not require ReShade to be running and should not overwrite user presets.
 
 ## UI Diagnostic Panels
@@ -131,11 +148,13 @@ The main window includes sections for:
 | --- | --- |
 | Current Status | Current game context and generation state. |
 | Preset Compatibility | Risk, warnings, supported/unsupported effects, authorities. |
+| Screenshot Material Evidence | Developer-only raw evidence channels, confidence, current MaterialIntent comparison, mismatch warnings, strength/cap context, and a copyable evidence block. User Mode only exposes the safe `Use screenshot material hints` toggle and limited strength slider. |
 | Changed Variables | Written shader variable changes. |
 | Sanitize Actions | Gameplay sanitize changes. |
 | Applied Rules | Profile generation rules. |
 | Scene Tags | Weather, primary biome, secondary/material/art-direction tags, area/gameplay context, intent values, and stack-budget contributions. |
 | Screenshot Analysis | Current screenshot stats, named opinions, strength, regions, and top regional color families. |
+| Screenshot Material Evidence | Visible material-family evidence, confidence, evidence notes, current MaterialIntent comparison, mismatch warnings, and whether opt-in capped MaterialIntent influence is enabled. |
 | Master Style | Master style diagnostics. |
 | Regression Reports | Last regression run status. |
 | Debug / Diagnostics | Additional low-level status. |

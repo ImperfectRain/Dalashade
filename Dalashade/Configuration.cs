@@ -140,6 +140,8 @@ public class Configuration : IPluginConfiguration
     public bool EnableMaterialIntentDiagnostics { get; set; } = true;
     public bool EnableMaterialIntentShaderMapping { get; set; } = false;
     public float MaterialIntentStrength { get; set; } = 0.25f;
+    public bool EnableScreenshotMaterialEvidenceInfluence { get; set; } = false;
+    public float ScreenshotMaterialEvidenceStrength { get; set; } = 0.35f;
     public bool EnableNormalField { get; set; } = false;
     public bool EnableNormalFieldDiagnostics { get; set; } = true;
     public bool EnableNormalFieldShaderMapping { get; set; } = false;

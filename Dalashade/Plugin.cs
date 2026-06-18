@@ -62,6 +62,8 @@ public sealed class Plugin : IDalamudPlugin
     public MasterStyleDiagnostics CurrentMasterStyleDiagnostics { get; private set; } = MasterStyleDiagnostics.FromUnavailable(new Configuration(), ImageAnalysisResult.Empty, ImageAnalysisResult.Empty, 0, "Master style has not run yet.");
     public TagStackDiagnostics CurrentTagStackDiagnostics { get; private set; } = TagStackDiagnostics.Empty;
     public MaterialIntent CurrentMaterialIntent { get; private set; } = MaterialIntent.Neutral;
+    public ScreenshotMaterialEvidenceDiagnostics CurrentScreenshotMaterialEvidence { get; private set; } = ScreenshotMaterialEvidenceDiagnostics.Neutral("Screenshot material evidence has not run yet.");
+    public MaterialTagRegistryDiagnostics CurrentMaterialTagRegistryDiagnostics { get; private set; } = MaterialTagRegistryDiagnostics.Empty;
     public PresetWriteResult LastWriteResult { get; private set; } = PresetWriteResult.Skipped("No preset has been generated yet.");
     public ReloadResult LastReloadResult { get; private set; } = ReloadResult.Skipped("Shaders have not been reloaded yet.");
     public ShaderSupportScan LastShaderSupportScan { get; private set; } = ShaderSupportScan.Skipped("Shader support has not been scanned yet.");
@@ -188,6 +190,7 @@ public sealed class Plugin : IDalamudPlugin
             ScanPresetCompatibility();
         }
 
+        RefreshMaterialIntent();
         LastCompatibilityReportExport = compatibilityReportExporter.Export(
             Configuration,
             LastPresetAnalysis,
@@ -197,6 +200,8 @@ public sealed class Plugin : IDalamudPlugin
             CurrentTagStackDiagnostics,
             CurrentSceneAuthoringState,
             CurrentImageAnalysis,
+            CurrentScreenshotMaterialEvidence,
+            ActiveTagRegistry(),
             CurrentMasterStyle,
             LastWriteResult,
             ResolveEffectiveBasePresetPath(true),
@@ -225,6 +230,8 @@ public sealed class Plugin : IDalamudPlugin
             CurrentTagStackDiagnostics,
             CurrentSceneAuthoringState,
             CurrentImageAnalysis,
+            CurrentScreenshotMaterialEvidence,
+            ActiveTagRegistry(),
             CurrentMasterStyle,
             CurrentProfile,
             materialIntent,
@@ -425,6 +432,8 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.EnableMaterialIntentDiagnostics,
             Configuration.EnableMaterialIntentShaderMapping,
             Configuration.MaterialIntentStrength,
+            Configuration.EnableScreenshotMaterialEvidenceInfluence,
+            Configuration.ScreenshotMaterialEvidenceStrength,
             Configuration.CompatibilityMode,
             Configuration.ShaderMatchingMode,
             Configuration.InactiveShaderWriteMode,
@@ -574,10 +583,25 @@ public sealed class Plugin : IDalamudPlugin
 
     private MaterialIntent RefreshMaterialIntent()
     {
+        var screenshotEvidence = ScreenshotMaterialEvidenceAnalyzer.Analyze(CurrentImageAnalysis, CurrentTags, CurrentContext);
+        var screenshotEvidenceContributions = Configuration.EnableMaterialIntent
+            ? ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(Configuration, CurrentTagStackDiagnostics, screenshotEvidence)
+            : Array.Empty<MaterialIntentContribution>();
+        var tagRegistry = ActiveTagRegistry();
+        var registryContributions = MaterialTagRegistryTuningAnalyzer.Build(CurrentTagStackDiagnostics, tagRegistry);
         var rawIntent = Configuration.EnableMaterialIntent
-            ? MaterialIntentBuilder.Build(CurrentTagStackDiagnostics, CurrentImageAnalysis, ActiveTagRegistry(), Configuration.ScreenshotAnalysisStrength)
+            ? MaterialIntentBuilder.Build(
+                CurrentTagStackDiagnostics,
+                CurrentImageAnalysis,
+                tagRegistry,
+                Configuration.ScreenshotAnalysisStrength,
+                screenshotEvidenceContributions)
             : MaterialIntent.Neutral;
+        CurrentMaterialTagRegistryDiagnostics = registryContributions.Diagnostics;
         CurrentMaterialIntent = rawIntent.WithStrength(Configuration.MaterialIntentStrength);
+        CurrentScreenshotMaterialEvidence = new ScreenshotMaterialEvidenceDiagnostics(
+            screenshotEvidence,
+            ScreenshotMaterialEvidenceAnalyzer.Compare(screenshotEvidence, CurrentMaterialIntent));
         return rawIntent;
     }
 

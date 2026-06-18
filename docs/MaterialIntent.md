@@ -28,8 +28,9 @@ Files:
 - `Dalashade/MaterialIntent.cs`
 - `Dalashade/MaterialIntentBuilder.cs`
 - `Dalashade/MaterialIntentContribution.cs`
+- `Dalashade/ScreenshotMaterialEvidenceIntentAdapter.cs`
 
-`MaterialIntentBuilder` converts profile priors, tags, screenshot hints, and intent values into normalized material channels:
+`MaterialIntentBuilder` converts profile priors, tags, screenshot hints, optional screenshot material evidence contributions, and intent values into normalized material channels:
 
 - `MaterialFoliage`
 - `MaterialWaterPlane`
@@ -47,6 +48,8 @@ Files:
 - `MaterialVoidDarkness`
 
 MaterialIntent records positive and negative contribution reasons. It is useful for reports even when shader mapping is disabled.
+
+`ScreenshotMaterialEvidenceIntentAdapter` is off by default through `EnableScreenshotMaterialEvidenceInfluence`. When enabled, it converts broad visible screenshot material evidence into capped scene-level contributions, for example visible foliage to `Foliage`, visible snow to `SnowIce`, visible aether/neon to `CrystalAether`/`NeonGlass`, and cyan ambiguity as a water suppression. These contributions do not bypass shader-side masks and do not write shader variables directly.
 
 ## Shader Uniform Mapping
 

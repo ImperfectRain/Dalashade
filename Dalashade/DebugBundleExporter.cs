@@ -84,6 +84,8 @@ public sealed class DebugBundleExporter
         TagStackDiagnostics diagnostics,
         SceneAuthoringState sceneAuthoringState,
         ImageAnalysisResult imageAnalysis,
+        ScreenshotMaterialEvidenceDiagnostics screenshotMaterialEvidence,
+        IReadOnlyList<SceneTagPreset>? activeTagRegistry,
         ImageAnalysisResult masterStyle,
         VisualProfile profile,
         MaterialIntent materialIntent,
@@ -132,7 +134,10 @@ public sealed class DebugBundleExporter
             log.Add($"{stage}: ok");
 
             TryBundleStep("write screenshot-analysis.json", () => WriteJson(Path.Combine(folderPath, "screenshot-analysis.json"), BuildScreenshotAnalysisDump(configuration, imageAnalysis), included), log, skipped);
-            TryBundleStep("write material-intent.json", () => WriteJson(Path.Combine(folderPath, "material-intent.json"), BuildMaterialIntentDump(configuration, diagnostics, imageAnalysis, materialIntent, writeResult), included), log, skipped);
+            TryBundleStep("write screenshot-material-evidence.json", () => WriteJson(Path.Combine(folderPath, "screenshot-material-evidence.json"), BuildScreenshotMaterialEvidenceDump(configuration, screenshotMaterialEvidence, materialIntent), included), log, skipped);
+            TryBundleStep("write material-tag-registry.json", () => WriteJson(Path.Combine(folderPath, "material-tag-registry.json"), BuildMaterialTagRegistryDump(configuration, diagnostics, activeTagRegistry), included), log, skipped);
+            TryBundleStep("write material-calibration.json", () => WriteJson(Path.Combine(folderPath, "material-calibration.json"), BuildMaterialCalibrationDump(configuration, diagnostics, imageAnalysis, screenshotMaterialEvidence, materialIntent, activeTagRegistry, shaderSupport, writeResult), included), log, skipped);
+            TryBundleStep("write material-intent.json", () => WriteJson(Path.Combine(folderPath, "material-intent.json"), BuildMaterialIntentDump(configuration, diagnostics, imageAnalysis, screenshotMaterialEvidence, materialIntent, activeTagRegistry, shaderSupport, writeResult), included), log, skipped);
             TryBundleStep("write normal-field-diagnostics.json", () => WriteJson(Path.Combine(folderPath, "normal-field-diagnostics.json"), BuildNormalFieldDiagnosticsDump(configuration, analysis, writeResult), included), log, skipped);
             TryBundleStep("write frame-data-diagnostics.json", () => WriteJson(Path.Combine(folderPath, "frame-data-diagnostics.json"), BuildFrameDataDiagnosticsDump(configuration, analysis, writeResult), included), log, skipped);
             TryBundleStep("write first-party-depth-assist.json", () => WriteJson(Path.Combine(folderPath, "first-party-depth-assist.json"), BuildFirstPartyDepthAssistDump(configuration, writeResult), included), log, skipped);
@@ -352,10 +357,42 @@ public sealed class DebugBundleExporter
         };
     }
 
-    private static object BuildMaterialIntentDump(Configuration configuration, TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, MaterialIntent currentMaterialIntent, PresetWriteResult writeResult)
+    private static object BuildScreenshotMaterialEvidenceDump(Configuration configuration, ScreenshotMaterialEvidenceDiagnostics diagnostics, MaterialIntent currentMaterialIntent)
+    {
+        var influenceCanAffectGeneratedPreset = configuration.EnableScreenshotMaterialEvidenceInfluence
+                                                && configuration.EnableMaterialIntent
+                                                && configuration.EnableMaterialIntentShaderMapping
+                                                && configuration.MaterialIntentStrength > 0f;
+        return new
+        {
+            DiagnosticOnly = !configuration.EnableScreenshotMaterialEvidenceInfluence,
+            Influence = new
+            {
+                Enabled = configuration.EnableScreenshotMaterialEvidenceInfluence,
+                Strength = configuration.ScreenshotMaterialEvidenceStrength,
+                CanAffectGeneratedPreset = influenceCanAffectGeneratedPreset
+            },
+            diagnostics.Evidence.Confidence,
+            Evidence = ScreenshotMaterialEvidenceValues(diagnostics.Evidence),
+            CurrentMaterialIntent = MaterialIntentValues(currentMaterialIntent),
+            EvidenceNotes = diagnostics.Evidence.Evidence,
+            Mismatches = diagnostics.Mismatches.Select(mismatch => new
+            {
+                mismatch.Channel,
+                mismatch.VisibleEvidence,
+                mismatch.CurrentIntent,
+                mismatch.Severity,
+                mismatch.Message
+            }).ToArray()
+        };
+    }
+
+    private static object BuildMaterialIntentDump(Configuration configuration, TagStackDiagnostics diagnostics, ImageAnalysisResult imageAnalysis, ScreenshotMaterialEvidenceDiagnostics screenshotMaterialEvidence, MaterialIntent currentMaterialIntent, IReadOnlyList<SceneTagPreset>? activeTagRegistry, ShaderSupportScan shaderSupport, PresetWriteResult writeResult)
     {
         var profile = MaterialProfileBuilder.Build(diagnostics, imageAnalysis, configuration.ScreenshotAnalysisStrength);
-        var rawIntent = MaterialIntentBuilder.Build(diagnostics, imageAnalysis, profile, screenshotStrength: configuration.ScreenshotAnalysisStrength);
+        var screenshotEvidenceContributions = ScreenshotMaterialEvidenceIntentAdapter.BuildContributions(configuration, diagnostics, screenshotMaterialEvidence.Evidence);
+        var registry = MaterialTagRegistryTuningAnalyzer.Build(diagnostics, configuration.EnableSceneAuthoringOverrides ? activeTagRegistry : null);
+        var rawIntent = MaterialIntentBuilder.Build(diagnostics, imageAnalysis, profile, configuration.EnableSceneAuthoringOverrides ? activeTagRegistry : null, screenshotStrength: configuration.ScreenshotAnalysisStrength, screenshotMaterialEvidenceContributions: screenshotEvidenceContributions);
         return new
         {
             MaterialProfile = new
@@ -380,6 +417,22 @@ public sealed class DebugBundleExporter
             },
             RawMaterialIntent = MaterialIntentValues(rawIntent),
             CurrentMaterialIntent = MaterialIntentValues(currentMaterialIntent),
+            ScreenshotMaterialEvidence = BuildScreenshotMaterialEvidenceDump(configuration, screenshotMaterialEvidence, currentMaterialIntent),
+            MaterialCalibration = BuildMaterialCalibrationDump(configuration, diagnostics, imageAnalysis, screenshotMaterialEvidence, currentMaterialIntent, activeTagRegistry, shaderSupport, writeResult),
+            MaterialTagRegistry = BuildMaterialTagRegistryDump(configuration, diagnostics, activeTagRegistry),
+            ScreenshotMaterialEvidenceInfluence = new
+            {
+                Enabled = configuration.EnableScreenshotMaterialEvidenceInfluence,
+                Strength = configuration.ScreenshotMaterialEvidenceStrength,
+                Contributions = screenshotEvidenceContributions.Select(MaterialContributionDump).ToArray()
+            },
+            TagRegistryInfluence = new
+            {
+                Enabled = configuration.EnableSceneAuthoringOverrides,
+                PerTagCap = MaterialTagRegistryTuningAnalyzer.PerTagContributionCap,
+                PerChannelCap = MaterialTagRegistryTuningAnalyzer.PerChannelContributionCap,
+                Contributions = registry.Contributions.Select(MaterialContributionDump).ToArray()
+            },
             PositiveContributions = rawIntent.Contributions.Where(contribution => contribution.Amount > 0f).Select(MaterialContributionDump).ToArray(),
             NegativeContributions = rawIntent.Contributions.Where(contribution => contribution.Amount < 0f).Select(MaterialContributionDump).ToArray(),
             ShaderUniformOutput = writeResult.Changes
@@ -407,9 +460,107 @@ public sealed class DebugBundleExporter
         };
     }
 
+    private static object BuildMaterialTagRegistryDump(Configuration configuration, TagStackDiagnostics diagnostics, IReadOnlyList<SceneTagPreset>? activeTagRegistry)
+    {
+        var registry = MaterialTagRegistryTuningAnalyzer.Build(diagnostics, configuration.EnableSceneAuthoringOverrides ? activeTagRegistry : null);
+        return new
+        {
+            Enabled = configuration.EnableSceneAuthoringOverrides,
+            PerTagCap = MaterialTagRegistryTuningAnalyzer.PerTagContributionCap,
+            PerChannelCap = MaterialTagRegistryTuningAnalyzer.PerChannelContributionCap,
+            Channels = registry.Diagnostics.Channels.Select(channel => new
+            {
+                channel.Channel,
+                channel.FinalContribution,
+                channel.Capped
+            }).ToArray(),
+            ActiveTunings = registry.Diagnostics.ActiveTunings.Select(MaterialTagRegistryTuningDump).ToArray(),
+            CappedTunings = registry.Diagnostics.CappedTunings.Select(MaterialTagRegistryTuningDump).ToArray(),
+            InvalidTunings = registry.Diagnostics.InvalidTunings.Select(MaterialTagRegistryTuningDump).ToArray(),
+            InactiveTunings = registry.Diagnostics.InactiveTunings.Select(MaterialTagRegistryTuningDump).ToArray(),
+            Contributions = registry.Contributions.Select(MaterialContributionDump).ToArray()
+        };
+    }
+
+    private static object MaterialTagRegistryTuningDump(MaterialTagRegistryTuningDiagnostic tuning)
+    {
+        return new
+        {
+            tuning.Status,
+            tuning.Category,
+            tuning.Tag,
+            tuning.Target,
+            tuning.Channel,
+            tuning.RequestedAmount,
+            tuning.AppliedAmount,
+            tuning.Reason,
+            tuning.Message
+        };
+    }
+
     private static IReadOnlyDictionary<string, float> MaterialIntentValues(MaterialIntent intent)
     {
         return MaterialIntent.ChannelNames.ToDictionary(channel => channel, intent.ValueFor, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyDictionary<string, float> ScreenshotMaterialEvidenceValues(ScreenshotMaterialEvidence evidence)
+    {
+        return new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)
+        {
+            [nameof(ScreenshotMaterialEvidence.FoliageVisible)] = evidence.FoliageVisible,
+            [nameof(ScreenshotMaterialEvidence.GrassTerrainVisible)] = evidence.GrassTerrainVisible,
+            [nameof(ScreenshotMaterialEvidence.WaterVisible)] = evidence.WaterVisible,
+            [nameof(ScreenshotMaterialEvidence.SandVisible)] = evidence.SandVisible,
+            [nameof(ScreenshotMaterialEvidence.SnowVisible)] = evidence.SnowVisible,
+            [nameof(ScreenshotMaterialEvidence.StoneVisible)] = evidence.StoneVisible,
+            [nameof(ScreenshotMaterialEvidence.MetalVisible)] = evidence.MetalVisible,
+            [nameof(ScreenshotMaterialEvidence.SkyVisible)] = evidence.SkyVisible,
+            [nameof(ScreenshotMaterialEvidence.AetherOrNeonVisible)] = evidence.AetherOrNeonVisible,
+            [nameof(ScreenshotMaterialEvidence.SkinOrCharacterVisible)] = evidence.SkinOrCharacterVisible
+        };
+    }
+
+    private static object BuildMaterialCalibrationDump(
+        Configuration configuration,
+        TagStackDiagnostics diagnostics,
+        ImageAnalysisResult imageAnalysis,
+        ScreenshotMaterialEvidenceDiagnostics screenshotMaterialEvidence,
+        MaterialIntent currentMaterialIntent,
+        IReadOnlyList<SceneTagPreset>? activeTagRegistry,
+        ShaderSupportScan shaderSupport,
+        PresetWriteResult writeResult)
+    {
+        var profile = MaterialProfileBuilder.Build(diagnostics, imageAnalysis, configuration.ScreenshotAnalysisStrength);
+        var calibration = MaterialCalibrationDiagnosticsBuilder.Build(
+            configuration,
+            diagnostics,
+            profile,
+            screenshotMaterialEvidence,
+            currentMaterialIntent,
+            activeTagRegistry,
+            shaderSupport,
+            writeResult);
+        return new
+        {
+            Channels = calibration.Channels.Select(channel => new
+            {
+                channel.Channel,
+                channel.ProfilePrior,
+                channel.TagRegistryContribution,
+                channel.ScreenshotEvidence,
+                channel.MaterialIntent,
+                channel.ShaderMappingEnabled,
+                channel.ShaderMappingAvailable,
+                channel.ShaderKeys,
+                channel.ShaderSections,
+                Warnings = channel.Warnings.Select(warning => new
+                {
+                    warning.Severity,
+                    warning.Message
+                }).ToArray()
+            }).ToArray(),
+            SceneMatrix = calibration.SceneMatrix
+        };
     }
 
     private static object BuildNormalFieldDiagnosticsDump(Configuration configuration, PresetAnalysisResult analysis, PresetWriteResult writeResult)

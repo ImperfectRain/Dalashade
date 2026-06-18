@@ -70,6 +70,10 @@ Screenshot analysis is disabled by default. When enabled, Dalashade scans the ne
 
 `ScreenshotAnalysisStrength` scales all screenshot-driven output. `0.0` keeps the analyzer and diagnostics available but prevents screenshot opinions from changing VisualProfile, SceneIntent, MaterialProfile, or MaterialIntent. `1.0` is the default. Values above `1.0` intentionally make screenshot opinions more assertive.
 
+`EnableScreenshotMaterialEvidenceInfluence` is off by default. When enabled, `ScreenshotMaterialEvidenceStrength` lets the separate screenshot material-evidence layer add or dampen capped scene-level MaterialIntent priors. It does not create per-pixel material truth, write shader variables directly, or bypass shader-side MaterialMasks/FrameData.
+
+User Mode exposes this as `Use screenshot material hints` with safe wording and a limited strength slider. It does not show per-channel raw material values. Developer Mode exposes the raw evidence channels, confidence, mismatch warnings, current MaterialIntent comparison, strength, caps, and copyable evidence block for calibration work.
+
 The analyzer is still image-statistic based. It does not capture live frames, inspect game buffers, segment objects, or identify true engine materials.
 
 ## MaterialIntent Settings

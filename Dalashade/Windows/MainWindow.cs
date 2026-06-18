@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Text;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
 using Dalashade.Windows.UiPages;
@@ -401,6 +402,21 @@ public sealed class MainWindow : Window, IDisposable
             plugin.RefreshSceneAuthoringState();
         });
         DrawCheckbox("Lock current generated preset", configuration.SceneLockEnabled, value => configuration.SceneLockEnabled = value);
+        DrawCheckbox("Use screenshot material hints", configuration.EnableScreenshotMaterialEvidenceInfluence, value =>
+        {
+            configuration.EnableScreenshotMaterialEvidenceInfluence = value;
+            if (value)
+            {
+                configuration.EnableMaterialIntent = true;
+                configuration.EnableMaterialIntentDiagnostics = true;
+            }
+        });
+        ImGui.TextWrapped("Uses recent screenshots to gently improve scene material guesses such as foliage, water, sand, and snow. It does not identify true game materials.");
+        if (configuration.EnableScreenshotMaterialEvidenceInfluence)
+        {
+            DrawFloatSlider("Screenshot material hint strength###MainUserScreenshotMaterialHintStrength", configuration.ScreenshotMaterialEvidenceStrength, 0f, 0.6f, value => configuration.ScreenshotMaterialEvidenceStrength = value);
+            ImGui.TextWrapped("Scene-level hint only. UI-heavy screenshots can be wrong; missing screenshots produce neutral evidence.");
+        }
 
         if (ImGui.Button("Open Scene Authoring###MainUserOpenSceneAuthoring"))
         {
@@ -425,7 +441,8 @@ public sealed class MainWindow : Window, IDisposable
             configuration.EnableFirstPartyDepthAssist
         }.Count(value => value);
 
-        return $"{enabled} optional effect systems enabled";
+        var hints = configuration.EnableScreenshotMaterialEvidenceInfluence ? ", screenshot hints on" : string.Empty;
+        return $"{enabled} optional effect systems enabled{hints}";
     }
 
     private void DrawUserEffects()
@@ -828,6 +845,7 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.TextUnformatted($"Diagnostics: {(configuration.EnableMaterialIntentDiagnostics ? "enabled" : "disabled")}");
         ImGui.TextUnformatted($"Shader mapping: {(configuration.EnableMaterialIntentShaderMapping ? "enabled" : "disabled")}");
         ImGui.TextUnformatted($"Strength: {configuration.MaterialIntentStrength:0.###}");
+        ImGui.TextUnformatted($"Screenshot evidence influence: {(configuration.EnableScreenshotMaterialEvidenceInfluence ? $"enabled at {configuration.ScreenshotMaterialEvidenceStrength:0.###}" : "disabled")}");
         ImGui.TextUnformatted("Debug overlay controls: owned by each ReShade .fx shader UI");
         ImGui.TextWrapped("Experimental/inferred material likelihood. This is not true engine material ID detection.");
 
@@ -847,6 +865,9 @@ public sealed class MainWindow : Window, IDisposable
         {
             ImGui.TextWrapped("Diagnostics only, no visual shader mapping.");
         }
+
+        DrawScreenshotMaterialEvidence(configuration, plugin.CurrentScreenshotMaterialEvidence, plugin.CurrentMaterialIntent);
+        DrawMaterialTagRegistryDiagnostics(configuration, plugin.CurrentMaterialTagRegistryDiagnostics);
 
         var intent = plugin.CurrentMaterialIntent;
         if (ImGui.BeginTable("MaterialIntentValuesTable", 2))
@@ -889,6 +910,222 @@ public sealed class MainWindow : Window, IDisposable
 
             ImGui.TreePop();
         }
+    }
+
+    private static void DrawMaterialTagRegistryDiagnostics(Configuration configuration, MaterialTagRegistryDiagnostics diagnostics)
+    {
+        if (!ImGui.TreeNode("Tag registry material tunings###MainMaterialTagRegistryTunings"))
+        {
+            return;
+        }
+
+        ImGui.TextWrapped(configuration.EnableSceneAuthoringOverrides
+            ? $"Registry material caps: per tag +/-{MaterialTagRegistryTuningAnalyzer.PerTagContributionCap:0.##}, per channel +/-{MaterialTagRegistryTuningAnalyzer.PerChannelContributionCap:0.##}."
+            : "Scene authoring/tag registry is disabled, so registry material tunings are not applied.");
+
+        var visibleChannels = diagnostics.Channels
+            .Where(channel => Math.Abs(channel.FinalContribution) > 0.0001f || channel.Capped)
+            .ToArray();
+        if (visibleChannels.Length == 0)
+        {
+            ImGui.TextUnformatted("Current scene registry contribution: none.");
+        }
+        else if (ImGui.BeginTable("MaterialTagRegistryChannelTable", 3))
+        {
+            ImGui.TableSetupColumn("Channel");
+            ImGui.TableSetupColumn("Contribution");
+            ImGui.TableSetupColumn("Capped");
+            ImGui.TableHeadersRow();
+            foreach (var channel in visibleChannels)
+            {
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted(channel.Channel);
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted($"{channel.FinalContribution:+0.###;-0.###;0}");
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted(channel.Capped ? "yes" : "no");
+            }
+
+            ImGui.EndTable();
+        }
+
+        DrawRegistryTuningGroup("Active", diagnostics.ActiveTunings);
+        DrawRegistryTuningGroup("Capped", diagnostics.CappedTunings);
+        DrawRegistryTuningGroup("Invalid", diagnostics.InvalidTunings);
+        DrawRegistryTuningGroup("Inactive", diagnostics.InactiveTunings.Take(10).ToArray());
+        if (diagnostics.InactiveTunings.Count > 10)
+        {
+            ImGui.TextDisabled($"Inactive rows truncated: 10 of {diagnostics.InactiveTunings.Count} shown.");
+        }
+
+        ImGui.TreePop();
+    }
+
+    private static void DrawRegistryTuningGroup(string label, IReadOnlyList<MaterialTagRegistryTuningDiagnostic> rows)
+    {
+        if (!ImGui.TreeNode($"{label} registry tunings###MainMaterialTagRegistry{label}"))
+        {
+            return;
+        }
+
+        if (rows.Count == 0)
+        {
+            ImGui.TextUnformatted("None.");
+            ImGui.TreePop();
+            return;
+        }
+
+        foreach (var row in rows)
+        {
+            ImGui.BulletText($"{row.Category}/{row.Tag} -> {row.Channel}: {row.AppliedAmount:+0.###;-0.###;0} requested {row.RequestedAmount:+0.###;-0.###;0}");
+            ImGui.TextWrapped($"{row.Message} {row.Reason}");
+        }
+
+        ImGui.TreePop();
+    }
+
+    private static void DrawScreenshotMaterialEvidence(Configuration configuration, ScreenshotMaterialEvidenceDiagnostics diagnostics, MaterialIntent currentIntent)
+    {
+        var evidence = diagnostics.Evidence;
+        if (!ImGui.TreeNode("Screenshot material evidence###MainScreenshotMaterialEvidence"))
+        {
+            return;
+        }
+
+        ImGui.TextWrapped(configuration.EnableScreenshotMaterialEvidenceInfluence
+            ? "Screenshot material evidence is enabled as a capped scene-level hint. It can influence MaterialIntent through the existing mapping path, but it does not change shader formulas or identify true game materials."
+            : "Screenshot material evidence influence is disabled. These values are diagnostic-only and do not change MaterialIntent, generated presets, shader variables, or shader behavior.");
+        ImGui.TextWrapped("UI-heavy screenshots can lower confidence or mislead evidence. Missing screenshots produce neutral evidence. Shader FrameData and MaterialMasks still decide pixel-level behavior.");
+        ImGui.TextUnformatted($"Influence strength: {(configuration.EnableScreenshotMaterialEvidenceInfluence ? configuration.ScreenshotMaterialEvidenceStrength.ToString("0.###") : "disabled")}");
+        ImGui.TextUnformatted("Caps: foliage/grass +0.22, water +0.16, sand +0.16, snow +0.18, stone +0.14, metal +0.12, aether/neon +0.14 at full strength.");
+        ImGui.TextUnformatted($"Confidence: {evidence.Confidence:0.###}");
+        if (ImGui.BeginTable("ScreenshotMaterialEvidenceTable", 2))
+        {
+            ImGui.TableSetupColumn("Evidence");
+            ImGui.TableSetupColumn("Value");
+            ImGui.TableHeadersRow();
+            DrawEvidenceRow(nameof(ScreenshotMaterialEvidence.FoliageVisible), evidence.FoliageVisible);
+            DrawEvidenceRow(nameof(ScreenshotMaterialEvidence.GrassTerrainVisible), evidence.GrassTerrainVisible);
+            DrawEvidenceRow(nameof(ScreenshotMaterialEvidence.WaterVisible), evidence.WaterVisible);
+            DrawEvidenceRow(nameof(ScreenshotMaterialEvidence.SandVisible), evidence.SandVisible);
+            DrawEvidenceRow(nameof(ScreenshotMaterialEvidence.SnowVisible), evidence.SnowVisible);
+            DrawEvidenceRow(nameof(ScreenshotMaterialEvidence.StoneVisible), evidence.StoneVisible);
+            DrawEvidenceRow(nameof(ScreenshotMaterialEvidence.MetalVisible), evidence.MetalVisible);
+            DrawEvidenceRow(nameof(ScreenshotMaterialEvidence.SkyVisible), evidence.SkyVisible);
+            DrawEvidenceRow(nameof(ScreenshotMaterialEvidence.AetherOrNeonVisible), evidence.AetherOrNeonVisible);
+            DrawEvidenceRow(nameof(ScreenshotMaterialEvidence.SkinOrCharacterVisible), evidence.SkinOrCharacterVisible);
+            ImGui.EndTable();
+        }
+
+        if (ImGui.BeginTable("ScreenshotMaterialEvidenceIntentComparisonTable", 3))
+        {
+            ImGui.TableSetupColumn("Evidence");
+            ImGui.TableSetupColumn("Visible");
+            ImGui.TableSetupColumn("Current intent");
+            ImGui.TableHeadersRow();
+            DrawEvidenceIntentRow("Foliage / grass", MathF.Max(evidence.FoliageVisible, evidence.GrassTerrainVisible), currentIntent.Foliage);
+            DrawEvidenceIntentRow("Water", evidence.WaterVisible, currentIntent.WaterSpecular);
+            DrawEvidenceIntentRow("Sand", evidence.SandVisible, currentIntent.SandDust);
+            DrawEvidenceIntentRow("Snow", evidence.SnowVisible, currentIntent.SnowIce);
+            DrawEvidenceIntentRow("Stone", evidence.StoneVisible, currentIntent.StoneRuins);
+            DrawEvidenceIntentRow("Metal", evidence.MetalVisible, currentIntent.MetalIndustrial);
+            DrawEvidenceIntentRow("Sky", evidence.SkyVisible, currentIntent.SkyCloudFog);
+            DrawEvidenceIntentRow("Aether/neon", evidence.AetherOrNeonVisible, MathF.Max(currentIntent.CrystalAether, currentIntent.NeonGlass));
+            DrawEvidenceIntentRow("Skin/character", evidence.SkinOrCharacterVisible, currentIntent.SkinProtection);
+            ImGui.EndTable();
+        }
+
+        if (diagnostics.Mismatches.Count == 0)
+        {
+            ImGui.TextUnformatted("Mismatch warnings: none");
+        }
+        else
+        {
+            ImGui.TextUnformatted("Mismatch warnings:");
+            foreach (var mismatch in diagnostics.Mismatches)
+            {
+                ImGui.BulletText($"{mismatch.Channel}: severity {mismatch.Severity:0.##}");
+                ImGui.TextWrapped($"{mismatch.Message} Visible {mismatch.VisibleEvidence:0.###}, current intent {mismatch.CurrentIntent:0.###}.");
+            }
+        }
+
+        if (ImGui.TreeNode("Evidence notes###MainScreenshotMaterialEvidenceNotes"))
+        {
+            foreach (var note in evidence.Evidence)
+            {
+                ImGui.BulletText(note);
+            }
+
+            ImGui.TreePop();
+        }
+
+        if (ImGui.Button("Copy evidence block###MainCopyScreenshotMaterialEvidence"))
+        {
+            ImGui.SetClipboardText(BuildScreenshotMaterialEvidenceBlock(configuration, diagnostics, currentIntent));
+        }
+
+        ImGui.TreePop();
+    }
+
+    private static void DrawEvidenceRow(string label, float value)
+    {
+        ImGui.TableNextRow();
+        ImGui.TableNextColumn();
+        ImGui.TextUnformatted(label);
+        ImGui.TableNextColumn();
+        ImGui.TextUnformatted($"{value:0.###}");
+    }
+
+    private static void DrawEvidenceIntentRow(string label, float visible, float intent)
+    {
+        ImGui.TableNextRow();
+        ImGui.TableNextColumn();
+        ImGui.TextUnformatted(label);
+        ImGui.TableNextColumn();
+        ImGui.TextUnformatted($"{visible:0.###}");
+        ImGui.TableNextColumn();
+        ImGui.TextUnformatted($"{intent:0.###}");
+    }
+
+    private static string BuildScreenshotMaterialEvidenceBlock(Configuration configuration, ScreenshotMaterialEvidenceDiagnostics diagnostics, MaterialIntent currentIntent)
+    {
+        var evidence = diagnostics.Evidence;
+        var builder = new StringBuilder();
+        builder.AppendLine("Screenshot material evidence");
+        builder.AppendLine($"Influence enabled: {configuration.EnableScreenshotMaterialEvidenceInfluence}");
+        builder.AppendLine($"Influence strength: {configuration.ScreenshotMaterialEvidenceStrength:0.###}");
+        builder.AppendLine($"Confidence: {evidence.Confidence:0.###}");
+        builder.AppendLine($"FoliageVisible: {evidence.FoliageVisible:0.###}");
+        builder.AppendLine($"GrassTerrainVisible: {evidence.GrassTerrainVisible:0.###}");
+        builder.AppendLine($"WaterVisible: {evidence.WaterVisible:0.###}");
+        builder.AppendLine($"SandVisible: {evidence.SandVisible:0.###}");
+        builder.AppendLine($"SnowVisible: {evidence.SnowVisible:0.###}");
+        builder.AppendLine($"StoneVisible: {evidence.StoneVisible:0.###}");
+        builder.AppendLine($"MetalVisible: {evidence.MetalVisible:0.###}");
+        builder.AppendLine($"SkyVisible: {evidence.SkyVisible:0.###}");
+        builder.AppendLine($"AetherOrNeonVisible: {evidence.AetherOrNeonVisible:0.###}");
+        builder.AppendLine($"SkinOrCharacterVisible: {evidence.SkinOrCharacterVisible:0.###}");
+        builder.AppendLine("Current MaterialIntent");
+        foreach (var channel in MaterialIntent.ChannelNames)
+        {
+            builder.AppendLine($"{channel}: {currentIntent.ValueFor(channel):0.###}");
+        }
+
+        builder.AppendLine("Mismatches");
+        if (diagnostics.Mismatches.Count == 0)
+        {
+            builder.AppendLine("none");
+        }
+        else
+        {
+            foreach (var mismatch in diagnostics.Mismatches)
+            {
+                builder.AppendLine($"{mismatch.Channel}: severity {mismatch.Severity:0.###}; visible {mismatch.VisibleEvidence:0.###}; intent {mismatch.CurrentIntent:0.###}; {mismatch.Message}");
+            }
+        }
+
+        return builder.ToString();
     }
 
     private string NormalFieldSummary()

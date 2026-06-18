@@ -31,6 +31,69 @@ Use Unix timestamps so entries are easy to sort and compare across local time zo
 
 ## Entries
 
+### 1781755599 - Fix material calibration false positives
+
+- Changed: Replaced loose territory substring checks with boundary-aware territory keyword matching, added a softer foliage/grass mismatch warning when visible evidence is high but Foliage intent is only modest, and added regression harness coverage for Labyrinthos water intent plus modest foliage warnings.
+- Why: A real Labyrinthos debug bundle showed a false coastal/seaside WaterSpecular contribution and foliage evidence that was visually high but no longer produced a calibration warning.
+- Related goals: Keep material evidence explainable, avoid cyan/sky/water false positives, and make MaterialIntent diagnostics catch underweighted foliage before shader tuning.
+- Documentation: Updated `docs/CompatibilityAndDiagnostics.md`, `docs/SceneTagsAndIntent.md`, `docs/ShaderAuthoring.md`, and this changelog to match the current report columns and warning behavior.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` completed successfully with restore/up-to-date output; `git diff --check` passed with line-ending warnings only. Direct PowerShell reflection execution of `SceneTagRegressionHarness.Run()` was blocked by plugin dependency loading outside the Dalamud host.
+- Next steps: Run `/dalashade regression` in-game and export a fresh Labyrinthos debug bundle to confirm the false coastal WaterSpecular contribution is gone.
+
+### 1781751989 - Add safe material evidence controls
+
+- Changed: Added User Mode `Use screenshot material hints` controls with safe wording and a limited strength slider, expanded Developer Mode screenshot evidence diagnostics with current MaterialIntent comparison, cap/strength context, and a copyable evidence block, and added regression coverage for default-off/disabled behavior.
+- Why: Material evidence behavior needed to be accessible without making normal users manage low-level MaterialIntent channels.
+- Related goals: Keep screenshot evidence scene-level, off by default, and explainable before using it for material calibration decisions.
+- Documentation: Updated `docs/Configuration.md`, `docs/CompatibilityAndDiagnostics.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` completed successfully with restore/up-to-date output; `git diff --check` passed with line-ending warnings only.
+- Next steps: Use real debug bundles to decide whether the User Mode strength range should stay capped at 0.6 or become more conservative.
+
+### 1781751590 - Cap and explain material tag registry tuning
+
+- Changed: Added MaterialIntent tag registry validation, per-tag and per-channel caps, registry diagnostics for active/inactive/invalid/capped rows, debug bundle JSON, report tables, developer UI display, and regression harness coverage.
+- Why: Registry material tuning needed to be safer and explainable alongside screenshot material evidence before using it for more calibration work.
+- Related goals: Keep material evidence scene-level, prevent unlimited user-authored tag stacking, and make tag-driven MaterialIntent changes auditable.
+- Documentation: Updated `docs/CompatibilityAndDiagnostics.md`, `docs/DebugBundles.md`, `docs/CodebaseIndex.md`, `docs/SceneTagsAndIntent.md`, `docs/GenerationPipeline.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` completed successfully with restore/up-to-date output; `git diff --check` passed with line-ending warnings only.
+- Next steps: Review real user tag preset exports and material calibration bundles before changing default registry amounts.
+
+### 1781733623 - Add material calibration diagnostics
+
+- Changed: Added a diagnostics-only Material Calibration report section, structured `material-calibration.json` debug bundle output, per-channel severity warnings, shader mapping availability checks, and a representative scene matrix checklist.
+- Why: Material tuning needed one place to compare SceneTags/MaterialProfile, tag registry tuning, ScreenshotMaterialEvidence, MaterialIntent, shader key availability, and mismatch warnings without changing behavior.
+- Related goals: Make material calibration explainable before changing formulas, keep screenshot evidence scene-level, and preserve shader-side MaterialMasks/FrameData ownership.
+- Documentation: Updated `docs/CompatibilityAndDiagnostics.md`, `docs/DebugBundles.md`, `docs/CodebaseIndex.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` completed successfully; `git diff --check` passed with line-ending warnings only.
+- Next steps: Use the calibration section with real scene/debug bundles before changing MaterialIntent caps or shader masks.
+
+### 1781732658 - Add opt-in screenshot material evidence influence
+
+- Changed: Added `EnableScreenshotMaterialEvidenceInfluence`, `ScreenshotMaterialEvidenceStrength`, a capped `ScreenshotMaterialEvidenceIntentAdapter`, MaterialIntent builder wiring, UI/report/debug diagnostics, and regression harness coverage for disabled behavior, caps, low confidence, water/sky/aether separation, sand/skin separation, snow, and aether/neon.
+- Why: Phase 2 needs screenshot-derived broad material evidence to become a conservative scene-level MaterialIntent prior without pretending to detect true per-pixel material IDs.
+- Related goals: Move from territory-only material guesses toward a material evidence pipeline while preserving shader-side MaterialMasks/FrameData ownership and opt-in generated output behavior.
+- Documentation: Updated `README.md`, `docs/Configuration.md`, `docs/SceneTagsAndIntent.md`, `docs/GenerationPipeline.md`, `docs/CompatibilityAndDiagnostics.md`, `docs/DebugBundles.md`, `docs/MaterialIntent.md`, `docs/CodebaseIndex.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `git diff --check` passed with line-ending warnings only; `dotnet test Dalashade.sln` completed after sandbox escalation. Direct scratch execution of `SceneTagRegressionHarness.Run()` was blocked by missing Dalamud runtime assemblies outside the plugin host.
+- Next steps: Test against more real shoreline, desert, snow, high-tech/aether, city/interior, and combat-UI screenshots before considering stronger default caps.
+
+### 1781729319 - Calibrate screenshot material evidence against real screenshots
+
+- Changed: Tuned diagnostic-only screenshot material evidence to reduce warm character/dialogue and foliage/stone sand false positives, kept non-context water conservative, and added regression harness coverage for warm character/dialogue not becoming SandDust plus blue sky not becoming water.
+- Why: A real screenshot-folder sweep showed the Phase 1 analyzer was useful but too willing to raise SandDust warnings from skin, dialogue panels, warm lighting, beige stone, and foliage scenes.
+- Related goals: Keep screenshot material evidence stable before any future MaterialIntent influence, make mismatch warnings more trustworthy, and preserve the diagnostic-only Phase 1 boundary.
+- Documentation: Updated this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; sampled 40 screenshots from the configured Steam screenshot folder with the scratch analyzer.
+- Next steps: Continue collecting real forest, shoreline, desert, snow, high-tech/aether, city/interior, and combat-UI screenshots before Phase 2 caps are allowed to affect MaterialIntent.
+
+### 1781726018 - Add diagnostic screenshot material evidence
+
+- Changed: Added `ScreenshotMaterialEvidence` and mismatch diagnostics, a separate screenshot material evidence analyzer, developer UI display, compatibility report output, debug bundle JSON output, and regression harness coverage for missing screenshots and visible foliage mismatches.
+- Why: MaterialIntent calibration needed a middle diagnostic layer that can say what broad material families are visibly present in the latest screenshot without changing shader output.
+- Related goals: Make material mapping more explainable, separate scene-level evidence from shader-side pixel masks, and prepare for future conservative MaterialIntent inputs after diagnostics prove useful.
+- Documentation: Updated `README.md`, `docs/CodebaseIndex.md`, `docs/CompatibilityAndDiagnostics.md`, `docs/SceneTagsAndIntent.md`, `docs/DebugBundles.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `git diff --check` passed with line-ending warnings only; `dotnet test Dalashade.sln` completed after sandbox escalation.
+- Next steps: Collect real screenshots to tune thresholds, then consider a later opt-in pass where high-confidence evidence conservatively influences MaterialIntent with caps.
+
 ### 1781722123 - Add optional Dalashade technique activation sync
 
 - Changed: Added `SyncDalashadeTechniqueActivation`, generated-preset-only management of Dalashade production techniques in `Techniques=`, phase-ordered insertion into `Techniques=`/`TechniqueSorting=`, deactivation when controlling plugin shader options are off, diagnostics wording, and regression harness coverage.

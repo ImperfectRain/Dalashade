@@ -344,10 +344,11 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.AutoAdjustForWeather,
             configuration.AutoAdjustForTerritory,
             configuration.AutoAdjustInCutscenes,
-            configuration.AutoAdjustFromScreenshots
+            configuration.AutoAdjustFromScreenshots,
+            configuration.EnableScreenshotMaterialEvidenceInfluence
         }.Count(value => value);
 
-        return $"{enabledCount}/6 adaptive inputs enabled";
+        return $"{enabledCount}/7 adaptive inputs enabled";
     }
 
     private void DrawUserSceneAwareness()
@@ -373,6 +374,21 @@ public sealed class ConfigWindow : Window, IDisposable
                 configuration.ScreenshotAnalysisStrength = screenshotStrengthPercent / 100f;
                 configuration.Save();
             }
+        }
+        DrawCheckbox("Use screenshot material hints", configuration.EnableScreenshotMaterialEvidenceInfluence, value =>
+        {
+            configuration.EnableScreenshotMaterialEvidenceInfluence = value;
+            if (value)
+            {
+                configuration.EnableMaterialIntent = true;
+                configuration.EnableMaterialIntentDiagnostics = true;
+            }
+        });
+        ImGui.TextWrapped("Uses recent screenshots to gently improve scene material guesses such as foliage, water, sand, and snow. It does not identify true game materials.");
+        if (configuration.EnableScreenshotMaterialEvidenceInfluence)
+        {
+            DrawFloatSlider("Screenshot material hint strength###ConfigUserScreenshotMaterialHintStrength", configuration.ScreenshotMaterialEvidenceStrength, 0f, 0.6f, value => configuration.ScreenshotMaterialEvidenceStrength = value);
+            ImGui.TextWrapped("Scene-level hint only. UI-heavy screenshots can be wrong; missing screenshots produce neutral evidence.");
         }
 
         if (ImGui.Button("Open Scene Authoring###ConfigUserOpenSceneAuthoring"))
@@ -409,11 +425,9 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawCheckbox("Enable SurfaceReflection variable writes", configuration.EnableDalashadeSurfaceReflectionShaderVariables, value => configuration.EnableDalashadeSurfaceReflectionShaderVariables = value);
         DrawCheckbox("Enable depth assist for first-party Dalashade shaders", configuration.EnableFirstPartyDepthAssist, value => configuration.EnableFirstPartyDepthAssist = value);
         DrawItemTooltip("Opt-in helper for first-party shader masks when ReShade depth is reliable. It does not enable techniques.");
-        DrawCheckbox("Enable MaterialIntent", configuration.EnableMaterialIntent, value => configuration.EnableMaterialIntent = value);
-        DrawCheckbox("Allow MaterialIntent shader variable writes", configuration.EnableMaterialIntentShaderMapping, value => configuration.EnableMaterialIntentShaderMapping = value);
         DrawCheckbox("Enable Normal Field", configuration.EnableNormalField, value => configuration.EnableNormalField = value);
         DrawCheckbox("Enable Normal Field Shader Mapping", configuration.EnableNormalFieldShaderMapping, value => configuration.EnableNormalFieldShaderMapping = value);
-        ImGui.TextWrapped("Detailed per-shader strengths, debug modes, and resolver diagnostics are available in Developer Mode.");
+        ImGui.TextWrapped("MaterialIntent mapping, detailed per-shader strengths, debug modes, and resolver diagnostics are available in Developer Mode.");
     }
 
     private string UserHealthSummary()
@@ -562,7 +576,8 @@ public sealed class ConfigWindow : Window, IDisposable
         }
 
         var mapping = configuration.EnableMaterialIntentShaderMapping ? "mapping toggle on" : "diagnostics only";
-        return $"Experimental inferred materials, strength {configuration.MaterialIntentStrength:0.##}, {mapping}";
+        var evidence = configuration.EnableScreenshotMaterialEvidenceInfluence ? $", screenshot evidence {configuration.ScreenshotMaterialEvidenceStrength:0.##}" : string.Empty;
+        return $"Experimental inferred materials, strength {configuration.MaterialIntentStrength:0.##}, {mapping}{evidence}";
     }
 
     private void DrawMaterialIntent()
@@ -571,8 +586,13 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawCheckbox("Show MaterialIntent diagnostics in reports/UI", configuration.EnableMaterialIntentDiagnostics, value => configuration.EnableMaterialIntentDiagnostics = value);
         DrawCheckbox("Allow MaterialIntent shader variable writes", configuration.EnableMaterialIntentShaderMapping, value => configuration.EnableMaterialIntentShaderMapping = value);
         DrawFloatSlider("MaterialIntent strength", configuration.MaterialIntentStrength, 0f, 1f, value => configuration.MaterialIntentStrength = value);
+        DrawCheckbox("Let screenshot material evidence influence MaterialIntent", configuration.EnableScreenshotMaterialEvidenceInfluence, value => configuration.EnableScreenshotMaterialEvidenceInfluence = value);
+        DrawFloatSlider("Screenshot material evidence strength", configuration.ScreenshotMaterialEvidenceStrength, 0f, 1f, value => configuration.ScreenshotMaterialEvidenceStrength = value);
 
         ImGui.TextWrapped("Experimental/inferred: MaterialIntent estimates likely scene material families from tags and screenshot metrics. It is not true FFXIV engine material ID detection.");
+        ImGui.TextWrapped("Screenshot material evidence is off by default. When enabled, it contributes capped scene-level priors only; shader-side FrameData and MaterialMasks still decide per-pixel behavior.");
+        ImGui.TextWrapped("Screenshot evidence can be wrong with UI-heavy screenshots. Missing screenshots produce neutral evidence and do not crash generation.");
+        ImGui.TextWrapped("Screenshot material evidence caps at full strength: foliage/grass +0.22, water +0.16, sand +0.16, snow +0.18, stone +0.14, metal +0.12, aether/neon +0.14.");
         ImGui.TextWrapped("Shader mapping writes MaterialIntent variables only into matching known Dalashade custom shader sections when enabled. Missing uniforms are skipped safely.");
         ImGui.TextWrapped("Debug overlays are shader-owned: install the optional Dalashade .fx files, enable the desired technique manually in ReShade, and select debug modes from the ReShade shader UI.");
     }
