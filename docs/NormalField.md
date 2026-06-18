@@ -33,7 +33,7 @@ Default behavior is neutral: `EnableNormalField` is false and production shader 
 
 | File | Responsibility |
 | --- | --- |
-| `shaders/Dalashade_NormalField.fxh` | Shared include that resolves depth normals, detail normals, combined normal confidence, receiver masks, and debug colors. It creates no visible effect by itself. |
+| `shaders/Dalashade_NormalField.fxh` | Shared include that resolves depth normals, detail normals, composite texture-relief normals, combined normal confidence, receiver masks, and debug colors. It creates no visible effect by itself. |
 | `shaders/Dalashade_NormalDebug.fx` | Optional first-party debug visualizer for NormalField. It is disabled/pass-through by default and must be manually enabled in ReShade for inspection. |
 
 ## Debug Modes
@@ -54,9 +54,19 @@ Default behavior is neutral: `EnableNormalField` is false and production shader 
 | `9` | Shading receiver |
 | `10` | Reflection receiver |
 | `11` | AO receiver |
-| `12` | Safety suppression |
+| `12` | Safety/relief suppression |
+| `13` | Legacy relief normal RGB |
+| `14` | Texture ridge/groove/relief |
+| `15` | Texture groove line only |
+| `16` | Curvature ridge |
+| `17` | Curvature valley/groove |
+| `18` | Structure coherence |
+| `19` | Composite relief height |
+| `20` | Composite relief normal RGB, current composite height normal |
 
-Normal RGB views encode normals as `normal * 0.5 + 0.5`. Mask views use grayscale or simple false color depending on the helper output.
+Normal RGB views encode normals as `normal * 0.5 + 0.5`. Mask views use grayscale or simple false color depending on the helper output. The texture relief views are still inferred screen-space diagnostics: bright local high-pass detail can read as raised ridges, curvature can mark likely raised/indented structure, and direction-coherent dark valleys can read as grooves/seams. The current height compiler keeps uncertain areas near neutral, requires structure-scale support before texture detail contributes strongly, treats raw high-pass detail as a capped compatibility hint, smooths weak height evidence before deriving normals, and depresses coherent grooves more strongly than it raises ridges. Broad lighting gradients, sky/cosmic fields, skin, water, foliage shimmer, UI/depth risk, bright highlights, emissive/aether bloom, isolated speckle, unsafe hard edges, and unsafe neighbor grooves suppress the result.
+
+When relief looks noisy, inspect modes `16` through `19` before judging mode `20`: curvature ridge/valley should find organized local maxima/minima, structure coherence should be strongest on continuous seams or repeated hard-surface patterns, and composite relief height should stay near neutral gray where the system is uncertain.
 
 `Ground/plane candidate` and `Wall-plane candidate` are compatibility views for the existing `GroundFacing` and `WallFacing` fields, but they are now backed by explicit plane candidates. `Structure candidate` is the broader screen-space geometry/edge/hard-surface confidence mask. Future production shaders should generally prefer `StructureCandidate` for AO or broad shading support and use `WallPlaneCandidate` only when vertical-orientation evidence matters.
 
@@ -72,15 +82,18 @@ For normal gameplay, keep `Dalashade_NormalDebug` disabled.
 
 ## Future Production Consumers
 
-NormalField is intentionally not wired into production shaders yet. Planned follow-up integration order:
+NormalField is now available to first-party shaders through the optional FrameData surface path. Existing consumers should keep using `Normal`, `DetailStrength`, `StructureCandidate`, `EdgeDiscontinuity`, and receiver support fields as secondary evidence behind material/water/safety gates. Future consumers can use `TextureReliefStrength` when they need to distinguish relief-style detail from general detail, `TextureGrooveLine` when they specifically need tile gaps, panel seams, cracks, or engraved material boundaries, `TextureReliefSafety` when they need to know whether relief data was allowed, and the curvature/coherence fields when they need to debug or softly gate relief use. These fields are support/confidence signals, not material identity.
 
-1. SurfaceReflection
+Planned follow-up integration order for stronger use:
+
+1. ContactTone
 2. SceneGI
 3. SmartSharpen
-4. WeatherAtmosphere
-5. WeatherParticles
-6. LightHierarchy
-7. CombatClarity
+4. AtmosphereBloom / WeatherAtmosphere
+5. SurfaceReflection
+6. WeatherParticles
+7. LightHierarchy
+8. CombatClarity
 
 Each production integration should remain opt-in, bounded, and diagnosable. NormalField should improve existing first-party effects; it should not become a global normal-map stylizer.
 
@@ -100,6 +113,7 @@ Use these scenes for a first calibration pass:
 | Interior/dungeon | Depth normal stability, wall/floor masks, reduced open-sky assumptions. |
 | Combat scene | Stability under effects clutter and readable receiver masks. |
 | UI-heavy scene | UI should not dominate normal/detail confidence or receiver masks. |
+| Cosmic/aether sky scene | Nebula, sky texture, bloom rings, and bright emissive fields should not become hard-surface relief normals. |
 
 ### Depth Normal RGB
 

@@ -10,6 +10,7 @@ public sealed class CustomShaderVariableMapper
     public const string ReasonCategory = "Dalashade custom shader scene intent";
     public const string MaterialReasonCategory = "Dalashade custom shader material intent";
     public const string SceneGIReasonCategory = "Dalashade custom shader SceneGI tuning";
+    public const string ContactToneReasonCategory = "Dalashade custom shader ContactTone tuning";
     public const string SurfaceReflectionReasonCategory = "Dalashade custom shader SurfaceReflection tuning";
     public const string NormalFieldReasonCategory = "Dalashade custom shader NormalField tuning";
     public const string FirstPartyModeReasonCategory = "Dalashade first-party shader mode";
@@ -123,6 +124,19 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_SurfaceReflectionDebugBoost"] = _ => 2.25f
         };
 
+    private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> ContactToneVariables =
+        new Dictionary<string, Func<Configuration, float>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Dalashade_ContactToneEnabled"] = configuration => configuration.EnableDalashadeContactToneShaderVariables ? 1f : 0f,
+            ["Dalashade_ContactToneStrength"] = configuration => configuration.DalashadeContactToneStrength,
+            ["Dalashade_ContactToneRadius"] = configuration => configuration.DalashadeContactToneRadius,
+            ["Dalashade_ContactToneEdgeStrength"] = configuration => configuration.DalashadeContactToneEdgeStrength,
+            ["Dalashade_ContactToneStructureStrength"] = configuration => configuration.DalashadeContactToneStructureStrength,
+            ["Dalashade_ContactToneContrastStrength"] = configuration => configuration.DalashadeContactToneContrastStrength,
+            ["Dalashade_ContactToneDebugMode"] = configuration => configuration.DalashadeContactToneDebugMode,
+            ["Dalashade_ContactToneDebugOpacity"] = configuration => configuration.DalashadeContactToneDebugOpacity
+        };
+
     private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> NormalFieldVariables =
         new Dictionary<string, Func<Configuration, float>>(StringComparer.OrdinalIgnoreCase)
         {
@@ -211,6 +225,7 @@ public sealed class CustomShaderVariableMapper
 
     private static readonly HashSet<string> AtmosphereBloomMaterialVariables =
     [
+        "Dalashade_MaterialFoliage",
         "Dalashade_MaterialWaterSpecular",
         "Dalashade_MaterialWaterPlane",
         "Dalashade_MaterialSpecularGlint",
@@ -289,6 +304,23 @@ public sealed class CustomShaderVariableMapper
         "Dalashade_MaterialVoidDarkness"
     ];
 
+    private static readonly HashSet<string> ContactToneMaterialVariables =
+    [
+        "Dalashade_MaterialFoliage",
+        "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialWaterPlane",
+        "Dalashade_MaterialSpecularGlint",
+        "Dalashade_WaterContext",
+        "Dalashade_WetSurfaceContext",
+        "Dalashade_MaterialSandDust",
+        "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialStoneRuins",
+        "Dalashade_MaterialMetalIndustrial",
+        "Dalashade_MaterialSkyCloudFog",
+        "Dalashade_MaterialSkinProtection",
+        "Dalashade_MaterialVoidDarkness"
+    ];
+
     private static readonly HashSet<string> MaterialDebugVariables =
     [
         "Dalashade_MaterialFoliage",
@@ -328,6 +360,7 @@ public sealed class CustomShaderVariableMapper
         .Concat(FirstPartyModeVariables.Keys)
         .Concat(FirstPartyDepthAssistVariables.Keys)
         .Concat(SceneGIVariables.Keys)
+        .Concat(ContactToneVariables.Keys)
         .Concat(SurfaceReflectionVariables.Keys)
         .Concat(NormalFieldVariables.Keys)
         .Concat(MaterialVariables.Keys)
@@ -384,6 +417,18 @@ public sealed class CustomShaderVariableMapper
             adjustment = new ShaderAdjustment(
                 _ => FormatSceneGIValue(key, giAccessor(configuration)),
                 SceneGIReasonCategory,
+                EffectRole.AoGi,
+                1f);
+            return true;
+        }
+
+        if (configuration.EnableDalashadeContactToneShaderVariables
+            && IsContactToneSection(section)
+            && ContactToneVariables.TryGetValue(key, out var contactToneAccessor))
+        {
+            adjustment = new ShaderAdjustment(
+                _ => FormatContactToneValue(key, contactToneAccessor(configuration)),
+                ContactToneReasonCategory,
                 EffectRole.AoGi,
                 1f);
             return true;
@@ -457,6 +502,7 @@ public sealed class CustomShaderVariableMapper
                    || FirstPartyModeVariables.ContainsKey(key)
                    || FirstPartyDepthAssistVariables.ContainsKey(key)
                    || SceneGIVariables.ContainsKey(key)
+                   || ContactToneVariables.ContainsKey(key)
                    || SurfaceReflectionVariables.ContainsKey(key)
                    || NormalFieldVariables.ContainsKey(key)
                    || MaterialVariables.ContainsKey(key)
@@ -502,8 +548,8 @@ public sealed class CustomShaderVariableMapper
         if (string.Equals(key, "Dalashade_GIDebugMode", StringComparison.OrdinalIgnoreCase))
         {
             var rounded = (int)MathF.Round(value);
-            var clamped = Math.Min(14, Math.Max(0, rounded));
-            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 14);
+            var clamped = Math.Min(17, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 17);
         }
 
         if (string.Equals(key, "Dalashade_GIDebugOutputMode", StringComparison.OrdinalIgnoreCase))
@@ -537,7 +583,32 @@ public sealed class CustomShaderVariableMapper
             return new ShaderAdjustmentResult(Format(clamped), value < 0.25f, value > 8f);
         }
 
-        return new ShaderAdjustmentResult(Format(value), false, false);
+            return new ShaderAdjustmentResult(Format(value), false, false);
+    }
+
+    private static ShaderAdjustmentResult FormatContactToneValue(string key, float value)
+    {
+        if (string.Equals(key, "Dalashade_ContactToneDebugMode", StringComparison.OrdinalIgnoreCase))
+        {
+            var rounded = (int)MathF.Round(value);
+            var clamped = Math.Min(6, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 6);
+        }
+
+        if (string.Equals(key, "Dalashade_ContactToneEnabled", StringComparison.OrdinalIgnoreCase))
+        {
+            var enabled = value >= 0.5f ? 1 : 0;
+            return new ShaderAdjustmentResult(enabled.ToString(CultureInfo.InvariantCulture), false, false);
+        }
+
+        if (string.Equals(key, "Dalashade_ContactToneRadius", StringComparison.OrdinalIgnoreCase))
+        {
+            var clamped = MathF.Min(2.0f, MathF.Max(0.20f, value));
+            return new ShaderAdjustmentResult(Format(clamped), value < 0.20f, value > 2.0f);
+        }
+
+        var normalized = Clamp01(value);
+        return new ShaderAdjustmentResult(Format(normalized), value < 0f, value > 1f);
     }
 
     private static ShaderAdjustmentResult FormatNormalFieldValue(string key, float value)
@@ -553,8 +624,8 @@ public sealed class CustomShaderVariableMapper
             || string.Equals(key, "Dalashade_NormalDebugMode", StringComparison.OrdinalIgnoreCase))
         {
             var rounded = (int)MathF.Round(value);
-            var clamped = Math.Min(12, Math.Max(0, rounded));
-            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 12);
+            var clamped = Math.Min(20, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 20);
         }
 
         if (string.Equals(key, "Dalashade_NormalFieldDebugBoost", StringComparison.OrdinalIgnoreCase)
@@ -649,6 +720,7 @@ public sealed class CustomShaderVariableMapper
                || (IsAtmosphereBloomSection(section) && AtmosphereBloomMaterialVariables.Contains(key))
                || (IsAdaptiveGradeSection(section) && AdaptiveGradeMaterialVariables.Contains(key))
                || (IsSceneGISection(section) && SceneGIMaterialVariables.Contains(key))
+               || (IsContactToneSection(section) && ContactToneMaterialVariables.Contains(key))
                || (IsSurfaceReflectionSection(section) && SurfaceReflectionMaterialVariables.Contains(key))
                || (IsNormalDebugSection(section) && MaterialDebugVariables.Contains(key))
                || (IsMaterialDebugSection(section) && MaterialDebugVariables.Contains(key));
@@ -662,6 +734,7 @@ public sealed class CustomShaderVariableMapper
                    || IsAtmosphereBloomSection(section)
                    || IsAdaptiveGradeSection(section)
                    || IsSceneGISection(section)
+                   || IsContactToneSection(section)
                    || IsSurfaceReflectionSection(section)
                    || IsNormalDebugSection(section)
                    || IsMaterialDebugSection(section));
@@ -679,6 +752,7 @@ public sealed class CustomShaderVariableMapper
                || IsAtmosphereBloomSection(section)
                || IsAdaptiveGradeSection(section)
                || IsSceneGISection(section)
+               || IsContactToneSection(section)
                || IsSurfaceReflectionSection(section);
     }
 
@@ -722,6 +796,12 @@ public sealed class CustomShaderVariableMapper
     {
         return string.Equals(section, "Dalashade_SceneGI.fx", StringComparison.OrdinalIgnoreCase)
                || section.Contains("Dalashade_SceneGI", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsContactToneSection(string section)
+    {
+        return string.Equals(section, "Dalashade_ContactTone.fx", StringComparison.OrdinalIgnoreCase)
+               || section.Contains("Dalashade_ContactTone", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsSurfaceReflectionSection(string section)

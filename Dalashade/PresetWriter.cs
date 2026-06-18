@@ -107,6 +107,7 @@ public sealed class PresetWriter
 
     private static readonly IReadOnlyList<string> AtmosphereBloomMaterialIntentShaderVariables =
     [
+        "Dalashade_MaterialFoliage",
         "Dalashade_MaterialWaterSpecular",
         "Dalashade_MaterialWaterPlane",
         "Dalashade_MaterialSpecularGlint",
@@ -208,6 +209,23 @@ public sealed class PresetWriter
         "Dalashade_MaterialCrystalAether",
         "Dalashade_MaterialNeonGlass",
         "Dalashade_MaterialFireLavaHeat",
+        "Dalashade_MaterialSkyCloudFog",
+        "Dalashade_MaterialSkinProtection",
+        "Dalashade_MaterialVoidDarkness"
+    ];
+
+    private static readonly IReadOnlyList<string> ContactToneMaterialIntentShaderVariables =
+    [
+        "Dalashade_MaterialFoliage",
+        "Dalashade_MaterialWaterSpecular",
+        "Dalashade_MaterialWaterPlane",
+        "Dalashade_MaterialSpecularGlint",
+        "Dalashade_WaterContext",
+        "Dalashade_WetSurfaceContext",
+        "Dalashade_MaterialSandDust",
+        "Dalashade_MaterialSnowIce",
+        "Dalashade_MaterialStoneRuins",
+        "Dalashade_MaterialMetalIndustrial",
         "Dalashade_MaterialSkyCloudFog",
         "Dalashade_MaterialSkinProtection",
         "Dalashade_MaterialVoidDarkness"
@@ -389,6 +407,7 @@ public sealed class PresetWriter
                 "Dalashade_DayHighlightPressure",
                 "Dalashade_CombatPressure",
                 "Dalashade_CinematicPermission",
+                "CanopyGapBloomStrength",
                 "Dalashade_EnableDepthAssist",
                 "Dalashade_DepthAssistStrength",
                 "Dalashade_DepthAssistConfidenceFloor",
@@ -465,6 +484,33 @@ public sealed class PresetWriter
                 "Dalashade_DayHighlightPressure",
                 "Dalashade_IntentCombatPressure",
                 "Dalashade_IntentCinematicPermission")
+                .Concat(FirstPartyShaderModeVariables)
+                .Concat(NormalFieldShaderVariables)
+                .Concat(DepthAssistShaderOwnedVariables)
+                .ToArray()),
+        new(
+            "Dalashade_ContactTone.fx",
+            "Dalashade_ContactTone",
+            "Dalashade_ContactTone@Dalashade_ContactTone.fx",
+            WithMaterialIntentVariables(
+                ContactToneMaterialIntentShaderVariables,
+                "Dalashade_ContactToneEnabled",
+                "Dalashade_ContactToneStrength",
+                "Dalashade_ContactToneRadius",
+                "Dalashade_ContactToneEdgeStrength",
+                "Dalashade_ContactToneStructureStrength",
+                "Dalashade_ContactToneContrastStrength",
+                "Dalashade_ContactToneDebugMode",
+                "Dalashade_ContactToneDebugOpacity",
+                "Dalashade_Readability",
+                "Dalashade_Atmosphere",
+                "Dalashade_HighlightProtection",
+                "Dalashade_ShadowProtection",
+                "Dalashade_Wetness",
+                "Dalashade_FoliageDensity",
+                "Dalashade_IndustrialHardness",
+                "Dalashade_CombatPressure",
+                "Dalashade_CinematicPermission")
                 .Concat(FirstPartyShaderModeVariables)
                 .Concat(NormalFieldShaderVariables)
                 .Concat(DepthAssistShaderOwnedVariables)
@@ -964,6 +1010,41 @@ public sealed class PresetWriter
             };
         }
 
+        if (section.Contains("Dalashade_ContactTone", StringComparison.OrdinalIgnoreCase))
+        {
+            return variable switch
+            {
+                "Dalashade_ContactToneEnabled" => "0.000000",
+                "Dalashade_ContactToneStrength" => "0.420000",
+                "Dalashade_ContactToneRadius" => "0.620000",
+                "Dalashade_ContactToneEdgeStrength" => "0.480000",
+                "Dalashade_ContactToneStructureStrength" => "0.440000",
+                "Dalashade_ContactToneContrastStrength" => "0.340000",
+                "Dalashade_ContactToneDebugMode" => "0",
+                "Dalashade_ContactToneDebugOpacity" => "0.750000",
+                _ => "0.000000"
+            };
+        }
+
+        if (section.Contains("Dalashade_AtmosphereBloom", StringComparison.OrdinalIgnoreCase))
+        {
+            return variable switch
+            {
+                "BloomStrength" => "0.320000",
+                "BloomThreshold" => "0.740000",
+                "DiffusionStrength" => "0.420000",
+                "CanopyGapBloomStrength" => "0.340000",
+                "MagicGlowStrength" => "0.480000",
+                "NeonGlowStrength" => "0.420000",
+                "HighlightRestraint" => "0.700000",
+                "CombatDampenStrength" => "0.720000",
+                "CinematicBoostStrength" => "0.340000",
+                "Dalashade_MaterialDebugMode" => "0",
+                "Dalashade_MaterialDebugStrength" => "1.000000",
+                _ => "0.000000"
+            };
+        }
+
         if (!section.Contains("Dalashade_SceneGI", StringComparison.OrdinalIgnoreCase))
         {
             return "0.000000";
@@ -1162,6 +1243,11 @@ public sealed class PresetWriter
             return configuration.EnableDalashadeSceneGIShaderVariables;
         }
 
+        if (shader.Section.Contains("ContactTone", StringComparison.OrdinalIgnoreCase))
+        {
+            return configuration.EnableDalashadeContactToneShaderVariables;
+        }
+
         if (shader.Section.Contains("SurfaceReflection", StringComparison.OrdinalIgnoreCase))
         {
             return configuration.EnableDalashadeSurfaceReflectionShaderVariables;
@@ -1335,6 +1421,11 @@ public sealed class PresetWriter
         if (ContainsAny(text, "dalashade_scenegi"))
         {
             return 32;
+        }
+
+        if (ContainsAny(text, "dalashade_contacttone"))
+        {
+            return 36;
         }
 
         if (ContainsAny(text, "dalashade_weatheratmosphere"))

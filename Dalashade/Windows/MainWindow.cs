@@ -435,6 +435,7 @@ public sealed class MainWindow : Window, IDisposable
         var enabled = new[]
         {
             configuration.EnableDalashadeSceneGIShaderVariables,
+            configuration.EnableDalashadeContactToneShaderVariables,
             configuration.EnableDalashadeSurfaceReflectionShaderVariables,
             configuration.EnableMaterialIntentShaderMapping,
             configuration.EnableNormalFieldShaderMapping,
@@ -456,6 +457,7 @@ public sealed class MainWindow : Window, IDisposable
 
         DrawToneAndColorCard();
         DrawAtmosphereCard();
+        DrawContactToneCard();
         DrawIndirectLightingCard();
         DrawReflectionCard();
         DrawBloomCard();
@@ -514,6 +516,21 @@ public sealed class MainWindow : Window, IDisposable
         DrawFloatSlider("Color bounce###UserSceneGIBounce", configuration.DalashadeSceneGIBounceStrength, 0f, 1f, value => configuration.DalashadeSceneGIBounceStrength = value);
     }
 
+    private void DrawContactToneCard()
+    {
+        var configuration = plugin.Configuration;
+        FeatureStatusCardRenderer.Draw(BuildFeatureStatusCard(
+            "Contact Tone",
+            "ContactTone strengthens grounded edges and local material readability without changing GI or bloom.",
+            "Dalashade_ContactTone",
+            frameData: true));
+
+        DrawCheckbox("Enable contact tone variable writes###UserContactToneEnabled", configuration.EnableDalashadeContactToneShaderVariables, value => configuration.EnableDalashadeContactToneShaderVariables = value);
+        DrawFloatSlider("Contact tone strength###UserContactToneStrength", configuration.DalashadeContactToneStrength, 0f, 1f, value => configuration.DalashadeContactToneStrength = value);
+        DrawFloatSlider("Contact edge strength###UserContactToneEdges", configuration.DalashadeContactToneEdgeStrength, 0f, 1f, value => configuration.DalashadeContactToneEdgeStrength = value);
+        DrawFloatSlider("Surface separation###UserContactToneStructure", configuration.DalashadeContactToneStructureStrength, 0f, 1f, value => configuration.DalashadeContactToneStructureStrength = value);
+    }
+
     private void DrawReflectionCard()
     {
         var configuration = plugin.Configuration;
@@ -562,11 +579,18 @@ public sealed class MainWindow : Window, IDisposable
         var diagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(plugin.Configuration, plugin.LastShaderSupportScan, plugin.LastWriteResult, plugin.LastPresetAnalysis);
         var technique = FindTechnique(family);
         var shaderFile = ShaderFileLocator.Find(plugin.Configuration, $"{family}.fx");
-        var sectionPresent = technique is not null || diagnostics.Sections.Any(section => SectionMatches(section.Section, family));
+        var generatedSectionPresent = GeneratedSectionMatches(family);
+        var generatedVariablesPresent = GeneratedVariablesMatch(family);
+        var generatedTechniquePresent = GeneratedTechniqueMatches(family);
+        var sectionPresent = technique is not null
+                             || generatedSectionPresent
+                             || generatedVariablesPresent
+                             || diagnostics.Sections.Any(section => SectionMatches(section.Section, family));
         var activation = technique?.ActivationState
                          ?? diagnostics.Sections.FirstOrDefault(section => SectionMatches(section.Section, family))?.ActivationState
-                         ?? TechniqueActivationState.Unknown;
-        var variablesDetected = diagnostics.KnownVariables.Any(variable => SectionMatches(variable.Section, family));
+                         ?? (generatedTechniquePresent ? TechniqueActivationState.Active : TechniqueActivationState.Unknown);
+        var variablesDetected = generatedVariablesPresent
+                                || diagnostics.KnownVariables.Any(variable => SectionMatches(variable.Section, family));
         var variablesWritten = diagnostics.WrittenVariables.Any(variable => SectionMatches(variable.Section, family));
         var status = BuildFeatureStatus(sectionPresent, activation, variablesDetected, variablesWritten);
 
@@ -582,6 +606,21 @@ public sealed class MainWindow : Window, IDisposable
             VariablesWritten: variablesWritten,
             UsesFrameData: frameData,
             DepthAssistEnabled: plugin.Configuration.EnableFirstPartyDepthAssist);
+    }
+
+    private bool GeneratedSectionMatches(string family)
+    {
+        return plugin.LastWriteResult.CustomShaderInjection.Sections.Any(section => SectionMatches(section, family));
+    }
+
+    private bool GeneratedVariablesMatch(string family)
+    {
+        return plugin.LastWriteResult.CustomShaderInjection.Variables.Any(variable => SectionMatches(variable, family));
+    }
+
+    private bool GeneratedTechniqueMatches(string family)
+    {
+        return plugin.LastWriteResult.CustomShaderInjection.Techniques.Any(technique => SectionMatches(technique, family));
     }
 
     private string BuildFeatureStatus(bool sectionPresent, TechniqueActivationState activation, bool variablesDetected, bool variablesWritten)

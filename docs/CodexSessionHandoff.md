@@ -107,7 +107,7 @@ The mode is user-facing, not a debug mode. It does not affect `MaterialDebug` or
 Current implementation status:
 
 - C# plumbing exists in `Configuration.cs`, `Windows/ConfigWindow.cs`, `CustomShaderVariableMapper.cs`, and `PresetWriter.cs`.
-- `Dalashade_StandaloneStrength` is declared in AdaptiveGrade, SceneGI, SurfaceReflection, AtmosphereBloom, WeatherAtmosphere, and SmartSharpen.
+- `Dalashade_StandaloneStrength` is declared in AdaptiveGrade, SceneGI, ContactTone, SurfaceReflection, AtmosphereBloom, WeatherAtmosphere, and SmartSharpen.
 - Standalone mode currently applies conservative, safety-gated headroom across the first-party stack.
 - `Dalashade_AdaptiveGrade.fx` now has the first Standalone identity-lane pass for coastal day, coastal night, desert/heat, snow/cold, forest/canopy, aether/Allagan/high-tech, and dungeon/interior tone/color shaping.
 

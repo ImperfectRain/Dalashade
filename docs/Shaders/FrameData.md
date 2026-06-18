@@ -17,7 +17,7 @@ FrameData does not add a prepass, render target, motion vector path, temporal ac
 
 ## Purpose
 
-FrameData gives first-party shaders one canonical vocabulary for scene tags, material, water, safety, receiver, and optional surface/normal data. `Dalashade_WeatherAtmosphere.fx`, `Dalashade_AdaptiveGrade.fx`, `Dalashade_SmartSharpen.fx`, `Dalashade_AtmosphereBloom.fx`, `Dalashade_SurfaceReflection.fx`, and `Dalashade_SceneGI.fx` are the current production consumers. The migrations are intended to keep output visually stable while replacing shader-local material/water/safety resolver consumption with FrameData field names.
+FrameData gives first-party shaders one canonical vocabulary for scene tags, material, water, safety, receiver, and optional surface/normal data. `Dalashade_WeatherAtmosphere.fx`, `Dalashade_AdaptiveGrade.fx`, `Dalashade_SmartSharpen.fx`, `Dalashade_AtmosphereBloom.fx`, `Dalashade_SceneGI.fx`, `Dalashade_ContactTone.fx`, and `Dalashade_SurfaceReflection.fx` are the current production consumers. The migrations are intended to keep output visually stable while replacing shader-local material/water/safety resolver consumption with FrameData field names.
 
 FrameData is not a promise to third-party shader authors yet. The contract can still change while Dalashade proves the names and field roles across its own shaders.
 
@@ -153,11 +153,18 @@ NormalField is inferred screen-space data. It is not true FFXIV normals, materia
 
 | Field | Role | Meaning |
 | --- | --- | --- |
-| `Normal` | Surface/confidence | Encoded as a direction vector; inferred from depth/detail. |
+| `Normal` | Surface/confidence | Encoded as a direction vector; inferred from depth, detail, and safe texture-relief hints. |
 | `NormalConfidence` | Confidence | Stability confidence for the inferred normal. |
 | `OrientationConfidence` | Confidence | Orientation stability confidence from NormalField. |
 | `DepthConfidence` | Confidence | Depth-derived normal confidence. |
-| `DetailStrength` | Confidence | Detail-derived surface support from NormalField. |
+| `DetailStrength` | Confidence | Detail-derived surface support from NormalField, including safe texture-relief contribution for existing consumers. |
+| `TextureReliefStrength` | Confidence | Explicit highlight-ridge/dark-groove relief support after broad-gradient, material, and safety gates. |
+| `TextureGrooveLine` | Confidence | Direction-coherent dark groove/seam support for tile gaps, panel lines, cracks, and engraved material boundaries. |
+| `TextureCurvatureRidge` | Confidence | Curvature-based raised ridge evidence from the texture-relief pass. |
+| `TextureCurvatureValley` | Confidence | Curvature-based valley/groove/indent evidence from the texture-relief pass. |
+| `TextureCoherence` | Confidence | Structure-coherence evidence used to separate organized seams from random speckle. |
+| `TextureCompositeConfidence` | Confidence | Confidence in the composite screen-space relief-height and normal estimate. |
+| `TextureReliefSafety` | Safety/confidence | Final gate showing whether texture-relief evidence survived sky, water, skin, UI, foliage, highlight, emissive, and hard-edge suppression. |
 | `EdgeDiscontinuity` | Safety/confidence | Local discontinuity risk. |
 | `GroundCandidate` | Surface/confidence | Support-plane candidate, not literal ground ID. |
 | `StructureCandidate` | Surface/confidence | Broad structure/object confidence. |
@@ -177,6 +184,10 @@ NormalField is inferred screen-space data. It is not true FFXIV normals, materia
 - `StructureReceiver` is structure support, not AO by itself.
 - `LightSourceConfidence` is source support, not receiver support.
 - `NormalConfidence` is stability evidence, not material identity.
+- `TextureReliefStrength` is local surface relief evidence, not a recovered game normal map or material truth.
+- `TextureGrooveLine` is seam/groove evidence only. It can support contact, AO, or clarity decisions, but it must not become material identity by itself.
+- `TextureReliefSafety` is permission/confidence for relief use, not proof that a pixel has valid game texture normal data.
+- `TextureCurvatureRidge`, `TextureCurvatureValley`, and `TextureCoherence` are diagnostic/support signals from the same screen-space relief hypothesis. They are not new material channels.
 - `CrystalAether` and `NeonGlass` must not be collapsed into water because they are cyan/blue.
 - `BroadReceiver` is legacy/broad compatibility evidence. Production shaders should prefer role-specific receivers.
 
@@ -205,7 +216,7 @@ The debug shader is generated-preset aware but not auto-enabled. Base presets ar
 
 FrameData diagnostics are currently report-only:
 
-- Compatibility reports include `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and production shader source scans. WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SurfaceReflection, and SceneGI are the current production consumers; no prepass or render target exists.
+- Compatibility reports include `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and production shader source scans. WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SceneGI, ContactTone, and SurfaceReflection are the current production consumers; no prepass or render target exists.
 - Debug bundles include `frame-data-diagnostics.json` with installed FrameData file presence, FrameDataDebug preset/technique state, FrameDataDebug debug variables, and production shader source scans.
 - Debug bundles include `first-party-depth-assist.json` so depth-assist opt-in state and written first-party depth-assist variables can be audited beside FrameData state.
 

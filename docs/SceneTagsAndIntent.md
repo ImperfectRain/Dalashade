@@ -208,6 +208,7 @@ Current first-party shader responsibilities are section-scoped:
 | `Dalashade_AdaptiveGrade.fx` | Uses masks lightly for protection and preservation, not strong material color casts. |
 | `Dalashade_MaterialDebug.fx` | Visualizes broad material heuristics and raw/gated/final failures when manually enabled in ReShade. |
 | `Dalashade_SceneGI.fx` | Uses FrameData material/water/safety/receiver/surface fields and shared scene tags for optional screen-space contact AO, ambient bounce, and night light pooling. It is not path tracing/RTGI/PTGI. |
+| `Dalashade_ContactTone.fx` | Uses FrameData material/water/safety/receiver/surface fields and shared scene tags for local contact tone, grounded edge darkening, and readability contrast. It is not GI, SSAO, reflection, or bloom. |
 | `Dalashade_SurfaceReflection.fx` | Uses FrameData material/water/safety/receiver/surface fields and shared scene tags for water sheen, wet/glint response, and source-qualified reflection impressions. |
 
 ## Current Weather Tags

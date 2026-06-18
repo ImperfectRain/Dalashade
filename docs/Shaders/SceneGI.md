@@ -16,6 +16,8 @@ The current GI path now includes a bounded screen-space diffuse gather. It sampl
 
 SceneGI routes its major scene decisions through shared FrameData scene lanes before applying GI-specific math. `DayOpenAir`, `NightLocalLight`, `WetAir`, `HeatAir`, `ColdAir`, `AetherTech`, `ForestCanopy`, `Industrial`, and `InteriorMood` are the first stage for environment-sensitive AO, bounce, and local-light behavior. Shader-local terms still shape the final GI role, but they should not redefine scene tags independently.
 
+Material bounce now has explicit GI-local lanes for foliage, hard stone, metal/industrial surfaces, snow/sand climate surfaces, wet surfaces, and emissive pooling. These lanes do not create new material truth; they only decide how much existing FrameData and MaterialIntent evidence is allowed to steer low-frequency bounce, receiver eligibility, and debug output. Sky-safe receiver shaping remains separate so broad sky/fog/open-air evidence cannot turn into receiver material just because it has color or structure in the current frame.
+
 ## Inputs
 
 - Backbuffer color and depth.
@@ -40,6 +42,7 @@ Normal output is source color plus conservative AO/bounce modifications. Debug m
 6. Estimate local occlusion with layered depth taps.
 7. Estimate screen-space diffuse bounce from depth-aware visible-color gathers.
 8. Apply lane-shaped darkening/lighting with safety clamps.
+9. Expose material bounce lane, sky-safe receiver, and emissive pooling diagnostics without adding new preset variables.
 
 ## Material/Water/Normal dependencies
 
@@ -78,6 +81,9 @@ SceneGI debug modes are intended to show shared material usage, sources, receive
 | 12 | Layered AO breakdown | Micro/medium/broad/structure AO channels plus NormalField contact support when enabled. |
 | 13 | Clamp pressure | Red shows negative/AO clamp pressure, green shows safety pressure, blue shows positive/bounce clamp pressure. |
 | 14 | SSGI diffuse gather | Shows the screen-space diffuse gather color and confidence before final bounce/clamp shaping. |
+| 15 | Material bounce lanes | Shows foliage, stone, metal, climate, and wet material lanes used to shape low-frequency bounce. |
+| 16 | Sky-safe receivers | Shows receiver sky safety, material safety, and final bounce receiver confidence. |
+| 17 | Emissive pooling lanes | Shows base emissive pooling, propagated/source-supported pooling, and propagated source pressure. |
 
 `Dalashade_GIDebugOutputMode`:
 
@@ -94,6 +100,12 @@ SceneGI debug modes are intended to show shared material usage, sources, receive
 Sky rejects AO/GI. Skin rejects dirty AO/tinting. Water suppresses dirty AO. Foliage uses foliage/noise damping. Combat/readability dampens heavy output. Snow and bright sand are protected from muddy darkening. NormalField is multiplied by the same sky/skin/water safety gates and remains a secondary shaping input.
 
 Source-vs-receiver separation is required: `frame.SourceLightConfidence` and emissive material fields may source local light/bounce, but `frame.ReceiverAO`, `frame.ReceiverStructure`, material support, and optional surface support decide where GI can land.
+
+## Standalone shader boundaries
+
+ContactTone should be standalone instead of folded into SceneGI. SceneGI owns indirect-light impression: AO, visible-color bounce, and local light pooling. ContactTone would own image-space grounding tone, local contrast, and object/terrain contact readability. Those controls need different user expectations, different strength budgets, and tighter combat/readability safety. Keeping it standalone means users can add crisp grounding without adding GI color bounce, and developers can tune contact contrast without disturbing SceneGI source/receiver math.
+
+EmissiveAtmosphere should be standalone instead of folded into AtmosphereBloom. AtmosphereBloom owns highlight-local bloom and source glow eligibility. EmissiveAtmosphere would own broader air response around visible emissive families: aether haze, neon wash, fire warmth, and localized atmospheric color pooling. Those are not the same operation as blooming bright pixels. Keeping it standalone avoids making AtmosphereBloom responsible for scene-scale haze, reduces the risk of bloom spam, and lets emissive air color be gated by scene/material evidence separately from highlight thresholds.
 
 ## Current limitations
 

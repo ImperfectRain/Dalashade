@@ -46,6 +46,7 @@ Start here:
 - [`docs/Shaders/ShaderSystemOverview.md`](docs/Shaders/ShaderSystemOverview.md) for first-party shader stack behavior.
 - [`docs/Shaders/MaterialMasks.md`](docs/Shaders/MaterialMasks.md) for the shared material/water/receiver contract.
 - [`docs/Shaders/SurfaceReflection.md`](docs/Shaders/SurfaceReflection.md) for the current pseudo-SSR/reflection shader.
+- [`docs/Shaders/ContactTone.md`](docs/Shaders/ContactTone.md) for the local contact tone/readability shader.
 - [`docs/SafetyAndScope.md`](docs/SafetyAndScope.md) for project boundaries and review notes.
 - [`docs/CommitChangelog.md`](docs/CommitChangelog.md) for plainspeak Codex change notes after code or documentation changes.
 
@@ -252,7 +253,7 @@ Near-term work:
 - Improve User Mode clarity so normal users can see what Dalashade is doing and choose safe options without reading developer diagnostics.
 - Keep Developer Mode as the place for raw variables, shader mappings, debug modes, reports, and low-level tuning.
 - Validate and tune the AdaptiveGrade standalone identity lanes before expanding standalone identity work across the rest of the first-party shader stack.
-- Improve SceneGI through scene lanes, material bounce, contact/AO shaping, and emissive pooling.
+- Improve SceneGI through scene lanes, material bounce, and emissive pooling while keeping direct local contact tone in `Dalashade_ContactTone.fx`.
 
 Medium-term work:
 

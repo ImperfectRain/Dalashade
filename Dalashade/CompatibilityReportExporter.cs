@@ -27,6 +27,7 @@ public sealed class CompatibilityReportExporter
         "Dalashade_WeatherAtmosphere.fx",
         "Dalashade_SmartSharpen.fx",
         "Dalashade_SceneGI.fx",
+        "Dalashade_ContactTone.fx",
         "Dalashade_SurfaceReflection.fx"
     ];
 
@@ -78,9 +79,9 @@ public sealed class CompatibilityReportExporter
             "Dalashade_AtmosphereBloom.fx",
             "Dalashade_AtmosphereBloom",
             "Selective material glow/bloom eligibility",
-            Set("Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection", "Dalashade_EnableDepthAssist", "Dalashade_DepthAssistStrength", "Dalashade_DepthAssistConfidenceFloor", "Dalashade_DepthConfidenceFloor"),
-            Set("Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection"),
-            Set("Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection")),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection", "Dalashade_EnableDepthAssist", "Dalashade_DepthAssistStrength", "Dalashade_DepthAssistConfidenceFloor", "Dalashade_DepthConfidenceFloor"),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection"),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection")),
         new(
             "Dalashade_WeatherAtmosphere.fx",
             "Dalashade_WeatherAtmosphere",
@@ -116,6 +117,13 @@ public sealed class CompatibilityReportExporter
             Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_WaterContext", "Dalashade_CoastalContext", "Dalashade_OpenOceanContext", "Dalashade_ShallowWaterContext", "Dalashade_WetSurfaceContext", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialStoneRuins", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection", "Dalashade_MaterialVoidDarkness"),
             Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_WaterContext", "Dalashade_CoastalContext", "Dalashade_OpenOceanContext", "Dalashade_ShallowWaterContext", "Dalashade_WetSurfaceContext", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialStoneRuins", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection", "Dalashade_MaterialVoidDarkness"),
             Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_WaterContext", "Dalashade_CoastalContext", "Dalashade_OpenOceanContext", "Dalashade_ShallowWaterContext", "Dalashade_WetSurfaceContext", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialStoneRuins", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialCrystalAether", "Dalashade_MaterialNeonGlass", "Dalashade_MaterialFireLavaHeat", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection", "Dalashade_MaterialVoidDarkness")),
+        new(
+            "Dalashade_ContactTone.fx",
+            "Dalashade_ContactTone",
+            "Local contact tone, grounding, and readability contrast",
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_WaterContext", "Dalashade_WetSurfaceContext", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialStoneRuins", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection", "Dalashade_MaterialVoidDarkness", "Dalashade_EnableDepthAssist", "Dalashade_DepthAssistStrength", "Dalashade_DepthAssistConfidenceFloor", "Dalashade_DepthConfidenceFloor"),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterSpecular", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_WaterContext", "Dalashade_WetSurfaceContext", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialStoneRuins", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection", "Dalashade_MaterialVoidDarkness"),
+            Set("Dalashade_MaterialFoliage", "Dalashade_MaterialWaterPlane", "Dalashade_MaterialSpecularGlint", "Dalashade_MaterialSandDust", "Dalashade_MaterialSnowIce", "Dalashade_MaterialStoneRuins", "Dalashade_MaterialMetalIndustrial", "Dalashade_MaterialSkyCloudFog", "Dalashade_MaterialSkinProtection")),
         new(
             "Dalashade_SurfaceReflection.fx",
             "Dalashade_SurfaceReflection",
@@ -162,6 +170,19 @@ public sealed class CompatibilityReportExporter
         MaterialIntent.CrystalAetherChannel,
         MaterialIntent.NeonGlassChannel,
         MaterialIntent.FireLavaHeatChannel,
+        MaterialIntent.SkyCloudFogChannel,
+        MaterialIntent.SkinProtectionChannel,
+        MaterialIntent.VoidDarknessChannel
+    };
+
+    private static readonly IReadOnlySet<string> ContactToneMaterialNames = new HashSet<string>(StringComparer.Ordinal)
+    {
+        MaterialIntent.FoliageChannel,
+        MaterialIntent.WaterSpecularChannel,
+        MaterialIntent.SandDustChannel,
+        MaterialIntent.SnowIceChannel,
+        MaterialIntent.StoneRuinsChannel,
+        MaterialIntent.MetalIndustrialChannel,
         MaterialIntent.SkyCloudFogChannel,
         MaterialIntent.SkinProtectionChannel,
         MaterialIntent.VoidDarknessChannel
@@ -515,10 +536,11 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Material debug technique activation: {(materialDebugTechnique is null ? "absent" : PresetAnalyzer.FormatActivationState(materialDebugTechnique.ActivationState))}");
         builder.AppendLine("- Split water/specular debug support: available when `Dalashade_MaterialDebug.fx` and `Dalashade_MaterialMasks.fxh` are installed. `WaterPlane` and `SpecularGlint` are shader-side heuristic masks derived from the existing WaterSpecular scene likelihood.");
         AppendSceneGIDiagnostics(builder, configuration, analysis, writeResult, tagStackDiagnostics, currentImage, screenshotMaterialEvidence);
+        AppendContactToneDiagnostics(builder, configuration, analysis, writeResult, tagStackDiagnostics, currentImage, screenshotMaterialEvidence);
         AppendSurfaceReflectionDiagnostics(builder, configuration, analysis, writeResult, tagStackDiagnostics, currentImage, screenshotMaterialEvidence);
         builder.AppendLine("- Material debug controls: shader-owned in ReShade UI; Dalashade does not write debug mode, overlay mode, opacity, or strength.");
         builder.AppendLine($"- First-party custom shader status: {FormatFirstPartyCustomShaderStatus(analysis)}");
-        builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, NormalField uniforms are Dalashade-controlled only when NormalField shader mapping is enabled, SceneGI and SurfaceReflection debug controls can be written by their separate generated-variable toggles, and other shader-owned controls are recognized/injected but not actively written by Dalashade.");
+        builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, NormalField uniforms are Dalashade-controlled only when NormalField shader mapping is enabled, SceneGI, ContactTone, and SurfaceReflection debug controls can be written by their separate generated-variable toggles, and other shader-owned controls are recognized/injected but not actively written by Dalashade.");
         builder.AppendLine("- Manual shader install/activation: Dalashade does not copy `.fx` files into ReShade or enable techniques. Install needed Dalashade `.fx` files in a ReShade shader search folder separately, then enable wanted custom shader techniques in ReShade.");
         builder.AppendLine("- Variable writes require matching Dalashade custom shader section/key lines in generated preset content. Those lines can come from the base preset or from generated-preset-only injection.");
         builder.AppendLine("- Static bridge status:");
@@ -700,7 +722,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Night light strength {writeLabel}: {Math.Clamp(configuration.DalashadeSceneGINightLightStrength, 0f, 1f):0.###}");
         builder.AppendLine($"- Material influence {writeLabel}: {Math.Clamp(configuration.DalashadeSceneGIMaterialInfluence, 0f, 1f):0.###}");
         var sceneGIDebugWriteLabel = configuration.EnableDalashadeSceneGIShaderVariables ? "written" : "configured";
-        builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 14)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
+        builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 17)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
         builder.AppendLine($"- SceneGI debug output mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugOutputMode, 0, 4)} ({FormatSceneGIDebugOutputMode(configuration.DalashadeSceneGIDebugOutputMode)}).");
         builder.AppendLine($"- SceneGI debug opacity {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugOpacity, 0f, 1f):0.###}.");
         builder.AppendLine($"- SceneGI debug boost {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f):0.###}. Debug boost affects diagnostic masks only, not normal GI output.");
@@ -708,7 +730,39 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Dominant MaterialIntent drivers: {FormatDominantMaterialDrivers(configuration, tagStackDiagnostics, currentImage, screenshotMaterialEvidence, SceneGIMaterialNames)}");
         builder.AppendLine($"- Generated SceneGI variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.SceneGIReasonCategory, "Dalashade_SceneGI")}");
         builder.AppendLine($"- Generated SceneGI material variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.MaterialReasonCategory, "Dalashade_SceneGI")}");
-        builder.AppendLine("- Technique activation remains manual; Dalashade never appends `Dalashade_SceneGI` to `Techniques=`.");
+        builder.AppendLine("- Technique activation is manual unless `SyncDalashadeTechniqueActivation` is enabled; sync follows the SceneGI variable-write option.");
+    }
+
+    private static void AppendContactToneDiagnostics(
+        StringBuilder builder,
+        Configuration configuration,
+        PresetAnalysisResult analysis,
+        PresetWriteResult writeResult,
+        TagStackDiagnostics tagStackDiagnostics,
+        ImageAnalysisResult currentImage,
+        ScreenshotMaterialEvidenceDiagnostics screenshotMaterialEvidence)
+    {
+        var technique = FindFirstPartyTechnique(analysis, "Dalashade_ContactTone");
+        var writeLabel = configuration.EnableDalashadeContactToneShaderVariables ? "written" : "configured";
+        builder.AppendLine();
+        builder.AppendLine("### ContactTone");
+        builder.AppendLine();
+        builder.AppendLine("- Responsibility: local contact tone, grounded edge darkening, and material readability contrast. It does not own GI bounce, reflections, weather air, or bloom.");
+        builder.AppendLine($"- Shader listed/detected: {(technique is null ? "no" : "yes")}");
+        builder.AppendLine($"- Technique activation: {(technique is null ? "absent" : PresetAnalyzer.FormatActivationState(technique.ActivationState))}");
+        builder.AppendLine($"- Generated variable writes enabled: {(configuration.EnableDalashadeContactToneShaderVariables ? "yes" : "no")}");
+        builder.AppendLine($"- ContactTone strength {writeLabel}: {Math.Clamp(configuration.DalashadeContactToneStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- ContactTone radius {writeLabel}: {Math.Clamp(configuration.DalashadeContactToneRadius, 0.20f, 2.0f):0.###}");
+        builder.AppendLine($"- Depth edge strength {writeLabel}: {Math.Clamp(configuration.DalashadeContactToneEdgeStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- Structure strength {writeLabel}: {Math.Clamp(configuration.DalashadeContactToneStructureStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- Local contrast strength {writeLabel}: {Math.Clamp(configuration.DalashadeContactToneContrastStrength, 0f, 1f):0.###}");
+        builder.AppendLine($"- ContactTone debug mode {writeLabel} value: {ClampInt(configuration.DalashadeContactToneDebugMode, 0, 6)} ({FormatContactToneDebugMode(configuration.DalashadeContactToneDebugMode)}).");
+        builder.AppendLine($"- ContactTone debug opacity {writeLabel} value: {Math.Clamp(configuration.DalashadeContactToneDebugOpacity, 0f, 1f):0.###}.");
+        builder.AppendLine($"- Dominant SceneIntent drivers: {FormatDominantSceneDrivers(tagStackDiagnostics, SceneGIIntentNames)}");
+        builder.AppendLine($"- Dominant MaterialIntent drivers: {FormatDominantMaterialDrivers(configuration, tagStackDiagnostics, currentImage, screenshotMaterialEvidence, ContactToneMaterialNames)}");
+        builder.AppendLine($"- Generated ContactTone variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.ContactToneReasonCategory, "Dalashade_ContactTone")}");
+        builder.AppendLine($"- Generated ContactTone material variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.MaterialReasonCategory, "Dalashade_ContactTone")}");
+        builder.AppendLine("- Technique activation is manual unless `SyncDalashadeTechniqueActivation` is enabled; sync follows the ContactTone variable-write option.");
     }
 
     private static void AppendSurfaceReflectionDiagnostics(
@@ -750,7 +804,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Dominant MaterialIntent drivers: {FormatDominantMaterialDrivers(configuration, tagStackDiagnostics, currentImage, screenshotMaterialEvidence, SurfaceReflectionMaterialNames)}");
         builder.AppendLine($"- Generated SurfaceReflection variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.SurfaceReflectionReasonCategory, "Dalashade_SurfaceReflection")}");
         builder.AppendLine($"- Generated SurfaceReflection material variables written: {FormatChangedKeys(writeResult, CustomShaderVariableMapper.MaterialReasonCategory, "Dalashade_SurfaceReflection")}");
-        builder.AppendLine("- Technique activation remains manual; Dalashade never appends `Dalashade_SurfaceReflection` to `Techniques=`.");
+        builder.AppendLine("- Technique activation is manual unless `SyncDalashadeTechniqueActivation` is enabled; sync follows the SurfaceReflection variable-write option.");
     }
 
     private static void AppendMaterialIntentDiagnostics(
@@ -978,7 +1032,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Water suppression: {Math.Clamp(configuration.NormalFieldWaterSuppression, 0f, 1f):0.###}");
         builder.AppendLine($"- Skin suppression: {Math.Clamp(configuration.NormalFieldSkinSuppression, 0f, 1f):0.###}");
         builder.AppendLine($"- Sky suppression: {Math.Clamp(configuration.NormalFieldSkySuppression, 0f, 1f):0.###}");
-        builder.AppendLine($"- Debug mode: {Math.Clamp(configuration.NormalFieldDebugMode, 0, 12)}");
+        builder.AppendLine($"- Debug mode: {Math.Clamp(configuration.NormalFieldDebugMode, 0, 20)}");
         builder.AppendLine($"- Debug boost: {Math.Clamp(configuration.NormalFieldDebugBoost, 0.25f, 8f):0.###}");
         builder.AppendLine($"- NormalDebug shader section present: {(normalDebug is null ? "no" : "yes")}");
         builder.AppendLine($"- NormalDebug technique active: {(normalDebug?.ActivationState == TechniqueActivationState.Active ? "yes" : "no")}");
@@ -1016,7 +1070,9 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- SurfaceReflection: {FormatNormalFieldProductionConsumption("Dalashade_SurfaceReflection.fx")}");
         builder.AppendLine($"- SmartSharpen: {FormatNormalFieldProductionConsumption("Dalashade_SmartSharpen.fx")}");
         builder.AppendLine($"- WeatherAtmosphere: {FormatNormalFieldProductionConsumption("Dalashade_WeatherAtmosphere.fx")}");
+        builder.AppendLine($"- AtmosphereBloom: {FormatNormalFieldProductionConsumption("Dalashade_AtmosphereBloom.fx")}");
         builder.AppendLine($"- AdaptiveGrade: {FormatNormalFieldProductionConsumption("Dalashade_AdaptiveGrade.fx")}");
+        builder.AppendLine($"- ContactTone: {FormatNormalFieldProductionConsumption("Dalashade_ContactTone.fx")}");
         builder.AppendLine("- WeatherParticles/LightHierarchy/CombatClarity: not applicable unless present.");
         builder.AppendLine();
     }
@@ -2046,7 +2102,7 @@ public sealed class CompatibilityReportExporter
 
     private static string FormatSceneGIDebugMode(int mode)
     {
-        return ClampInt(mode, 0, 14) switch
+        return ClampInt(mode, 0, 17) switch
         {
             0 => "Off / normal output",
             1 => "AO only",
@@ -2063,6 +2119,9 @@ public sealed class CompatibilityReportExporter
             12 => "Layered AO breakdown",
             13 => "Clamp pressure",
             14 => "SSGI diffuse gather",
+            15 => "Material bounce lanes",
+            16 => "Sky-safe receivers",
+            17 => "Emissive pooling lanes",
             _ => "Unknown"
         };
     }
@@ -2099,6 +2158,21 @@ public sealed class CompatibilityReportExporter
             12 => "Wet hard projected reflection",
             13 => "Metal/aether projected reflection",
             14 => "Pseudo SSR contribution",
+            _ => "Unknown"
+        };
+    }
+
+    private static string FormatContactToneDebugMode(int mode)
+    {
+        return ClampInt(mode, 0, 6) switch
+        {
+            0 => "Off / normal output",
+            1 => "Contact mask",
+            2 => "Depth edge component",
+            3 => "Surface/normal edge component",
+            4 => "Receiver/safety mask",
+            5 => "Suppression mask",
+            6 => "Final contribution",
             _ => "Unknown"
         };
     }
@@ -2141,6 +2215,7 @@ public sealed class CompatibilityReportExporter
             FormatFirstPartyShaderStatus(analysis, "MaterialDebug", "Dalashade_MaterialDebug"),
             FormatFirstPartyShaderStatus(analysis, "NormalDebug", "Dalashade_NormalDebug"),
             FormatFirstPartyShaderStatus(analysis, "SceneGI", "Dalashade_SceneGI"),
+            FormatFirstPartyShaderStatus(analysis, "ContactTone", "Dalashade_ContactTone"),
             FormatFirstPartyShaderStatus(analysis, "SurfaceReflection", "Dalashade_SurfaceReflection")
         };
 

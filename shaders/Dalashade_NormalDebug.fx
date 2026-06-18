@@ -14,7 +14,7 @@ uniform float Dalashade_NormalDebugEnabled <
 
 uniform int Dalashade_NormalDebugMode <
     ui_type = "combo";
-    ui_items = "Normal image\0Depth normal RGB\0Detail normal RGB\0Combined normal RGB\0Ground/plane candidate\0Wall-plane candidate\0Structure candidate\0Detail eligibility\0Normal confidence\0Shading receiver\0Reflection receiver\0AO receiver\0Safety suppression\0";
+    ui_items = "Normal image\0Depth normal RGB\0Detail normal RGB\0Combined normal RGB\0Ground/plane candidate\0Wall-plane candidate\0Structure candidate\0Detail eligibility\0Normal confidence\0Shading receiver\0Reflection receiver\0AO receiver\0Safety/relief suppression\0Legacy relief normal RGB\0Texture ridge/groove/relief\0Texture groove line only\0Curvature ridge\0Curvature valley/groove\0Structure coherence\0Composite relief height\0Composite relief normal RGB\0";
     ui_label = "Normal Debug Mode";
 > = 0;
 

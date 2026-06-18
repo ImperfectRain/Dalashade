@@ -407,6 +407,7 @@ public sealed class ConfigWindow : Window, IDisposable
         var enabled = new[]
         {
             configuration.EnableDalashadeSceneGIShaderVariables,
+            configuration.EnableDalashadeContactToneShaderVariables,
             configuration.EnableDalashadeSurfaceReflectionShaderVariables,
             configuration.EnableMaterialIntentShaderMapping,
             configuration.EnableNormalFieldShaderMapping,
@@ -422,6 +423,7 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawItemTooltip("Allows Dalashade to write known first-party shader variables into generated presets. Techniques still must be enabled manually in ReShade.");
         DrawCheckbox("Auto-inject known Dalashade shader sections", configuration.AutoInjectDalashadeCustomShaderSections, value => configuration.AutoInjectDalashadeCustomShaderSections = value);
         DrawCheckbox("Enable SceneGI variable writes", configuration.EnableDalashadeSceneGIShaderVariables, value => configuration.EnableDalashadeSceneGIShaderVariables = value);
+        DrawCheckbox("Enable ContactTone variable writes", configuration.EnableDalashadeContactToneShaderVariables, value => configuration.EnableDalashadeContactToneShaderVariables = value);
         DrawCheckbox("Enable SurfaceReflection variable writes", configuration.EnableDalashadeSurfaceReflectionShaderVariables, value => configuration.EnableDalashadeSurfaceReflectionShaderVariables = value);
         DrawCheckbox("Enable depth assist for first-party Dalashade shaders", configuration.EnableFirstPartyDepthAssist, value => configuration.EnableFirstPartyDepthAssist = value);
         DrawItemTooltip("Opt-in helper for first-party shader masks when ReShade depth is reliable. It does not enable techniques.");
@@ -631,8 +633,8 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawFloatSlider("Skin Suppression", configuration.NormalFieldSkinSuppression, 0f, 1f, value => configuration.NormalFieldSkinSuppression = value);
         DrawFloatSlider("Sky/Fog Suppression", configuration.NormalFieldSkySuppression, 0f, 1f, value => configuration.NormalFieldSkySuppression = value);
 
-        var debugMode = Math.Clamp(configuration.NormalFieldDebugMode, 0, 12);
-        if (ImGui.SliderInt("Normal Field Debug Mode", ref debugMode, 0, 12))
+        var debugMode = Math.Clamp(configuration.NormalFieldDebugMode, 0, 20);
+        if (ImGui.SliderInt("Normal Field Debug Mode", ref debugMode, 0, 20))
         {
             configuration.NormalFieldDebugMode = debugMode;
             configuration.Save();
@@ -738,7 +740,7 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawFloatSlider("SceneGI night light strength", configuration.DalashadeSceneGINightLightStrength, 0f, 1f, value => configuration.DalashadeSceneGINightLightStrength = value);
         DrawFloatSlider("SceneGI material influence", configuration.DalashadeSceneGIMaterialInfluence, 0f, 1f, value => configuration.DalashadeSceneGIMaterialInfluence = value);
         var sceneGIDebugMode = configuration.DalashadeSceneGIDebugMode;
-        if (ImGui.SliderInt("SceneGI debug mode", ref sceneGIDebugMode, 0, 14))
+        if (ImGui.SliderInt("SceneGI debug mode", ref sceneGIDebugMode, 0, 17))
         {
             configuration.DalashadeSceneGIDebugMode = sceneGIDebugMode;
             configuration.Save();
@@ -752,6 +754,23 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawFloatSlider("SceneGI debug opacity", configuration.DalashadeSceneGIDebugOpacity, 0f, 1f, value => configuration.DalashadeSceneGIDebugOpacity = value);
         DrawFloatSlider("SceneGI debug boost", configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f, value => configuration.DalashadeSceneGIDebugBoost = value);
         ImGui.TextWrapped("SceneGI variable writes require Dalashade custom shader variables and matching generated preset keys. If technique sync is enabled, SceneGI is added to the generated preset when these writes are enabled.");
+
+        ImGui.Separator();
+        ImGui.TextWrapped("ContactTone: local grounding, contact shadows, and readability contrast");
+        DrawCheckbox("Enable ContactTone variable writes", configuration.EnableDalashadeContactToneShaderVariables, value => configuration.EnableDalashadeContactToneShaderVariables = value);
+        DrawFloatSlider("ContactTone strength", configuration.DalashadeContactToneStrength, 0f, 1f, value => configuration.DalashadeContactToneStrength = value);
+        DrawFloatSlider("ContactTone radius", configuration.DalashadeContactToneRadius, 0.20f, 2.0f, value => configuration.DalashadeContactToneRadius = value);
+        DrawFloatSlider("ContactTone depth edge", configuration.DalashadeContactToneEdgeStrength, 0f, 1f, value => configuration.DalashadeContactToneEdgeStrength = value);
+        DrawFloatSlider("ContactTone structure", configuration.DalashadeContactToneStructureStrength, 0f, 1f, value => configuration.DalashadeContactToneStructureStrength = value);
+        DrawFloatSlider("ContactTone local contrast", configuration.DalashadeContactToneContrastStrength, 0f, 1f, value => configuration.DalashadeContactToneContrastStrength = value);
+        var contactToneDebugMode = configuration.DalashadeContactToneDebugMode;
+        if (ImGui.SliderInt("ContactTone debug mode", ref contactToneDebugMode, 0, 6))
+        {
+            configuration.DalashadeContactToneDebugMode = contactToneDebugMode;
+            configuration.Save();
+        }
+        DrawFloatSlider("ContactTone debug opacity", configuration.DalashadeContactToneDebugOpacity, 0f, 1f, value => configuration.DalashadeContactToneDebugOpacity = value);
+        ImGui.TextWrapped("ContactTone is separate from GI: it darkens and clarifies contact edges and grounded material transitions, without color bounce, emissive pooling, reflections, or atmospheric bloom. If technique sync is enabled, it follows this variable-write option.");
 
         ImGui.Separator();
         ImGui.TextWrapped("SurfaceReflection: material-aware water, wetness, and glint response");

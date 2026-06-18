@@ -125,6 +125,13 @@ struct Dalashade_FrameSurfaceData
     float DepthConfidence;
     float EdgeDiscontinuity;
     float DetailStrength;
+    float TextureReliefStrength;
+    float TextureGrooveLine;
+    float TextureCurvatureRidge;
+    float TextureCurvatureValley;
+    float TextureCoherence;
+    float TextureCompositeConfidence;
+    float TextureReliefSafety;
     float GroundCandidate;
     float StructureCandidate;
     float WallCandidate;
@@ -552,6 +559,13 @@ Dalashade_FrameSurfaceData Dalashade_ResolveFrameSurfaceData(
     surface.DepthConfidence = field.DepthConfidence;
     surface.EdgeDiscontinuity = field.EdgeDiscontinuity;
     surface.DetailStrength = field.DetailStrength;
+    surface.TextureReliefStrength = field.TextureReliefStrength;
+    surface.TextureGrooveLine = field.TextureGrooveLine;
+    surface.TextureCurvatureRidge = field.TextureCurvatureRidge;
+    surface.TextureCurvatureValley = field.TextureCurvatureValley;
+    surface.TextureCoherence = field.TextureCoherence;
+    surface.TextureCompositeConfidence = field.TextureCompositeConfidence;
+    surface.TextureReliefSafety = field.TextureReliefSafety;
     surface.GroundCandidate = field.GroundPlaneCandidate;
     surface.StructureCandidate = field.StructureCandidate;
     surface.WallCandidate = field.WallPlaneCandidate;

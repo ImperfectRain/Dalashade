@@ -15,10 +15,11 @@ iMMERSE Pro Clarity
 iMMERSE Pro ReGrade
 Dalashade_AdaptiveGrade
 Dalashade_SceneGI
+Dalashade_ContactTone
+Dalashade_WeatherAtmosphere
+Dalashade_AtmosphereBloom
 Dalashade_SurfaceReflection
 MagicBloom
-Dalashade_AtmosphereBloom
-Dalashade_WeatherAtmosphere
 iMMERSE/Marty Sharpen
 Dalashade_SmartSharpen
 Dalashade_MaterialDebug
@@ -34,6 +35,7 @@ Dalashade_FrameDataDebug
 | --- | --- | --- |
 | `Dalashade_AdaptiveGrade.fx` | Base tone, contrast, saturation, temperature, highlight rolloff, black depth, and material color protection. Consumes inline FrameData base fields and its pre-existing optional FrameData surface protection. | Production-oriented, conservative. |
 | `Dalashade_SceneGI.fx` | Screen-space GI/AO impression, localized bounce, contact shading, and night light pooling. Consumes inline FrameData base/surface fields and shared scene tags. | Experimental production shader. |
+| `Dalashade_ContactTone.fx` | Local grounded edge tone, contact darkening, and material readability contrast. Consumes inline FrameData base/surface/scene fields and shared scene tags. | Experimental production shader. |
 | `Dalashade_SurfaceReflection.fx` | Pseudo-SSR, water sheen, wet hard-surface reflection, metal/glass/aether streaks, and projection diagnostics. Consumes inline FrameData base/surface fields and shared scene tags. | Experimental production shader. |
 | `Dalashade_AtmosphereBloom.fx` | Material-aware bloom eligibility and atmospheric glow restraint. Consumes inline FrameData base fields and its pre-existing optional FrameData surface protection. | Production-oriented, conservative. |
 | `Dalashade_WeatherAtmosphere.fx` | Scene/weather air, haze, dampness, heat, snow, sand, and fog impression. Consumes inline FrameData data. | Experimental production shader. |
@@ -48,7 +50,7 @@ Dalashade_FrameDataDebug
 
 `Dalashade_NormalField.fxh` is the optional inferred surface-field contract. It consumes material/water/safety resolves and produces conservative screen-space normal, structure, receiver, and safety diagnostics. It is not true engine normal data.
 
-`Dalashade_FrameData.fxh` is an internal experimental wrapper over `MaterialMasks` and `NormalField`. It packages canonical resolver output and shared scene/tag interpretation into first-party shader-facing structs, but it does not own formulas, add a prepass, create render targets, or define a public third-party API. WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SurfaceReflection, and SceneGI currently consume inline FrameData fields. Surface data is still optional and only used where the shader already has a NormalField-backed reason to pay that cost.
+`Dalashade_FrameData.fxh` is an internal experimental wrapper over `MaterialMasks` and `NormalField`. It packages canonical resolver output and shared scene/tag interpretation into first-party shader-facing structs, but it does not own formulas, add a prepass, create render targets, or define a public third-party API. WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SceneGI, ContactTone, and SurfaceReflection currently consume inline FrameData fields. Surface data is still optional and only used where the shader already has a NormalField-backed reason to pay that cost.
 
 Production shaders may apply role-specific gates after the shared resolves, but should not reinvent base water, sky, skin, sand, specular, foliage, or receiver classification independently.
 
@@ -57,7 +59,7 @@ Production shaders may apply role-specific gates after the shared resolves, but 
 `FirstPartyShaderMode` is a user-facing plugin setting for production first-party shaders:
 
 - `Supportive / Enhance Base Preset` is the default. The generated value `Dalashade_StandaloneStrength` is `0`, so first-party shaders keep their current conservative role as coordinated support for an existing base preset or external shader stack.
-- `Standalone / First-Party Stack` writes `Dalashade_StandaloneStrength=1` to AdaptiveGrade, SceneGI, SurfaceReflection, AtmosphereBloom, WeatherAtmosphere, and SmartSharpen when those sections declare the key. Each shader interprets it as a small, safety-gated contribution multiplier rather than a new classifier or debug mode.
+- `Standalone / First-Party Stack` writes `Dalashade_StandaloneStrength=1` to AdaptiveGrade, SceneGI, ContactTone, SurfaceReflection, AtmosphereBloom, WeatherAtmosphere, and SmartSharpen when those sections declare the key. Each shader interprets it as a small, safety-gated contribution multiplier rather than a new classifier or debug mode.
 
 Standalone mode does not affect `Dalashade_MaterialDebug.fx` or `Dalashade_NormalDebug.fx`, does not change shader order, and does not weaken the shared material, water, safety, source/receiver, or NormalField contracts.
 

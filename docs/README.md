@@ -24,6 +24,7 @@ These docs are for users who want to understand what Dalashade is doing, maintai
 | Shader support and mappings | [ShaderMapping.md](ShaderMapping.md) |
 | Custom shader authoring scaffold | [ShaderAuthoring.md](ShaderAuthoring.md) |
 | First-party shader system overview | [Shaders/ShaderSystemOverview.md](Shaders/ShaderSystemOverview.md) |
+| ContactTone shader reference | [Shaders/ContactTone.md](Shaders/ContactTone.md) |
 | Shared material/water/receiver contract | [Shaders/MaterialMasks.md](Shaders/MaterialMasks.md) |
 | Per-shader references | [Shaders/ShaderSystemOverview.md](Shaders/ShaderSystemOverview.md#first-party-shader-roles) |
 | Optional NormalField diagnostics and test plan | [NormalField.md](NormalField.md) |

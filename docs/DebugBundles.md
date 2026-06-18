@@ -81,7 +81,7 @@ Start with:
 
 Editable tag preset metadata lives in `SceneAuthoring/tag-presets.json`. It is not a shader formula dump; it documents and extends the authoring vocabulary. Exported tag preset metadata uses `SceneAuthoring/Exports/tag-presets-export.json`.
 
-FrameData is currently inline only. `frame-data-diagnostics.json` should report `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SurfaceReflection, and SceneGI as production FrameData consumers. `Dalashade_FrameDataDebug.fx` is a manual debug shader; section/variable injection must not make the technique active by default.
+FrameData is currently inline only. `frame-data-diagnostics.json` should report `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SceneGI, ContactTone, and SurfaceReflection as production FrameData consumers. `Dalashade_FrameDataDebug.fx` is a manual debug shader; section/variable injection must not make the technique active by default.
 
 ## Do Not Do
 

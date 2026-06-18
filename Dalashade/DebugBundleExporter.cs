@@ -47,6 +47,7 @@ public sealed class DebugBundleExporter
         "Dalashade_NormalDebug.fx",
         "Dalashade_FrameDataDebug.fx",
         "Dalashade_SceneGI.fx",
+        "Dalashade_ContactTone.fx",
         "Dalashade_SurfaceReflection.fx",
         "Dalashade_MaterialMasks.fxh",
         "Dalashade_NormalField.fxh",
@@ -60,6 +61,7 @@ public sealed class DebugBundleExporter
         "Dalashade_WeatherAtmosphere.fx",
         "Dalashade_SmartSharpen.fx",
         "Dalashade_SceneGI.fx",
+        "Dalashade_ContactTone.fx",
         "Dalashade_SurfaceReflection.fx"
     ];
 
@@ -722,7 +724,7 @@ public sealed class DebugBundleExporter
             {
                 "FrameData currently wraps inline canonical resolvers. No render target or prepass exists.",
                 "FrameDataDebug is manual and should remain inactive unless explicitly enabled in ReShade.",
-                "Production first-party shaders use inline FrameData. SurfaceReflection and SceneGI now consume the same base/surface contract as WeatherAtmosphere, AdaptiveGrade, SmartSharpen, and AtmosphereBloom."
+                "Production first-party shaders use inline FrameData. SceneGI, ContactTone, and SurfaceReflection now consume the same base/surface contract as WeatherAtmosphere, AdaptiveGrade, SmartSharpen, and AtmosphereBloom."
             }
         };
     }
@@ -1357,10 +1359,11 @@ Preset and plugin config files are included intentionally for debugging. Full Re
         "iMMERSE Pro ReGrade",
         "Dalashade_AdaptiveGrade",
         "Dalashade_SceneGI",
+        "Dalashade_ContactTone",
+        "Dalashade_WeatherAtmosphere",
+        "Dalashade_AtmosphereBloom",
         "Dalashade_SurfaceReflection",
         "MagicBloom",
-        "Dalashade_AtmosphereBloom",
-        "Dalashade_WeatherAtmosphere",
         "iMMERSE Sharpen",
         "Dalashade_SmartSharpen",
         "Dalashade_NormalDebug",

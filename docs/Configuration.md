@@ -111,7 +111,7 @@ Generated preset load-order optimization is also optional and disabled by defaul
 
 `FirstPartyShaderMode` controls how strongly production first-party Dalashade shaders participate once custom shader variable writing is enabled:
 
-- `Supportive` is the default. It writes `Dalashade_StandaloneStrength=0` and keeps AdaptiveGrade, SceneGI, SurfaceReflection, AtmosphereBloom, WeatherAtmosphere, and SmartSharpen close to their conservative base-preset enhancement behavior.
+- `Supportive` is the default. It writes `Dalashade_StandaloneStrength=0` and keeps AdaptiveGrade, SceneGI, ContactTone, SurfaceReflection, AtmosphereBloom, WeatherAtmosphere, and SmartSharpen close to their conservative base-preset enhancement behavior.
 - `Standalone` writes `Dalashade_StandaloneStrength=1` to those production shader sections when the section declares the key. The shaders use it as a small multiplier behind existing material/safety gates so first-party Dalashade shaders can carry more of the stack without weakening sky, skin, water, foliage, snow, sand, highlight, or source/receiver protections.
 
 Debug shaders are intentionally unaffected by `FirstPartyShaderMode`.
@@ -123,7 +123,7 @@ Debug shaders are intentionally unaffected by `FirstPartyShaderMode`.
 - `Dalashade_DepthAssistConfidenceFloor=0`
 - `Dalashade_DepthConfidenceFloor=0`
 
-The write is limited to known first-party Dalashade production shader sections that declare those uniforms: AdaptiveGrade, AtmosphereBloom, WeatherAtmosphere, SmartSharpen, SceneGI, and SurfaceReflection. It requires custom shader variable writes to be enabled and does not install `.fx` files. Technique activation remains manual unless `SyncDalashadeTechniqueActivation` is enabled. Depth assist can improve resolver confidence when ReShade depth is reliable, but it can worsen masks when the depth buffer is flat, unavailable, reversed incorrectly, or contaminated by UI/overlay depth.
+The write is limited to known first-party Dalashade production shader sections that declare those uniforms: AdaptiveGrade, AtmosphereBloom, WeatherAtmosphere, SmartSharpen, SceneGI, ContactTone, and SurfaceReflection. It requires custom shader variable writes to be enabled and does not install `.fx` files. Technique activation remains manual unless `SyncDalashadeTechniqueActivation` is enabled. Depth assist can improve resolver confidence when ReShade depth is reliable, but it can worsen masks when the depth buffer is flat, unavailable, reversed incorrectly, or contaminated by UI/overlay depth.
 
 Compatibility reports and debug bundles list `EnableFirstPartyDepthAssist`, whether generated-preset custom shader writes and section injection are enabled, and which production first-party sections received each depth-assist variable. Debug shaders remain manual diagnostic viewers. Reporting missing shader files or missing generated-preset sections should be diagnostic-only and must not fail generation.
 

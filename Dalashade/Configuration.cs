@@ -128,6 +128,14 @@ public class Configuration : IPluginConfiguration
     public int DalashadeSceneGIDebugOutputMode { get; set; } = 0;
     public float DalashadeSceneGIDebugOpacity { get; set; } = 0.75f;
     public float DalashadeSceneGIDebugBoost { get; set; } = 2.50f;
+    public bool EnableDalashadeContactToneShaderVariables { get; set; } = false;
+    public float DalashadeContactToneStrength { get; set; } = 0.42f;
+    public float DalashadeContactToneRadius { get; set; } = 0.62f;
+    public float DalashadeContactToneEdgeStrength { get; set; } = 0.48f;
+    public float DalashadeContactToneStructureStrength { get; set; } = 0.44f;
+    public float DalashadeContactToneContrastStrength { get; set; } = 0.34f;
+    public int DalashadeContactToneDebugMode { get; set; } = 0;
+    public float DalashadeContactToneDebugOpacity { get; set; } = 0.75f;
     public bool EnableDalashadeSurfaceReflectionShaderVariables { get; set; } = false;
     public float DalashadeSurfaceReflectionStrength { get; set; } = 0.32f;
     public float DalashadeSurfaceReflectionWaterSheenStrength { get; set; } = 0.38f;

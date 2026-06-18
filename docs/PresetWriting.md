@@ -49,6 +49,7 @@ The optimizer uses broad stable phases so known effect families land in a safer 
 | --- | --- |
 | Earlier grade/scene foundation | `Dalashade_AdaptiveGrade` |
 | GI/ambient structure | `Dalashade_SceneGI`, MXAO/RTGI-style effects |
+| Local contact/readability tone | `Dalashade_ContactTone` |
 | Weather/air and bloom | `Dalashade_WeatherAtmosphere`, `Dalashade_AtmosphereBloom`, bloom/glow effects |
 | Reflection/sheen | `Dalashade_SurfaceReflection`, reflection/glint/specular effects |
 | Detail finishing | sharpen, clarity, AA, DOF, grain, vignette, debug/overlay tools |
@@ -62,7 +63,7 @@ This feature is a generated-preset cleanup pass, not a compatibility guarantee. 
 When enabled, `PresetWriter` manages only Dalashade production first-party techniques in the generated preset's `Techniques=` list:
 
 - Always eligible when custom shader variables and section injection are enabled: `Dalashade_AdaptiveGrade`, `Dalashade_WeatherAtmosphere`, `Dalashade_AtmosphereBloom`, and `Dalashade_SmartSharpen`.
-- Eligible only when their plugin variable-write options are enabled: `Dalashade_SceneGI` and `Dalashade_SurfaceReflection`.
+- Eligible only when their plugin variable-write options are enabled: `Dalashade_SceneGI`, `Dalashade_ContactTone`, and `Dalashade_SurfaceReflection`.
 - Never auto-enabled: `Dalashade_MaterialDebug`, `Dalashade_NormalDebug`, and `Dalashade_FrameDataDebug`.
 
 The sync preserves third-party active techniques, adds missing eligible Dalashade production techniques, removes active Dalashade production techniques when their controlling plugin options are off, and writes the managed entries in the same phase order used by the load-order optimizer. It still does not copy `.fx` files or modify the base preset.

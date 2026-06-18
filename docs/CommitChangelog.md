@@ -31,6 +31,96 @@ Use Unix timestamps so entries are easy to sort and compare across local time zo
 
 ## Entries
 
+### 1781807285 - Clean NormalField relief contract
+
+- Changed: Added an explicit neutral NormalField default path and early disabled return, exposed `TextureReliefSafety` through NormalField and FrameData surface data, constrained composite relief neighbor groove samples with the same safety gate as the center sample, reduced the old high-pass relief lane to a small compatibility hint, reduced texture-relief leakage into broad `StructureCandidate`, renamed stale NormalDebug labels, and updated compatibility-report NormalField consumers.
+- Why: A top-to-bottom audit found that the newer composite-height relief path was mostly in place, but old high-pass and ungated neighbor paths could still leak noisy or unsafe evidence into production-facing fields.
+- Related goals: Keep NormalField useful as expandable screen-space surface support data while making future shader integrations cleaner, safer, and easier to reason about.
+- Documentation: Updated NormalField, FrameData, and this changelog to document `TextureReliefSafety`, the early disabled path, neighbor safety gating, and current production consumer order.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `git diff --check` passed with Git LF-to-CRLF warnings only. ReShade shader compile and in-game visual validation were not run after this patch.
+- Next steps: Re-test NormalDebug modes `12`, `13`, `15`, `19`, and `20` in ReShade. Confirm disabled NormalField remains neutral, hard-surface seams survive, and sky/emissive/water/foliage/UI-heavy scenes stay quiet.
+
+### 1781800224 - Gate texture relief against sky and emissive false positives
+
+- Changed: Added an internal NormalField texture-relief safety gate that suppresses sky/cosmic fields, water, skin, UI/depth risk, foliage shimmer, bright highlights, and emissive/aether bloom before groove-line and composite-height evidence can drive relief normals.
+- Why: Screenshot review showed the tile/stone normal output is usable, but cosmic skies, bright aether rings, combat bloom, foliage texture, and UI-heavy frames can produce convincing but false relief data.
+- Related goals: Keep generated normal-map-like support useful for hard surfaces while making risky scenes fail quieter instead of turning sky, bloom, or foliage into fake material normals.
+- Documentation: Updated NormalField docs and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `git diff --check` passed with Git LF-to-CRLF warnings only. ReShade shader compile and in-game visual validation were not run after this patch.
+- Next steps: Re-test NormalDebug modes `15`, `19`, and `20` on city tiles, cosmic/aether sky scenes, foliage, water, and UI-heavy combat screenshots. The expected result is preserved hard-surface seams with quieter sky/emissive/foliage false positives.
+
+### 1781791988 - Add cleaned-height stage before relief normals
+
+- Changed: Added a confidence-aware cross blur to the NormalField texture-relief height compiler before deriving the composite relief normal. Weak, low-confidence height evidence is blended toward nearby compiled height, while strong groove/ridge/coherence evidence preserves local structure. Removed an obsolete raw compiled-height helper from the normal path.
+- Why: NormalMap-style generation works best when the height map is cleaned before Sobel-like normal derivation. The previous pass produced usable support data, but fine grass/stone grain could still become shallow noisy relief.
+- Related goals: Make NormalField relief more stable and normal-map-like while preserving hard-surface grooves, tile gaps, panel seams, and engraved lines as screen-space support data.
+- Documentation: Updated NormalField docs and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `git diff --check` passed with Git LF-to-CRLF warnings only. ReShade shader compile and in-game visual validation were not run after this patch.
+- Next steps: Re-test NormalDebug mode `20` on tile, outdoor cobble, grass, foliage, and slow camera movement. The expected result is slightly smoother broad surfaces with grooves preserved.
+
+### 1781789270 - Improve NormalField relief-height compile readability
+
+- Changed: Tightened NormalField texture-relief confidence so coherence cannot strongly drive relief without paired ridge, groove, valley, or structure evidence. Biased coherent groove lines downward in the compiled height field, made mode `19` a neutral grayscale height view with subtle ridge/valley tint instead of a red wash, increased mode `20` normal readability, and reduced production relief blending so debug visibility can be stronger than shader influence.
+- Why: In-game captures showed the early detectors were useful, but the final composite layer still had a misleading red height view, too-hot coherence, and too-flat composite normal output.
+- Related goals: Turn visible tile gaps, panel seams, engraved lines, and hard-surface texture detail into usable screen-space normal support while keeping NormalField diagnostic-first and conservative for production consumers.
+- Documentation: Updated NormalField and NormalDebug docs plus this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `git diff --check` passed with Git LF-to-CRLF warnings only. ReShade shader compile and in-game visual validation were not run after this patch.
+- Next steps: Re-test NormalDebug modes `18`, `19`, and `20`. Mode `18` should be less globally hot, mode `19` should read as neutral grayscale height, and mode `20` should show clearer directional groove normals without making broad tile faces noisy.
+
+### 1781759056 - Compile NormalField relief height more conservatively
+
+- Changed: Replaced the raw composite texture-relief height proxy with a neutral-centered relief-height compiler. The compiler adds structure-scale support checks, clamps raw high-pass texture detail, favors coherent groove/curvature evidence, pulls uncertain pixels back toward `0.5`, and derives the composite relief normal from the cleaned height field.
+- Why: In-game NormalDebug captures showed useful groove and curvature data in modes `15` through `17`, but mode `19` was globally biased/saturated and mode `20` stayed too flat to resemble a usable generated normal map.
+- Related goals: Move NormalField toward normal-map-like support data for tile gaps, engraved lines, panel seams, and other hard-surface material detail while keeping the system screen-space, optional, and diagnostic-first.
+- Documentation: Updated NormalField and NormalDebug docs to describe the relief-height compiler and neutral-centered composite height behavior.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `git diff --check` passed with Git LF-to-CRLF warnings only. ReShade shader compile and in-game visual validation were not run.
+- Next steps: Re-test NormalDebug modes `19` and `20` on the tile scenes. Mode `19` should read mostly neutral with clear local raised/lowered detail, and mode `20` should show directional normal variation around grooves without turning whole surfaces noisy.
+
+### 1781755422 - Add NormalField composite relief diagnostics
+
+- Changed: Reworked NormalField texture relief to build a bounded composite height hypothesis from local high-pass polarity, Hessian-style ridge/valley curvature, structure-coherence gating, and the existing groove-line signal. Added explicit curvature, coherence, composite height, and composite confidence fields to NormalField and FrameData surface data. Kept mode `13` as the legacy gradient relief normal for comparison, and added NormalDebug modes `16` through `20` for curvature ridge, curvature valley/groove, structure coherence, composite relief height, and composite relief normal RGB. Widened plugin/report/generated-write debug-mode clamps to allow the new modes.
+- Why: The first relief/groove pass made tile seams visible but still produced too much random texture noise. The new pass separates likely crease/indent/ridge evidence from speckle before compiling it into a normal-map-like diagnostic layer.
+- Related goals: Make NormalField more useful to current and future first-party shaders while keeping it screen-space, optional, explainable, and safety-gated behind FrameData/MaterialMasks ownership.
+- Documentation: Updated NormalField, NormalDebug, FrameData, and this changelog to describe the composite relief model and new debug modes.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` completed successfully with restore/up-to-date output; `git diff --check` passed with Git LF-to-CRLF warnings only. ReShade shader compile and in-game visual validation were not run.
+- Next steps: Validate NormalDebug modes `16` through `20` in-game on tile floors, marble/stone, metal panels, foliage, skin, sky, water, UI-heavy scenes, and camera movement before any production shader increases reliance on the new fields.
+
+### 1781750599 - Add NormalField texture relief lane
+
+- Changed: Added a texture-relief lane to `Dalashade_NormalField.fxh` that estimates local raised ridges from bright high-pass texture detail and grooves from dark high-pass creases, rejects broad lighting gradients, applies material/water/skin/sky/UI safety gates, and blends the result into the existing combined NormalField output. Added a direction-aware `TextureGrooveLine` signal for coherent dark seams such as tile gaps, engraved lines, panel joins, and cracks, with stricter diagonal continuity to reject more short scratch chatter. Exposed explicit `TextureReliefStrength` and `TextureGrooveLine` through FrameData and added NormalDebug modes `13`, `14`, and `15` for relief normal, combined ridge/groove/relief, and groove-line-only inspection.
+- Why: NormalField needed a stronger but still bounded way to infer realistic surface relief from texture detail without pretending to recover true game normal maps.
+- Related goals: Let existing first-party shaders that already consume NormalField benefit through `Normal` and `DetailStrength`, while giving future shaders clean explicit relief and groove-line fields to use only behind material and safety gates.
+- Documentation: Updated NormalField, NormalDebug, FrameData, ShaderAuthoring, CodebaseIndex, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `git diff --check` passed with Git LF-to-CRLF warnings only. ReShade shader compile and in-game visual validation were not run.
+- Next steps: Validate NormalDebug modes `13`, `14`, and especially `15` on stone, metal, tile seams, foliage, skin, water, sky, UI-heavy, and high-bloom scenes before increasing production shader reliance on `TextureReliefStrength` or `TextureGrooveLine`.
+
+### 1781761357 - Add ContactTone first-party shader
+
+- Changed: Added `Dalashade_ContactTone.fx` as a separate first-party shader for local grounding tone, contact edge darkening, and material readability contrast. Added plugin config fields, generated preset injection, variable mapping, technique sync gating, load-order sorting, User Mode controls, Developer Mode controls, compatibility report diagnostics, debug bundle source scans, and regression harness coverage. Fixed the User Mode feature card so generated-preset injection evidence counts for newly injected first-party sections instead of reporting ContactTone as missing while the generated preset write result says it was written.
+- Why: Contact tone needs a unique shader identity instead of being folded into SceneGI. Users should be able to make contact edges and grounded transitions stronger without also enabling GI color bounce, reflection projections, or atmospheric bloom.
+- Related goals: Keep first-party shader responsibilities separate, make effects more noticeable while preserving sky/skin/water safety, and keep generated-preset behavior opt-in through explicit shader variable toggles.
+- Documentation: Added `docs/Shaders/ContactTone.md` and updated README, shader overview, authoring, preset writing, FrameData, diagnostics, configuration, generation pipeline, scene-tag, debug-bundle, and codebase index docs.
+- Verification: `dotnet build Dalashade.sln` passed; `dotnet test Dalashade.sln` completed successfully; `git diff --check` passed with Git LF-to-CRLF warnings only. ReShade shader compile and in-game visual validation were not run.
+- Next steps: Regenerate once more and confirm the ContactTone card reports a generated section/variables instead of `Generate to inject section`; then validate `Dalashade_ContactTone.fx` in ReShade, checking normal output plus debug modes 1 through 6 across city, foliage, water, sky-heavy, combat/UI, and interior scenes.
+
+### 1781758754 - Add AtmosphereBloom canopy gap bloom
+
+- Changed: Added a canopy gap bloom detector to `Dalashade_AtmosphereBloom.fx` that looks for bright sky/light openings surrounded by darker foliage-like texture, rejects broad smooth sky, and exposes `CanopyGapBloomStrength` plus debug mode `10` for canopy gap bloom. Added `Dalashade_MaterialFoliage` support for AtmosphereBloom material mapping and generated-section injection.
+- Why: The desired effect is bloom around gaps between tree leaves without blooming the entire sky, which belongs in AtmosphereBloom because the output is source-local bloom/halo behavior.
+- Related goals: Improve first-party shader scene awareness while preserving shader responsibility boundaries: AtmosphereBloom owns glow eligibility, SceneGI owns indirect-light impression, and WeatherAtmosphere owns broad air/weather.
+- Documentation: Updated `docs/Shaders/AtmosphereBloom.md`, `docs/ShaderAuthoring.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` completed successfully with restore/up-to-date output; `git diff --check` passed with line-ending warnings only. ReShade shader compile and visual validation not run in this pass.
+- Next steps: Inspect `Dalashade_MaterialDebugMode=10` in a foliage/canopy scene against normal sky and UI-heavy scenes.
+
+### 1781756856 - Strengthen SceneGI material lanes
+
+- Changed: Added explicit SceneGI-local material bounce lanes for foliage, stone, metal, sand/snow climate surfaces, wet surfaces, and emissive pooling. Added sky-safe receiver shaping and debug modes for material bounce lanes, sky-safe receivers, and emissive pooling lanes. Updated plugin UI/report/preset formatting to accept SceneGI debug modes `0` through `17`.
+- Why: SceneGI is the safest near-term first-party shader target, and it needed clearer material bounce, AO/contact shaping, and emissive pooling without changing FrameData, MaterialMasks, NormalField, or shader variable contracts.
+- Related goals: Improve first-party GI behavior while preserving inline FrameData ownership, keep diagnostics legible, and keep future ContactTone/EmissiveAtmosphere work separate from SceneGI and AtmosphereBloom.
+- Documentation: Updated `docs/Shaders/SceneGI.md`, `docs/ShaderAuthoring.md`, and this changelog with the new GI lane behavior, debug modes, and standalone-shader rationale.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` completed successfully with restore/up-to-date output; `git diff --check` passed with line-ending warnings only.
+- Next steps: Inspect SceneGI debug modes 15, 16, and 17 in a few outdoor, interior, and emissive scenes.
+
 ### 1781755599 - Fix material calibration false positives
 
 - Changed: Replaced loose territory substring checks with boundary-aware territory keyword matching, added a softer foliage/grass mismatch warning when visible evidence is high but Foliage intent is only modest, and added regression harness coverage for Labyrinthos water intent plus modest foliage warnings.
