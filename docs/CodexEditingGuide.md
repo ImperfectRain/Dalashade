@@ -37,7 +37,7 @@ If the task says documentation-only:
 
 1. Do not change runtime behavior.
 2. Do not add `.fx` shaders.
-3. Do not add bridge, IPC, named pipe, or native add-on code.
+3. Do not add new bridge, named pipe, or native add-on behavior unless explicitly requested. The current Dalapad status-file IPC is diagnostic-only and must remain unable to change generated presets or shader output.
 4. Do not alter release packaging.
 5. Clearly label planned systems as planned.
 

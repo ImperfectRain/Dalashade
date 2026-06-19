@@ -32,6 +32,7 @@ Current bundle contents include:
 - `material-intent.json`
 - `normal-field-diagnostics.json`
 - `frame-data-diagnostics.json`
+- `dalapad-diagnostics.json`
 - `first-party-depth-assist.json`
 - `material-parity-audit.md`
 - `shader-stack-summary.md`
@@ -68,8 +69,9 @@ Start with:
 5. `scene-context.json`, `scene-authoring.json`, `scene-intent.json`, `screenshot-material-evidence.json`, `material-tag-registry.json`, `material-calibration.json`, `material-intent.json`: scene, override, visible material evidence, registry tuning, calibration, and material reasoning.
 6. `normal-field-diagnostics.json`: NormalField settings, shader presence, debug technique state, and first-party consumption.
 7. `frame-data-diagnostics.json`: FrameData include/debug shader presence, FrameDataDebug section/variables, inline/prepass status, and production migration status.
-8. `first-party-depth-assist.json`: opt-in depth-assist setting state and known first-party sections that received depth-assist writes.
-9. `installed-dalashade-shaders.txt`: installed first-party shader files and hashes.
+8. `dalapad-diagnostics.json`: Dalapad runtime metadata probe status plus addon contract version, IPC status-file diagnostics, optional resource names, diagnostic routes, implementation options, and backend steps for a possible future optional surface-data addon.
+9. `first-party-depth-assist.json`: opt-in depth-assist setting state and known first-party sections that received depth-assist writes.
+10. `installed-dalashade-shaders.txt`: installed first-party shader files and hashes.
 
 `scene-authoring.json` records whether scene authoring was enabled, the override file path, active territory override metadata, detected area/weather/biome/mood tags, effective area/weather/biome/mood tags, added/removed override maps, suppressed diagnostic tags, and authoring warnings. This file is the first place to check when a user says tags were removed but still appeared to influence the generated profile.
 
@@ -82,6 +84,10 @@ Start with:
 Editable tag preset metadata lives in `SceneAuthoring/tag-presets.json`. It is not a shader formula dump; it documents and extends the authoring vocabulary. Exported tag preset metadata uses `SceneAuthoring/Exports/tag-presets-export.json`.
 
 FrameData is currently inline only. `frame-data-diagnostics.json` should report `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SceneGI, ContactTone, and SurfaceReflection as production FrameData consumers. `Dalashade_FrameDataDebug.fx` is a manual debug shader; section/variable injection must not make the technique active by default.
+
+`normal-field-diagnostics.json` reports NormalDebug technique state from analyzed preset text only. It cannot observe whether the live ReShade UI checkbox is currently enabled after the report was generated.
+
+`dalapad-diagnostics.json` records the diagnostic-only Dalapad surface-data probe. It reports runtime metadata availability, addon contract version, optional Stage 1 status-file IPC state, future resource names, availability flags, diagnostic routes, implementation options, realtime-contract placeholders, and staged backend steps. It must not read G-buffers, copy GPU resources, expose textures to ReShade, open live pipes, move shader values, or change shader/preset behavior.
 
 ## Do Not Do
 

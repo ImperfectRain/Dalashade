@@ -211,6 +211,7 @@ public sealed class CompatibilityReportExporter
         SceneAuthoringState sceneAuthoringState,
         ImageAnalysisResult currentImage,
         ScreenshotMaterialEvidenceDiagnostics screenshotMaterialEvidence,
+        DalapadDiagnostics dalapadDiagnostics,
         IReadOnlyList<SceneTagPreset>? activeTagRegistry,
         ImageAnalysisResult masterStyle,
         PresetWriteResult writeResult,
@@ -239,7 +240,7 @@ public sealed class CompatibilityReportExporter
             Directory.CreateDirectory(reportDirectory);
 
             stage = "building report content";
-            var reportContent = BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, tagStackDiagnostics, sceneAuthoringState, currentImage, screenshotMaterialEvidence, activeTagRegistry, masterStyle, writeResult, effectiveBasePresetPath);
+            var reportContent = BuildReport(configuration, analysis, shaderSupport, profile, masterDiagnostics, tagStackDiagnostics, sceneAuthoringState, currentImage, screenshotMaterialEvidence, dalapadDiagnostics, activeTagRegistry, masterStyle, writeResult, effectiveBasePresetPath);
             stage = "writing report file";
             File.WriteAllText(path, reportContent, Encoding.UTF8);
             if (!File.Exists(path))
@@ -265,6 +266,7 @@ public sealed class CompatibilityReportExporter
         SceneAuthoringState sceneAuthoringState,
         ImageAnalysisResult currentImage,
         ScreenshotMaterialEvidenceDiagnostics screenshotMaterialEvidence,
+        DalapadDiagnostics dalapadDiagnostics,
         IReadOnlyList<SceneTagPreset>? activeTagRegistry,
         ImageAnalysisResult masterStyle,
         PresetWriteResult writeResult,
@@ -308,6 +310,7 @@ public sealed class CompatibilityReportExporter
         AppendMaterialCalibrationDiagnostics(builder, configuration, tagStackDiagnostics, reportMaterialProfile, screenshotMaterialEvidence, reportMaterialIntent, reportTagRegistry, shaderSupport, writeResult);
         AppendNormalFieldDiagnostics(builder, configuration, analysis, writeResult);
         AppendFrameDataDiagnostics(builder, configuration, analysis, writeResult);
+        AppendDalapadDiagnostics(builder, dalapadDiagnostics);
         AppendFirstPartyDepthAssistDiagnostics(builder, configuration, writeResult);
         AppendMasterStyleDiagnostics(builder, configuration, masterDiagnostics);
         AppendColorFamilyAdjustments(builder, profile);
@@ -1021,7 +1024,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("## Normal Field Diagnostics");
         builder.AppendLine();
         var normalDebug = FindFirstPartyTechnique(analysis, "Dalashade_NormalDebug");
-        var normalFieldIncludeAvailable = !string.IsNullOrWhiteSpace(ReadShaderSource("Dalashade_NormalField.fxh"));
+        var normalFieldIncludeAvailable = !string.IsNullOrWhiteSpace(ReadShaderSource(configuration, "Dalashade_NormalField.fxh"));
         builder.AppendLine($"- Enabled: {(configuration.EnableNormalField ? "yes" : "no")}");
         builder.AppendLine($"- Diagnostics enabled: {(configuration.EnableNormalFieldDiagnostics ? "yes" : "no")}");
         builder.AppendLine($"- Shader mapping enabled: {(configuration.EnableNormalFieldShaderMapping ? "yes" : "no")}");
@@ -1035,7 +1038,8 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Debug mode: {Math.Clamp(configuration.NormalFieldDebugMode, 0, 20)}");
         builder.AppendLine($"- Debug boost: {Math.Clamp(configuration.NormalFieldDebugBoost, 0.25f, 8f):0.###}");
         builder.AppendLine($"- NormalDebug shader section present: {(normalDebug is null ? "no" : "yes")}");
-        builder.AppendLine($"- NormalDebug technique active: {(normalDebug?.ActivationState == TechniqueActivationState.Active ? "yes" : "no")}");
+        builder.AppendLine($"- NormalDebug technique active in analyzed preset: {(normalDebug?.ActivationState == TechniqueActivationState.Active ? "yes" : "no")}");
+        builder.AppendLine("- NormalDebug live ReShade UI state observed: no; this report only analyzes generated/active preset text.");
         builder.AppendLine($"- NormalField include installed locally for diagnostics scan: {(normalFieldIncludeAvailable ? "yes" : "no")}");
         builder.AppendLine("- Current note: `NormalField shader files are not required unless the optional NormalDebug shader is installed/enabled.`");
 
@@ -1066,13 +1070,13 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine();
         builder.AppendLine("### Production Shader Consumption");
         builder.AppendLine();
-        builder.AppendLine($"- SceneGI: {FormatNormalFieldProductionConsumption("Dalashade_SceneGI.fx")}");
-        builder.AppendLine($"- SurfaceReflection: {FormatNormalFieldProductionConsumption("Dalashade_SurfaceReflection.fx")}");
-        builder.AppendLine($"- SmartSharpen: {FormatNormalFieldProductionConsumption("Dalashade_SmartSharpen.fx")}");
-        builder.AppendLine($"- WeatherAtmosphere: {FormatNormalFieldProductionConsumption("Dalashade_WeatherAtmosphere.fx")}");
-        builder.AppendLine($"- AtmosphereBloom: {FormatNormalFieldProductionConsumption("Dalashade_AtmosphereBloom.fx")}");
-        builder.AppendLine($"- AdaptiveGrade: {FormatNormalFieldProductionConsumption("Dalashade_AdaptiveGrade.fx")}");
-        builder.AppendLine($"- ContactTone: {FormatNormalFieldProductionConsumption("Dalashade_ContactTone.fx")}");
+        builder.AppendLine($"- SceneGI: {FormatNormalFieldProductionConsumption(configuration, "Dalashade_SceneGI.fx")}");
+        builder.AppendLine($"- SurfaceReflection: {FormatNormalFieldProductionConsumption(configuration, "Dalashade_SurfaceReflection.fx")}");
+        builder.AppendLine($"- SmartSharpen: {FormatNormalFieldProductionConsumption(configuration, "Dalashade_SmartSharpen.fx")}");
+        builder.AppendLine($"- WeatherAtmosphere: {FormatNormalFieldProductionConsumption(configuration, "Dalashade_WeatherAtmosphere.fx")}");
+        builder.AppendLine($"- AtmosphereBloom: {FormatNormalFieldProductionConsumption(configuration, "Dalashade_AtmosphereBloom.fx")}");
+        builder.AppendLine($"- AdaptiveGrade: {FormatNormalFieldProductionConsumption(configuration, "Dalashade_AdaptiveGrade.fx")}");
+        builder.AppendLine($"- ContactTone: {FormatNormalFieldProductionConsumption(configuration, "Dalashade_ContactTone.fx")}");
         builder.AppendLine("- WeatherParticles/LightHierarchy/CombatClarity: not applicable unless present.");
         builder.AppendLine();
     }
@@ -1166,6 +1170,123 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine("- Known variables: `Dalashade_EnableDepthAssist`, `Dalashade_DepthAssistStrength`, `Dalashade_DepthAssistConfidenceFloor`, `Dalashade_DepthConfidenceFloor`.");
         builder.AppendLine("- Current note: depth assist is opt-in, generated-preset-only, and does not activate techniques. It can improve or worsen resolver confidence depending on ReShade depth reliability.");
         builder.AppendLine();
+    }
+
+    private static void AppendDalapadDiagnostics(StringBuilder builder, DalapadDiagnostics diagnostics)
+    {
+        builder.AppendLine("## Dalapad Diagnostics");
+        builder.AppendLine();
+        builder.AppendLine("- Display name: Dalapad");
+        builder.AppendLine("- Purpose: optional external surface-data addon research probe.");
+        builder.AppendLine("- Runtime behavior: diagnostic-only metadata inspection.");
+        builder.AppendLine($"- Probed: {YesNo(diagnostics.Probed)}");
+        builder.AppendLine($"- Status: {diagnostics.Status}");
+        builder.AppendLine($"- Summary: {diagnostics.Summary}");
+        if (diagnostics.ProbeTimestamp != DateTimeOffset.MinValue)
+        {
+            builder.AppendLine($"- Probe timestamp: {diagnostics.ProbeTimestamp:O}");
+        }
+
+        builder.AppendLine($"- Runtime assembly: {FormatOptionalInlineCode(diagnostics.RuntimeAssembly)}");
+        builder.AppendLine($"- RenderTargetManager type: {FormatOptionalInlineCode(diagnostics.RenderTargetManagerTypeName)}");
+        builder.AppendLine($"- RenderTargetManager type found: {YesNo(diagnostics.RenderTargetManagerTypeFound)}");
+        builder.AppendLine($"- Instance metadata found: {YesNo(diagnostics.InstanceMethodFound)}");
+        builder.AppendLine($"- GBuffer metadata found: {YesNo(diagnostics.GBufferMemberFound)}");
+        builder.AppendLine($"- DepthStencil metadata found: {YesNo(diagnostics.DepthStencilMemberFound)}");
+        builder.AppendLine($"- Texture metadata found: {YesNo(diagnostics.TextureTypeFound)}");
+        builder.AppendLine($"- Addon contract version: `{diagnostics.AddonContractVersion}`");
+        builder.AppendLine($"- IPC contract version: `{diagnostics.IpcContractVersion}`");
+        builder.AppendLine();
+
+        builder.AppendLine("| Capability | Available | Detail |");
+        builder.AppendLine("| --- | --- | --- |");
+        foreach (var capability in diagnostics.Capabilities)
+        {
+            builder.AppendLine($"| {capability.Name} | {YesNo(capability.Available)} | {capability.Detail} |");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### Addon Resource Contract");
+        builder.AppendLine();
+        builder.AppendLine("| Resource | Kind | Expected Source | Diagnostic Use | Availability Flag |");
+        builder.AppendLine("| --- | --- | --- | --- | --- |");
+        foreach (var resource in diagnostics.AddonResources)
+        {
+            builder.AppendLine($"| {EscapeTable(resource.Name)} | {EscapeTable(resource.Kind)} | {EscapeTable(resource.ExpectedSource)} | {EscapeTable(resource.DiagnosticOnlyUse)} | {EscapeTable(resource.AvailabilityFlag)} |");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### IPC Status");
+        builder.AppendLine();
+        builder.AppendLine($"- Status: {diagnostics.IpcStatus.Status}");
+        builder.AppendLine($"- Summary: {diagnostics.IpcStatus.Summary}");
+        builder.AppendLine($"- Status file: {FormatOptionalInlineCode(diagnostics.IpcStatus.StatusFilePath)}");
+        builder.AppendLine($"- Status file found: {YesNo(diagnostics.IpcStatus.StatusFileFound)}");
+        builder.AppendLine($"- Bridge reported: {YesNo(diagnostics.IpcStatus.BridgeReported)}");
+        builder.AppendLine($"- Contract compatible: {YesNo(diagnostics.IpcStatus.ContractCompatible)}");
+        builder.AppendLine($"- Bridge version: {FormatOptionalInlineCode(diagnostics.IpcStatus.BridgeVersion)}");
+        builder.AppendLine($"- Addon process: {FormatOptionalInlineCode(diagnostics.IpcStatus.AddonProcess)}");
+        if (diagnostics.IpcStatus.LastUpdateUtc.HasValue)
+        {
+            builder.AppendLine($"- Last update: {diagnostics.IpcStatus.LastUpdateUtc.Value:O}");
+        }
+
+        builder.AppendLine($"- Reported resources: {(diagnostics.IpcStatus.ReportedResources.Count == 0 ? "none" : string.Join(", ", diagnostics.IpcStatus.ReportedResources.Select(resource => $"`{EscapeTable(resource)}`")))}");
+        builder.AppendLine($"- IPC warnings: {(diagnostics.IpcStatus.Warnings.Count == 0 ? "none" : string.Join("; ", diagnostics.IpcStatus.Warnings.Select(EscapeTable)))}");
+
+        builder.AppendLine();
+        builder.AppendLine("### IPC Endpoints");
+        builder.AppendLine();
+        builder.AppendLine("| Endpoint | Kind | Direction | Address | Purpose | Safety Boundary |");
+        builder.AppendLine("| --- | --- | --- | --- | --- | --- |");
+        foreach (var endpoint in diagnostics.IpcEndpoints)
+        {
+            builder.AppendLine($"| {EscapeTable(endpoint.Name)} | {EscapeTable(endpoint.Kind)} | {EscapeTable(endpoint.Direction)} | {EscapeTable(endpoint.Address)} | {EscapeTable(endpoint.Purpose)} | {EscapeTable(endpoint.SafetyBoundary)} |");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### Realtime Adaptation Groundwork");
+        builder.AppendLine();
+        builder.AppendLine("| Channel | Direction | Payload | Priority | Safety Boundary |");
+        builder.AppendLine("| --- | --- | --- | --- | --- |");
+        foreach (var channel in diagnostics.RealtimeChannels)
+        {
+            builder.AppendLine($"| {EscapeTable(channel.Name)} | {EscapeTable(channel.Direction)} | {EscapeTable(channel.Payload)} | {EscapeTable(channel.Priority)} | {EscapeTable(channel.SafetyBoundary)} |");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### Diagnostic Routes");
+        builder.AppendLine();
+        builder.AppendLine("| Route | Producer | Output | Purpose |");
+        builder.AppendLine("| --- | --- | --- | --- |");
+        foreach (var route in diagnostics.DiagnosticRoutes)
+        {
+            builder.AppendLine($"| {EscapeTable(route.Name)} | {EscapeTable(route.Producer)} | {EscapeTable(route.Output)} | {EscapeTable(route.Purpose)} |");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### Implementation Options");
+        builder.AppendLine();
+        builder.AppendLine("| Option | Feasibility | Risk | Summary |");
+        builder.AppendLine("| --- | --- | --- | --- |");
+        foreach (var option in diagnostics.ImplementationOptions)
+        {
+            builder.AppendLine($"| {EscapeTable(option.Name)} | {EscapeTable(option.Feasibility)} | {EscapeTable(option.Risk)} | {EscapeTable(option.Summary)} |");
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("### Next Backend Steps");
+        builder.AppendLine();
+        builder.AppendLine("| Stage | Goal | Safety Boundary | Exit Criteria |");
+        builder.AppendLine("| --- | --- | --- | --- |");
+        foreach (var step in diagnostics.NextBackendSteps)
+        {
+            builder.AppendLine($"| {EscapeTable(step.Stage)} | {EscapeTable(step.Goal)} | {EscapeTable(step.SafetyBoundary)} | {EscapeTable(step.ExitCriteria)} |");
+        }
+
+        builder.AppendLine();
+        AppendLines(builder, "Dalapad Safety Notes", diagnostics.Notes);
+        AppendLines(builder, "Dalapad Removal Notes", diagnostics.RemovalNotes);
     }
 
     private static void AppendTagStackDiagnostics(StringBuilder builder, TagStackDiagnostics diagnostics)
@@ -1896,9 +2017,9 @@ public sealed class CompatibilityReportExporter
         return detected ? "yes" : sourceAvailable ? "no" : "unknown";
     }
 
-    private static string FormatNormalFieldProductionConsumption(string fileName)
+    private static string FormatNormalFieldProductionConsumption(Configuration configuration, string fileName)
     {
-        var source = ReadShaderSource(fileName);
+        var source = ReadShaderSource(configuration, fileName);
         if (string.IsNullOrWhiteSpace(source))
         {
             return "unknown (source unavailable)";
@@ -1995,6 +2116,13 @@ public sealed class CompatibilityReportExporter
     }
 
     private static string YesNo(bool value) => value ? "yes" : "no";
+
+    private static string FormatOptionalInlineCode(string value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? "none"
+            : $"`{value.Replace("`", "'", StringComparison.Ordinal)}`";
+    }
 
     private static float CalculateMappingConfidence(IReadOnlyList<PresetTechnique> activeTechniques)
     {

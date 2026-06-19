@@ -87,6 +87,7 @@ public sealed class DebugBundleExporter
         SceneAuthoringState sceneAuthoringState,
         ImageAnalysisResult imageAnalysis,
         ScreenshotMaterialEvidenceDiagnostics screenshotMaterialEvidence,
+        DalapadDiagnostics dalapadDiagnostics,
         IReadOnlyList<SceneTagPreset>? activeTagRegistry,
         ImageAnalysisResult masterStyle,
         VisualProfile profile,
@@ -142,6 +143,7 @@ public sealed class DebugBundleExporter
             TryBundleStep("write material-intent.json", () => WriteJson(Path.Combine(folderPath, "material-intent.json"), BuildMaterialIntentDump(configuration, diagnostics, imageAnalysis, screenshotMaterialEvidence, materialIntent, activeTagRegistry, shaderSupport, writeResult), included), log, skipped);
             TryBundleStep("write normal-field-diagnostics.json", () => WriteJson(Path.Combine(folderPath, "normal-field-diagnostics.json"), BuildNormalFieldDiagnosticsDump(configuration, analysis, writeResult), included), log, skipped);
             TryBundleStep("write frame-data-diagnostics.json", () => WriteJson(Path.Combine(folderPath, "frame-data-diagnostics.json"), BuildFrameDataDiagnosticsDump(configuration, analysis, writeResult), included), log, skipped);
+            TryBundleStep("write dalapad-diagnostics.json", () => WriteJson(Path.Combine(folderPath, "dalapad-diagnostics.json"), BuildDalapadDiagnosticsDump(dalapadDiagnostics), included), log, skipped);
             TryBundleStep("write first-party-depth-assist.json", () => WriteJson(Path.Combine(folderPath, "first-party-depth-assist.json"), BuildFirstPartyDepthAssistDump(configuration, writeResult), included), log, skipped);
             TryBundleStep("write material-parity-audit.md", () => WriteText(Path.Combine(folderPath, "material-parity-audit.md"), BuildMaterialParityAudit(freshReport), included), log, skipped);
             TryBundleStep("write shader-stack-summary.md", () => WriteText(Path.Combine(folderPath, "shader-stack-summary.md"), BuildShaderStackSummary(analysis), included), log, skipped);
@@ -628,8 +630,16 @@ public sealed class DebugBundleExporter
                 NormalFieldInclude = BuildShaderFilePresence(normalFieldInclude)
             },
             NormalDebugTechniqueActive = normalDebugTechniques.Any(technique => technique.ActivationState == TechniqueActivationState.Active),
+            NormalDebugTechniqueActiveScope = "Analyzed generated/active preset only; live ReShade UI state is not observable from a debug bundle.",
+            NormalDebugTechniqueState = new
+            {
+                TechniquePresentInAnalyzedPreset = normalDebugTechniques.Length > 0,
+                TechniqueActiveInAnalyzedPreset = normalDebugTechniques.Any(technique => technique.ActivationState == TechniqueActivationState.Active),
+                LiveReShadeUiStateObserved = false,
+                Scope = "Preset analysis only"
+            },
             NormalDebugTechniques = normalDebugTechniques,
-            FirstPartyShaderConsumption = BuildNormalFieldShaderConsumption(),
+            FirstPartyShaderConsumption = BuildNormalFieldShaderConsumption(configuration),
             Mapping = new
             {
                 Enabled = configuration.EnableNormalField && configuration.EnableNormalFieldShaderMapping && configuration.NormalFieldStrength > 0f,
@@ -725,6 +735,51 @@ public sealed class DebugBundleExporter
                 "FrameData currently wraps inline canonical resolvers. No render target or prepass exists.",
                 "FrameDataDebug is manual and should remain inactive unless explicitly enabled in ReShade.",
                 "Production first-party shaders use inline FrameData. SceneGI, ContactTone, and SurfaceReflection now consume the same base/surface contract as WeatherAtmosphere, AdaptiveGrade, SmartSharpen, and AtmosphereBloom."
+            }
+        };
+    }
+
+    private static object BuildDalapadDiagnosticsDump(DalapadDiagnostics diagnostics)
+    {
+        return new
+        {
+            diagnostics.DisplayName,
+            diagnostics.Probed,
+            diagnostics.ProbeTimestamp,
+            diagnostics.Status,
+            diagnostics.Summary,
+            diagnostics.RuntimeAssembly,
+            diagnostics.RenderTargetManagerTypeName,
+            diagnostics.RenderTargetManagerTypeFound,
+            diagnostics.InstanceMethodFound,
+            diagnostics.GBufferMemberFound,
+            diagnostics.DepthStencilMemberFound,
+            diagnostics.TextureTypeFound,
+            diagnostics.AddonContractVersion,
+            diagnostics.IpcContractVersion,
+            diagnostics.IpcEndpoints,
+            diagnostics.IpcStatus,
+            diagnostics.RealtimeChannels,
+            diagnostics.AddonResources,
+            diagnostics.DiagnosticRoutes,
+            diagnostics.ImplementationOptions,
+            diagnostics.NextBackendSteps,
+            diagnostics.Capabilities,
+            diagnostics.Notes,
+            diagnostics.RemovalNotes,
+            Contract = new
+            {
+                DiagnosticOnly = true,
+                ChangesGeneratedPresetValues = false,
+                ChangesShaders = false,
+                ChangesFrameData = false,
+                ChangesMaterialMasks = false,
+                ChangesNormalField = false,
+                UsesNativeHooks = false,
+                ReadsOrCopiesRenderTargets = false,
+                ProvidesReShadeShaderSampling = false,
+                OpensNamedPipe = false,
+                RealtimeShaderValuesEnabled = false
             }
         };
     }
@@ -864,13 +919,13 @@ public sealed class DebugBundleExporter
         }
     }
 
-    private static object[] BuildNormalFieldShaderConsumption()
+    private static object[] BuildNormalFieldShaderConsumption(Configuration configuration)
     {
         return FirstPartyShaderFiles
             .Where(fileName => fileName.EndsWith(".fx", StringComparison.OrdinalIgnoreCase))
             .Select(fileName =>
             {
-                var source = ReadLocalShaderSource(fileName, out var sourceStatus);
+                var source = ReadShaderSource(configuration, fileName, out var sourceStatus);
                 var sourceAvailable = !string.IsNullOrWhiteSpace(source);
                 var includesNormalField = sourceAvailable && source.Contains("Dalashade_NormalField.fxh", StringComparison.Ordinal);
                 var resolvesNormalField = sourceAvailable && source.Contains("Dalashade_ResolveNormalField", StringComparison.Ordinal);
@@ -1188,6 +1243,8 @@ Dalashade Debug Bundle
 This folder was generated by Export Debug Bundle. It contains current Dalashade diagnostics, preset copies, scene context, SceneIntent, MaterialIntent, shader stack summaries, and first-party shader install status.
 
 The material and water entries are inferred heuristics, not true FFXIV engine material IDs. Debug shader modes should be used in ReShade to inspect pixel-level mask behavior.
+
+dalapad-diagnostics.json records the diagnostic-only Dalapad surface-data probe. It reports runtime metadata and optional status-file IPC availability only; it does not read G-buffers, expose textures to ReShade, open live pipes, move shader values, or change shader/preset behavior.
 
 Preset and plugin config files are included intentionally for debugging. Full ReShade/Dalamud logs are not included by default.
 """;

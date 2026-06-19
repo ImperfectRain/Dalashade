@@ -32,6 +32,7 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 - By default, it does not add or remove techniques from ReShade's `Techniques=` list. If `Sync Dalashade technique activation` is enabled, it may add or remove Dalashade production techniques in the generated preset only, based on plugin shader options. Third-party techniques and debug shaders stay manual.
 - If load-order optimization is enabled, it may reorder `Techniques=` and `TechniqueSorting=` entries in the generated preset only.
 - It does not have a prepass, render target chain, temporal accumulation, native FFXIV G-buffer access, motion vectors, or true material IDs.
+- Dalapad diagnostics may probe runtime metadata for a future optional surface-data addon and report staged bridge steps, but they do not read G-buffers or expose textures to shaders.
 - It does not magically know taste. It has opinions, but they are intentionally mild.
 - It does not automate gameplay, read or inject network packets, control combat input, track players, or identify mechanics.
 
@@ -45,6 +46,8 @@ Start here:
 - [`docs/GenerationPipeline.md`](docs/GenerationPipeline.md) for the generate-to-preset flow.
 - [`docs/Shaders/ShaderSystemOverview.md`](docs/Shaders/ShaderSystemOverview.md) for first-party shader stack behavior.
 - [`docs/Shaders/MaterialMasks.md`](docs/Shaders/MaterialMasks.md) for the shared material/water/receiver contract.
+- [`docs/Dalapad.md`](docs/Dalapad.md) for the optional first-pass external surface-data probe.
+- [`DalapadAddon/`](DalapadAddon/README.md) for the non-production bridge contract and first-test addon source.
 - [`docs/Shaders/SurfaceReflection.md`](docs/Shaders/SurfaceReflection.md) for the current pseudo-SSR/reflection shader.
 - [`docs/Shaders/ContactTone.md`](docs/Shaders/ContactTone.md) for the local contact tone/readability shader.
 - [`docs/SafetyAndScope.md`](docs/SafetyAndScope.md) for project boundaries and review notes.
@@ -193,6 +196,16 @@ The current shader stack is built around shared contracts:
 FrameData is not a prepass and is not a formula owner. The first-party shaders work from ReShade backbuffer/depth plus plugin-generated scene priors, so effects like GI, reflection, weather, and normals are controlled screen-space impressions rather than physically complete rendering systems.
 
 `FirstPartyShaderMode` controls whether production Dalashade shaders stay in the default supportive role or take a little more responsibility in standalone mode. Standalone mode is still safety-gated and shader-specific; it is not a switch to rewrite shader order, weaken material contracts, or turn debug shaders into gameplay effects.
+
+## Optional Dalapad Diagnostics
+
+Dalapad is a diagnostic-only first pass for a possible future external surface-data addon. It checks whether runtime metadata for render-target style data appears discoverable, reads an optional Stage 1 status-file IPC payload if a separate addon prototype writes one, then reports that status in Developer Mode, compatibility reports, and debug bundles.
+
+It does not read, copy, bridge, or expose G-buffers. It does not open named pipes or move shader values in real time. It does not change generated preset values, shader uniforms, FrameData, MaterialMasks, NormalField, or technique activation. If the experiment is not useful, the Dalapad model, report calls, UI page, and docs can be removed without shader ecosystem cleanup.
+
+The repo also includes `DalapadAddon/`, a non-production scaffold for the eventual separate bridge. It is not built, loaded, installed, or referenced by `Dalashade.sln`; it records the `0.1-diagnostic` resource contract, the `0.1-ipc-diagnostic` status-file contract, future endpoint names, and a first-test native source file that writes status-file IPC while keeping render-target resources unavailable.
+
+The current expected route for real G-buffer use is a separate Dalapad bridge/addon that exposes named optional resources to ReShade `.fx` shaders. FrameData would remain the shader-facing contract and fall back to NormalField when external surface data is missing or low confidence.
 
 ## Scene Lock
 

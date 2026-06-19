@@ -22,6 +22,16 @@ Status meanings:
 | `repo.json` | Dalamud custom repository manifest. | Release metadata. | Release zip URL/version. | Dalamud repo entry. | `releases/`. | Plugin installers. | Release asset. |
 | `scripts/ValidateRelease.ps1` | Release validation helper. | Manual release check. | `repo.json`, release zips. | Validation output. | PowerShell. | Maintainers. | Stable. |
 
+## Dalapad Addon Scaffold
+
+| File path | Purpose | Runtime role | Inputs | Outputs | Main dependencies | Used by | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `DalapadAddon/README.md` | Safe addon direction and removal boundary. | Documentation only. | Dalapad bridge goals. | Addon implementation guidance, IPC status route, reserved live channel. | `docs/Dalapad.md`. | Future addon work. | Experimental scaffold, not built. |
+| `DalapadAddon/CONTRACT.md` | Human-readable Dalapad bridge contract. | Documentation only. | Candidate G-buffer/depth goals. | Resource names, availability flags, IPC status fields, reserved realtime channel, safety rules. | `Dalapad/DalapadDiagnostics.cs` contract names. | Future addon work, diagnostics. | Experimental scaffold, not built. |
+| `DalapadAddon/dalapad-addon-contract.json` | Machine-readable Dalapad bridge contract. | Documentation/data only. | Contract rows, IPC names, and diagnostic routes. | Versioned resource/flag/route contract. | None. | Future addon tools. | Experimental scaffold, not built. |
+| `DalapadAddon/sample-status.json` | Example Dalapad Stage 1 status-file payload. | Documentation/data only. | IPC parser target. | Example resource catalog and realtime-disabled state. | `Dalashade/DalapadDiagnostics.cs`. | Future addon work, diagnostics. | Experimental scaffold, not built. |
+| `DalapadAddon/src/dalapad_reshade_addon_skeleton.cpp` | First-test native/ReShade addon source. | Not compiled by Dalashade. | Future separate addon project. | DLL load/unload status-file IPC, optional ReShade registration when `reshade.hpp` is available, unavailable render-target resource rows, and disabled realtime channel state. | ReShade/native addon APIs when explicitly prototyped. | Future addon work. | Experimental scaffold, not wired into the plugin build. |
+
 ## C# Plugin Files
 
 | File path | Purpose | Runtime role | Inputs | Outputs | Main dependencies | Used by | Status |
@@ -56,6 +66,7 @@ Status meanings:
 | `Dalashade/PresetAnalyzer.cs` | Preset compatibility analysis. | Parses techniques/sections and classifies roles, risk, authorities, support. | Active/base preset text. | `PresetAnalysisResult`, warnings. | Shader definitions. | UI/report/debug bundle. | Stable. |
 | `Dalashade/CompatibilityReportExporter.cs` | Markdown report exporter. | Generates compatibility, material parity, NormalField, FrameData, first-party depth-assist, stack, and diagnostics report. | Config, analysis, context, material intent, shader files. | Markdown report. | PresetAnalyzer, source scanners. | Export Report, DebugBundleExporter. | Debug-only. |
 | `Dalashade/DebugBundleExporter.cs` | Debug bundle exporter. | Writes timestamped diagnostic folder and optional zip, including scene authoring, FrameData, and depth-assist state. | Config, context, reports, presets, shader files. | Bundle files and manifest. | CompatibilityReportExporter, path helpers. | Export Debug Bundle. | Debug-only. |
+| `Dalashade/DalapadDiagnostics.cs` | Dalapad runtime metadata and optional status-file IPC probe. | Reports whether candidate FFXIVClientStructs RenderTargetManager/GBuffer/DepthStencil/Texture metadata appears discoverable and records bridge contract/options without reading GPU resources. | Loaded runtime assemblies, optional `Dalapad/dalapad-status.json`. | Dalapad diagnostics model, addon resource contract, IPC status, diagnostic routes, implementation options, backend steps. | Reflection and optional JSON status read only. | ConfigWindow Developer Mode, compatibility report, debug bundle. | Experimental diagnostic-only. |
 | `Dalashade/CustomShaderBridgeDiagnostics.cs` | Custom shader bridge diagnostics. | Reports shader section/key support, activation, and writes. | Preset content, config, changed variables. | Diagnostic summary. | PresetWriter, mapper. | UI/report. | Debug-only. |
 | `Dalashade/ShaderFileLocator.cs` | ReShade shader file locator. | Infers ReShade shader search paths and checks whether first-party `.fx`/`.fxh` files are present. | Configured ReShade.ini, base/generated preset paths. | Shader file presence diagnostics. | ReShade path conventions. | User Mode effect cards, future reports. | Debug-only. |
 | `Dalashade/GenerationAuthorityPolicy.cs` | Multi-authority policy. | Dampens secondary role owners according to compatibility mode. | Preset analysis, config. | Authority policy. | PresetAnalyzer. | ShaderVariableMapper/writer. | Stable. |
@@ -120,6 +131,7 @@ Status meanings:
 | `docs/Shaders/SurfaceReflection.md` | SurfaceReflection shader reference. | Reflection work. | Experimental. |
 | `docs/Shaders/WeatherAtmosphere.md` | WeatherAtmosphere shader reference. | Weather shader work. | Experimental. |
 | `docs/NormalField.md` | User-facing NormalField config/test plan. | NormalField diagnostics. | Stable. |
+| `docs/Dalapad.md` | Optional Dalapad diagnostic probe boundary, addon scaffold, removal plan, and staged G-buffer bridge route. | Future external surface-data research. | Experimental diagnostic-only. |
 | `docs/DebugBundles.md` | Debug bundle content and failure model. | Export/report work. | Stable. |
 | `docs/Configuration.md` | Configuration field groups and safety rules. | Config/UI work. | Stable. |
 | `docs/SafetyAndScope.md` | Plugin scope, non-automation, export safety. | Review/release work. | Stable. |
@@ -154,6 +166,8 @@ Status meanings:
 | Change shader pixel material classification | `shaders/Dalashade_MaterialMasks.fxh`, `docs/Shaders/MaterialMasks.md`, `shaders/Dalashade_MaterialDebug.fx` |
 | Change SurfaceReflection visuals | `shaders/Dalashade_SurfaceReflection.fx`, `docs/Shaders/SurfaceReflection.md`, MaterialDebug modes 58-59 |
 | Change NormalField diagnostics | `shaders/Dalashade_NormalField.fxh`, `shaders/Dalashade_NormalDebug.fx`, `docs/Shaders/NormalField.md` |
+| Change Dalapad diagnostics | `Dalashade/DalapadDiagnostics.cs`, `Dalashade/CompatibilityReportExporter.cs`, `Dalashade/DebugBundleExporter.cs`, `Dalashade/Windows/ConfigWindow.cs`, `docs/Dalapad.md` |
+| Change Dalapad addon scaffold | `DalapadAddon/README.md`, `DalapadAddon/CONTRACT.md`, `DalapadAddon/dalapad-addon-contract.json`, `DalapadAddon/src/dalapad_reshade_addon_skeleton.cpp`, `docs/Dalapad.md` |
 | Change generated preset output | `Dalashade/PresetWriter.cs`, `Dalashade/ShaderVariableMapper.cs`, `Dalashade/CustomShaderVariableMapper.cs`, `docs/PresetWriting.md` |
 | Change compatibility reports | `Dalashade/CompatibilityReportExporter.cs`, `docs/CompatibilityAndDiagnostics.md` |
 | Change debug bundle export | `Dalashade/DebugBundleExporter.cs`, `docs/DebugBundles.md` |

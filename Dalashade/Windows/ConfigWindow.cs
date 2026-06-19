@@ -159,6 +159,7 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             DeveloperPage("ConfigCompatibilityMode", "Compatibility Mode", true, CompatibilitySummary, DrawCompatibilityMode),
             DeveloperPage("ConfigRegressionTesting", "Regression Testing", false, RegressionTestingSummary, DrawRegressionTesting),
+            DeveloperPage("ConfigDalapad", "Dalapad", false, DalapadSummary, DrawDalapadDiagnostics),
             DeveloperPage("ConfigAdvancedDebug", "Advanced / Debug", false, AdvancedDebugSummary, DrawAdvancedDebug)
         };
     }
@@ -946,6 +947,153 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TextWrapped(plugin.LastReloadResult.Message);
         ImGui.TextWrapped(plugin.LastDiagnosticsExportMessage);
         ImGui.TextWrapped(plugin.LastShaderSupportScan.Message);
+    }
+
+    private string DalapadSummary()
+    {
+        var diagnostics = plugin.CurrentDalapadDiagnostics;
+        return diagnostics.Probed
+            ? $"{diagnostics.Status}: {diagnostics.Summary}"
+            : "Diagnostic-only external surface-data probe has not run yet";
+    }
+
+    private void DrawDalapadDiagnostics()
+    {
+        var diagnostics = plugin.CurrentDalapadDiagnostics;
+        ImGui.TextWrapped("Dalapad is an experimental diagnostic probe for a future optional surface-data addon. This first pass only checks runtime metadata. It does not read render targets, expose textures to ReShade, change shaders, or change generated presets.");
+        ImGui.Spacing();
+        if (ImGui.Button("Probe Dalapad diagnostics"))
+        {
+            diagnostics = plugin.RefreshDalapadDiagnostics();
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted($"Status: {diagnostics.Status}");
+        ImGui.TextWrapped(diagnostics.Summary);
+        ImGui.TextUnformatted($"Probed: {(diagnostics.Probed ? "yes" : "no")}");
+        if (diagnostics.ProbeTimestamp != DateTimeOffset.MinValue)
+        {
+            ImGui.TextUnformatted($"Probe timestamp: {diagnostics.ProbeTimestamp:O}");
+        }
+
+        ImGui.TextUnformatted($"Runtime assembly: {FormatOptionalUiValue(diagnostics.RuntimeAssembly)}");
+        ImGui.TextUnformatted($"RenderTargetManager type: {FormatOptionalUiValue(diagnostics.RenderTargetManagerTypeName)}");
+        ImGui.TextUnformatted($"RenderTargetManager type found: {FormatYesNo(diagnostics.RenderTargetManagerTypeFound)}");
+        ImGui.TextUnformatted($"Instance metadata found: {FormatYesNo(diagnostics.InstanceMethodFound)}");
+        ImGui.TextUnformatted($"GBuffer metadata found: {FormatYesNo(diagnostics.GBufferMemberFound)}");
+        ImGui.TextUnformatted($"DepthStencil metadata found: {FormatYesNo(diagnostics.DepthStencilMemberFound)}");
+        ImGui.TextUnformatted($"Texture metadata found: {FormatYesNo(diagnostics.TextureTypeFound)}");
+        ImGui.TextUnformatted($"Addon contract: {diagnostics.AddonContractVersion}");
+        ImGui.TextUnformatted($"IPC contract: {diagnostics.IpcContractVersion}");
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Capabilities");
+        foreach (var capability in diagnostics.Capabilities)
+        {
+            ImGui.BulletText($"{capability.Name}: {FormatYesNo(capability.Available)} - {capability.Detail}");
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Addon resource contract");
+        foreach (var resource in diagnostics.AddonResources)
+        {
+            ImGui.BulletText($"{resource.Name}: {resource.Kind}, flag {resource.AvailabilityFlag}");
+            ImGui.TextWrapped($"Source: {resource.ExpectedSource}");
+            ImGui.TextWrapped($"Diagnostic use: {resource.DiagnosticOnlyUse}");
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("IPC status");
+        ImGui.TextUnformatted($"Status: {diagnostics.IpcStatus.Status}");
+        ImGui.TextWrapped(diagnostics.IpcStatus.Summary);
+        ImGui.TextUnformatted($"Status file: {FormatOptionalUiValue(diagnostics.IpcStatus.StatusFilePath)}");
+        ImGui.TextUnformatted($"Status file found: {FormatYesNo(diagnostics.IpcStatus.StatusFileFound)}");
+        ImGui.TextUnformatted($"Bridge reported: {FormatYesNo(diagnostics.IpcStatus.BridgeReported)}");
+        ImGui.TextUnformatted($"Contract compatible: {FormatYesNo(diagnostics.IpcStatus.ContractCompatible)}");
+        ImGui.TextUnformatted($"Bridge version: {FormatOptionalUiValue(diagnostics.IpcStatus.BridgeVersion)}");
+        ImGui.TextUnformatted($"Addon process: {FormatOptionalUiValue(diagnostics.IpcStatus.AddonProcess)}");
+        if (diagnostics.IpcStatus.LastUpdateUtc.HasValue)
+        {
+            ImGui.TextUnformatted($"Last update: {diagnostics.IpcStatus.LastUpdateUtc.Value:O}");
+        }
+
+        if (diagnostics.IpcStatus.ReportedResources.Count > 0)
+        {
+            ImGui.TextWrapped($"Reported resources: {string.Join(", ", diagnostics.IpcStatus.ReportedResources)}");
+        }
+
+        foreach (var warning in diagnostics.IpcStatus.Warnings)
+        {
+            ImGui.BulletText($"Warning: {warning}");
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("IPC endpoints");
+        foreach (var endpoint in diagnostics.IpcEndpoints)
+        {
+            ImGui.BulletText($"{endpoint.Name}: {endpoint.Kind}, {endpoint.Direction}");
+            ImGui.TextWrapped($"Address: {endpoint.Address}");
+            ImGui.TextWrapped($"Purpose: {endpoint.Purpose}");
+            ImGui.TextWrapped($"Safety: {endpoint.SafetyBoundary}");
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Realtime adaptation groundwork");
+        foreach (var channel in diagnostics.RealtimeChannels)
+        {
+            ImGui.BulletText($"{channel.Name}: {channel.Direction}, {channel.Priority}");
+            ImGui.TextWrapped($"Payload: {channel.Payload}");
+            ImGui.TextWrapped($"Safety: {channel.SafetyBoundary}");
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Diagnostic routes");
+        foreach (var route in diagnostics.DiagnosticRoutes)
+        {
+            ImGui.BulletText($"{route.Name}: {route.Producer}");
+            ImGui.TextWrapped($"Output: {route.Output}");
+            ImGui.TextWrapped($"Purpose: {route.Purpose}");
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Implementation options");
+        foreach (var option in diagnostics.ImplementationOptions)
+        {
+            ImGui.BulletText($"{option.Name}: feasibility {option.Feasibility}, risk {option.Risk}. {option.Summary}");
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Next backend steps");
+        foreach (var step in diagnostics.NextBackendSteps)
+        {
+            ImGui.BulletText($"{step.Stage}: {step.Goal}");
+            ImGui.TextWrapped($"Safety: {step.SafetyBoundary}");
+            ImGui.TextWrapped($"Exit: {step.ExitCriteria}");
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Safety");
+        foreach (var note in diagnostics.Notes)
+        {
+            ImGui.BulletText(note);
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Removal boundary");
+        foreach (var note in diagnostics.RemovalNotes)
+        {
+            ImGui.BulletText(note);
+        }
+    }
+
+    private static string FormatOptionalUiValue(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "none" : value;
+    }
+
+    private static string FormatYesNo(bool value)
+    {
+        return value ? "yes" : "no";
     }
 
     private void DrawBasePresetLibrary()

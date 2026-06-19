@@ -29,6 +29,8 @@ These docs are for users who want to understand what Dalashade is doing, maintai
 | Per-shader references | [Shaders/ShaderSystemOverview.md](Shaders/ShaderSystemOverview.md#first-party-shader-roles) |
 | Optional NormalField diagnostics and test plan | [NormalField.md](NormalField.md) |
 | NormalField shader contract | [Shaders/NormalField.md](Shaders/NormalField.md) |
+| Optional Dalapad surface-data probe | [Dalapad.md](Dalapad.md) |
+| Dalapad addon scaffold and bridge contract | [../DalapadAddon/README.md](../DalapadAddon/README.md) |
 | Debug bundle export | [DebugBundles.md](DebugBundles.md) |
 | Configuration field groups | [Configuration.md](Configuration.md) |
 | Safety and project scope | [SafetyAndScope.md](SafetyAndScope.md) |

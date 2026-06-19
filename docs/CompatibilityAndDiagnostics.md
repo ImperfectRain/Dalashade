@@ -11,6 +11,7 @@ This page documents how Dalashade reports preset compatibility and generation di
 | `Dalashade/PresetRegressionReportHarness.cs` | Batch preset regression report generation. |
 | `Dalashade/PresetWriter.cs` | Scans supported shader variables for the selected preset through `PresetWriter.ScanSupportedVariables(...)`. |
 | `Dalashade/SceneIntent.cs` | Provides scene intent and tag-stack diagnostics. |
+| `Dalashade/DalapadDiagnostics.cs` | Diagnostic-only runtime metadata probe for the optional future Dalapad surface-data addon direction. |
 | `Dalashade/Windows/MainWindow.cs` | Runtime status, changed variables, sanitize actions, applied rules, diagnostics. |
 | `Dalashade/Windows/ConfigWindow.cs` | Scan/export/report commands and settings. |
 
@@ -89,7 +90,7 @@ Implemented report paths:
 | Compatibility report | `CompatibilityReportExporter.Export(...)` |
 | Regression reports | `PresetRegressionReportHarness.Run(...)` |
 
-Compatibility reports include preset risk, authorities, role policies, shader support, changed variables, sanitize actions, master diagnostics, scene-tag diagnostics, scene-authoring diagnostics, screenshot material evidence, FrameData diagnostics, first-party depth-assist diagnostics, and mapping validation.
+Compatibility reports include preset risk, authorities, role policies, shader support, changed variables, sanitize actions, master diagnostics, scene-tag diagnostics, scene-authoring diagnostics, screenshot material evidence, FrameData diagnostics, Dalapad diagnostics, first-party depth-assist diagnostics, and mapping validation.
 
 Scene-tag diagnostics include the primary biome, confidence, matched keyword/reason, active weather tags, secondary tags, material tags, area/context tags, gameplay-state tags, art-direction tags, and `SceneIntent` contributions grouped by tag category. Use these sections first when a generated preset has the wrong environmental identity.
 
@@ -110,7 +111,11 @@ Material diagnostics are split into plugin-side scene plausibility and shader-si
 
 Custom shader variable diagnostics separate three ownership classes. SceneIntent variables are Dalashade-controlled when custom shader support is enabled. MaterialIntent channel uniforms are Dalashade-controlled only when MaterialIntent shader mapping is enabled and section-scoped keys exist. Shader-owned controls may be known or injected with safe defaults. The bulk first-party depth-assist toggle writes only known depth-assist uniforms in production first-party Dalashade shader sections, including SceneGI, ContactTone, and SurfaceReflection; debug UI controls remain shader-owned/manual.
 
+NormalField diagnostics report optional debug shader presence, generated/active preset technique state, shader source consumption, written NormalField uniforms, and suppression settings. NormalDebug technique activity is preset-analysis-only; Dalashade cannot inspect the live ReShade UI checkbox state after a report or bundle is generated.
+
 FrameData diagnostics report the internal resolver contract state. Current expected status is `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and production consumers for WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SceneGI, ContactTone, and SurfaceReflection. The report also shows whether `Dalashade_FrameData.fxh` and `Dalashade_FrameDataDebug.fx` are available to the source scan, whether the generated preset contains a FrameDataDebug section, whether the technique appears active, and the FrameDataDebug debug variables. Production first-party shaders use inline FrameData; no prepass or render target exists.
+
+Dalapad diagnostics report the removable first pass for a possible future external surface-data addon. Current expected behavior is metadata/status-only: discover loaded FFXIVClientStructs/RenderTargetManager/texture names when present, read an optional Stage 1 `dalapad-status.json` file if a separate addon prototype writes one, then report capability rows, addon contract version, IPC status, optional resource names, diagnostic routes, implementation options, realtime-contract placeholders, and staged backend steps. Dalapad must not invoke render-target access, copy GPU resources, expose textures to ReShade, open live pipes, move shader values, change generated output, or alter FrameData, MaterialMasks, NormalField, or shader uniforms. A pure Dalamud probe can validate runtime shape, but actual `.fx` sampling requires a native/ReShade addon bridge or equivalent named-resource exposure path. The repo-local `DalapadAddon/` scaffold is not built or shipped; it documents the bridge contract and gives future addon work a guarded starting point.
 
 SceneGI diagnostics are separate from shader compilation. Dalashade can report whether the `Dalashade_SceneGI` section or technique appears in preset analysis and whether GI variables were written, but ReShade compile success still has to be verified in-game after installing `Dalashade_SceneGI.fx` and shared Dalashade includes.
 
@@ -155,6 +160,7 @@ The main window includes sections for:
 | Scene Tags | Weather, primary biome, secondary/material/art-direction tags, area/gameplay context, intent values, and stack-budget contributions. |
 | Screenshot Analysis | Current screenshot stats, named opinions, strength, regions, and top regional color families. |
 | Screenshot Material Evidence | Visible material-family evidence, confidence, evidence notes, current MaterialIntent comparison, mismatch warnings, and whether opt-in capped MaterialIntent influence is enabled. |
+| Dalapad | Developer-only runtime metadata and optional status-file IPC probe for a possible future optional surface-data addon. Reports capability rows, IPC rows, addon contract rows, diagnostic routes, and removal/safety notes only. |
 | Master Style | Master style diagnostics. |
 | Regression Reports | Last regression run status. |
 | Debug / Diagnostics | Additional low-level status. |
@@ -173,6 +179,9 @@ The main window includes sections for:
 | No visible change | Changed variable count, active ReShade preset, reload diagnostics, and supported shader scan. |
 | Too many variables changed | Shader matching mode, inactive shader write mode, and multiple authorities. |
 | ReShade reload did not happen | `ReShade.ini` path, reload key sync, configured hotkey, and diagnostics. |
+| NormalDebug appears active in ReShade but report says inactive | Remember that NormalDebug activity is read from analyzed preset text only. The debug bundle cannot observe later live ReShade UI toggles. |
+| Dalapad finds GBuffer metadata but shaders see nothing | Expected for the current pass. Metadata discovery does not expose any texture to ReShade `.fx`; a separate bridge is required. |
+| Dalapad IPC status is `NotConnected` | Expected unless a separate experimental Dalapad addon prototype has written `Dalapad/dalapad-status.json` under the plugin config. Missing status is neutral. |
 
 Do not treat a high changed-variable count as automatically good. For broad presets, many changes can mean the matching mode or compatibility policy is too aggressive.
 

@@ -1,0 +1,64 @@
+{
+  "contractVersion": "0.1-diagnostic",
+  "ipcContractVersion": "0.1-ipc-diagnostic",
+  "displayName": "Dalapad",
+  "productionBehavior": "none",
+  "ipc": {
+    "statusFileName": "dalapad-status.json",
+    "statusFileRelativePath": "Dalashade/Dalapad/dalapad-status.json",
+    "statusDirection": "addon-to-plugin",
+    "statusBehavior": "diagnostic-only",
+    "reservedControlPipe": "\\\\.\\pipe\\Dalapad.Control.v1",
+    "reservedRealtimeMessageFamily": "Dalapad.RealtimeUniforms.v1",
+    "stage1PluginPipeBehavior": "not-opened"
+  },
+  "resources": [
+    {
+      "name": "Dalapad_SurfaceNormal",
+      "kind": "optionalTexture",
+      "expectedSource": "RenderTargetManager GBuffer normal candidate, expected first validation target GBuffers[0]",
+      "availabilityFlag": "Dalapad_NormalAvailable",
+      "firstUse": "diagnostic comparison against NormalField and FrameData surface normals"
+    },
+    {
+      "name": "Dalapad_SurfaceDiffuse",
+      "kind": "optionalTexture",
+      "expectedSource": "RenderTargetManager diffuse/albedo-like candidate, expected first validation target GBuffers[2]",
+      "availabilityFlag": "Dalapad_DiffuseAvailable",
+      "firstUse": "diagnostic comparison against ScreenshotMaterialEvidence and MaterialIntent"
+    },
+    {
+      "name": "Dalapad_SurfaceDepth",
+      "kind": "optionalTexture",
+      "expectedSource": "RenderTargetManager DepthStencil candidate after format and scaling validation",
+      "availabilityFlag": "Dalapad_DepthAvailable",
+      "firstUse": "diagnostic comparison against ReShade depth reliability"
+    },
+    {
+      "name": "Dalapad_SurfaceStatus",
+      "kind": "statusBlock",
+      "expectedSource": "Dalapad bridge runtime",
+      "availabilityFlag": "Dalapad_BridgeAvailable",
+      "firstUse": "bridge contract, dimensions, freshness, confidence, and safety diagnostics"
+    }
+  ],
+  "diagnosticRoutes": [
+    "plugin metadata probe",
+    "plugin pointer probe",
+    "status-file IPC handshake",
+    "bridge addon self-test",
+    "bridge resource probe",
+    "shader diagnostic compare",
+    "default-off FrameSurfaceData backend",
+    "future bounded realtime uniform bridge"
+  ],
+  "safety": {
+    "defaultEnabled": false,
+    "changesGeneratedPresets": false,
+    "changesShaders": false,
+    "movesRealtimeShaderValues": false,
+    "opensNamedPipeInStage1": false,
+    "requiresBridgeForSampling": true,
+    "fallback": "NormalField through FrameData"
+  }
+}

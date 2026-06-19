@@ -31,6 +31,60 @@ Use Unix timestamps so entries are easy to sort and compare across local time zo
 
 ## Entries
 
+### 1781885055 - Prepare Dalapad handoff and addon build
+
+- Changed: Updated handoff docs, Dalapad docs, addon docs, and the commit log to reflect the current Stage 1 Dalapad state. Cleaned the addon external folder so the ReShade SDK headers are vendored as plain build headers instead of a nested checkout, documented the header source, and kept the local Stage 1 test addon artifact at `DalapadAddon/build/Dalapad.addon64`.
+- Why: The repo is being handed to a new Codex instance and needs an accurate split between implemented diagnostics, built addon prototype work, and future render-target bridge work.
+- Related goals: Preserve all plugin, shader, and addon progress while keeping Dalapad removable and preventing the next agent from mistaking Stage 1 IPC for real G-buffer sampling.
+- Documentation: Updated `docs/CodexSessionHandoff.md`, `docs/Dalapad.md`, `DalapadAddon/README.md`, added `DalapadAddon/external/README.md`, and updated this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully; `clang-cl /std:c++17 /EHsc /LD /I DalapadAddon\external\reshade-sdk\include DalapadAddon\src\dalapad_reshade_addon_skeleton.cpp /Fe:DalapadAddon\build\Dalapad.addon64` rebuilt the addon; `DalapadAddon/sample-status.json` parsed as JSON; `git diff --check` passed with Git LF-to-CRLF warnings only.
+- Next steps: Run the final build/test/diff checks, commit and push, then validate the addon in-game by loading `Dalapad.addon64` and confirming Developer Mode > Dalapad sees the status-file handshake while resources remain unavailable.
+
+### 1781875329 - Make Dalapad addon source testable
+
+- Changed: Replaced the compile-blocked Dalapad addon skeleton with a first-test native source file that writes `dalapad-status.json` on DLL load/unload, optionally registers with ReShade when `reshade.hpp` is available, reports render-target resources as unavailable, and keeps realtime uniform movement disabled. Updated addon docs, sample status JSON, README, and codebase index to match the new test path.
+- Why: Dalapad needs a concrete addon file that can begin validating load status and IPC before any render-target copy, resource registration, or live shader-value movement is attempted.
+- Related goals: Prove the bridge handshake safely, keep render-layer validation as the priority, and preserve a clean removal boundary for the addon experiment.
+- Documentation: Updated `DalapadAddon/README.md`, `DalapadAddon/CONTRACT.md`, `DalapadAddon/sample-status.json`, `README.md`, `docs/Dalapad.md`, `docs/CodebaseIndex.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully; `DalapadAddon/sample-status.json` parsed as JSON; `clang-cl /std:c++17 /EHsc /c DalapadAddon/src/dalapad_reshade_addon_skeleton.cpp` passed; `git diff --check` passed with Git LF-to-CRLF warnings only.
+- Next steps: Build this source in a separate ReShade addon project, load it in-game, then confirm Developer Mode > Dalapad changes from `NotConnected` to `Loaded` or `SelfTest` while all resource rows remain unavailable.
+
+### 1781851760 - Add Dalapad Stage 1 IPC contract groundwork
+
+- Changed: Added plugin-side Dalapad status-file IPC diagnostics, endpoint/realtime contract rows, optional status parsing, addon scaffold IPC constants, a sample status payload, and report/debug/UI output for bridge status.
+- Why: Dalapad needs a safe first handshake before any render-target resource bridge or realtime shader-value movement is attempted.
+- Related goals: Keep the G-buffer path optional and removable, make future addon development target one contract, and reserve realtime adaptation without distracting from render-layer validation.
+- Documentation: Updated Dalapad docs, addon contract docs, README, compatibility/debug docs, codebase index, reload guidance, handoff guidance, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully; `git diff --check` passed with Git LF-to-CRLF warnings only.
+- Next steps: Build a separate experimental ReShade/native addon prototype that writes `dalapad-status.json`, then validate resource availability before any `.fx` sampling or live uniform work.
+
+### 1781840795 - Add safe Dalapad addon scaffold and contract
+
+- Changed: Added a repo-local `DalapadAddon/` scaffold with a human-readable contract, machine-readable contract JSON, and guarded native addon skeleton. Expanded Dalapad diagnostics so compatibility reports, debug bundles, and Developer Mode show the addon contract version, expected optional resources, availability flags, diagnostic routes, and scaffold removal note.
+- Why: The project needs a clear, removable first addon direction before any real G-buffer/resource bridge work starts.
+- Related goals: Keep Dalapad experimental and diagnostic-only while preparing a safe path for future optional surface data that can fall back to NormalField and FrameData.
+- Documentation: Updated Dalapad docs, README, docs index, debug bundle docs, compatibility diagnostics, codebase index, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `git diff --check` passed with Git LF-to-CRLF warnings only.
+- Next steps: Build and test the plugin, then only proceed to a separate addon proof-of-concept after validating that the contract and diagnostic routes are enough for an addon developer to start safely.
+
+### 1781836897 - Clean Dalapad and NormalField diagnostics before G-buffer work
+
+- Changed: Added Dalapad implementation-option and backend-step diagnostics, clarified that NormalDebug state is analyzed-preset-only, and fixed NormalField first-party source scans so they use configured ReShade shader paths.
+- Why: The current Dalapad pass correctly finds runtime metadata but should not imply shaders can sample G-buffers yet, and the NormalField report could falsely say first-party shader sources were unavailable.
+- Related goals: Prepare a safe, removable path toward optional external surface data while keeping FrameData, NormalField, generated presets, and shader behavior stable.
+- Documentation: Updated Dalapad, debug bundle, compatibility diagnostics, README, codebase index, and this changelog with the staged G-buffer bridge route.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `git diff --check` passed with Git LF-to-CRLF warnings only.
+- Next steps: Use the staged Dalapad backend plan: diagnostic pointer probe, separate bridge/addon spike, compile-guarded shader contract, FrameSurfaceData fallback merge, and debug-only comparison before any production influence.
+
+### 1781823403 - Add Dalapad diagnostic surface-data probe
+
+- Changed: Added the first Dalapad pass as a developer-only diagnostic probe, with compatibility report output, debug bundle JSON, and a Developer Mode diagnostics page.
+- Why: The project needs a safe way to inspect whether future external surface data might be available before considering a native/addon bridge or any shader-facing behavior.
+- Related goals: Keep FrameData/MaterialMasks/NormalField inline and stable while researching a removable optional backend for real surface data.
+- Documentation: Added `docs/Dalapad.md` and linked Dalapad through the README, docs index, codebase index, compatibility diagnostics, and debug bundle docs.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `git diff --check` passed with Git LF-to-CRLF warnings only. In-game Dalapad probing was not run in this pass.
+- Next steps: Test in-game debug bundles to see whether the metadata probe reports useful runtime candidates before any deeper prototype.
+
 ### 1781807285 - Clean NormalField relief contract
 
 - Changed: Added an explicit neutral NormalField default path and early disabled return, exposed `TextureReliefSafety` through NormalField and FrameData surface data, constrained composite relief neighbor groove samples with the same safety gate as the center sample, reduced the old high-pass relief lane to a small compatibility hint, reduced texture-relief leakage into broad `StructureCandidate`, renamed stale NormalDebug labels, and updated compatibility-report NormalField consumers.

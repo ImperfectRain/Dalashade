@@ -82,4 +82,4 @@ Users may still need to manually reload ReShade.
 
 This system is planned and not currently implemented. Do not treat this document as an implementation reference yet.
 
-A future bridge, native ReShade add-on, IPC channel, named pipe, or JSON live-state output could provide a stronger reload mechanism. None of those systems currently exist in this repository, and documentation should not describe them as implemented until real code is added.
+Dalapad now defines a diagnostic-only JSON status-file IPC reader for future addon experiments, but it does not reload ReShade, move live values, expose render targets, or open a named pipe. A future bridge, native ReShade add-on, named pipe, or live-state output could provide a stronger reload mechanism, but documentation should not describe those as implemented until real code is added.

@@ -64,6 +64,7 @@ public sealed class Plugin : IDalamudPlugin
     public MaterialIntent CurrentMaterialIntent { get; private set; } = MaterialIntent.Neutral;
     public ScreenshotMaterialEvidenceDiagnostics CurrentScreenshotMaterialEvidence { get; private set; } = ScreenshotMaterialEvidenceDiagnostics.Neutral("Screenshot material evidence has not run yet.");
     public MaterialTagRegistryDiagnostics CurrentMaterialTagRegistryDiagnostics { get; private set; } = MaterialTagRegistryDiagnostics.Empty;
+    public DalapadDiagnostics CurrentDalapadDiagnostics { get; private set; } = DalapadDiagnostics.NotProbed("Dalapad diagnostics have not run yet.");
     public PresetWriteResult LastWriteResult { get; private set; } = PresetWriteResult.Skipped("No preset has been generated yet.");
     public ReloadResult LastReloadResult { get; private set; } = ReloadResult.Skipped("Shaders have not been reloaded yet.");
     public ShaderSupportScan LastShaderSupportScan { get; private set; } = ShaderSupportScan.Skipped("Shader support has not been scanned yet.");
@@ -191,6 +192,7 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         RefreshMaterialIntent();
+        RefreshDalapadDiagnostics();
         LastCompatibilityReportExport = compatibilityReportExporter.Export(
             Configuration,
             LastPresetAnalysis,
@@ -201,6 +203,7 @@ public sealed class Plugin : IDalamudPlugin
             CurrentSceneAuthoringState,
             CurrentImageAnalysis,
             CurrentScreenshotMaterialEvidence,
+            CurrentDalapadDiagnostics,
             ActiveTagRegistry(),
             CurrentMasterStyle,
             LastWriteResult,
@@ -222,6 +225,7 @@ public sealed class Plugin : IDalamudPlugin
         CurrentMasterStyleDiagnostics = result.MasterStyleDiagnostics;
         CurrentTagStackDiagnostics = result.TagStackDiagnostics;
         var materialIntent = RefreshMaterialIntent();
+        RefreshDalapadDiagnostics();
         ScanPresetCompatibility();
         var freshReport = ExportCompatibilityReport();
         LastDebugBundleExport = debugBundleExporter.Export(
@@ -231,6 +235,7 @@ public sealed class Plugin : IDalamudPlugin
             CurrentSceneAuthoringState,
             CurrentImageAnalysis,
             CurrentScreenshotMaterialEvidence,
+            CurrentDalapadDiagnostics,
             ActiveTagRegistry(),
             CurrentMasterStyle,
             CurrentProfile,
@@ -273,6 +278,12 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         return LastBasePresetLibraryScan;
+    }
+
+    public DalapadDiagnostics RefreshDalapadDiagnostics()
+    {
+        CurrentDalapadDiagnostics = DalapadDiagnostics.Probe(SafePluginConfigDirectory);
+        return CurrentDalapadDiagnostics;
     }
 
     public void SelectBasePreset(BasePresetLibraryItem item)

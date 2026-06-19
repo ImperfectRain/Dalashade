@@ -1,0 +1,63 @@
+{
+  "ipcContractVersion": "0.1-ipc-diagnostic",
+  "contractVersion": "0.1-diagnostic",
+  "bridgeVersion": "0.1.0-stage1-status",
+  "addonProcess": "DalapadAddon",
+  "status": "Loaded",
+  "summary": "Dalapad addon loaded and registered with ReShade. Render-target resources are intentionally unavailable in Stage 1.",
+  "lastUpdateUtc": "2026-06-19T00:00:00Z",
+  "reshade": {
+    "headerCompiled": true,
+    "registered": true
+  },
+  "resources": [
+    {
+      "name": "Dalapad_SurfaceNormal",
+      "available": false,
+      "source": "RenderTargetManager.GBuffers[0]",
+      "width": 0,
+      "height": 0,
+      "format": "unknown",
+      "reason": "Stage 1 does not read, copy, or register the normal render target."
+    },
+    {
+      "name": "Dalapad_SurfaceDiffuse",
+      "available": false,
+      "source": "RenderTargetManager.GBuffers[2]",
+      "width": 0,
+      "height": 0,
+      "format": "unknown",
+      "reason": "Stage 1 does not read, copy, or register the diffuse render target."
+    },
+    {
+      "name": "Dalapad_SurfaceDepth",
+      "available": false,
+      "source": "RenderTargetManager.DepthStencil",
+      "width": 0,
+      "height": 0,
+      "format": "unknown",
+      "reason": "Stage 1 does not read, copy, or register the depth/stencil render target."
+    }
+  ],
+  "ipc": {
+    "statusFileName": "dalapad-status.json",
+    "controlPipeName": "\\\\.\\pipe\\Dalapad.Control.v1",
+    "namedPipeOpen": false
+  },
+  "realtime": {
+    "enabled": false,
+    "channel": "Dalapad.RealtimeUniforms.v1",
+    "reason": "render-layer bridge validation has priority"
+  },
+  "safety": {
+    "readsRenderTargets": false,
+    "copiesRenderTargets": false,
+    "registersShaderResources": false,
+    "movesRealtimeShaderValues": false,
+    "changesGeneratedPresets": false
+  },
+  "warnings": [
+    "Render-target bridge is disabled in Stage 1; resources intentionally report unavailable.",
+    "Realtime uniform movement is reserved but disabled until render-layer validation succeeds."
+  ]
+}
