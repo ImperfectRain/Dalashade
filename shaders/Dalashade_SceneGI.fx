@@ -74,7 +74,7 @@ uniform float Dalashade_GISkinProtect <
 
 uniform int Dalashade_GIDebugMode <
     ui_type = "combo";
-    ui_items = "Off\0AO only\0Bounce only\0Night light pooling\0Material influence\0Sky rejection\0Skin protection\0Final GI influence\0Depth-normal confidence\0Emissive source\0Bounce receiver\0Adaptive limits/safety\0Layered AO breakdown\0Clamp pressure\0SSGI diffuse gather\0Material bounce lanes\0Sky-safe receivers\0Emissive pooling lanes\0";
+    ui_items = "Off\0AO only\0Bounce only\0Night light pooling\0Material influence\0Sky rejection\0Skin protection\0Final GI influence\0Depth-normal confidence\0Emissive source\0Bounce receiver\0Adaptive limits/safety\0Layered AO breakdown\0Clamp pressure\0SSGI diffuse gather\0Material bounce lanes\0Sky-safe receivers\0Emissive pooling lanes\0Dalapad normal assist\0";
     ui_label = "Dalashade GI Debug Mode";
 > = 0;
 
@@ -157,6 +157,22 @@ uniform float Dalashade_NormalWaterSuppression < ui_type = "slider"; ui_min = 0.
 uniform float Dalashade_NormalSkinSuppression < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Skin Suppression"; > = 0.90;
 uniform float Dalashade_NormalSkySuppression < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "NormalField Sky/Fog Suppression"; > = 0.95;
 
+texture2D Dalashade_DalapadNormalTexture : DALAPAD_PINNED_NORMAL;
+sampler Dalashade_DalapadNormalSampler
+{
+    Texture = Dalashade_DalapadNormalTexture;
+    MinFilter = POINT;
+    MagFilter = POINT;
+    MipFilter = POINT;
+    AddressU = Clamp;
+    AddressV = Clamp;
+};
+
+uniform float Dalashade_DalapadEnabled < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalapad Shader Additions"; > = 0.0;
+uniform float Dalashade_DalapadSceneGINormalAssist < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalapad SceneGI Normal Assist"; > = 0.0;
+uniform float Dalashade_DalapadSceneGINormalStrength < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalapad SceneGI Normal Strength"; > = 0.35;
+uniform int Dalapad_PinnedNormalAvailable < ui_label = "Dalapad Pinned Normal Available"; > = 0;
+
 float Dalashade_SceneGILuma(float3 color)
 {
     return dot(color, float3(0.2126, 0.7152, 0.0722));
@@ -180,6 +196,37 @@ float Dalashade_SceneGIDepthConfidence(float depth, float2 uv)
     float valid = step(0.00001, depth) * step(depth, 0.99999);
     float spread = abs(depth - left) + abs(depth - right) + abs(depth - up) + abs(depth - down);
     return valid * saturate(1.0 - spread * 10.0);
+}
+
+float3 Dalashade_SceneGIDecodeDalapadNormal(float3 encodedNormal)
+{
+    float3 decoded = encodedNormal * 2.0 - 1.0;
+    return normalize(float3(decoded.xy, max(decoded.z, 0.04)));
+}
+
+float4 Dalashade_SceneGIDalapadNormalAssist(float2 uv, float3 depthNormal)
+{
+    float enabled = saturate(Dalashade_DalapadEnabled * Dalashade_DalapadSceneGINormalAssist * Dalashade_DalapadSceneGINormalStrength);
+    enabled *= (Dalapad_PinnedNormalAvailable > 0) ? 1.0 : 0.0;
+    if (enabled <= 0.0)
+    {
+        return float4(depthNormal, 0.0);
+    }
+
+    float3 sampleColor = tex2D(Dalashade_DalapadNormalSampler, uv).rgb;
+    float2 texel = BUFFER_PIXEL_SIZE;
+    float3 rightColor = tex2D(Dalashade_DalapadNormalSampler, saturate(uv + float2(texel.x, 0.0))).rgb;
+    float3 downColor = tex2D(Dalashade_DalapadNormalSampler, saturate(uv + float2(0.0, texel.y))).rgb;
+    float sampleLuma = Dalashade_SceneGILuma(sampleColor);
+    float sampleChroma = max(max(sampleColor.r, sampleColor.g), sampleColor.b) - min(min(sampleColor.r, sampleColor.g), sampleColor.b);
+    float neighborDelta = length(sampleColor - rightColor) + length(sampleColor - downColor);
+    float3 bridgeNormal = Dalashade_SceneGIDecodeDalapadNormal(sampleColor);
+    float agreement = saturate(dot(depthNormal, bridgeNormal) * 0.5 + 0.5);
+    float samplePresence = smoothstep(0.08, 0.24, sampleLuma);
+    float flatNormalSupport = smoothstep(0.50, 0.92, agreement) * (0.24 + smoothstep(0.04, 0.22, sampleChroma) * 0.18);
+    float structureSupport = smoothstep(0.010, 0.090, neighborDelta) * 0.58;
+    float confidence = enabled * samplePresence * saturate(flatNormalSupport + structureSupport);
+    return float4(bridgeNormal, confidence);
 }
 
 float Dalashade_SceneGIAO(float2 uv, float depth, float radius, float normalConfidence)
@@ -366,6 +413,9 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     float depth = ReShade::GetLinearizedDepth(texcoord);
     float3 normal = Dalashade_SceneGIDepthNormal(texcoord, depth);
     float normalConfidence = Dalashade_SceneGIDepthConfidence(depth, texcoord);
+    float4 dalapadNormalAssist = Dalashade_SceneGIDalapadNormalAssist(texcoord, normal);
+    normal = normalize(lerp(normal, dalapadNormalAssist.xyz, dalapadNormalAssist.a * 0.65));
+    normalConfidence = saturate(max(normalConfidence, dalapadNormalAssist.a * 0.72));
     float luma = Dalashade_SceneGILuma(color);
     float shadow = 1.0 - smoothstep(0.08, 0.42, luma);
     float midtone = Dalashade_RangeMask(luma, 0.12, 0.78);
@@ -447,27 +497,32 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
         * (1.0 - frame.SafetyWaterAOReject * 0.82)
         * (1.0 - frame.WaterReceiver * 0.62)
         * (1.0 - frame.MaterialSkyCloudFog * 0.72));
+    float dalapadStructureSupport = saturate(dalapadNormalAssist.a * normalReceiverSafety);
     float normalStructureSupport = saturate(
         normalFieldInfluence
         * surface.StructureCandidate
         * (0.32 + surface.NormalConfidence * 0.30 + surface.OrientationConfidence * 0.18)
-        * normalReceiverSafety);
+        * normalReceiverSafety
+        + dalapadStructureSupport * surface.StructureCandidate * 0.18);
     float normalAOContactSupport = saturate(
         normalFieldInfluence
         * surface.AOReceiverSupport
         * (0.36 + surface.NormalConfidence * 0.28 + surface.OrientationConfidence * 0.18)
-        * normalReceiverSafety);
+        * normalReceiverSafety
+        + dalapadStructureSupport * surface.AOReceiverSupport * 0.14);
     float normalGroundContactSupport = saturate(
         normalFieldInfluence
         * surface.GroundCandidate
         * (0.24 + surface.NormalConfidence * 0.20 + surface.OrientationConfidence * 0.18)
-        * normalReceiverSafety);
+        * normalReceiverSafety
+        + dalapadStructureSupport * surface.GroundCandidate * 0.10);
     float normalEdgeContact = saturate(
         normalFieldInfluence
         * surface.EdgeDiscontinuity
         * (0.28 + surface.NormalConfidence * 0.22)
         * normalReceiverSafety
-        * (1.0 - frame.SafetyHighlightProtect * 0.42));
+        * (1.0 - frame.SafetyHighlightProtect * 0.42)
+        + dalapadStructureSupport * surface.EdgeDiscontinuity * 0.16);
     float combatDampen = scene.GameplayDampen;
     float readabilityDampen = scene.ReadabilityDampen;
     float standaloneGI = scene.StandaloneSafe;
@@ -741,6 +796,11 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
         {
             debugColor = saturate(baseEmissivePoolingLane * float3(1.0, 0.48, 0.08) + emissivePoolingLane * float3(0.16, 0.72, 1.0) + propagatedSourceMask * float3(0.48, 0.12, 0.92));
             debugMask = emissivePoolingLane;
+        }
+        else if (mode == 18)
+        {
+            debugColor = saturate(lerp(dalapadNormalAssist.xyz * 0.5 + 0.5, float3(dalapadNormalAssist.a, dalapadStructureSupport, normalConfidence), 0.35));
+            debugMask = saturate(max(dalapadNormalAssist.a, dalapadStructureSupport));
         }
 
         return float4(Dalashade_SceneGIDebugOutput(texcoord, color, result, debugColor, debugMask), 1.0);

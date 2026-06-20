@@ -192,6 +192,13 @@ public sealed class PresetWriter
         "Dalashade_StandaloneStrength"
     ];
 
+    private static readonly IReadOnlyList<string> DalapadSceneGIShaderVariables =
+    [
+        "Dalashade_DalapadEnabled",
+        "Dalashade_DalapadSceneGINormalAssist",
+        "Dalashade_DalapadSceneGINormalStrength"
+    ];
+
     private static readonly IReadOnlyList<string> SceneGIMaterialIntentShaderVariables =
     [
         "Dalashade_MaterialFoliage",
@@ -485,6 +492,7 @@ public sealed class PresetWriter
                 "Dalashade_IntentCombatPressure",
                 "Dalashade_IntentCinematicPermission")
                 .Concat(FirstPartyShaderModeVariables)
+                .Concat(DalapadSceneGIShaderVariables)
                 .Concat(NormalFieldShaderVariables)
                 .Concat(DepthAssistShaderOwnedVariables)
                 .ToArray()),
@@ -1065,6 +1073,9 @@ public sealed class PresetWriter
             "Dalashade_GIDebugOutputMode" => "0",
             "Dalashade_GIDebugOpacity" => "0.750000",
             "Dalashade_GIDebugBoost" => "2.500000",
+            "Dalashade_DalapadEnabled" => "0",
+            "Dalashade_DalapadSceneGINormalAssist" => "0",
+            "Dalashade_DalapadSceneGINormalStrength" => "0.350000",
             _ => "0.000000"
         };
     }

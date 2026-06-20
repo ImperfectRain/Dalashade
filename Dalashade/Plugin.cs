@@ -192,7 +192,7 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         RefreshMaterialIntent();
-        RefreshDalapadDiagnostics();
+        RefreshDalapadDiagnostics(Configuration.EnableDalapadResourceShapeProbe);
         LastCompatibilityReportExport = compatibilityReportExporter.Export(
             Configuration,
             LastPresetAnalysis,
@@ -225,7 +225,7 @@ public sealed class Plugin : IDalamudPlugin
         CurrentMasterStyleDiagnostics = result.MasterStyleDiagnostics;
         CurrentTagStackDiagnostics = result.TagStackDiagnostics;
         var materialIntent = RefreshMaterialIntent();
-        RefreshDalapadDiagnostics();
+        RefreshDalapadDiagnostics(Configuration.EnableDalapadResourceShapeProbe);
         ScanPresetCompatibility();
         var freshReport = ExportCompatibilityReport();
         LastDebugBundleExport = debugBundleExporter.Export(
@@ -280,9 +280,9 @@ public sealed class Plugin : IDalamudPlugin
         return LastBasePresetLibraryScan;
     }
 
-    public DalapadDiagnostics RefreshDalapadDiagnostics()
+    public DalapadDiagnostics RefreshDalapadDiagnostics(bool includeResourceShapeProbe = false)
     {
-        CurrentDalapadDiagnostics = DalapadDiagnostics.Probe(SafePluginConfigDirectory);
+        CurrentDalapadDiagnostics = DalapadDiagnostics.Probe(SafePluginConfigDirectory, includeResourceShapeProbe);
         return CurrentDalapadDiagnostics;
     }
 
@@ -439,6 +439,34 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.ReShadeIniPath,
             Configuration.UsePremiumImmerseEffects,
             Configuration.EnableDalashadeCustomShaders,
+            Configuration.FirstPartyShaderMode,
+            Configuration.EnableBasePolish,
+            Configuration.AutoInjectDalashadeCustomShaderSections,
+            Configuration.EnableFirstPartyDepthAssist,
+            Configuration.EnableDalashadeSceneGIShaderVariables,
+            Configuration.DalashadeSceneGIStrength,
+            Configuration.DalashadeSceneGIAOIntensity,
+            Configuration.DalashadeSceneGIBounceStrength,
+            Configuration.DalashadeSceneGINightLightStrength,
+            Configuration.DalashadeSceneGIMaterialInfluence,
+            Configuration.EnableDalashadeContactToneShaderVariables,
+            Configuration.DalashadeContactToneStrength,
+            Configuration.DalashadeContactToneRadius,
+            Configuration.DalashadeContactToneEdgeStrength,
+            Configuration.DalashadeContactToneStructureStrength,
+            Configuration.DalashadeContactToneContrastStrength,
+            Configuration.EnableDalashadeSurfaceReflectionShaderVariables,
+            Configuration.DalashadeSurfaceReflectionStrength,
+            Configuration.DalashadeSurfaceReflectionWaterSheenStrength,
+            Configuration.DalashadeSurfaceReflectionSpecularGlintStrength,
+            Configuration.DalashadeSurfaceReflectionWetStrength,
+            Configuration.DalashadeSurfaceReflectionAetherNeonStrength,
+            Configuration.EnableNormalField,
+            Configuration.EnableNormalFieldShaderMapping,
+            Configuration.NormalFieldStrength,
+            Configuration.NormalFieldDepthStrength,
+            Configuration.NormalFieldDetailStrength,
+            Configuration.NormalFieldMaterialInfluence,
             Configuration.EnableMaterialIntent,
             Configuration.EnableMaterialIntentDiagnostics,
             Configuration.EnableMaterialIntentShaderMapping,

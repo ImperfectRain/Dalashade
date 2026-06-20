@@ -214,14 +214,14 @@ public sealed class MainWindow : Window, IDisposable
         {
             new DelegateDalashadeUiPage(
                 "MainUserHome",
-                "Home",
+                "Start",
                 true,
                 InterfaceModeVisibility.User,
                 UserHomeSummary,
                 DrawUserHome),
             new DelegateDalashadeUiPage(
                 "MainUserSetupGenerate",
-                "Setup & Generate",
+                "Generate",
                 false,
                 InterfaceModeVisibility.User,
                 BasePresetSummary,
@@ -236,7 +236,7 @@ public sealed class MainWindow : Window, IDisposable
                 DrawUserLook),
             new DelegateDalashadeUiPage(
                 "MainUserSceneAwareness",
-                "Scene Awareness",
+                "Adaptation",
                 false,
                 InterfaceModeVisibility.User,
                 UserSceneAwarenessSummary,
@@ -303,6 +303,8 @@ public sealed class MainWindow : Window, IDisposable
         DrawSetupItem("Ready to generate", readyToGenerate);
         DrawSetupItem("Generated preset updated", plugin.LastWriteResult.Success);
         DrawSetupItem("First-party shader values written", diagnostics.ValuesWritten);
+        DrawSetupItem("Auto generation enabled", configuration.Enabled);
+        ImGui.TextWrapped(UserGenerationStateSummary());
 
         if (ImGui.Button("Generate Now###MainUserHomeGenerateNow"))
         {
@@ -321,6 +323,8 @@ public sealed class MainWindow : Window, IDisposable
     private void DrawUserSetupGenerate()
     {
         DrawBasePreset();
+        ImGui.Separator();
+        DrawUserGenerationControls("MainUserSetup");
         ImGui.Separator();
         if (ImGui.Button("Generate Now###MainUserSetupGenerateNow"))
         {
@@ -343,6 +347,8 @@ public sealed class MainWindow : Window, IDisposable
         var configuration = plugin.Configuration;
 
         DrawCheckbox("Enable dynamic preset generation", configuration.Enabled, value => configuration.Enabled = value);
+        DrawCheckbox("Apply base polish", configuration.EnableBasePolish, value => configuration.EnableBasePolish = value);
+        ImGui.TextWrapped("Base polish is the small default contrast, saturation, clarity, bloom, and shadow-lift pass before scene-specific adjustments.");
 
         var style = (int)configuration.Style;
         if (ImGui.Combo("Target style", ref style, "Gameplay\0Balanced\0Cinematic\0"))
@@ -386,6 +392,7 @@ public sealed class MainWindow : Window, IDisposable
         var configuration = plugin.Configuration;
         var diagnostics = plugin.CurrentTagStackDiagnostics;
 
+        ImGui.TextWrapped("Choose which scene signals are allowed to change the generated look.");
         ImGui.TextWrapped($"Weather tags: {FormatTagList(diagnostics.ActiveWeatherTags)}");
         ImGui.TextWrapped($"Material tags: {FormatTagList(diagnostics.MaterialTags)}");
         ImGui.TextWrapped($"Mood tags: {(diagnostics.MoodTags.Count == 0 ? "none" : string.Join(", ", diagnostics.MoodTags))}");
@@ -439,10 +446,12 @@ public sealed class MainWindow : Window, IDisposable
             configuration.EnableDalashadeSurfaceReflectionShaderVariables,
             configuration.EnableMaterialIntentShaderMapping,
             configuration.EnableNormalFieldShaderMapping,
-            configuration.EnableFirstPartyDepthAssist
+            configuration.EnableFirstPartyDepthAssist,
+            configuration.EnableDalapadShaderIntegration
         }.Count(value => value);
 
         var hints = configuration.EnableScreenshotMaterialEvidenceInfluence ? ", screenshot hints on" : string.Empty;
+        hints += configuration.EnableDalapadShaderIntegration ? ", Dalapad opt-in on" : string.Empty;
         return $"{enabled} optional effect systems enabled{hints}";
     }
 
@@ -451,9 +460,26 @@ public sealed class MainWindow : Window, IDisposable
         var configuration = plugin.Configuration;
 
         DrawCheckbox("Enable Dalashade custom shader variables", configuration.EnableDalashadeCustomShaders, value => configuration.EnableDalashadeCustomShaders = value);
+        DrawCheckbox("Enable Dalapad shader additions", configuration.EnableDalapadShaderIntegration, value => configuration.EnableDalapadShaderIntegration = value);
         DrawCheckbox("Auto-inject known Dalashade shader sections", configuration.AutoInjectDalashadeCustomShaderSections, value => configuration.AutoInjectDalashadeCustomShaderSections = value);
+        DrawCheckbox("Sync Dalashade technique activation", configuration.SyncDalashadeTechniqueActivation, value => configuration.SyncDalashadeTechniqueActivation = value);
         DrawCheckbox("Enable depth assist for first-party Dalashade shaders", configuration.EnableFirstPartyDepthAssist, value => configuration.EnableFirstPartyDepthAssist = value);
-        ImGui.TextWrapped("Cards show whether each effect appears wired enough to work. Per-shader debug modes and raw variables are in Developer Mode.");
+        DrawCheckbox("Allow material-aware shader hints", configuration.EnableMaterialIntentShaderMapping, value =>
+        {
+            configuration.EnableMaterialIntentShaderMapping = value;
+            if (value)
+            {
+                configuration.EnableMaterialIntent = true;
+                configuration.EnableMaterialIntentDiagnostics = true;
+            }
+        });
+        DrawCheckbox("Enable Normal Field", configuration.EnableNormalField, value => configuration.EnableNormalField = value);
+        DrawCheckbox("Enable Normal Field Shader Mapping", configuration.EnableNormalFieldShaderMapping, value => configuration.EnableNormalFieldShaderMapping = value);
+        if (ImGui.Button("Turn Off Optional First-Party Systems###MainUserDisableOptionalFirstParty"))
+        {
+            DisableOptionalFirstPartySystems();
+        }
+        ImGui.TextWrapped("Effect controls write generated-preset values. ReShade still owns final technique order, shader compile state, and any manual debug modes.");
 
         DrawToneAndColorCard();
         DrawAtmosphereCard();
@@ -514,6 +540,15 @@ public sealed class MainWindow : Window, IDisposable
         DrawFloatSlider("Indirect lighting strength###UserSceneGIStrength", configuration.DalashadeSceneGIStrength, 0f, 1f, value => configuration.DalashadeSceneGIStrength = value);
         DrawFloatSlider("Contact grounding###UserSceneGIAO", configuration.DalashadeSceneGIAOIntensity, 0f, 1f, value => configuration.DalashadeSceneGIAOIntensity = value);
         DrawFloatSlider("Color bounce###UserSceneGIBounce", configuration.DalashadeSceneGIBounceStrength, 0f, 1f, value => configuration.DalashadeSceneGIBounceStrength = value);
+        if (configuration.EnableDalapadShaderIntegration)
+        {
+            DrawCheckbox("Use Dalapad normals for SceneGI###UserSceneGIDalapadNormals", configuration.EnableDalapadSceneGINormalAssist, value => configuration.EnableDalapadSceneGINormalAssist = value);
+            DrawFloatSlider("Dalapad normal assist###UserSceneGIDalapadNormalStrength", configuration.DalapadSceneGINormalAssistStrength, 0f, 1f, value => configuration.DalapadSceneGINormalAssistStrength = value);
+        }
+        else
+        {
+            ImGui.TextWrapped("Dalapad SceneGI normal assist resolves to zero until Dalapad shader additions are enabled.");
+        }
     }
 
     private void DrawContactToneCard()
@@ -648,6 +683,23 @@ public sealed class MainWindow : Window, IDisposable
         return "Activation unknown";
     }
 
+    private void DisableOptionalFirstPartySystems()
+    {
+        var configuration = plugin.Configuration;
+        configuration.EnableDalashadeCustomShaders = true;
+        configuration.EnableDalashadeSceneGIShaderVariables = false;
+        configuration.EnableDalashadeContactToneShaderVariables = false;
+        configuration.EnableDalashadeSurfaceReflectionShaderVariables = false;
+        configuration.EnableDalapadShaderIntegration = false;
+        configuration.EnableDalapadSceneGINormalAssist = false;
+        configuration.EnableMaterialIntentShaderMapping = false;
+        configuration.EnableScreenshotMaterialEvidenceInfluence = false;
+        configuration.EnableNormalField = false;
+        configuration.EnableNormalFieldShaderMapping = false;
+        configuration.EnableFirstPartyDepthAssist = false;
+        configuration.Save();
+    }
+
     private PresetTechnique? FindTechnique(string family)
     {
         return plugin.LastPresetAnalysis.Techniques.FirstOrDefault(technique =>
@@ -710,6 +762,104 @@ public sealed class MainWindow : Window, IDisposable
                 ImGui.BulletText(warning);
             }
         }
+
+        ImGui.Separator();
+        ImGui.TextUnformatted("Next steps");
+        foreach (var step in BuildUserHealthNextSteps(configuration, diagnostics).Take(8))
+        {
+            ImGui.BulletText(step);
+        }
+    }
+
+    private void DrawUserGenerationControls(string idPrefix)
+    {
+        var configuration = plugin.Configuration;
+        DrawCheckbox("Enable automatic generation", configuration.Enabled, value => configuration.Enabled = value);
+        DrawCheckbox("Reload ReShade after generation", configuration.ReloadShadersAfterGeneration, value => configuration.ReloadShadersAfterGeneration = value);
+        DrawCheckbox("Sync reload key to ReShade.ini", configuration.SyncReloadHotkeyToReShadeIni, value => configuration.SyncReloadHotkeyToReShadeIni = value);
+
+        var seconds = configuration.MinimumSecondsBetweenWrites;
+        if (ImGui.SliderInt($"Minimum seconds between writes###{idPrefix}WriteInterval", ref seconds, 1, 120))
+        {
+            configuration.MinimumSecondsBetweenWrites = seconds;
+            configuration.Save();
+        }
+
+        ImGui.TextWrapped(UserGenerationStateSummary());
+        ImGui.TextWrapped($"Last reload: {plugin.LastReloadResult.Message}");
+    }
+
+    private string UserGenerationStateSummary()
+    {
+        var configuration = plugin.Configuration;
+        if (configuration.SceneLockEnabled)
+        {
+            return "Generation is locked to the current preset until scene lock is turned off.";
+        }
+
+        var mode = configuration.Enabled
+            ? $"Automatic generation is on and can write at most once every {configuration.MinimumSecondsBetweenWrites} second(s)."
+            : "Automatic generation is off; use Generate Now when you want to update the generated preset.";
+        var reload = configuration.ReloadShadersAfterGeneration
+            ? " ReShade reload is requested after successful writes."
+            : " ReShade reload is off, so changes may wait until ReShade reloads manually.";
+        return mode + reload;
+    }
+
+    private IReadOnlyList<string> BuildUserHealthNextSteps(Configuration configuration, CustomShaderBridgeDiagnostics diagnostics)
+    {
+        var steps = new List<string>();
+        if (string.IsNullOrWhiteSpace(configuration.BasePresetPath) || !File.Exists(configuration.BasePresetPath))
+        {
+            steps.Add("Pick a valid base preset.");
+        }
+
+        if (string.IsNullOrWhiteSpace(configuration.GeneratedPresetPath))
+        {
+            steps.Add("Choose where Dalashade should write the generated preset.");
+        }
+
+        if (string.Equals(configuration.BasePresetPath, configuration.GeneratedPresetPath, StringComparison.OrdinalIgnoreCase))
+        {
+            steps.Add("Use a generated preset path that is different from the base preset.");
+        }
+
+        if (!plugin.LastWriteResult.Success)
+        {
+            steps.Add("Press Generate Now after setup is complete.");
+        }
+
+        if (configuration.ReloadShadersAfterGeneration && !plugin.LastReloadResult.Success)
+        {
+            steps.Add("Open Generate and check ReShade.ini/reload settings, then use Test Reload.");
+        }
+
+        if (configuration.EnableDalashadeCustomShaders && !diagnostics.SectionInjected && configuration.AutoInjectDalashadeCustomShaderSections)
+        {
+            steps.Add("Generate once to inject Dalashade shader sections into the generated preset.");
+        }
+
+        if (configuration.EnableDalashadeCustomShaders && plugin.LastShaderSupportScan.Items.Count == 0)
+        {
+            steps.Add("Scan compatibility after installing Dalashade .fx files and enabling the generated preset in ReShade.");
+        }
+
+        if (!configuration.EnableDalashadeCustomShaders)
+        {
+            steps.Add("Enable first-party shader control in Effects if you want Dalashade shader values written.");
+        }
+
+        if (plugin.LastPresetAnalysis.Report.Warnings.Count > 0)
+        {
+            steps.Add("Review the top warnings above or export a debug bundle for detailed preset diagnostics.");
+        }
+
+        if (steps.Count == 0)
+        {
+            steps.Add("No immediate setup problems detected.");
+        }
+
+        return steps;
     }
 
     private string CurrentStatusSummary()

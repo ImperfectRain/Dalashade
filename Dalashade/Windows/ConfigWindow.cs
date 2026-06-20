@@ -187,7 +187,7 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             new DelegateDalashadeUiPage(
                 "ConfigUserSetup",
-                "Setup",
+                "Generate",
                 true,
                 InterfaceModeVisibility.User,
                 UserSetupSummary,
@@ -201,7 +201,7 @@ public sealed class ConfigWindow : Window, IDisposable
                 DrawUserLook),
             new DelegateDalashadeUiPage(
                 "ConfigUserSceneAwareness",
-                "Scene Awareness",
+                "Adaptation",
                 false,
                 InterfaceModeVisibility.User,
                 UserSceneAwarenessSummary,
@@ -265,6 +265,8 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawBasePresetLibrary();
         ImGui.Separator();
         DrawPaths();
+        ImGui.Separator();
+        DrawUserGenerationControls("ConfigUserSetup");
 
         if (ImGui.Button("Generate Now###ConfigUserGenerateNow"))
         {
@@ -299,6 +301,8 @@ public sealed class ConfigWindow : Window, IDisposable
     private void DrawUserLook()
     {
         DrawCheckbox("Enable dynamic preset generation", configuration.Enabled, value => configuration.Enabled = value);
+        DrawCheckbox("Apply base polish", configuration.EnableBasePolish, value => configuration.EnableBasePolish = value);
+        ImGui.TextWrapped("Base polish is the small default contrast, saturation, clarity, bloom, and shadow-lift pass before scene-specific adjustments.");
 
         var style = (int)configuration.Style;
         if (ImGui.Combo("Target style", ref style, "Gameplay\0Balanced\0Cinematic\0"))
@@ -354,6 +358,7 @@ public sealed class ConfigWindow : Window, IDisposable
 
     private void DrawUserSceneAwareness()
     {
+        ImGui.TextWrapped("Choose which scene signals are allowed to change the generated look.");
         DrawCheckbox("Auto-adjust in combat", configuration.AutoAdjustInCombat, value => configuration.AutoAdjustInCombat = value);
         DrawCheckbox("Auto-adjust at night", configuration.AutoAdjustAtNight, value => configuration.AutoAdjustAtNight = value);
         DrawCheckbox("Auto-adjust for weather", configuration.AutoAdjustForWeather, value => configuration.AutoAdjustForWeather = value);
@@ -412,7 +417,8 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.EnableDalashadeSurfaceReflectionShaderVariables,
             configuration.EnableMaterialIntentShaderMapping,
             configuration.EnableNormalFieldShaderMapping,
-            configuration.EnableFirstPartyDepthAssist
+            configuration.EnableFirstPartyDepthAssist,
+            configuration.EnableDalapadShaderIntegration
         }.Count(value => value);
 
         return $"{enabled} optional effect systems enabled";
@@ -422,15 +428,31 @@ public sealed class ConfigWindow : Window, IDisposable
     {
         DrawCheckbox("Enable Dalashade custom shader variables", configuration.EnableDalashadeCustomShaders, value => configuration.EnableDalashadeCustomShaders = value);
         DrawItemTooltip("Allows Dalashade to write known first-party shader variables into generated presets. Techniques still must be enabled manually in ReShade.");
+        DrawCheckbox("Enable Dalapad shader additions", configuration.EnableDalapadShaderIntegration, value => configuration.EnableDalapadShaderIntegration = value);
+        DrawItemTooltip("Global opt-in for shader features that consume Dalapad bridge textures. Off means Dalapad-specific shader variables resolve to disabling values.");
         DrawCheckbox("Auto-inject known Dalashade shader sections", configuration.AutoInjectDalashadeCustomShaderSections, value => configuration.AutoInjectDalashadeCustomShaderSections = value);
+        DrawCheckbox("Sync Dalashade technique activation", configuration.SyncDalashadeTechniqueActivation, value => configuration.SyncDalashadeTechniqueActivation = value);
         DrawCheckbox("Enable SceneGI variable writes", configuration.EnableDalashadeSceneGIShaderVariables, value => configuration.EnableDalashadeSceneGIShaderVariables = value);
         DrawCheckbox("Enable ContactTone variable writes", configuration.EnableDalashadeContactToneShaderVariables, value => configuration.EnableDalashadeContactToneShaderVariables = value);
         DrawCheckbox("Enable SurfaceReflection variable writes", configuration.EnableDalashadeSurfaceReflectionShaderVariables, value => configuration.EnableDalashadeSurfaceReflectionShaderVariables = value);
         DrawCheckbox("Enable depth assist for first-party Dalashade shaders", configuration.EnableFirstPartyDepthAssist, value => configuration.EnableFirstPartyDepthAssist = value);
         DrawItemTooltip("Opt-in helper for first-party shader masks when ReShade depth is reliable. It does not enable techniques.");
+        DrawCheckbox("Allow material-aware shader hints", configuration.EnableMaterialIntentShaderMapping, value =>
+        {
+            configuration.EnableMaterialIntentShaderMapping = value;
+            if (value)
+            {
+                configuration.EnableMaterialIntent = true;
+                configuration.EnableMaterialIntentDiagnostics = true;
+            }
+        });
         DrawCheckbox("Enable Normal Field", configuration.EnableNormalField, value => configuration.EnableNormalField = value);
         DrawCheckbox("Enable Normal Field Shader Mapping", configuration.EnableNormalFieldShaderMapping, value => configuration.EnableNormalFieldShaderMapping = value);
-        ImGui.TextWrapped("MaterialIntent mapping, detailed per-shader strengths, debug modes, and resolver diagnostics are available in Developer Mode.");
+        if (ImGui.Button("Turn Off Optional First-Party Systems###ConfigUserDisableOptionalFirstParty"))
+        {
+            DisableOptionalFirstPartySystems();
+        }
+        ImGui.TextWrapped("Effect controls write generated-preset values. ReShade still owns final technique order, shader compile state, and any manual debug modes.");
     }
 
     private string UserHealthSummary()
@@ -473,6 +495,14 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TextWrapped(plugin.LastPresetAnalysis.Message);
         ImGui.TextWrapped(plugin.LastDiagnosticsExportMessage);
         ImGui.TextWrapped(plugin.LastReloadResult.Message);
+
+        var diagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(configuration, plugin.LastShaderSupportScan, plugin.LastWriteResult, plugin.LastPresetAnalysis);
+        ImGui.Separator();
+        ImGui.TextUnformatted("Next steps");
+        foreach (var step in BuildUserHealthNextSteps(diagnostics).Take(8))
+        {
+            ImGui.BulletText(step);
+        }
     }
 
     private string PathsSummary()
@@ -518,6 +548,8 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.Enabled = enabled;
             configuration.Save();
         }
+
+        DrawCheckbox("Apply base polish", configuration.EnableBasePolish, value => configuration.EnableBasePolish = value);
 
         var style = (int)configuration.Style;
         if (ImGui.Combo("Target style", ref style, "Gameplay\0Balanced\0Cinematic\0"))
@@ -731,6 +763,8 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TextWrapped("This does not install .fx shader files. Install needed Dalashade shaders in ReShade separately so ReShade can compile injected generated-preset sections.");
         DrawCheckbox("Sync Dalashade technique activation", configuration.SyncDalashadeTechniqueActivation, value => configuration.SyncDalashadeTechniqueActivation = value);
         ImGui.TextWrapped("When enabled, generated presets add or remove Dalashade production techniques from Techniques= based on the plugin shader options. Debug techniques stay manual, and third-party effects are not disabled.");
+        DrawCheckbox("Enable Dalapad shader additions", configuration.EnableDalapadShaderIntegration, value => configuration.EnableDalapadShaderIntegration = value);
+        DrawItemTooltip("Global opt-in for shader features that consume Dalapad bridge textures. When off, Dalapad-specific generated-preset values resolve to disabling values.");
 
         ImGui.Separator();
         ImGui.TextWrapped("SceneGI: adaptive screen-space indirect lighting and material bounce");
@@ -740,8 +774,17 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawFloatSlider("SceneGI bounce strength", configuration.DalashadeSceneGIBounceStrength, 0f, 1f, value => configuration.DalashadeSceneGIBounceStrength = value);
         DrawFloatSlider("SceneGI night light strength", configuration.DalashadeSceneGINightLightStrength, 0f, 1f, value => configuration.DalashadeSceneGINightLightStrength = value);
         DrawFloatSlider("SceneGI material influence", configuration.DalashadeSceneGIMaterialInfluence, 0f, 1f, value => configuration.DalashadeSceneGIMaterialInfluence = value);
+        if (configuration.EnableDalapadShaderIntegration)
+        {
+            DrawCheckbox("Use Dalapad normals for SceneGI", configuration.EnableDalapadSceneGINormalAssist, value => configuration.EnableDalapadSceneGINormalAssist = value);
+            DrawFloatSlider("Dalapad SceneGI normal assist strength", configuration.DalapadSceneGINormalAssistStrength, 0f, 1f, value => configuration.DalapadSceneGINormalAssistStrength = value);
+        }
+        else
+        {
+            ImGui.TextWrapped("Dalapad SceneGI normal assist resolves to zero until Dalapad shader additions are enabled.");
+        }
         var sceneGIDebugMode = configuration.DalashadeSceneGIDebugMode;
-        if (ImGui.SliderInt("SceneGI debug mode", ref sceneGIDebugMode, 0, 17))
+        if (ImGui.SliderInt("SceneGI debug mode", ref sceneGIDebugMode, 0, 18))
         {
             configuration.DalashadeSceneGIDebugMode = sceneGIDebugMode;
             configuration.Save();
@@ -960,11 +1003,19 @@ public sealed class ConfigWindow : Window, IDisposable
     private void DrawDalapadDiagnostics()
     {
         var diagnostics = plugin.CurrentDalapadDiagnostics;
-        ImGui.TextWrapped("Dalapad is an experimental diagnostic probe for a future optional surface-data addon. This first pass only checks runtime metadata. It does not read render targets, expose textures to ReShade, change shaders, or change generated presets.");
+        ImGui.TextWrapped("Dalapad is an experimental diagnostic probe for a future optional surface-data addon. The default pass checks runtime metadata, status-file IPC, and control-pipe capability negotiation only. It does not read render targets, expose textures to ReShade, change shaders, or change generated presets.");
         ImGui.Spacing();
         if (ImGui.Button("Probe Dalapad diagnostics"))
         {
             diagnostics = plugin.RefreshDalapadDiagnostics();
+        }
+
+        ImGui.Spacing();
+        DrawCheckbox("Enable developer-only resource shape probe", configuration.EnableDalapadResourceShapeProbe, value => configuration.EnableDalapadResourceShapeProbe = value);
+        ImGui.TextWrapped("This opt-in probe may invoke RenderTargetManager.Instance and report redacted candidate resource shape, nullability, dimensions, and format labels if readable. It does not copy textures, register shader resources, move IPC handles, or affect FrameData.");
+        if (ImGui.Button("Run Dalapad shape probe"))
+        {
+            diagnostics = plugin.RefreshDalapadDiagnostics(configuration.EnableDalapadResourceShapeProbe);
         }
 
         ImGui.Spacing();
@@ -1022,9 +1073,49 @@ public sealed class ConfigWindow : Window, IDisposable
             ImGui.TextWrapped($"Reported resources: {string.Join(", ", diagnostics.IpcStatus.ReportedResources)}");
         }
 
+        DrawResourceCatalog("Status-file resource catalog", diagnostics.IpcStatus.ResourceCatalog);
+
         foreach (var warning in diagnostics.IpcStatus.Warnings)
         {
             ImGui.BulletText($"Warning: {warning}");
+        }
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Control pipe health");
+        ImGui.TextUnformatted($"Pipe: {diagnostics.ControlPipeStatus.PipeName}");
+        ImGui.TextUnformatted($"Attempted: {FormatYesNo(diagnostics.ControlPipeStatus.Attempted)}");
+        ImGui.TextUnformatted($"Listening: {FormatYesNo(diagnostics.ControlPipeStatus.PipeListening)}");
+        ImGui.TextUnformatted($"Response received: {FormatYesNo(diagnostics.ControlPipeStatus.ResponseReceived)}");
+        ImGui.TextUnformatted($"Contract compatible: {FormatYesNo(diagnostics.ControlPipeStatus.ContractCompatible)}");
+        ImGui.TextUnformatted($"Status: {diagnostics.ControlPipeStatus.Status}");
+        ImGui.TextWrapped(diagnostics.ControlPipeStatus.Summary);
+        ImGui.TextUnformatted($"Bridge version: {FormatOptionalUiValue(diagnostics.ControlPipeStatus.BridgeVersion)}");
+        ImGui.TextUnformatted($"Response type: {FormatOptionalUiValue(diagnostics.ControlPipeStatus.ResponseType)}");
+        ImGui.TextUnformatted($"Elapsed: {diagnostics.ControlPipeStatus.ElapsedMilliseconds} ms");
+        ImGui.TextUnformatted($"Supports status file: {FormatYesNo(diagnostics.ControlPipeStatus.Capabilities.SupportsStatusFile)}");
+        ImGui.TextUnformatted($"Supports control pipe: {FormatYesNo(diagnostics.ControlPipeStatus.Capabilities.SupportsControlPipe)}");
+        ImGui.TextUnformatted($"Supports realtime uniforms: {FormatYesNo(diagnostics.ControlPipeStatus.Capabilities.SupportsRealtimeUniforms)}");
+        ImGui.TextUnformatted($"Supports resource catalog: {FormatYesNo(diagnostics.ControlPipeStatus.Capabilities.SupportsResourceCatalog)}");
+        ImGui.TextUnformatted($"Supports debug visualization: {FormatYesNo(diagnostics.ControlPipeStatus.Capabilities.SupportsDebugVisualization)}");
+        ImGui.TextUnformatted($"Reads render targets: {FormatYesNo(diagnostics.ControlPipeStatus.Capabilities.ReadsRenderTargets)}");
+        ImGui.TextUnformatted($"Copies render targets: {FormatYesNo(diagnostics.ControlPipeStatus.Capabilities.CopiesRenderTargets)}");
+        ImGui.TextUnformatted($"Registers shader resources: {FormatYesNo(diagnostics.ControlPipeStatus.Capabilities.RegistersShaderResources)}");
+        ImGui.TextUnformatted($"Moves realtime shader values: {FormatYesNo(diagnostics.ControlPipeStatus.Capabilities.MovesRealtimeShaderValues)}");
+        DrawResourceCatalog("Control-pipe resource catalog", diagnostics.ControlPipeStatus.ResourceCatalog);
+        DrawDebugVisualization("Status-file debug visualization", diagnostics.IpcStatus.DebugVisualization);
+        DrawDebugVisualization("Control-pipe debug visualization", diagnostics.ControlPipeStatus.DebugVisualization);
+        foreach (var warning in diagnostics.ControlPipeStatus.Warnings)
+        {
+            ImGui.BulletText($"Pipe warning: {warning}");
+        }
+
+        DrawResourceShapeProbe(diagnostics.ResourceShapeProbe);
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Health check next steps");
+        foreach (var step in BuildDalapadHealthNextSteps(diagnostics))
+        {
+            ImGui.BulletText(step);
         }
 
         ImGui.Spacing();
@@ -1084,6 +1175,180 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             ImGui.BulletText(note);
         }
+    }
+
+    private static void DrawResourceCatalog(string title, IReadOnlyList<DalapadResourceCatalogEntry> resources)
+    {
+        ImGui.Spacing();
+        ImGui.TextUnformatted(title);
+        if (resources.Count == 0)
+        {
+            ImGui.TextUnformatted("No resource catalog rows reported.");
+            return;
+        }
+
+        foreach (var resource in resources)
+        {
+            ImGui.BulletText($"{resource.Name}: available {FormatYesNo(resource.Available)}, {resource.Width}x{resource.Height}, format {FormatOptionalUiValue(resource.Format)}, confidence {resource.Confidence:0.###}");
+            ImGui.TextWrapped($"Source: {FormatOptionalUiValue(resource.Source)}");
+            ImGui.TextWrapped($"Freshness: {FormatOptionalUiValue(resource.Freshness)}; safety: {FormatOptionalUiValue(resource.SafetyState)}; metadata: {FormatOptionalUiValue(resource.MetadataSource)}");
+            ImGui.TextWrapped($"Reason: {FormatOptionalUiValue(resource.Reason)}");
+        }
+    }
+
+    private static void DrawResourceShapeProbe(DalapadResourceShapeProbe probe)
+    {
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Developer resource shape probe");
+        ImGui.TextUnformatted($"Enabled: {FormatYesNo(probe.Enabled)}");
+        ImGui.TextUnformatted($"Attempted: {FormatYesNo(probe.Attempted)}");
+        ImGui.TextUnformatted($"Instance invoked: {FormatYesNo(probe.InstanceInvoked)}");
+        ImGui.TextUnformatted($"Status: {probe.Status}");
+        ImGui.TextWrapped(probe.Summary);
+        if (probe.Timestamp != DateTimeOffset.MinValue)
+        {
+            ImGui.TextUnformatted($"Probe timestamp: {probe.Timestamp:O}");
+        }
+
+        if (probe.Resources.Count == 0)
+        {
+            ImGui.TextUnformatted("No shape rows reported.");
+        }
+        else
+        {
+            foreach (var resource in probe.Resources)
+            {
+                ImGui.BulletText($"{resource.Name}: candidate {FormatYesNo(resource.CandidateFound)}, pointer {FormatYesNo(resource.PointerObserved)}, {resource.Width}x{resource.Height}, format {FormatOptionalUiValue(resource.Format)}, confidence {resource.Confidence:0.###}");
+                ImGui.TextWrapped($"Source: {FormatOptionalUiValue(resource.Source)}; pointer: {FormatOptionalUiValue(resource.PointerFingerprint)}");
+                ImGui.TextWrapped($"Freshness: {FormatOptionalUiValue(resource.Freshness)}; safety: {FormatOptionalUiValue(resource.SafetyState)}; metadata: {FormatOptionalUiValue(resource.MetadataSource)}");
+                ImGui.TextWrapped($"Reason: {FormatOptionalUiValue(resource.Reason)}");
+            }
+        }
+
+        foreach (var warning in probe.Warnings)
+        {
+            ImGui.BulletText($"Shape warning: {warning}");
+        }
+    }
+
+    private static void DrawDebugVisualization(string title, DalapadDebugVisualizationStatus debug)
+    {
+        ImGui.Spacing();
+        ImGui.TextUnformatted(title);
+        ImGui.TextUnformatted($"Enabled: {FormatYesNo(debug.Enabled)}");
+        ImGui.TextUnformatted($"Status: {FormatOptionalUiValue(debug.Status)}");
+        ImGui.TextUnformatted($"Shader: {FormatOptionalUiValue(debug.Shader)}");
+        ImGui.TextUnformatted($"Texture: {FormatOptionalUiValue(debug.TextureName)}");
+        ImGui.TextUnformatted($"Source: {FormatOptionalUiValue(debug.Source)}");
+        ImGui.TextUnformatted($"Shader texture found: {FormatYesNo(debug.ShaderTextureFound)}");
+        ImGui.TextUnformatted($"Synthetic texture uploaded: {FormatYesNo(debug.SyntheticTextureUploaded)}");
+        ImGui.TextUnformatted($"Uses synthetic texture: {FormatYesNo(debug.UsesSyntheticTexture)}");
+        ImGui.TextUnformatted($"Size: {debug.Width}x{debug.Height}; frame age: {debug.FrameAge}");
+        ImGui.TextUnformatted($"Render candidates: observed {debug.ObservedSourceCount}, copied {debug.CopiedSourceCount}");
+        ImGui.TextWrapped($"Reason: {FormatOptionalUiValue(debug.Reason)}");
+        ImGui.TextWrapped($"Safety: reads render targets {FormatYesNo(debug.ReadsRenderTargets)}, copies render targets {FormatYesNo(debug.CopiesRenderTargets)}, registers game resources {FormatYesNo(debug.RegistersGameResources)}");
+        if (debug.PinnedCandidates.Count > 0)
+        {
+            ImGui.TextUnformatted("Pinned candidates:");
+            foreach (var candidate in debug.PinnedCandidates)
+            {
+                ImGui.BulletText($"{candidate.Label}: {candidate.Source} -> {candidate.Semantic}; {FormatYesNo(candidate.Copied)} copied; {candidate.Width}x{candidate.Height}; {candidate.ClassificationHint}");
+            }
+        }
+    }
+
+    private static IReadOnlyList<string> BuildDalapadHealthNextSteps(DalapadDiagnostics diagnostics)
+    {
+        if (!diagnostics.IpcStatus.StatusFileFound)
+        {
+            return new[] { "Load the separate Dalapad addon prototype and confirm it writes dalapad-status.json." };
+        }
+
+        if (!diagnostics.IpcStatus.ContractCompatible)
+        {
+            return new[] { "Rebuild the addon against the current 0.1-ipc-diagnostic status-file contract." };
+        }
+
+        if (!diagnostics.ControlPipeStatus.PipeListening)
+        {
+            return new[] { "Rebuild and reload the addon with the diagnostic control pipe enabled." };
+        }
+
+        if (!diagnostics.ControlPipeStatus.ResponseReceived)
+        {
+            return new[] { "Check the addon pipe worker; the pipe accepted a connection but did not return capability JSON." };
+        }
+
+        if (!diagnostics.ControlPipeStatus.ContractCompatible)
+        {
+            return new[] { "Update the addon and plugin to the same Dalapad.Control.v1 pipe contract." };
+        }
+
+        if (diagnostics.ControlPipeStatus.Capabilities.ReadsRenderTargets
+            || diagnostics.ControlPipeStatus.Capabilities.CopiesRenderTargets
+            || diagnostics.ControlPipeStatus.Capabilities.RegistersShaderResources
+            || diagnostics.ControlPipeStatus.Capabilities.MovesRealtimeShaderValues)
+        {
+            return new[] { "Unexpected advanced capabilities are enabled. Keep this build diagnostic-only until resource validation is explicitly started." };
+        }
+
+        if (!diagnostics.ControlPipeStatus.Capabilities.SupportsResourceCatalog)
+        {
+            return new[]
+            {
+                "Status-file IPC and control-pipe capability negotiation are healthy.",
+                "Next safe step is a metadata-only resource catalog; do not send texture handles or shader values yet."
+            };
+        }
+
+        if (diagnostics.IpcStatus.ResourceCatalog.Count == 0 && diagnostics.ControlPipeStatus.ResourceCatalog.Count == 0)
+        {
+            return new[] { "Resource catalog capability is enabled, but no catalog rows were reported. Check the addon status payload and QueryStatus response." };
+        }
+
+        if (!diagnostics.ResourceShapeProbe.Attempted)
+        {
+            return new[]
+            {
+                "Status-file IPC, control-pipe capability negotiation, and metadata-only resource catalog are healthy.",
+                "Enable and run the developer-only resource shape probe next; keep texture copies, shader resources, IPC handles, and FrameData disabled."
+            };
+        }
+
+        if (diagnostics.ResourceShapeProbe.Resources.All(resource => !resource.PointerObserved))
+        {
+            return new[]
+            {
+                "Developer resource shape probe ran without observing candidate pointers.",
+                "Capture a debug bundle in-game and inspect the shape probe warnings before attempting any native bridge work."
+            };
+        }
+
+        if (!diagnostics.ControlPipeStatus.DebugVisualization.SyntheticTextureUploaded)
+        {
+            return new[]
+            {
+                "Resource shape observation is healthy, but the synthetic debug visualization bridge has not uploaded yet.",
+                "Install/reload Dalapad_Debug.fx and confirm the addon reports Dalapad_DebugTexture found before judging render-layer copy behavior."
+            };
+        }
+
+        if (diagnostics.ControlPipeStatus.DebugVisualization.CopiedSourceCount == 0)
+        {
+            return new[]
+            {
+                "Synthetic debug visualization is healthy, but no render-layer candidate has been copied into Dalapad_Debug.fx yet.",
+                diagnostics.ControlPipeStatus.DebugVisualization.ObservedSourceCount > 0
+                    ? "The addon is observing render-target candidates; check format support, effect-begin callbacks, and copy barriers."
+                    : "The addon has not observed render-target candidates yet; test while actively in a rendered scene with Dalapad_Debug.fx enabled."
+            };
+        }
+
+        return new[]
+        {
+            "Status-file IPC, control-pipe capability negotiation, metadata-only resource catalog, developer resource shape probe, and debug render-layer copies are healthy enough for repeated observation.",
+            "Next safe step is lifecycle testing across login, zone change, resolution change, and reload; keep FrameData and generated preset behavior disabled."
+        };
     }
 
     private static string FormatOptionalUiValue(string value)
@@ -1174,6 +1439,111 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TextWrapped($"ReShade.ini: {(diagnostics.ReShadeIniFound ? diagnostics.ReShadeIniPath : "not found")}");
         ImGui.TextWrapped($"KeyReload: {diagnostics.KeyReloadValue}; configured: {diagnostics.ConfiguredReloadKey}; sync: {(diagnostics.HotkeySyncEnabled ? "on" : "off")}");
         ImGui.TextWrapped($"PostMessage: {(diagnostics.PostMessageSucceeded ? "ok" : "failed")}; SendInput: {(diagnostics.SendInputSucceeded ? "ok" : "failed")}");
+    }
+
+    private void DrawUserGenerationControls(string idPrefix)
+    {
+        DrawCheckbox("Enable automatic generation", configuration.Enabled, value => configuration.Enabled = value);
+        DrawCheckbox("Reload ReShade after generation", configuration.ReloadShadersAfterGeneration, value => configuration.ReloadShadersAfterGeneration = value);
+        DrawCheckbox("Sync reload key to ReShade.ini", configuration.SyncReloadHotkeyToReShadeIni, value => configuration.SyncReloadHotkeyToReShadeIni = value);
+
+        var seconds = configuration.MinimumSecondsBetweenWrites;
+        if (ImGui.SliderInt($"Minimum seconds between writes###{idPrefix}WriteInterval", ref seconds, 1, 120))
+        {
+            configuration.MinimumSecondsBetweenWrites = seconds;
+            configuration.Save();
+        }
+
+        ImGui.TextWrapped(UserGenerationStateSummary());
+        ImGui.TextWrapped($"Last reload: {plugin.LastReloadResult.Message}");
+    }
+
+    private void DisableOptionalFirstPartySystems()
+    {
+        configuration.EnableDalashadeCustomShaders = true;
+        configuration.EnableDalashadeSceneGIShaderVariables = false;
+        configuration.EnableDalashadeContactToneShaderVariables = false;
+        configuration.EnableDalashadeSurfaceReflectionShaderVariables = false;
+        configuration.EnableDalapadShaderIntegration = false;
+        configuration.EnableDalapadSceneGINormalAssist = false;
+        configuration.EnableMaterialIntentShaderMapping = false;
+        configuration.EnableScreenshotMaterialEvidenceInfluence = false;
+        configuration.EnableNormalField = false;
+        configuration.EnableNormalFieldShaderMapping = false;
+        configuration.EnableFirstPartyDepthAssist = false;
+        configuration.Save();
+    }
+
+    private string UserGenerationStateSummary()
+    {
+        if (configuration.SceneLockEnabled)
+        {
+            return "Generation is locked to the current preset until scene lock is turned off.";
+        }
+
+        var mode = configuration.Enabled
+            ? $"Automatic generation is on and can write at most once every {configuration.MinimumSecondsBetweenWrites} second(s)."
+            : "Automatic generation is off; use Generate Now when you want to update the generated preset.";
+        var reload = configuration.ReloadShadersAfterGeneration
+            ? " ReShade reload is requested after successful writes."
+            : " ReShade reload is off, so changes may wait until ReShade reloads manually.";
+        return mode + reload;
+    }
+
+    private IReadOnlyList<string> BuildUserHealthNextSteps(CustomShaderBridgeDiagnostics diagnostics)
+    {
+        var steps = new List<string>();
+        if (string.IsNullOrWhiteSpace(configuration.BasePresetPath) || !File.Exists(configuration.BasePresetPath))
+        {
+            steps.Add("Pick a valid base preset.");
+        }
+
+        if (string.IsNullOrWhiteSpace(configuration.GeneratedPresetPath))
+        {
+            steps.Add("Choose where Dalashade should write the generated preset.");
+        }
+
+        if (string.Equals(configuration.BasePresetPath, configuration.GeneratedPresetPath, StringComparison.OrdinalIgnoreCase))
+        {
+            steps.Add("Use a generated preset path that is different from the base preset.");
+        }
+
+        if (!plugin.LastWriteResult.Success)
+        {
+            steps.Add("Press Generate Now after setup is complete.");
+        }
+
+        if (configuration.ReloadShadersAfterGeneration && !plugin.LastReloadResult.Success)
+        {
+            steps.Add("Open Generate and check ReShade.ini/reload settings, then use Test Reload.");
+        }
+
+        if (configuration.EnableDalashadeCustomShaders && !diagnostics.SectionInjected && configuration.AutoInjectDalashadeCustomShaderSections)
+        {
+            steps.Add("Generate once to inject Dalashade shader sections into the generated preset.");
+        }
+
+        if (configuration.EnableDalashadeCustomShaders && plugin.LastShaderSupportScan.Items.Count == 0)
+        {
+            steps.Add("Scan compatibility after installing Dalashade .fx files and enabling the generated preset in ReShade.");
+        }
+
+        if (!configuration.EnableDalashadeCustomShaders)
+        {
+            steps.Add("Enable first-party shader control in Effects if you want Dalashade shader values written.");
+        }
+
+        if (plugin.LastPresetAnalysis.Report.Warnings.Count > 0)
+        {
+            steps.Add("Review the current preset warnings or export a debug bundle for detailed diagnostics.");
+        }
+
+        if (steps.Count == 0)
+        {
+            steps.Add("No immediate setup problems detected.");
+        }
+
+        return steps;
     }
 
     private void DrawTextInput(string label, string currentValue, Action<string> update)

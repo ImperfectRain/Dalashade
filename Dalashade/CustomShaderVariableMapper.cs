@@ -13,6 +13,7 @@ public sealed class CustomShaderVariableMapper
     public const string ContactToneReasonCategory = "Dalashade custom shader ContactTone tuning";
     public const string SurfaceReflectionReasonCategory = "Dalashade custom shader SurfaceReflection tuning";
     public const string NormalFieldReasonCategory = "Dalashade custom shader NormalField tuning";
+    public const string DalapadReasonCategory = "Dalapad shader integration";
     public const string FirstPartyModeReasonCategory = "Dalashade first-party shader mode";
     public const string FirstPartyDepthAssistReasonCategory = "Dalashade first-party depth assist";
 
@@ -74,8 +75,8 @@ public sealed class CustomShaderVariableMapper
     private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> FirstPartyDepthAssistVariables =
         new Dictionary<string, Func<Configuration, float>>(StringComparer.OrdinalIgnoreCase)
         {
-            ["Dalashade_EnableDepthAssist"] = _ => 1f,
-            ["Dalashade_DepthAssistStrength"] = _ => 1f,
+            ["Dalashade_EnableDepthAssist"] = configuration => configuration.EnableFirstPartyDepthAssist ? 1f : 0f,
+            ["Dalashade_DepthAssistStrength"] = configuration => configuration.EnableFirstPartyDepthAssist ? 1f : 0f,
             ["Dalashade_DepthAssistConfidenceFloor"] = _ => 0f,
             ["Dalashade_DepthConfidenceFloor"] = _ => 0f
         };
@@ -97,6 +98,14 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_GIDebugOutputMode"] = configuration => configuration.DalashadeSceneGIDebugOutputMode,
             ["Dalashade_GIDebugOpacity"] = configuration => configuration.DalashadeSceneGIDebugOpacity,
             ["Dalashade_GIDebugBoost"] = configuration => configuration.DalashadeSceneGIDebugBoost
+        };
+
+    private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> DalapadSceneGIVariables =
+        new Dictionary<string, Func<Configuration, float>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Dalashade_DalapadEnabled"] = configuration => configuration.EnableDalapadShaderIntegration ? 1f : 0f,
+            ["Dalashade_DalapadSceneGINormalAssist"] = configuration => configuration.EnableDalapadShaderIntegration && configuration.EnableDalapadSceneGINormalAssist ? 1f : 0f,
+            ["Dalashade_DalapadSceneGINormalStrength"] = configuration => configuration.EnableDalapadShaderIntegration && configuration.EnableDalapadSceneGINormalAssist ? configuration.DalapadSceneGINormalAssistStrength : 0f
         };
 
     private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> SurfaceReflectionVariables =
@@ -360,6 +369,7 @@ public sealed class CustomShaderVariableMapper
         .Concat(FirstPartyModeVariables.Keys)
         .Concat(FirstPartyDepthAssistVariables.Keys)
         .Concat(SceneGIVariables.Keys)
+        .Concat(DalapadSceneGIVariables.Keys)
         .Concat(ContactToneVariables.Keys)
         .Concat(SurfaceReflectionVariables.Keys)
         .Concat(NormalFieldVariables.Keys)
@@ -398,8 +408,7 @@ public sealed class CustomShaderVariableMapper
             return true;
         }
 
-        if (configuration.EnableFirstPartyDepthAssist
-            && IsFirstPartyDepthAssistSection(section)
+        if (IsFirstPartyDepthAssistSection(section)
             && FirstPartyDepthAssistVariables.TryGetValue(key, out var depthAssistAccessor))
         {
             adjustment = new ShaderAdjustment(
@@ -410,8 +419,7 @@ public sealed class CustomShaderVariableMapper
             return true;
         }
 
-        if (configuration.EnableDalashadeSceneGIShaderVariables
-            && IsSceneGISection(section)
+        if (IsSceneGISection(section)
             && SceneGIVariables.TryGetValue(key, out var giAccessor))
         {
             adjustment = new ShaderAdjustment(
@@ -422,8 +430,18 @@ public sealed class CustomShaderVariableMapper
             return true;
         }
 
-        if (configuration.EnableDalashadeContactToneShaderVariables
-            && IsContactToneSection(section)
+        if (IsSceneGISection(section)
+            && DalapadSceneGIVariables.TryGetValue(key, out var dalapadAccessor))
+        {
+            adjustment = new ShaderAdjustment(
+                _ => FormatDalapadSceneGIValue(key, dalapadAccessor(configuration)),
+                DalapadReasonCategory,
+                EffectRole.AoGi,
+                1f);
+            return true;
+        }
+
+        if (IsContactToneSection(section)
             && ContactToneVariables.TryGetValue(key, out var contactToneAccessor))
         {
             adjustment = new ShaderAdjustment(
@@ -434,8 +452,7 @@ public sealed class CustomShaderVariableMapper
             return true;
         }
 
-        if (configuration.EnableDalashadeSurfaceReflectionShaderVariables
-            && IsSurfaceReflectionSection(section)
+        if (IsSurfaceReflectionSection(section)
             && SurfaceReflectionVariables.TryGetValue(key, out var surfaceReflectionAccessor))
         {
             adjustment = new ShaderAdjustment(
@@ -446,10 +463,7 @@ public sealed class CustomShaderVariableMapper
             return true;
         }
 
-        if (configuration.EnableNormalField
-            && configuration.EnableNormalFieldShaderMapping
-            && configuration.NormalFieldStrength > 0f
-            && IsSupportedNormalFieldSectionVariable(section, key)
+        if (IsSupportedNormalFieldSectionVariable(section, key)
             && NormalFieldVariables.TryGetValue(key, out var normalFieldAccessor))
         {
             adjustment = new ShaderAdjustment(
@@ -460,18 +474,18 @@ public sealed class CustomShaderVariableMapper
             return true;
         }
 
-        if (!configuration.EnableMaterialIntent
-            || !configuration.EnableMaterialIntentShaderMapping
-            || configuration.MaterialIntentStrength <= 0f
-            || !IsSupportedMaterialSectionVariable(section, key)
+        if (!IsSupportedMaterialSectionVariable(section, key)
             || !MaterialVariables.TryGetValue(key, out var materialAccessor))
         {
             adjustment = null!;
             return false;
         }
 
+        var materialMappingEnabled = configuration.EnableMaterialIntent
+                                     && configuration.EnableMaterialIntentShaderMapping
+                                     && configuration.MaterialIntentStrength > 0f;
         adjustment = new ShaderAdjustment(
-            _ => new ShaderAdjustmentResult(Format(MaterialOutput(key, materialAccessor(materialIntent, configuration), configuration)), false, false),
+            _ => new ShaderAdjustmentResult(Format(materialMappingEnabled ? MaterialOutput(key, materialAccessor(materialIntent, configuration), configuration) : 0f), false, false),
             MaterialReasonCategory,
             EffectRole.UiUtility,
             1f);
@@ -502,6 +516,7 @@ public sealed class CustomShaderVariableMapper
                    || FirstPartyModeVariables.ContainsKey(key)
                    || FirstPartyDepthAssistVariables.ContainsKey(key)
                    || SceneGIVariables.ContainsKey(key)
+                   || DalapadSceneGIVariables.ContainsKey(key)
                    || ContactToneVariables.ContainsKey(key)
                    || SurfaceReflectionVariables.ContainsKey(key)
                    || NormalFieldVariables.ContainsKey(key)
@@ -548,8 +563,8 @@ public sealed class CustomShaderVariableMapper
         if (string.Equals(key, "Dalashade_GIDebugMode", StringComparison.OrdinalIgnoreCase))
         {
             var rounded = (int)MathF.Round(value);
-            var clamped = Math.Min(17, Math.Max(0, rounded));
-            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 17);
+            var clamped = Math.Min(18, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 18);
         }
 
         if (string.Equals(key, "Dalashade_GIDebugOutputMode", StringComparison.OrdinalIgnoreCase))
@@ -609,6 +624,19 @@ public sealed class CustomShaderVariableMapper
 
         var normalized = Clamp01(value);
         return new ShaderAdjustmentResult(Format(normalized), value < 0f, value > 1f);
+    }
+
+    private static ShaderAdjustmentResult FormatDalapadSceneGIValue(string key, float value)
+    {
+        if (string.Equals(key, "Dalashade_DalapadEnabled", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "Dalashade_DalapadSceneGINormalAssist", StringComparison.OrdinalIgnoreCase))
+        {
+            var enabled = value >= 0.5f ? 1 : 0;
+            return new ShaderAdjustmentResult(enabled.ToString(CultureInfo.InvariantCulture), false, false);
+        }
+
+        var clamped = Clamp01(value);
+        return new ShaderAdjustmentResult(Format(clamped), value < 0f, value > 1f);
     }
 
     private static ShaderAdjustmentResult FormatNormalFieldValue(string key, float value)

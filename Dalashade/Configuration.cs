@@ -101,6 +101,7 @@ public class Configuration : IPluginConfiguration
 
     public TargetStyle Style { get; set; } = TargetStyle.Balanced;
     public PerformanceBudget PerformanceBudget { get; set; } = PerformanceBudget.Medium;
+    public bool EnableBasePolish { get; set; } = true;
 
     public bool Enabled { get; set; } = true;
     public bool AutoAdjustInCombat { get; set; } = true;
@@ -118,6 +119,10 @@ public class Configuration : IPluginConfiguration
     public FirstPartyShaderMode FirstPartyShaderMode { get; set; } = FirstPartyShaderMode.Supportive;
     public bool AutoInjectDalashadeCustomShaderSections { get; set; } = false;
     public bool SyncDalashadeTechniqueActivation { get; set; } = false;
+    public bool EnableDalapadResourceShapeProbe { get; set; } = false;
+    public bool EnableDalapadShaderIntegration { get; set; } = false;
+    public bool EnableDalapadSceneGINormalAssist { get; set; } = false;
+    public float DalapadSceneGINormalAssistStrength { get; set; } = 0.35f;
     public bool EnableDalashadeSceneGIShaderVariables { get; set; } = false;
     public float DalashadeSceneGIStrength { get; set; } = 0.45f;
     public float DalashadeSceneGIAOIntensity { get; set; } = 0.30f;

@@ -1,6 +1,7 @@
 {
   "contractVersion": "0.1-diagnostic",
   "ipcContractVersion": "0.1-ipc-diagnostic",
+  "resourceCatalogVersion": "0.1-metadata-only",
   "displayName": "Dalapad",
   "productionBehavior": "none",
   "ipc": {
@@ -8,9 +9,52 @@
     "statusFileRelativePath": "Dalashade/Dalapad/dalapad-status.json",
     "statusDirection": "addon-to-plugin",
     "statusBehavior": "diagnostic-only",
-    "reservedControlPipe": "\\\\.\\pipe\\Dalapad.Control.v1",
+    "controlPipe": "\\\\.\\pipe\\Dalapad.Control.v1",
+    "controlPipeContract": "Dalapad.Control.v1",
+    "controlPipeBehavior": "diagnostic-only",
+    "controlPipeCommands": [
+      "Ping",
+      "BridgeSelfTest",
+      "QueryStatus",
+      "QueryCapabilities",
+      "QueryDebugVisualization",
+      "SetDebugVisualization"
+    ],
     "reservedRealtimeMessageFamily": "Dalapad.RealtimeUniforms.v1",
-    "stage1PluginPipeBehavior": "not-opened"
+    "stage1PluginPipeBehavior": "short-timeout diagnostic probe only"
+  },
+  "resourceCatalog": {
+    "behavior": "metadata-only",
+    "containsTextureHandles": false,
+    "readsRenderTargets": false,
+    "copiesRenderTargets": false,
+    "registersShaderResources": false,
+    "fields": [
+      "name",
+      "kind",
+      "availabilityFlag",
+      "available",
+      "source",
+      "width",
+      "height",
+      "format",
+      "freshness",
+      "confidence",
+      "safetyState",
+      "metadataSource",
+      "reason"
+    ]
+  },
+  "debugVisualization": {
+    "version": "0.1-synthetic-texture",
+    "shader": "Dalapad_Debug.fx",
+    "textureName": "Dalapad_DebugTexture",
+    "behavior": "synthetic-texture-only",
+    "usesSyntheticTexture": true,
+    "readsRenderTargets": false,
+    "copiesRenderTargets": false,
+    "registersGameResources": false,
+    "purpose": "prove addon-to-ReShade texture update path before any XIV render target copy or registration"
   },
   "resources": [
     {
@@ -46,7 +90,10 @@
     "plugin metadata probe",
     "plugin pointer probe",
     "status-file IPC handshake",
+    "control-pipe self-test",
+    "control-pipe capability negotiation",
     "bridge addon self-test",
+    "metadata-only resource catalog",
     "bridge resource probe",
     "shader diagnostic compare",
     "default-off FrameSurfaceData backend",
@@ -57,7 +104,15 @@
     "changesGeneratedPresets": false,
     "changesShaders": false,
     "movesRealtimeShaderValues": false,
-    "opensNamedPipeInStage1": false,
+    "opensNamedPipeInStage1": true,
+    "stage1NamedPipePurpose": "ping, self-test, status, and capability diagnostics only",
+    "supportsResourceCatalogInStage1": true,
+    "stage1ResourceCatalogPurpose": "metadata-only candidate rows with neutral dimensions, format, freshness, and confidence until a later opt-in resource probe",
+    "supportsDebugVisualizationInStage1": true,
+    "stage1DebugVisualizationPurpose": "synthetic ReShade texture upload only; no game render-target resource access",
+    "readsRenderTargetsInStage1": false,
+    "copiesRenderTargetsInStage1": false,
+    "registersShaderResourcesInStage1": false,
     "requiresBridgeForSampling": true,
     "fallback": "NormalField through FrameData"
   }

@@ -137,8 +137,15 @@ public sealed class ProfileEngine
         var sceneIntent = new SceneIntentBuilder().Build(context, tags, imageAnalysis, configuration, tagRegistry);
         var tagContributions = new List<TagStackContribution>();
 
-        ApplyBasePolish(context, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift);
-        rules?.Add(new AppliedRule("Base polish", "Small default lift so the generated preset feels like an upgrade, not just a safety mode.", "contrast, saturation, clarity, shadow lift"));
+        if (configuration.EnableBasePolish)
+        {
+            ApplyBasePolish(context, ref exposure, ref contrast, ref saturation, ref bloom, ref ao, ref sharpness, ref clarity, ref shadowLift);
+            rules?.Add(new AppliedRule("Base polish", "Small default lift so the generated preset feels like an upgrade, not just a safety mode.", "contrast, saturation, clarity, shadow lift"));
+        }
+        else
+        {
+            rules?.Add(new AppliedRule("Base polish disabled", "Base polish is off, so scene/style rules start from the neutral profile.", "no base contrast/saturation/clarity lift"));
+        }
 
         if (configuration.AutoAdjustAtNight && tags.IsNight)
         {

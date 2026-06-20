@@ -1,48 +1,87 @@
 {
   "ipcContractVersion": "0.1-ipc-diagnostic",
   "contractVersion": "0.1-diagnostic",
-  "bridgeVersion": "0.1.0-stage1-status",
+  "resourceCatalogVersion": "0.1-metadata-only",
+  "bridgeVersion": "0.1.2-stage1-resource-catalog",
   "addonProcess": "DalapadAddon",
   "status": "Loaded",
   "summary": "Dalapad addon loaded and registered with ReShade. Render-target resources are intentionally unavailable in Stage 1.",
   "lastUpdateUtc": "2026-06-19T00:00:00Z",
   "reshade": {
     "headerCompiled": true,
+    "requestedApiVersion": 18,
     "registered": true
   },
   "resources": [
     {
       "name": "Dalapad_SurfaceNormal",
+      "kind": "optionalTexture",
+      "availabilityFlag": "Dalapad_NormalAvailable",
       "available": false,
       "source": "RenderTargetManager.GBuffers[0]",
       "width": 0,
       "height": 0,
       "format": "unknown",
-      "reason": "Stage 1 does not read, copy, or register the normal render target."
+      "freshness": "disabled",
+      "confidence": 0,
+      "safetyState": "metadata-only-unavailable",
+      "metadataSource": "static-contract",
+      "reason": "Stage 1.2 catalog names the normal candidate only; it does not read, copy, or register the render target."
     },
     {
       "name": "Dalapad_SurfaceDiffuse",
+      "kind": "optionalTexture",
+      "availabilityFlag": "Dalapad_DiffuseAvailable",
       "available": false,
       "source": "RenderTargetManager.GBuffers[2]",
       "width": 0,
       "height": 0,
       "format": "unknown",
-      "reason": "Stage 1 does not read, copy, or register the diffuse render target."
+      "freshness": "disabled",
+      "confidence": 0,
+      "safetyState": "metadata-only-unavailable",
+      "metadataSource": "static-contract",
+      "reason": "Stage 1.2 catalog names the diffuse candidate only; it does not read, copy, or register the render target."
     },
     {
       "name": "Dalapad_SurfaceDepth",
+      "kind": "optionalTexture",
+      "availabilityFlag": "Dalapad_DepthAvailable",
       "available": false,
       "source": "RenderTargetManager.DepthStencil",
       "width": 0,
       "height": 0,
       "format": "unknown",
-      "reason": "Stage 1 does not read, copy, or register the depth/stencil render target."
+      "freshness": "disabled",
+      "confidence": 0,
+      "safetyState": "metadata-only-unavailable",
+      "metadataSource": "static-contract",
+      "reason": "Stage 1.2 catalog names the depth/stencil candidate only; it does not read, copy, or register the render target."
     }
   ],
+  "debugVisualization": {
+    "version": "0.1-synthetic-texture",
+    "enabled": true,
+    "status": "WaitingForShader",
+    "source": "synthetic",
+    "shader": "Dalapad_Debug.fx",
+    "textureName": "Dalapad_DebugTexture",
+    "shaderTextureFound": false,
+    "syntheticTextureUploaded": false,
+    "usesSyntheticTexture": true,
+    "width": 256,
+    "height": 256,
+    "frameCounter": 0,
+    "frameAge": 9999,
+    "readsRenderTargets": false,
+    "copiesRenderTargets": false,
+    "registersGameResources": false,
+    "reason": "Dalapad_DebugTexture has not been discovered in a loaded ReShade effect yet."
+  },
   "ipc": {
     "statusFileName": "dalapad-status.json",
     "controlPipeName": "\\\\.\\pipe\\Dalapad.Control.v1",
-    "namedPipeOpen": false
+    "namedPipeOpen": true
   },
   "realtime": {
     "enabled": false,
@@ -56,8 +95,22 @@
     "movesRealtimeShaderValues": false,
     "changesGeneratedPresets": false
   },
+  "capabilities": {
+    "supportsStatusFile": true,
+    "supportsControlPipe": true,
+    "supportsRealtimeUniforms": false,
+    "supportsResourceCatalog": true,
+    "supportsDebugVisualization": true,
+    "readsRenderTargets": false,
+    "copiesRenderTargets": false,
+    "registersShaderResources": false,
+    "movesRealtimeShaderValues": false
+  },
   "warnings": [
     "Render-target bridge is disabled in Stage 1; resources intentionally report unavailable.",
+    "Diagnostic control pipe can answer ping, self-test, status, and capability queries only.",
+    "Resource catalog is metadata-only; width, height, format, freshness, and confidence remain neutral until a later opt-in resource probe.",
+    "Debug visualization currently uploads a synthetic ReShade texture only; it does not copy or bind XIV render targets.",
     "Realtime uniform movement is reserved but disabled until render-layer validation succeeds."
   ]
 }

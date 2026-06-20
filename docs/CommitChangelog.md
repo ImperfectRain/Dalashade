@@ -31,6 +31,69 @@ Use Unix timestamps so entries are easy to sort and compare across local time zo
 
 ## Entries
 
+### 1781919472 - Add Dalapad synthetic debug visualization bridge
+
+- Changed: Added `shaders/Dalapad_Debug.fx` and extended the Dalapad addon to upload a synthetic 256x256 RGBA debug texture into `Dalapad_DebugTexture` through ReShade's effect runtime. The addon now reports `debugVisualization` status over the status file and control pipe, and the plugin surfaces that status in Developer Mode, compatibility reports, and debug bundles.
+- Why: The typed shape probe proved candidate XIV render-layer pointers and dimensions, but the next safe visual step is proving addon-to-FX texture updates with generated pixels before copying or binding any game render target.
+- Related goals: Prepare for a future debug-only render-layer visualization while keeping real G-buffer/depth copies, shader-resource registration, FrameData influence, and realtime uniform movement disabled.
+- Documentation: Updated `DalapadAddon/README.md`, `DalapadAddon/CONTRACT.md`, `DalapadAddon/dalapad-addon-contract.json`, `DalapadAddon/sample-status.json`, `docs/Dalapad.md`, `docs/CodebaseIndex.md`, and this changelog.
+- Verification: `Get-Content -Raw DalapadAddon\sample-status.json | ConvertFrom-Json` and `Get-Content -Raw DalapadAddon\dalapad-addon-contract.json | ConvertFrom-Json` passed; `clang-cl /std:c++17 /EHsc /LD /I DalapadAddon\external\reshade-sdk\include DalapadAddon\src\dalapad_reshade_addon_skeleton.cpp /Fe:DalapadAddon\build\Dalapad.addon64` rebuilt the addon; `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `git diff --check` passed with LF-to-CRLF warnings only.
+- Next steps: Install/reload `Dalapad_Debug.fx`, copy/reload the rebuilt addon, run Developer Mode > Dalapad diagnostics, and confirm `debugVisualization.syntheticTextureUploaded=true` before any real render-target copy work.
+
+### 1781918628 - Make Dalapad shape probe use typed ClientStructs
+
+- Changed: Reviewed three in-game debug bundles and updated the developer-only Dalapad resource shape probe so it tries a narrow typed ClientStructs path before falling back to reflection. The typed path reads `RenderTargetManager.Instance()`, candidate `GBuffers[0]`, `GBuffers[2]`, `DepthStencil`, and `Texture.AllocatedWidth/AllocatedHeight` only, with redacted pointer state.
+- Why: The bundles proved status-file IPC, control-pipe IPC, metadata catalog rows, and the opt-in shape gate were healthy, but the reflection-only probe invoked `Instance` without observing any candidate pointers because it could not dereference the unsafe pointer shape.
+- Related goals: Get reliable diagnostic evidence for candidate render-layer shape before any resource copying, shader-resource registration, debug visualization, or FrameData influence.
+- Documentation: Updated `docs/Dalapad.md`, `docs/CodexSessionHandoff.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors after the typed probe change. Full `dotnet test` and `git diff --check` should be rerun before commit.
+- Next steps: Reload the plugin build in-game, enable Developer Mode > Dalapad resource shape probe, run it, export a new debug bundle, and confirm whether typed rows observe non-null candidate pointers and dimensions.
+
+### 1781917220 - Add Dalapad developer resource shape probe
+
+- Changed: Added an explicit Developer Mode Dalapad resource shape probe. The default diagnostics still stay metadata/control-pipe only, while the opt-in probe may invoke `RenderTargetManager.Instance` and reports redacted candidate shape rows for normal, diffuse, and depth candidates without copying, sampling, registering, or exposing textures.
+- Why: The Stage 1.2 IPC and metadata-only catalog path was healthy enough to start the next safe evidence pass before any render-layer bridge or debug visualization work.
+- Related goals: Determine whether candidate render-layer resources can be observed consistently before attempting native resource registration, shader sampling, FrameData consumption, or production visual influence.
+- Documentation: Updated `docs/Dalapad.md`, `docs/CodebaseIndex.md`, `docs/CodexSessionHandoff.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors during implementation. Full `dotnet test` and `git diff --check` should be rerun before commit.
+- Next steps: In-game, run Developer Mode > Dalapad default diagnostics, enable the developer-only resource shape probe, run it, export a debug bundle, then repeat across login, zone change, resolution change, ReShade reload, and plugin reload before any resource copy or shader exposure work.
+
+### 1781915259 - Add Dalapad metadata-only resource catalog
+
+- Changed: Added Stage 1.2 metadata-only resource catalog rows to the Dalapad addon status file and `QueryStatus` pipe response. The plugin now parses catalog rows from both IPC paths, shows them in Developer Mode, includes them in compatibility reports and debug bundles, and updates health-check next steps when the catalog is healthy.
+- Why: The status-file and control-pipe handshakes are validated; the next safe layer is proving a stable resource catalog schema without touching live render targets.
+- Related goals: Prepare for a later developer-only pointer/resource shape probe while keeping all render-target reads, copies, shader-resource registration, realtime values, and FrameData influence disabled.
+- Documentation: Updated `DalapadAddon/CONTRACT.md`, `DalapadAddon/README.md`, `DalapadAddon/dalapad-addon-contract.json`, `DalapadAddon/sample-status.json`, `docs/Dalapad.md`, `docs/CodebaseIndex.md`, `docs/CodexSessionHandoff.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `clang-cl /std:c++17 /EHsc /LD /I DalapadAddon\external\reshade-sdk\include DalapadAddon\src\dalapad_reshade_addon_skeleton.cpp /Fe:DalapadAddon\build\Dalapad.addon64` rebuilt the addon. Full `dotnet test` and `git diff --check` should be rerun before commit.
+- Next steps: Close the game if loaded, copy the rebuilt addon into the game folder, relaunch, export a debug bundle, and confirm both status-file and control-pipe resource catalog rows appear with unavailable/zero-confidence values.
+
+### 1781912998 - Fix Dalapad status JSON pipe escaping
+
+- Changed: Escaped the diagnostic control-pipe path when the addon writes `dalapad-status.json`, and updated Dalapad endpoint wording so diagnostics describe the current short-timeout control pipe instead of a future-only pipe.
+- Why: The first in-game Stage 1.1 debug bundle proved the control pipe was healthy, but the status file was invalid JSON because `\\.\pipe\Dalapad.Control.v1` was written without JSON escaping.
+- Related goals: Complete the safe status-file plus control-pipe IPC handshake before any resource catalog or render-target work.
+- Documentation: Updated this changelog. No user docs needed because the contract/sample JSON were already correct.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `clang-cl /std:c++17 /EHsc /LD /I DalapadAddon\external\reshade-sdk\include DalapadAddon\src\dalapad_reshade_addon_skeleton.cpp /Fe:DalapadAddon\build\Dalapad.addon64` rebuilt the addon; `git diff --check` passed with Git LF-to-CRLF warnings only. Copying the fixed addon to the game folder was blocked because the game currently has `Dalapad.addon64` loaded.
+- Next steps: Close the game, copy the rebuilt addon to the game folder, relaunch, and export one more debug bundle to confirm `IpcStatus` becomes contract-compatible while the pipe remains healthy.
+
+### 1781906404 - Add diagnostic Dalapad control pipe IPC
+
+- Changed: Added a diagnostic-only `\\.\pipe\Dalapad.Control.v1` path. The addon now starts a worker-thread pipe server that answers `Ping`, `BridgeSelfTest`, `QueryStatus`, and `QueryCapabilities`; the plugin now has a short-timeout pipe client, control-pipe health diagnostics, capability rows, next-step diagnosis, compatibility-report output, and debug-bundle output.
+- Why: The addon direction needed the next safe IPC layer after status-file handshaking, without sending shader values, render-target pointers, texture handles, or resource data.
+- Related goals: Prove live plugin-to-addon communication before any resource catalog, render-target bridge, or realtime shader adaptation work.
+- Documentation: Updated `DalapadAddon/CONTRACT.md`, `DalapadAddon/README.md`, `DalapadAddon/dalapad-addon-contract.json`, `DalapadAddon/sample-status.json`, `docs/Dalapad.md`, `docs/CodebaseIndex.md`, `docs/CodexSessionHandoff.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `clang-cl /std:c++17 /EHsc /LD /I DalapadAddon\external\reshade-sdk\include DalapadAddon\src\dalapad_reshade_addon_skeleton.cpp /Fe:DalapadAddon\build\Dalapad.addon64` rebuilt the addon; `git diff --check` passed with Git LF-to-CRLF warnings only.
+- Next steps: Load the rebuilt addon in-game, press `Probe Dalapad diagnostics`, confirm status-file IPC and control-pipe capability negotiation are both healthy, and keep resources unavailable before starting metadata-only resource catalog work.
+
+### 1781904284 - Match Dalapad addon registration to installed ReShade
+
+- Changed: Updated the Stage 1 Dalapad addon source so it registers with ReShade add-on API version `18` directly instead of using the vendored SDK helper version `20`. Added the requested API version to the status JSON and documented the ReShade `6.7.3.2148` compatibility note.
+- Why: In-game ReShade logs showed `Failed to register add-on, because the requested API version (20) is not supported (18)!`, then unloaded `Dalapad.addon64`.
+- Related goals: Keep the Stage 1 addon limited to load/unload and status-file IPC while making the handshake testable on the installed ReShade runtime.
+- Documentation: Updated `DalapadAddon/README.md`, `docs/Dalapad.md`, `docs/CodexSessionHandoff.md`, and this changelog.
+- Verification: Rebuilt `DalapadAddon/build/Dalapad.addon64` with `clang-cl /std:c++17 /EHsc /LD /I DalapadAddon\external\reshade-sdk\include DalapadAddon\src\dalapad_reshade_addon_skeleton.cpp /Fe:DalapadAddon\build\Dalapad.addon64`; copied it to the FFXIV game folder and confirmed matching SHA-256 hashes; `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `git diff --check` passed with Git LF-to-CRLF warnings only.
+- Next steps: Relaunch the game and confirm ReShade registers `Dalapad.addon64` using API version `18` while all resource rows remain unavailable.
+
 ### 1781885055 - Prepare Dalapad handoff and addon build
 
 - Changed: Updated handoff docs, Dalapad docs, addon docs, and the commit log to reflect the current Stage 1 Dalapad state. Cleaned the addon external folder so the ReShade SDK headers are vendored as plain build headers instead of a nested checkout, documented the header source, and kept the local Stage 1 test addon artifact at `DalapadAddon/build/Dalapad.addon64`.

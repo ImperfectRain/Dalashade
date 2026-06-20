@@ -725,7 +725,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Night light strength {writeLabel}: {Math.Clamp(configuration.DalashadeSceneGINightLightStrength, 0f, 1f):0.###}");
         builder.AppendLine($"- Material influence {writeLabel}: {Math.Clamp(configuration.DalashadeSceneGIMaterialInfluence, 0f, 1f):0.###}");
         var sceneGIDebugWriteLabel = configuration.EnableDalashadeSceneGIShaderVariables ? "written" : "configured";
-        builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 17)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
+        builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 18)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
         builder.AppendLine($"- SceneGI debug output mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugOutputMode, 0, 4)} ({FormatSceneGIDebugOutputMode(configuration.DalashadeSceneGIDebugOutputMode)}).");
         builder.AppendLine($"- SceneGI debug opacity {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugOpacity, 0f, 1f):0.###}.");
         builder.AppendLine($"- SceneGI debug boost {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f):0.###}. Debug boost affects diagnostic masks only, not normal GI output.");
@@ -1233,6 +1233,41 @@ public sealed class CompatibilityReportExporter
 
         builder.AppendLine($"- Reported resources: {(diagnostics.IpcStatus.ReportedResources.Count == 0 ? "none" : string.Join(", ", diagnostics.IpcStatus.ReportedResources.Select(resource => $"`{EscapeTable(resource)}`")))}");
         builder.AppendLine($"- IPC warnings: {(diagnostics.IpcStatus.Warnings.Count == 0 ? "none" : string.Join("; ", diagnostics.IpcStatus.Warnings.Select(EscapeTable)))}");
+        AppendDalapadResourceCatalog(builder, "Status-File Resource Catalog", diagnostics.IpcStatus.ResourceCatalog);
+
+        builder.AppendLine();
+        builder.AppendLine("### Control Pipe Health");
+        builder.AppendLine();
+        builder.AppendLine($"- Pipe: `{diagnostics.ControlPipeStatus.PipeName}`");
+        builder.AppendLine($"- Attempted: {YesNo(diagnostics.ControlPipeStatus.Attempted)}");
+        builder.AppendLine($"- Listening: {YesNo(diagnostics.ControlPipeStatus.PipeListening)}");
+        builder.AppendLine($"- Response received: {YesNo(diagnostics.ControlPipeStatus.ResponseReceived)}");
+        builder.AppendLine($"- Contract compatible: {YesNo(diagnostics.ControlPipeStatus.ContractCompatible)}");
+        builder.AppendLine($"- Status: {EscapeTable(diagnostics.ControlPipeStatus.Status)}");
+        builder.AppendLine($"- Summary: {EscapeTable(diagnostics.ControlPipeStatus.Summary)}");
+        builder.AppendLine($"- Bridge version: {FormatOptionalInlineCode(diagnostics.ControlPipeStatus.BridgeVersion)}");
+        builder.AppendLine($"- Response type: {FormatOptionalInlineCode(diagnostics.ControlPipeStatus.ResponseType)}");
+        builder.AppendLine($"- Request id: {FormatOptionalInlineCode(diagnostics.ControlPipeStatus.RequestId)}");
+        builder.AppendLine($"- Elapsed: {diagnostics.ControlPipeStatus.ElapsedMilliseconds} ms");
+        builder.AppendLine($"- Pipe warnings: {(diagnostics.ControlPipeStatus.Warnings.Count == 0 ? "none" : string.Join("; ", diagnostics.ControlPipeStatus.Warnings.Select(EscapeTable)))}");
+        builder.AppendLine();
+        builder.AppendLine("| Capability | Enabled |");
+        builder.AppendLine("| --- | --- |");
+        builder.AppendLine($"| Supports status file | {YesNo(diagnostics.ControlPipeStatus.Capabilities.SupportsStatusFile)} |");
+        builder.AppendLine($"| Supports control pipe | {YesNo(diagnostics.ControlPipeStatus.Capabilities.SupportsControlPipe)} |");
+        builder.AppendLine($"| Supports realtime uniforms | {YesNo(diagnostics.ControlPipeStatus.Capabilities.SupportsRealtimeUniforms)} |");
+        builder.AppendLine($"| Supports resource catalog | {YesNo(diagnostics.ControlPipeStatus.Capabilities.SupportsResourceCatalog)} |");
+        builder.AppendLine($"| Supports debug visualization | {YesNo(diagnostics.ControlPipeStatus.Capabilities.SupportsDebugVisualization)} |");
+        builder.AppendLine($"| Reads render targets | {YesNo(diagnostics.ControlPipeStatus.Capabilities.ReadsRenderTargets)} |");
+        builder.AppendLine($"| Copies render targets | {YesNo(diagnostics.ControlPipeStatus.Capabilities.CopiesRenderTargets)} |");
+        builder.AppendLine($"| Registers shader resources | {YesNo(diagnostics.ControlPipeStatus.Capabilities.RegistersShaderResources)} |");
+        builder.AppendLine($"| Moves realtime shader values | {YesNo(diagnostics.ControlPipeStatus.Capabilities.MovesRealtimeShaderValues)} |");
+        AppendDalapadResourceCatalog(builder, "Control-Pipe Resource Catalog", diagnostics.ControlPipeStatus.ResourceCatalog);
+        AppendDalapadDebugVisualization(builder, "Status-File Debug Visualization", diagnostics.IpcStatus.DebugVisualization);
+        AppendDalapadDebugVisualization(builder, "Control-Pipe Debug Visualization", diagnostics.ControlPipeStatus.DebugVisualization);
+        AppendDalapadResourceShapeProbe(builder, diagnostics.ResourceShapeProbe);
+        builder.AppendLine();
+        AppendLines(builder, "Dalapad Health Check Next Steps", BuildDalapadHealthNextSteps(diagnostics));
 
         builder.AppendLine();
         builder.AppendLine("### IPC Endpoints");
@@ -1287,6 +1322,186 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine();
         AppendLines(builder, "Dalapad Safety Notes", diagnostics.Notes);
         AppendLines(builder, "Dalapad Removal Notes", diagnostics.RemovalNotes);
+    }
+
+    private static void AppendDalapadResourceCatalog(StringBuilder builder, string title, IReadOnlyList<DalapadResourceCatalogEntry> resources)
+    {
+        builder.AppendLine();
+        builder.AppendLine($"### {title}");
+        builder.AppendLine();
+        if (resources.Count == 0)
+        {
+            builder.AppendLine("- No resource catalog rows reported.");
+            return;
+        }
+
+        builder.AppendLine("| Resource | Available | Source | Size | Format | Freshness | Confidence | Safety | Metadata Source | Reason |");
+        builder.AppendLine("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+        foreach (var resource in resources)
+        {
+            builder.AppendLine($"| {EscapeTable(resource.Name)} | {YesNo(resource.Available)} | {EscapeTable(resource.Source)} | {resource.Width}x{resource.Height} | {EscapeTable(resource.Format)} | {EscapeTable(resource.Freshness)} | {resource.Confidence:0.###} | {EscapeTable(resource.SafetyState)} | {EscapeTable(resource.MetadataSource)} | {EscapeTable(resource.Reason)} |");
+        }
+    }
+
+    private static void AppendDalapadResourceShapeProbe(StringBuilder builder, DalapadResourceShapeProbe probe)
+    {
+        builder.AppendLine();
+        builder.AppendLine("### Developer Resource Shape Probe");
+        builder.AppendLine();
+        builder.AppendLine($"- Enabled: {YesNo(probe.Enabled)}");
+        builder.AppendLine($"- Attempted: {YesNo(probe.Attempted)}");
+        builder.AppendLine($"- Instance invoked: {YesNo(probe.InstanceInvoked)}");
+        builder.AppendLine($"- Status: {EscapeTable(probe.Status)}");
+        builder.AppendLine($"- Summary: {EscapeTable(probe.Summary)}");
+        if (probe.Timestamp != DateTimeOffset.MinValue)
+        {
+            builder.AppendLine($"- Probe timestamp: {probe.Timestamp:O}");
+        }
+
+        builder.AppendLine($"- Warnings: {(probe.Warnings.Count == 0 ? "none" : string.Join("; ", probe.Warnings.Select(EscapeTable)))}");
+        if (probe.Resources.Count == 0)
+        {
+            builder.AppendLine("- No shape rows reported.");
+            return;
+        }
+
+        builder.AppendLine();
+        builder.AppendLine("| Resource | Candidate | Pointer | Pointer Fingerprint | Source | Size | Format | Freshness | Confidence | Safety | Metadata Source | Reason |");
+        builder.AppendLine("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+        foreach (var resource in probe.Resources)
+        {
+            builder.AppendLine($"| {EscapeTable(resource.Name)} | {YesNo(resource.CandidateFound)} | {YesNo(resource.PointerObserved)} | {EscapeTable(resource.PointerFingerprint)} | {EscapeTable(resource.Source)} | {resource.Width}x{resource.Height} | {EscapeTable(resource.Format)} | {EscapeTable(resource.Freshness)} | {resource.Confidence:0.###} | {EscapeTable(resource.SafetyState)} | {EscapeTable(resource.MetadataSource)} | {EscapeTable(resource.Reason)} |");
+        }
+    }
+
+    private static void AppendDalapadDebugVisualization(StringBuilder builder, string title, DalapadDebugVisualizationStatus debug)
+    {
+        builder.AppendLine();
+        builder.AppendLine($"### {title}");
+        builder.AppendLine();
+        builder.AppendLine($"- Version: {FormatOptionalInlineCode(debug.Version)}");
+        builder.AppendLine($"- Enabled: {YesNo(debug.Enabled)}");
+        builder.AppendLine($"- Status: {EscapeTable(debug.Status)}");
+        builder.AppendLine($"- Source: {FormatOptionalInlineCode(debug.Source)}");
+        builder.AppendLine($"- Shader: {FormatOptionalInlineCode(debug.Shader)}");
+        builder.AppendLine($"- Texture name: {FormatOptionalInlineCode(debug.TextureName)}");
+        builder.AppendLine($"- Shader texture found: {YesNo(debug.ShaderTextureFound)}");
+        builder.AppendLine($"- Synthetic texture uploaded: {YesNo(debug.SyntheticTextureUploaded)}");
+        builder.AppendLine($"- Uses synthetic texture: {YesNo(debug.UsesSyntheticTexture)}");
+        builder.AppendLine($"- Size: {debug.Width}x{debug.Height}");
+        builder.AppendLine($"- Frame counter: {debug.FrameCounter}");
+        builder.AppendLine($"- Frame age: {debug.FrameAge}");
+        builder.AppendLine($"- Observed render candidates: {debug.ObservedSourceCount}");
+        builder.AppendLine($"- Copied render candidates: {debug.CopiedSourceCount}");
+        builder.AppendLine($"- Reads render targets: {YesNo(debug.ReadsRenderTargets)}");
+        builder.AppendLine($"- Copies render targets: {YesNo(debug.CopiesRenderTargets)}");
+        builder.AppendLine($"- Registers game resources: {YesNo(debug.RegistersGameResources)}");
+        builder.AppendLine($"- Reason: {EscapeTable(debug.Reason)}");
+
+        if (debug.PinnedCandidates.Count > 0)
+        {
+            builder.AppendLine();
+            builder.AppendLine("| Pinned Candidate | Semantic | Source | Source Semantic | Hint | Observed | Copied | Size | Confidence |");
+            builder.AppendLine("| --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+            foreach (var candidate in debug.PinnedCandidates)
+            {
+                builder.AppendLine($"| {EscapeTable(candidate.Label)} | {FormatOptionalInlineCode(candidate.Semantic)} | {EscapeTable(candidate.Source)} | {FormatOptionalInlineCode(candidate.SourceSemantic)} | {EscapeTable(candidate.ClassificationHint)} | {YesNo(candidate.Observed)} | {YesNo(candidate.Copied)} | {candidate.Width}x{candidate.Height} | {candidate.Confidence:0.###} |");
+            }
+        }
+    }
+
+    private static IReadOnlyList<string> BuildDalapadHealthNextSteps(DalapadDiagnostics diagnostics)
+    {
+        if (!diagnostics.IpcStatus.StatusFileFound)
+        {
+            return new[] { "Load the separate Dalapad addon prototype and confirm it writes dalapad-status.json." };
+        }
+
+        if (!diagnostics.IpcStatus.ContractCompatible)
+        {
+            return new[] { "Rebuild the addon against the current 0.1-ipc-diagnostic status-file contract." };
+        }
+
+        if (!diagnostics.ControlPipeStatus.PipeListening)
+        {
+            return new[] { "Rebuild and reload the addon with the diagnostic control pipe enabled." };
+        }
+
+        if (!diagnostics.ControlPipeStatus.ResponseReceived)
+        {
+            return new[] { "Check the addon pipe worker; the pipe accepted a connection but did not return capability JSON." };
+        }
+
+        if (!diagnostics.ControlPipeStatus.ContractCompatible)
+        {
+            return new[] { "Update the addon and plugin to the same Dalapad.Control.v1 pipe contract." };
+        }
+
+        if (diagnostics.ControlPipeStatus.Capabilities.ReadsRenderTargets
+            || diagnostics.ControlPipeStatus.Capabilities.CopiesRenderTargets
+            || diagnostics.ControlPipeStatus.Capabilities.RegistersShaderResources
+            || diagnostics.ControlPipeStatus.Capabilities.MovesRealtimeShaderValues)
+        {
+            return new[] { "Unexpected advanced capabilities are enabled. Keep this build diagnostic-only until resource validation is explicitly started." };
+        }
+
+        if (!diagnostics.ControlPipeStatus.Capabilities.SupportsResourceCatalog)
+        {
+            return new[]
+            {
+                "Status-file IPC and control-pipe capability negotiation are healthy.",
+                "Next safe step is a metadata-only resource catalog; do not send texture handles or shader values yet."
+            };
+        }
+
+        if (diagnostics.IpcStatus.ResourceCatalog.Count == 0 && diagnostics.ControlPipeStatus.ResourceCatalog.Count == 0)
+        {
+            return new[] { "Resource catalog capability is enabled, but no catalog rows were reported. Check the addon status payload and QueryStatus response." };
+        }
+
+        if (!diagnostics.ResourceShapeProbe.Attempted)
+        {
+            return new[]
+            {
+                "Status-file IPC, control-pipe capability negotiation, and metadata-only resource catalog are healthy.",
+                "Enable and run the developer-only resource shape probe next; keep texture copies, shader resources, IPC handles, and FrameData disabled."
+            };
+        }
+
+        if (diagnostics.ResourceShapeProbe.Resources.All(resource => !resource.PointerObserved))
+        {
+            return new[]
+            {
+                "Developer resource shape probe ran without observing candidate pointers.",
+                "Capture a debug bundle in-game and inspect the shape probe warnings before attempting any native bridge work."
+            };
+        }
+
+        if (!diagnostics.ControlPipeStatus.DebugVisualization.SyntheticTextureUploaded)
+        {
+            return new[]
+            {
+                "Resource shape observation is healthy, but the synthetic debug visualization bridge has not uploaded yet.",
+                "Install/reload Dalapad_Debug.fx and confirm the addon reports Dalapad_DebugTexture found before judging render-layer copy behavior."
+            };
+        }
+
+        if (diagnostics.ControlPipeStatus.DebugVisualization.CopiedSourceCount == 0)
+        {
+            return new[]
+            {
+                "Synthetic debug visualization is healthy, but no render-layer candidate has been copied into Dalapad_Debug.fx yet.",
+                diagnostics.ControlPipeStatus.DebugVisualization.ObservedSourceCount > 0
+                    ? "The addon is observing render-target candidates; check format support, effect-begin callbacks, and copy barriers."
+                    : "The addon has not observed render-target candidates yet; test while actively in a rendered scene with Dalapad_Debug.fx enabled."
+            };
+        }
+
+        return new[]
+        {
+            "Status-file IPC, control-pipe capability negotiation, metadata-only resource catalog, developer resource shape probe, and debug render-layer copies are healthy enough for repeated observation.",
+            "Next safe step is lifecycle testing across login, zone change, resolution change, and reload; keep FrameData and generated preset behavior disabled."
+        };
     }
 
     private static void AppendTagStackDiagnostics(StringBuilder builder, TagStackDiagnostics diagnostics)
@@ -2230,7 +2445,7 @@ public sealed class CompatibilityReportExporter
 
     private static string FormatSceneGIDebugMode(int mode)
     {
-        return ClampInt(mode, 0, 17) switch
+        return ClampInt(mode, 0, 18) switch
         {
             0 => "Off / normal output",
             1 => "AO only",
@@ -2250,6 +2465,7 @@ public sealed class CompatibilityReportExporter
             15 => "Material bounce lanes",
             16 => "Sky-safe receivers",
             17 => "Emissive pooling lanes",
+            18 => "Dalapad normal assist",
             _ => "Unknown"
         };
     }
