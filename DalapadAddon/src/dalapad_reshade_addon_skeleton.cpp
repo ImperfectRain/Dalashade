@@ -1463,7 +1463,7 @@ namespace dalapad
         json << "\"ok\":" << (knownType ? "true" : "false") << ",";
         json << "\"status\":\"" << (knownType ? "Listening" : "UnknownRequest") << "\",";
         json << "\"summary\":\"" << (knownType
-            ? "Dalapad diagnostic control pipe is listening and can report a metadata-only resource catalog. Render-target, shader-resource, and realtime uniform movement remain disabled."
+            ? "Dalapad diagnostic control pipe is listening and can report diagnostic resource rows plus debug visualization status. Raw handle IPC, production shader-resource dependency, and realtime uniform movement remain disabled."
             : "Dalapad diagnostic control pipe received an unknown request type.") << "\",";
         json << "\"bridgeVersion\":\"" << BridgeVersion << "\",";
         json << "\"resourceCatalogVersion\":\"" << ResourceCatalogVersion << "\",";

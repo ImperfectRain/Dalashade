@@ -32,7 +32,7 @@ This is early. It works by carefully editing a generated `.ini` preset, not by t
 - By default, it does not add or remove techniques from ReShade's `Techniques=` list. If `Sync Dalashade technique activation` is enabled, it may add or remove Dalashade production techniques in the generated preset only, based on plugin shader options. Third-party techniques and debug shaders stay manual.
 - If load-order optimization is enabled, it may reorder `Techniques=` and `TechniqueSorting=` entries in the generated preset only.
 - It does not have a prepass, render target chain, temporal accumulation, native FFXIV G-buffer access, motion vectors, or true material IDs.
-- Dalapad diagnostics may probe runtime metadata for a future optional surface-data addon and report staged bridge steps, but they do not read G-buffers or expose textures to shaders.
+- Dalapad remains optional and experimental. Its diagnostics and separate addon scaffold can expose named debug/pinned candidates for ReShade testing, and first-party shader use is gated behind explicit Dalapad shader additions.
 - It does not magically know taste. It has opinions, but they are intentionally mild.
 - It does not automate gameplay, read or inject network packets, control combat input, track players, or identify mechanics.
 
@@ -191,6 +191,7 @@ The current shader stack is built around shared contracts:
 
 - `Dalashade_MaterialMasks.fxh` owns material, water, receiver, and safety formulas.
 - `Dalashade_NormalField.fxh` owns optional inferred screen-space normal diagnostics.
+- `Dalashade_Dalapad.fxh` owns optional gated addon pinned-resource sampling.
 - `Dalashade_FrameData.fxh` packages those outputs into a shared inline wrapper consumed by first-party production shaders.
 
 FrameData is not a prepass and is not a formula owner. The first-party shaders work from ReShade backbuffer/depth plus plugin-generated scene priors, so effects like GI, reflection, weather, and normals are controlled screen-space impressions rather than physically complete rendering systems.
@@ -199,13 +200,13 @@ FrameData is not a prepass and is not a formula owner. The first-party shaders w
 
 ## Optional Dalapad Diagnostics
 
-Dalapad is a diagnostic-only first pass for a possible future external surface-data addon. It checks whether runtime metadata for render-target style data appears discoverable, reads an optional Stage 1 status-file IPC payload if a separate addon prototype writes one, then reports that status in Developer Mode, compatibility reports, and debug bundles.
+Dalapad is the optional external surface-data experiment. The plugin can check runtime metadata, read a separate addon status payload, query the diagnostic control pipe, and report addon scan/pinned candidate state in Developer Mode, compatibility reports, and debug bundles.
 
-It does not read, copy, bridge, or expose G-buffers. It does not open named pipes or move shader values in real time. It does not change generated preset values, shader uniforms, FrameData, MaterialMasks, NormalField, or technique activation. If the experiment is not useful, the Dalapad model, report calls, UI page, and docs can be removed without shader ecosystem cleanup.
+The repo also includes `DalapadAddon/`, a non-production scaffold for the separate bridge. It is not built, loaded, installed, or referenced by `Dalashade.sln`; it records the resource contract, status-file contract, diagnostic control pipe, scan/pinned candidate state, and first-test native source file.
 
-The repo also includes `DalapadAddon/`, a non-production scaffold for the eventual separate bridge. It is not built, loaded, installed, or referenced by `Dalashade.sln`; it records the `0.1-diagnostic` resource contract, the `0.1-ipc-diagnostic` status-file contract, future endpoint names, and a first-test native source file that writes status-file IPC while keeping render-target resources unavailable.
+First-party shader consumption goes through `shaders/Dalashade_FrameData.fxh`. FrameData uses `shaders/Dalashade_Dalapad.fxh` internally and only exposes Dalapad surface influence when the global Dalapad shader-additions gate, the shared surface-data gate, availability flags, dimensions, and confidence checks all agree. When the gates are off or the addon is unavailable, first-party shaders fall back to their normal FrameData/NormalField/default behavior.
 
-The current expected route for real G-buffer use is a separate Dalapad bridge/addon that exposes named optional resources to ReShade `.fx` shaders. FrameData would remain the shader-facing contract and fall back to NormalField when external surface data is missing or low confidence.
+Dalapad still does not automate gameplay, expose raw handles through IPC, require generated-preset technique activation, or make third-party shaders depend on it. If the experiment is not useful, the Dalapad model, report calls, UI page, addon scaffold, shader include, and FrameData surface merge can be removed without changing the normal preset workflow.
 
 ## Scene Lock
 

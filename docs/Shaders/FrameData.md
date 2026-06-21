@@ -12,6 +12,7 @@ Subject to field-name changes until first-party migration proves stable
 
 - `Dalashade_MaterialMasks.fxh`
 - `Dalashade_NormalField.fxh`
+- `Dalashade_Dalapad.fxh`
 
 FrameData does not add a prepass, render target, motion vector path, temporal accumulation, or native XIV buffer access. It currently runs inline in the consuming shader and packages canonical resolver outputs into clearer role-based structs.
 
@@ -26,10 +27,10 @@ FrameData is not a promise to third-party shader authors yet. The contract can s
 FrameData is split into two paths:
 
 - `Dalashade_ResolveFrameBaseData(...)`: material, water, safety, and receiver data.
-- `Dalashade_ResolveFrameSurfaceData(...)`: optional surface/normal data from NormalField.
+- `Dalashade_ResolveFrameSurfaceData(...)`: optional surface/normal data from NormalField plus gated Dalapad pinned surface data when available.
 - `Dalashade_ResolveFrameSceneData(...)`: shared scene/tag normalization and derived scene lanes.
 
-Shaders that only need material or safety data should call the base path. The surface path calls NormalField and should only be used when the effect actually needs inferred screen-space surface information.
+Shaders that only need material or safety data should call the base path. The surface path calls NormalField and may sample Dalapad pinned resources, so it should only be used when the effect actually needs surface information.
 
 ## Settings
 
@@ -40,8 +41,9 @@ Shaders that only need material or safety data should call the base path. The su
 - safety assist: `HighlightProtection`
 - depth assist: `DepthAssistEnabled`, `DepthAssistStrength`, `DepthAssistConfidenceFloor`
 - NormalField controls: `NormalFieldEnabled`, `NormalFieldStrength`, `NormalDepthStrength`, `NormalDetailStrength`, `NormalMaterialInfluence`, `NormalWaterSuppression`, `NormalSkinSuppression`, `NormalSkySuppression`
+- Dalapad surface controls: `DalapadSurfaceDataEnabled`, `DalapadSurfaceDataStrength`
 
-`Dalashade_FrameData_DefaultSettings()` returns conservative zero-output defaults, with NormalField disabled.
+`Dalashade_FrameData_DefaultSettings()` returns conservative zero-output defaults, with NormalField and Dalapad surface data disabled unless generated-preset uniforms opt in.
 
 `Dalashade_FrameSceneSettings` mirrors generated SceneIntent and first-party scene tag concepts without replacing shader-owned effect sliders:
 
@@ -149,12 +151,28 @@ Frame scene data is the shared tag vocabulary used by first-party shaders to int
 
 ### Dalashade_FrameSurfaceData
 
-NormalField is inferred screen-space data. It is not true FFXIV normals, material IDs, G-buffer access, or texture normal maps.
+Frame surface data can combine two optional sources:
+
+- NormalField, which is inferred screen-space data from backbuffer/depth/material safety.
+- Dalapad pinned surface data, which is addon-provided semantic render-layer evidence exposed through `Dalashade_Dalapad.fxh`.
+
+Neither path is a public FFXIV G-buffer contract, material ID path, motion-vector path, or guaranteed world-space normal source. Dalapad data may be treated as stronger normal-like surface evidence when the global Dalapad shader-additions gate, the surface-data gate, availability flags, dimensions, and confidence checks all agree.
 
 | Field | Role | Meaning |
 | --- | --- | --- |
 | `Normal` | Surface/confidence | Encoded as a direction vector; inferred from depth, detail, and safe texture-relief hints. |
+| `NormalFieldNormal` | Surface/confidence | NormalField-only normal before any Dalapad merge. |
+| `DalapadNormal` | Surface/confidence | Gated Dalapad pinned normal-like direction, or neutral fallback when unavailable. |
 | `NormalConfidence` | Confidence | Stability confidence for the inferred normal. |
+| `NormalFieldConfidence` | Confidence | NormalField-only confidence before any Dalapad merge. |
+| `DalapadConfidence` | Confidence | Dalapad pinned normal confidence after global, feature, availability, dimension, and evidence gates. |
+| `DalapadInfluence` | Confidence | Final Dalapad influence applied to the merged surface fields. Zero means no authorized Dalapad data reached the shader. |
+| `DalapadPresence` | Confidence | Presence/validity support from the pinned resource sample. |
+| `DalapadChroma` | Confidence | Chroma/variation support from the pinned resource sample. |
+| `DalapadNeighborDelta` | Confidence | Local neighbor-change support from the pinned resource sample. |
+| `DalapadFlatSupport` | Confidence | Stable flat-surface support from the pinned resource sample. |
+| `DalapadStructureSupport` | Confidence | Edge/structure support from the pinned resource sample. |
+| `SurfaceDataInfluence` | Confidence | Combined optional surface influence that production shaders can use without caring whether the source was NormalField, Dalapad, or both. |
 | `OrientationConfidence` | Confidence | Orientation stability confidence from NormalField. |
 | `DepthConfidence` | Confidence | Depth-derived normal confidence. |
 | `DetailStrength` | Confidence | Detail-derived surface support from NormalField, including safe texture-relief contribution for existing consumers. |
@@ -184,6 +202,9 @@ NormalField is inferred screen-space data. It is not true FFXIV normals, materia
 - `StructureReceiver` is structure support, not AO by itself.
 - `LightSourceConfidence` is source support, not receiver support.
 - `NormalConfidence` is stability evidence, not material identity.
+- `SurfaceDataInfluence` is the safe shader-facing surface-data amount. First-party shaders should prefer it over direct Dalapad or NormalField gate duplication.
+- `DalapadConfidence` and `DalapadInfluence` must remain zero when global Dalapad shader additions are disabled, Dalapad surface data is disabled, the pinned resource is unavailable, dimensions are invalid, or evidence confidence fails.
+- Dalapad pinned normals can strongly influence surface-aware effects after gates pass, but they must not override sky, skin, water, UI/depth, highlight, or material safety rejects.
 - `TextureReliefStrength` is local surface relief evidence, not a recovered game normal map or material truth.
 - `TextureGrooveLine` is seam/groove evidence only. It can support contact, AO, or clarity decisions, but it must not become material identity by itself.
 - `TextureReliefSafety` is permission/confidence for relief use, not proof that a pixel has valid game texture normal data.
@@ -208,7 +229,9 @@ Modes:
 | 6 | Source-vs-receiver | Source support, reflection/water receiver, AO/structure receiver. |
 | 7 | Water-vs-sky conflict | Water/sky ambiguity and sky rejection. |
 | 8 | Aether/metal/water ambiguity | Helps verify cyan aether/metal is not collapsed into water. |
-| 9 | Inline resolver parity | Compares FrameData wrapper fields against direct canonical resolver calls. |
+| 9 | Dalapad surface normal | Shows the gated Dalapad surface normal only when authorized data exists. |
+| 10 | Dalapad surface confidence | Shows Dalapad influence, flat support, and structure support. |
+| 11 | Inline resolver parity | Compares FrameData wrapper fields against direct canonical resolver calls. |
 
 The debug shader is generated-preset aware but not auto-enabled. Base presets are not mutated.
 
@@ -216,7 +239,7 @@ The debug shader is generated-preset aware but not auto-enabled. Base presets ar
 
 FrameData diagnostics are currently report-only:
 
-- Compatibility reports include `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and production shader source scans. WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SceneGI, ContactTone, and SurfaceReflection are the current production consumers; no prepass or render target exists.
+- Compatibility reports include `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and production shader source scans. WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SceneGI, ContactTone, and SurfaceReflection are the current production consumers; no FrameData prepass exists.
 - Debug bundles include `frame-data-diagnostics.json` with installed FrameData file presence, FrameDataDebug preset/technique state, FrameDataDebug debug variables, and production shader source scans.
 - Debug bundles include `first-party-depth-assist.json` so depth-assist opt-in state and written first-party depth-assist variables can be audited beside FrameData state.
 
@@ -237,7 +260,7 @@ Each migration should keep before/after output equivalent unless the pass explic
 
 ## Future Prepass Direction
 
-The likely next architectural step is a Dalapad prepass, but it should not be added until the inline contract has been validated in-game. A prepass would be useful when multiple first-party shaders need the same stable role data or when an effect needs history:
+The likely next architectural step is a FrameData/Dalapad prepass, but it should not be added until the inline contract has been validated in-game. A prepass would be useful when multiple first-party shaders need the same stable role data or when an effect needs history:
 
 - SceneGI needs stable material, receiver, source, normal, and edge evidence for wider diffuse gathers and temporal smoothing.
 - SurfaceReflection needs stable water receiver, reflection receiver, edge, horizon/source-only, and water-vs-sky conflict data for projected reflections.

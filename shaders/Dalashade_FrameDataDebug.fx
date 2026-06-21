@@ -47,7 +47,7 @@ uniform float Dalashade_NormalSkySuppression < ui_type = "slider"; ui_min = 0.0;
 
 uniform int Dalashade_FrameDataDebugMode <
     ui_type = "combo";
-    ui_items = "Off/pass-through\0Safety pack\0Water pack\0Material pack\0Receiver pack\0Surface/normal pack\0Source-vs-receiver\0Water-vs-sky conflict\0Aether/metal/water ambiguity\0Inline resolver parity\0";
+    ui_items = "Off/pass-through\0Safety pack\0Water pack\0Material pack\0Receiver pack\0Surface/normal pack\0Source-vs-receiver\0Water-vs-sky conflict\0Aether/metal/water ambiguity\0Dalapad surface normal\0Dalapad surface confidence\0Inline resolver parity\0";
     ui_label = "Dalashade FrameData Debug Mode";
     ui_tooltip = "Internal FrameData contract visualizer. It verifies wrapper output against canonical material and normal resolvers.";
 > = 0;
@@ -178,6 +178,22 @@ float3 Dalashade_FrameDataDebugColor(
             max(baseData.MaterialMetalIndustrial, baseData.ReceiverStructure)) * boost);
     }
 
+    if (mode == 9)
+    {
+        Dalashade_FrameSurfaceData surface = Dalashade_ResolveFrameSurfaceData(source, uv, baseData, settings);
+        float mask = saturate(max(surface.DalapadConfidence, surface.DalapadInfluence) * boost);
+        return lerp(float3(0.0, 0.0, 0.0), saturate(surface.DalapadNormal * 0.5 + 0.5), mask);
+    }
+
+    if (mode == 10)
+    {
+        Dalashade_FrameSurfaceData surface = Dalashade_ResolveFrameSurfaceData(source, uv, baseData, settings);
+        return saturate(float3(
+            surface.DalapadInfluence,
+            max(surface.DalapadFlatSupport, surface.DalapadPresence * 0.45),
+            max(surface.DalapadStructureSupport, surface.DalapadNeighborDelta * 2.0)) * boost);
+    }
+
     Dalashade_MaterialResolve material = Dalashade_FrameData_ResolveCanonicalMaterial(source, uv, settings);
     Dalashade_WaterResolve water = Dalashade_FrameData_ResolveCanonicalWater(source, uv, material, settings);
     Dalashade_SafetyResolve safety = Dalashade_FrameData_ResolveCanonicalSafety(source, uv, material, water, settings);
@@ -213,9 +229,7 @@ float3 Dalashade_FrameDataDebugColor(
         + abs(baseData.SafetySkinReject - safety.SkinReject)
         + abs(baseData.SafetyHighlightProtect - safety.HighlightProtect)
         + abs(baseData.SafetyWaterAOReject - safety.WaterAOReject);
-    float surfaceDiff = abs(surfaceParity.NormalConfidence - field.NormalConfidence)
-        + abs(surfaceParity.ReflectionReceiverSupport - field.ReflectionReceiver)
-        + abs(surfaceParity.AOReceiverSupport - field.AOReceiver);
+    float surfaceDiff = abs(surfaceParity.NormalFieldConfidence - field.NormalConfidence);
 
     return saturate(float3(materialDiff + waterDiff, safetyDiff, surfaceDiff) * 32.0 * boost);
 }

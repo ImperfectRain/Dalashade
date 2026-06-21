@@ -522,7 +522,7 @@ float4 Dalashade_AdaptiveGradePS(float4 position : SV_Position, float2 texcoord 
     float snowToneProtect = saturate(max(materialSnowPixel, frame.SafetySnowProtect));
     float sandToneProtect = saturate(max(materialSandPixel, frame.SafetyBrightSandProtect));
     float aetherToneProtect = saturate(max(frame.MaterialCrystalAether, max(frame.MaterialNeonGlass, frame.MaterialFireLavaHeat)));
-    float normalFieldInfluence = saturate(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence);
+    float normalFieldInfluence = saturate(max(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence, surface.SurfaceDataInfluence));
     float normalStableStructure = saturate(normalFieldInfluence * surface.StructureCandidate * (0.35 + surface.NormalConfidence * 0.65) * (1.0 - materialSkinPixel * 0.70));
     float normalUnstableEdge = saturate(normalFieldInfluence * surface.EdgeDiscontinuity * (1.0 - surface.NormalConfidence * 0.45) * (1.0 - materialSkyPixel * 0.75));
     float normalDetailProtection = saturate(normalFieldInfluence * surface.DetailStrength * (1.0 - surface.EdgeDiscontinuity * 0.45) * (1.0 - materialSkinPixel * 0.60));

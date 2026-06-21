@@ -1,6 +1,6 @@
 # Codex Session Handoff
 
-Latest verified baseline: working tree after the Dalapad developer-only resource shape probe pass. `dotnet build Dalashade.sln` passed locally during this pass; run the full test set again before committing. The stage 1 native addon artifact remains `DalapadAddon/build/Dalapad.addon64`.
+Latest verified baseline: working tree after the Dalapad shared shader include, FrameData surface merge, and first-party surface-consumer pass. `dotnet build Dalashade.sln` should be rerun after any follow-up change. The stage 1 native addon artifact remains `DalapadAddon/build/Dalapad.addon64`.
 
 This guide is for future Codex sessions. It summarizes the current repository shape only; source code remains the implementation authority.
 
@@ -8,7 +8,7 @@ This guide is for future Codex sessions. It summarizes the current repository sh
 
 Dalashade is a Dalamud plugin that generates a separate ReShade preset from a user-selected base preset. It reads current FFXIV context, optional screenshot analysis, optional master-style reference images, and preset compatibility data, then writes conservative adjustments to known shader variables already present in the preset.
 
-It does not modify the base preset in place, bundle paid shaders, install custom shaders automatically, capture live frames, or use a native ReShade bridge. ReShade reload is currently best-effort hotkey automation.
+It does not modify the base preset in place, bundle paid shaders, install custom shaders automatically, or capture live frames. ReShade reload is currently best-effort hotkey automation. Dalapad is the optional native/ReShade addon research path and is disabled unless its explicit gates are enabled.
 
 ## High-Level Generation Pipeline
 
@@ -65,7 +65,7 @@ Compatibility is conservative. Dalashade should detect broad preset risk, report
 - Do not reorder preset sections, disable techniques, change texture paths, or broadly rewrite INI structure during normal generation.
 - Preserve existing user-facing configuration fields unless an explicit migration is requested.
 - Do not change `repo.json` or release zips unless the task is explicitly release or install/update work.
-- Do not add render-target bridges, shader-resource exposure, live-frame capture, or realtime shader-value movement unless explicitly requested. Dalapad now has diagnostic-only status-file IPC, a short-timeout diagnostic control pipe, and an explicit Developer Mode resource shape probe, but it must not be treated as a render-target bridge or live shader-value path yet.
+- Do not add broader render-target bridges, live-frame capture, or realtime shader-value movement unless explicitly requested. Dalapad now has diagnostic status-file/control-pipe IPC, scan/pinned candidate debug visualization, and optional first-party shader consumption through the `Dalashade_FrameData.fxh` surface contract; every consumer must remain default-off, generated-preset gated, shader-local gated, and safe when the addon is absent.
 
 ## Shader Support Workflow
 
@@ -117,7 +117,7 @@ Next development should validate the AdaptiveGrade lane behavior before expandin
 
 ## Material, Water, Receiver, and NormalField Contract
 
-Use `Dalashade_FrameData.fxh` as the first-party shader-facing contract for shared scene tags, material, water, safety, receiver, and optional surface data. `Dalashade_MaterialMasks.fxh` and `Dalashade_NormalField.fxh` remain the canonical formula owners underneath FrameData. Do not redefine water, sky, receiver, source, scene tag, or surface semantics locally unless the shader has an effect-specific shaping reason.
+Use `Dalashade_FrameData.fxh` as the first-party shader-facing contract for shared scene tags, material, water, safety, receiver, inferred NormalField surface data, and optional gated Dalapad surface data. `Dalashade_MaterialMasks.fxh` and `Dalashade_NormalField.fxh` remain the canonical formula owners underneath FrameData. Use `Dalashade_Dalapad.fxh` only as the low-level addon pinned-resource bridge or for debug experiments. Do not redefine water, sky, receiver, source, scene tag, or surface semantics locally unless the shader has an effect-specific shaping reason.
 
 Important distinctions:
 
@@ -146,25 +146,26 @@ Dalapad is now the fenced research path for optional external surface data. Impl
 - `Dalashade/DalapadIpcClient.cs` short-timeout diagnostic control-pipe client.
 - optional status-file IPC read from `<XIVLauncher plugin config>/Dalashade/Dalapad/dalapad-status.json`.
 - optional diagnostic control-pipe probe at `\\.\pipe\Dalapad.Control.v1`.
-- metadata-only resource catalog rows from the status file and `QueryStatus` pipe response.
+- diagnostic resource catalog rows from the status file and `QueryStatus` pipe response.
 - explicit Developer Mode resource shape probe that may invoke `RenderTargetManager.Instance` and reports redacted candidate presence, dimensions, format labels, confidence, and failure reasons only. After the 2026-06-20 `011115`, `011238`, and `011449` bundles showed reflection could invoke `Instance` but could not observe candidate pointers, the probe now tries typed ClientStructs access first and falls back to reflection.
-- `shaders/Dalapad_Debug.fx` plus addon-side synthetic texture upload into `Dalapad_DebugTexture`, reported through `debugVisualization` status-file/control-pipe fields.
+- `shaders/Dalapad_Debug.fx` plus addon-side synthetic texture upload, scan candidate views, pinned candidate views, and addon-owned diagnostic copies when formats/lifetimes allow.
+- `shaders/Dalashade_Dalapad.fxh`, the shared low-level shader include for gated Dalapad sampling, normal-like decode, scalar evidence, and zero-confidence fallback behavior.
+- `shaders/Dalashade_FrameData.fxh` Dalapad surface merge, where authorized pinned-normal evidence becomes `FrameSurfaceData` fields such as `SurfaceDataInfluence`, `DalapadInfluence`, and merged `Normal`.
+- optional first-party production shader consumption of Dalapad surface influence through FrameData.
 - Developer Mode `Dalapad` diagnostics panel.
 - compatibility report and debug bundle output, including `dalapad-diagnostics.json`.
 - `DalapadAddon/` with the Stage 1 ReShade/native addon source, contract docs, sample status JSON, vendored ReShade SDK headers, and a local test build at `DalapadAddon/build/Dalapad.addon64`.
 
-Not implemented yet:
+Still not implemented as production behavior:
 
 - no `RenderTargetManager.Instance()` invocation from default diagnostics, User Mode, or production plugin behavior.
-- no G-buffer read/copy/registration.
-- no named texture exposed to `.fx` code.
-- no XIV render target uploaded to `.fx` code; current debug visualization uses generated synthetic pixels only.
+- no raw game handle exposure to `.fx` code or IPC.
+- no production dependency on G-buffer read/copy/registration.
 - no raw pointer reporting.
-- no live uniform movement over `\\.\pipe\Dalapad.Control.v1`; current pipe commands are diagnostic-only `Ping`, `BridgeSelfTest`, `QueryStatus`, and `QueryCapabilities`.
-- no shader-ready live resource dimensions, formats, freshness, or confidence yet; Stage 1.2 catalog rows are static-contract rows with neutral unavailable values, and the Developer Mode shape probe is diagnostic evidence only.
-- no generated preset, FrameData, NormalField, MaterialMasks, or first-party shader behavior change from Dalapad.
+- no live uniform movement over `\\.\pipe\Dalapad.Control.v1`; current pipe commands are diagnostic-only `Ping`, `BridgeSelfTest`, `QueryStatus`, `QueryCapabilities`, `QueryDebugVisualization`, and `SetDebugVisualization`.
+- no required FrameData, NormalField, MaterialMasks, or first-party shader behavior change from Dalapad when its gates are disabled. FrameData is the shared optional gated consumer; first-party shaders should not sample raw pinned resources directly.
 
-The next Dalapad validation step is to reload this plugin build, install/reload `Dalapad_Debug.fx`, load the built addon in ReShade, confirm it writes `dalapad-status.json`, and confirm Developer Mode > Dalapad reports status-file IPC, control-pipe capability negotiation, metadata-only catalog rows, the typed resource shape probe result, and synthetic debug visualization upload. Resource registration/copying should still wait until metadata, shape observation, synthetic visualization, lifetime, format, and freshness are stable across lifecycle tests.
+The next Dalapad validation step is to reload this plugin build, install/reload `Dalapad_Debug.fx`, `Dalashade_FrameDataDebug.fx`, and the first-party production shaders, load the built addon in ReShade, confirm it writes `dalapad-status.json`, and confirm Developer Mode > Dalapad reports status-file IPC, control-pipe capability negotiation, resource rows, typed shape probe result, scan/pinned candidate status, and debug visualization. Then verify FrameDataDebug Dalapad modes and SceneGI debug modes `18` and `19`: they should be blank when global or shared surface-data gates are off, and should show contribution/evidence only when pinned normal data is available and enabled.
 
 In-game validation on ReShade `6.7.3.2148` showed that API version `20` registration is rejected because the runtime supports add-on API `18`. The addon source now requests API `18` directly for Stage 1 registration instead of relying on the vendored SDK helper constant.
 
@@ -200,8 +201,8 @@ If continuing Dalapad, start here:
 3. Rebuild the addon if needed with `clang-cl /std:c++17 /EHsc /LD /I DalapadAddon\external\reshade-sdk\include DalapadAddon\src\dalapad_reshade_addon_skeleton.cpp /Fe:DalapadAddon\build\Dalapad.addon64`.
 4. Load `DalapadAddon/build/Dalapad.addon64` in the ReShade addon path for the FFXIV game install.
 5. In-game, open Developer Mode > Dalapad, press `Probe Dalapad diagnostics`, optionally enable the developer-only resource shape probe, press `Run Dalapad shape probe`, and export a debug bundle.
-  6. Confirm only diagnostic behavior works: status-file IPC is seen, control-pipe capability negotiation answers, metadata-only catalog rows appear, resource shape rows are redacted/diagnostic-only, and no preset/shader behavior changes.
-  7. If the handshake and shape probe are stable, the next code pass should be lifecycle observation/debug visualization planning, not resource registration/copying or production FrameData consumption.
+  6. Confirm diagnostic behavior works: status-file IPC is seen, control-pipe capability negotiation answers, resource rows appear, scan/pinned candidate status appears, resource shape rows are redacted/diagnostic-only, and FrameData/SceneGI Dalapad debug modes are blank unless the explicit gates are enabled.
+  7. If the handshake and candidate views are stable, the next code pass should tune first-party consumers through `Dalashade_FrameData.fxh` fields, not by duplicating texture declarations or bypassing the generated-preset gates.
 8. Run `dotnet build Dalashade.sln`, `dotnet test Dalashade.sln`, addon compile/build checks, and `git diff --check`.
 
 If continuing visual shader work instead, the next sensible task is still AdaptiveGrade Standalone validation. Keep Supportive mode visually equivalent, use `Dalashade_StandaloneStrength` only for Standalone-specific scene identity shaping, and do not touch MaterialMasks, NormalField, debug shader behavior, shader stack order, source/receiver separation, or generated preset safety unless the prompt explicitly asks for it.

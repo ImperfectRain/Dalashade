@@ -418,7 +418,7 @@ public sealed class ConfigWindow : Window, IDisposable
             configuration.EnableMaterialIntentShaderMapping,
             configuration.EnableNormalFieldShaderMapping,
             configuration.EnableFirstPartyDepthAssist,
-            configuration.EnableDalapadShaderIntegration
+            configuration.EnableDalapadShaderIntegration && configuration.EnableDalapadSurfaceData
         }.Count(value => value);
 
         return $"{enabled} optional effect systems enabled";
@@ -430,6 +430,15 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawItemTooltip("Allows Dalashade to write known first-party shader variables into generated presets. Techniques still must be enabled manually in ReShade.");
         DrawCheckbox("Enable Dalapad shader additions", configuration.EnableDalapadShaderIntegration, value => configuration.EnableDalapadShaderIntegration = value);
         DrawItemTooltip("Global opt-in for shader features that consume Dalapad bridge textures. Off means Dalapad-specific shader variables resolve to disabling values.");
+        if (configuration.EnableDalapadShaderIntegration)
+        {
+            DrawCheckbox("Use Dalapad surface data in first-party shaders", configuration.EnableDalapadSurfaceData, value => configuration.EnableDalapadSurfaceData = value);
+            DrawFloatSlider("Dalapad surface data strength", configuration.DalapadSurfaceDataStrength, 0f, 1f, value => configuration.DalapadSurfaceDataStrength = value);
+        }
+        else
+        {
+            ImGui.TextWrapped("Dalapad surface data resolves to zero until Dalapad shader additions are enabled.");
+        }
         DrawCheckbox("Auto-inject known Dalashade shader sections", configuration.AutoInjectDalashadeCustomShaderSections, value => configuration.AutoInjectDalashadeCustomShaderSections = value);
         DrawCheckbox("Sync Dalashade technique activation", configuration.SyncDalashadeTechniqueActivation, value => configuration.SyncDalashadeTechniqueActivation = value);
         DrawCheckbox("Enable SceneGI variable writes", configuration.EnableDalashadeSceneGIShaderVariables, value => configuration.EnableDalashadeSceneGIShaderVariables = value);
@@ -765,6 +774,15 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TextWrapped("When enabled, generated presets add or remove Dalashade production techniques from Techniques= based on the plugin shader options. Debug techniques stay manual, and third-party effects are not disabled.");
         DrawCheckbox("Enable Dalapad shader additions", configuration.EnableDalapadShaderIntegration, value => configuration.EnableDalapadShaderIntegration = value);
         DrawItemTooltip("Global opt-in for shader features that consume Dalapad bridge textures. When off, Dalapad-specific generated-preset values resolve to disabling values.");
+        if (configuration.EnableDalapadShaderIntegration)
+        {
+            DrawCheckbox("Use Dalapad surface data in first-party shaders", configuration.EnableDalapadSurfaceData, value => configuration.EnableDalapadSurfaceData = value);
+            DrawFloatSlider("Dalapad surface data strength", configuration.DalapadSurfaceDataStrength, 0f, 1f, value => configuration.DalapadSurfaceDataStrength = value);
+        }
+        else
+        {
+            ImGui.TextWrapped("Dalapad surface data resolves to zero until Dalapad shader additions are enabled.");
+        }
 
         ImGui.Separator();
         ImGui.TextWrapped("SceneGI: adaptive screen-space indirect lighting and material bounce");
@@ -774,17 +792,9 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawFloatSlider("SceneGI bounce strength", configuration.DalashadeSceneGIBounceStrength, 0f, 1f, value => configuration.DalashadeSceneGIBounceStrength = value);
         DrawFloatSlider("SceneGI night light strength", configuration.DalashadeSceneGINightLightStrength, 0f, 1f, value => configuration.DalashadeSceneGINightLightStrength = value);
         DrawFloatSlider("SceneGI material influence", configuration.DalashadeSceneGIMaterialInfluence, 0f, 1f, value => configuration.DalashadeSceneGIMaterialInfluence = value);
-        if (configuration.EnableDalapadShaderIntegration)
-        {
-            DrawCheckbox("Use Dalapad normals for SceneGI", configuration.EnableDalapadSceneGINormalAssist, value => configuration.EnableDalapadSceneGINormalAssist = value);
-            DrawFloatSlider("Dalapad SceneGI normal assist strength", configuration.DalapadSceneGINormalAssistStrength, 0f, 1f, value => configuration.DalapadSceneGINormalAssistStrength = value);
-        }
-        else
-        {
-            ImGui.TextWrapped("Dalapad SceneGI normal assist resolves to zero until Dalapad shader additions are enabled.");
-        }
+        ImGui.TextWrapped("SceneGI uses Dalapad surface data through FrameData when the global Dalapad surface-data option is enabled.");
         var sceneGIDebugMode = configuration.DalashadeSceneGIDebugMode;
-        if (ImGui.SliderInt("SceneGI debug mode", ref sceneGIDebugMode, 0, 18))
+        if (ImGui.SliderInt("SceneGI debug mode", ref sceneGIDebugMode, 0, 19))
         {
             configuration.DalashadeSceneGIDebugMode = sceneGIDebugMode;
             configuration.Save();
@@ -1003,7 +1013,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private void DrawDalapadDiagnostics()
     {
         var diagnostics = plugin.CurrentDalapadDiagnostics;
-        ImGui.TextWrapped("Dalapad is an experimental diagnostic probe for a future optional surface-data addon. The default pass checks runtime metadata, status-file IPC, and control-pipe capability negotiation only. It does not read render targets, expose textures to ReShade, change shaders, or change generated presets.");
+        ImGui.TextWrapped("Dalapad is an experimental optional surface-data bridge. The default diagnostic pass checks runtime metadata, status-file IPC, and control-pipe capability negotiation; addon debug visualization and first-party shader use are separate opt-in paths gated by Dalapad shader additions.");
         ImGui.Spacing();
         if (ImGui.Button("Probe Dalapad diagnostics"))
         {
@@ -1297,7 +1307,7 @@ public sealed class ConfigWindow : Window, IDisposable
             return new[]
             {
                 "Status-file IPC and control-pipe capability negotiation are healthy.",
-                "Next safe step is a metadata-only resource catalog; do not send texture handles or shader values yet."
+                "Next safe step is a diagnostic resource catalog; do not send raw handles or shader values yet."
             };
         }
 
@@ -1310,8 +1320,8 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             return new[]
             {
-                "Status-file IPC, control-pipe capability negotiation, and metadata-only resource catalog are healthy.",
-                "Enable and run the developer-only resource shape probe next; keep texture copies, shader resources, IPC handles, and FrameData disabled."
+                "Status-file IPC, control-pipe capability negotiation, and diagnostic resource catalog are healthy.",
+                "Enable and run the developer-only resource shape probe next; keep raw handles, realtime shader values, and FrameData influence disabled."
             };
         }
 
@@ -1346,8 +1356,8 @@ public sealed class ConfigWindow : Window, IDisposable
 
         return new[]
         {
-            "Status-file IPC, control-pipe capability negotiation, metadata-only resource catalog, developer resource shape probe, and debug render-layer copies are healthy enough for repeated observation.",
-            "Next safe step is lifecycle testing across login, zone change, resolution change, and reload; keep FrameData and generated preset behavior disabled."
+            "Status-file IPC, control-pipe capability negotiation, resource catalog, developer resource shape probe, and debug render-layer copies are healthy enough for repeated observation.",
+            "Next safe step is lifecycle testing across login, zone change, resolution change, and reload; keep broader FrameData influence and realtime values disabled."
         };
     }
 
@@ -1465,6 +1475,7 @@ public sealed class ConfigWindow : Window, IDisposable
         configuration.EnableDalashadeContactToneShaderVariables = false;
         configuration.EnableDalashadeSurfaceReflectionShaderVariables = false;
         configuration.EnableDalapadShaderIntegration = false;
+        configuration.EnableDalapadSurfaceData = false;
         configuration.EnableDalapadSceneGINormalAssist = false;
         configuration.EnableMaterialIntentShaderMapping = false;
         configuration.EnableScreenshotMaterialEvidenceInfluence = false;

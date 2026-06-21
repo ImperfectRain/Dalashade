@@ -527,7 +527,7 @@ float4 Dalashade_AtmosphereBloomPS(float4 position : SV_Position, float2 texcoor
         + frame.SafetyFoliageNoiseReject * 0.24
         + frame.SafetyHighlightProtect * 0.18);
     float skyBloomRestraint = saturate(frame.SafetySkyReject * (0.20 + highlightProtection * 0.32 + dayHighlightPressure * 0.22));
-    float normalFieldInfluence = saturate(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence);
+    float normalFieldInfluence = saturate(max(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence, surface.SurfaceDataInfluence));
     float normalHaloRisk = saturate(normalFieldInfluence * surface.EdgeDiscontinuity * (1.0 - surface.NormalConfidence * 0.35));
     float normalStability = saturate(normalFieldInfluence * surface.StructureCandidate * surface.NormalConfidence);
     float sourceSafety = saturate(1.0 - safetySourceRestraint - skyBloomRestraint * 0.45 - normalHaloRisk * 0.38);

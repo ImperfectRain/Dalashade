@@ -4,11 +4,11 @@ Resource contract version: `0.1-diagnostic`
 
 IPC contract version: `0.1-ipc-diagnostic`
 
-This contract defines what the first Dalapad bridge addon should expose when it eventually exists. Current Dalashade code only reports this contract; it does not consume these resources.
+This contract defines the current Dalapad bridge boundary. Dalashade can report addon diagnostics, inspect debug scan/pinned candidates through `Dalapad_Debug.fx`, and optionally let first-party shaders consume gated pinned data through `shaders/Dalashade_Dalapad.fxh`. Missing, stale, or disabled Dalapad data must always resolve to neutral shader behavior.
 
 ## IPC Status File
 
-Stage 1 uses a status-file handshake before any live pipe or texture bridge:
+Stage 1 uses a status-file handshake before any production shader dependency:
 
 ```text
 <XIVLauncher plugin config>/Dalashade/Dalapad/dalapad-status.json
@@ -26,10 +26,10 @@ Minimum fields:
 - `summary`: plain-language status
 - `lastUpdateUtc`: ISO-8601 UTC timestamp
 - `resources`: array of resource status rows
-- `debugVisualization`: synthetic debug texture bridge status
+- `debugVisualization`: debug texture bridge status for synthetic, scan, or pinned candidate views
 - `warnings`: array of plain-language warnings
 
-The plugin currently treats this as diagnostics only. A compatible status file proves only that an addon can report itself; it does not prove that `.fx` code can sample render targets.
+The plugin treats this file as diagnostics and capability evidence. A compatible status file is not authority for shader sampling by itself; shader use is separately gated by generated-preset settings, shader-local toggles, and ReShade semantic texture availability.
 
 ## Resources
 
@@ -62,9 +62,9 @@ A bridge resource status record should include:
 - confidence per resource
 - reason text for disabled or unsafe resources
 
-## Metadata-Only Resource Catalog
+## Resource Catalog
 
-Stage 1.2 supports a resource catalog, but the catalog is still metadata-only. It names the expected normal, diffuse, and depth candidates and reports neutral shape fields until a later opt-in resource probe exists.
+Stage 1.2 introduced a resource catalog. The catalog can name expected normal, diffuse/albedo, depth, scan, and pinned candidates. It is still a diagnostic contract, not a permission slip for production shaders to depend on a resource.
 
 Each `resources[]` row should include:
 
@@ -82,7 +82,7 @@ Each `resources[]` row should include:
 - `metadataSource`
 - `reason`
 
-Stage 1.2 rows must keep:
+Static contract rows should keep:
 
 - `available`: `false`
 - `width` / `height`: `0`
@@ -92,11 +92,11 @@ Stage 1.2 rows must keep:
 - `safetyState`: `metadata-only-unavailable`
 - `metadataSource`: `static-contract`
 
-This proves the resource catalog shape without sending texture handles, copying render targets, registering shader resources, or changing FrameData.
+Runtime rows may report observed dimensions, freshness, confidence, and reason text when the addon has inspected a candidate. Resource rows still must not send raw handles over IPC. Debug copies and ReShade aliases are exposed only through addon-owned diagnostic resources and named semantic bindings.
 
 ## Debug Visualization Bridge
 
-Stage 1.3 adds a debug-only synthetic visualization bridge. It is intentionally separate from the real render-target resource catalog.
+Stage 1.3 added a debug visualization bridge. It is intentionally separate from production shader behavior.
 
 The addon looks for this ReShade FX texture variable:
 
@@ -110,29 +110,55 @@ in:
 Dalapad_Debug.fx
 ```
 
-When the shader is loaded, the addon uploads a generated 256x256 RGBA checker/gradient into that texture variable using ReShade's effect runtime `update_texture` path. This proves that the addon can feed a ReShade `.fx` texture without touching XIV render targets.
+When the shader is loaded, the addon can upload generated synthetic pixels into that texture variable using ReShade's effect runtime `update_texture` path. Later debug passes can also bind addon-owned scan and pinned candidate copies through `Dalapad_Debug.fx` aliases. This proves visibility and lifetime behavior before any broad production use.
 
 `debugVisualization` should include:
 
-- `version`: currently `0.1-synthetic-texture`
+- `version`: currently `0.1-debug-visualization`
 - `enabled`
 - `status`: `WaitingForShader`, `TextureFound`, `SyntheticUploaded`, or `NoReShadeRuntime`
-- `source`: currently `synthetic`
+- `source`: `synthetic`, `scan`, `pinned`, or equivalent diagnostic source label
 - `shader`
 - `textureName`
 - `shaderTextureFound`
 - `syntheticTextureUploaded`
 - `usesSyntheticTexture`
+- scan and pinned candidate availability/dimensions when available
 - `width`
 - `height`
 - `frameCounter`
 - `frameAge`
-- `readsRenderTargets`: must remain `false`
-- `copiesRenderTargets`: must remain `false`
+- `readsRenderTargets`
+- `copiesRenderTargets`
 - `registersGameResources`: must remain `false`
 - `reason`
 
-This bridge is allowed to update only synthetic pixels. It must not copy, sample, register, or expose `GBuffers`, `DepthStencil`, or any other XIV resource.
+This bridge is allowed to update synthetic pixels and bind addon-owned diagnostic copies. It must not expose raw game handles through IPC or make any copied resource mandatory for normal Dalashade output.
+
+## First-Party Shader Integration
+
+First-party shader consumption must go through:
+
+```text
+shaders/Dalashade_Dalapad.fxh
+```
+
+The include owns the ReShade semantic texture declarations, availability uniforms, common sampling helpers, normal-like decode helpers, scalar evidence helpers, and zero-confidence fallback rules.
+
+The required gates are:
+
+- global generated-preset gate: `Dalashade_DalapadEnabled`
+- shader-local feature gate, for example `Dalashade_DalapadSceneGINormalAssist`
+- resource availability and valid dimensions, for example `Dalapad_PinnedNormalAvailable`
+- shader-local strength greater than zero
+
+When any gate is closed, helper confidence, presence, and contribution masks must resolve to zero. Debug masks must therefore be blank because there is no authorized Dalapad data to show, not because the debug technique silently hid a valid signal.
+
+Current first-party consumer:
+
+- `Dalashade_SceneGI.fx` can optionally use the pinned normal-like candidate as a conservative structure/normal assist.
+- SceneGI debug mode `18` shows the authorized Dalapad contribution mask.
+- SceneGI debug mode `19` shows gated raw/evidence data.
 
 ## Diagnostic Control Channel
 
@@ -188,6 +214,7 @@ Realtime names exist only to prevent contract drift. Realtime value movement mus
 - Diagnostic pipe before resource catalog IPC.
 - Never make `.fx` code fail to compile when the bridge is missing.
 - Never require production shaders to sample these resources directly.
-- Never bypass `FrameData`; production consumers should only see merged surface data after an explicit integration pass.
+- First-party shader use must be opt-in and routed through `Dalashade_Dalapad.fxh`.
+- Never bypass shader-local safety gates or generated-preset fallback.
 - Never treat diffuse as material ID truth.
 - Never treat normal/depth data as stable until timing, dimensions, format, and transparency behavior are validated.

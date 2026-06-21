@@ -69,7 +69,7 @@ Start with:
 5. `scene-context.json`, `scene-authoring.json`, `scene-intent.json`, `screenshot-material-evidence.json`, `material-tag-registry.json`, `material-calibration.json`, `material-intent.json`: scene, override, visible material evidence, registry tuning, calibration, and material reasoning.
 6. `normal-field-diagnostics.json`: NormalField settings, shader presence, debug technique state, and first-party consumption.
 7. `frame-data-diagnostics.json`: FrameData include/debug shader presence, FrameDataDebug section/variables, inline/prepass status, and production migration status.
-8. `dalapad-diagnostics.json`: Dalapad runtime metadata probe status plus addon contract version, IPC status-file diagnostics, optional resource names, diagnostic routes, implementation options, and backend steps for a possible future optional surface-data addon.
+8. `dalapad-diagnostics.json`: Dalapad runtime metadata probe status plus addon contract version, IPC status-file/control-pipe diagnostics, optional resource rows, scan/pinned candidate status, debug visualization state, shader integration gates, diagnostic routes, implementation options, and backend steps for the optional surface-data addon path.
 9. `first-party-depth-assist.json`: opt-in depth-assist setting state and known first-party sections that received depth-assist writes.
 10. `installed-dalashade-shaders.txt`: installed first-party shader files and hashes.
 
@@ -87,7 +87,7 @@ FrameData is currently inline only. `frame-data-diagnostics.json` should report 
 
 `normal-field-diagnostics.json` reports NormalDebug technique state from analyzed preset text only. It cannot observe whether the live ReShade UI checkbox is currently enabled after the report was generated.
 
-`dalapad-diagnostics.json` records the diagnostic-only Dalapad surface-data probe. It reports runtime metadata availability, addon contract version, optional Stage 1 status-file IPC state, future resource names, availability flags, diagnostic routes, implementation options, realtime-contract placeholders, and staged backend steps. It must not read G-buffers, copy GPU resources, expose textures to ReShade, open live pipes, move shader values, or change shader/preset behavior.
+`dalapad-diagnostics.json` records the diagnostic-only Dalapad surface-data probe. It reports runtime metadata availability, addon contract version, optional Stage 1 status-file/control-pipe IPC state, resource rows, availability flags, scan/pinned candidate status, debug visualization state, diagnostic routes, implementation options, realtime-contract placeholders, and staged backend steps. The addon may upload synthetic pixels or addon-owned diagnostic copies for debug visualization. It must not expose raw game handles over IPC, move realtime shader values, or make shader/preset behavior depend on Dalapad unless the global shader-additions gate and shared surface-data gate are enabled.
 
 ## Do Not Do
 

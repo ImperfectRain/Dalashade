@@ -2,7 +2,7 @@
 
 Dalapad is the name for Dalashade's optional future external surface-data addon direction.
 
-The first implementation is diagnostic-only. It exists to answer one question: does the current runtime expose enough metadata to justify a later, separate addon bridge for real surface data such as external normals, diffuse-like buffers, or depth targets?
+The first implementation started as diagnostic-only. The current state is still experimental, but it now has a narrow shader-consumption path: first-party shaders may opt in to semantic, addon-provided pinned textures through `shaders/Dalashade_Dalapad.fxh`, and production shaders consume the resulting surface data through `shaders/Dalashade_FrameData.fxh`.
 
 ## Current Behavior
 
@@ -15,24 +15,28 @@ Dalapad currently:
 - Shows a developer-only diagnostics page named `Dalapad`.
 - Reads an optional Stage 1 IPC status file if a separate addon prototype creates one.
 - Probes an optional diagnostic control pipe with short timeouts for capability negotiation.
-- Reads metadata-only resource catalog rows for the expected normal, diffuse, and depth candidates.
+- Reads diagnostic resource catalog rows for expected normal, diffuse/albedo, depth, scan, and pinned candidates.
 - Offers an explicit Developer Mode resource shape probe that may invoke `RenderTargetManager.Instance` and reports redacted candidate presence, nullability, dimensions, and format labels if reflection can read them.
 - Includes `Dalapad_Debug.fx`, a manual ReShade debug shader for visualizing a synthetic bridge texture and fallback/status patterns.
 - Lets the addon upload a synthetic 256x256 debug texture into `Dalapad_DebugTexture` when `Dalapad_Debug.fx` is loaded.
+- Lets the separate ReShade addon prototype copy discovered render-layer candidates into named diagnostic textures for `Dalapad_Debug.fx`.
+- Publishes semantic pinned candidates such as `DALAPAD_PINNED_NORMAL`, `DALAPAD_PINNED_ALBEDO`, `DALAPAD_PINNED_MASK`, `DALAPAD_PINNED_NORMAL_ALT`, and `DALAPAD_PINNED_EMISSIVE`.
+- Provides `shaders/Dalashade_Dalapad.fxh`, the shared first-party shader helper include for sampling pinned candidates behind global, per-shader, and availability gates.
+- Lets `Dalashade_FrameData.fxh` merge the pinned normal-like candidate into `FrameSurfaceData` as confidence-weighted structure/contact/normal support.
+- Lets first-party production shaders consume `surface.SurfaceDataInfluence` and related FrameData fields without sampling pinned resources directly.
 
 Dalapad currently does not:
 
 - Invoke `RenderTargetManager.Instance` during the default diagnostics pass or any User Mode flow.
-- Read, copy, map, or sample game render targets.
-- Upload XIV render targets into ReShade.
-- Expose textures to ReShade `.fx` shaders.
+- Treat discovered render-layer candidates as stable production truth.
+- Send GPU handles or pointer addresses over IPC.
 - Open named pipes except the diagnostic-only `Dalapad.Control.v1` health probe.
 - Report raw pointer addresses.
 - Move shader values in real time.
-- Treat metadata-only resource catalog rows as live render-target availability.
-- Change generated preset values.
-- Change shader code, FrameData, MaterialMasks, NormalField, or technique activation.
-- Add native hooks, network reads, gameplay automation, or render-target bridges.
+- Treat diagnostic resource catalog rows as production render-target guarantees.
+- Enable shader consumption unless `Enable Dalapad shader additions` is on and the individual shader feature is enabled.
+- Replace FrameData, MaterialMasks, NormalField, or technique activation.
+- Add native game hooks, network reads, gameplay automation, or account/gameplay-affecting behavior.
 
 ## Why It Exists
 
@@ -44,7 +48,8 @@ Dalapad is the removable research boundary for a future optional backend. If a l
 External surface data available
   -> report confidence
   -> optional FrameSurfaceData backend
-  -> fallback to NormalField when unavailable
+  -> merge with NormalField when available
+  -> fallback to NormalField/default behavior when unavailable
 ```
 
 The first pass intentionally stops before that point. It only reports whether the runtime appears to have candidate metadata.
@@ -62,7 +67,7 @@ Compatibility reports include a `Dalapad Diagnostics` section with:
 - IPC contract version
 - optional IPC status-file state
 - optional control-pipe health and capability negotiation state
-- metadata-only resource catalog rows
+- diagnostic resource catalog rows
 - optional developer-only resource shape probe rows
 - optional synthetic debug visualization bridge status
 - endpoint names
@@ -102,7 +107,7 @@ The scaffold contains:
 - `external/reshade-sdk/include`: public ReShade SDK headers needed by the local test build.
 - `build/Dalapad.addon64`: local Stage 1 test build produced during handoff.
 
-The source and binary are deliberately outside `Dalashade.sln`. They can be used to test DLL load, optional ReShade registration, status-file IPC, diagnostic control-pipe IPC, and metadata-only resource catalog shape. The addon still reports normal, diffuse, and depth resources as unavailable because Stage 1 must not read, copy, register, or expose render targets.
+The source and binary are deliberately outside `Dalashade.sln`. They can be used to test DLL load, optional ReShade registration, status-file IPC, diagnostic control-pipe IPC, resource catalog shape, synthetic texture upload, scan candidates, pinned candidates, and addon-owned debug copies. This does not make render-layer data required for normal Dalashade output.
 
 The Stage 1 addon requests ReShade add-on API version `18` directly. ReShade `6.7.3.2148` supports API `18`; using the vendored SDK helper version `20` causes registration failure and ReShade unloads the addon with `No add-on was registered`.
 
@@ -126,7 +131,7 @@ Expected IPC contract:
 0.1-ipc-diagnostic
 ```
 
-This is not a production bridge. Missing, stale, malformed, or incompatible status files are treated as neutral diagnostics. They cannot affect generated presets, shader uniforms, shader compilation, first-party technique activation, FrameData, MaterialMasks, or NormalField.
+This is not a required production bridge. Missing, stale, malformed, or incompatible status files are treated as neutral diagnostics. They cannot by themselves affect generated presets, shader uniforms, shader compilation, first-party technique activation, FrameData, MaterialMasks, or NormalField.
 
 The status file can report:
 
@@ -149,9 +154,9 @@ Supported diagnostic command types are:
 - `QueryStatus`
 - `QueryCapabilities`
 
-The plugin uses short timeouts and treats missing, invalid, or incompatible responses as neutral diagnostics. Current capability responses must report realtime uniform movement, render-target reads, render-target copies, and shader-resource registration as disabled.
+The plugin uses short timeouts and treats missing, invalid, or incompatible responses as neutral diagnostics. Capability responses are informational; first-party shader behavior is controlled by generated shader uniforms plus ReShade-side resource availability flags, not by trusting IPC text alone.
 
-Stage 1.2 reports `supportsResourceCatalog=true`. This only means the addon can publish structured rows for candidate resource names, source strings, neutral dimensions, unknown format, disabled freshness, zero confidence, safety state, metadata source, and disabled reason text. It does not mean the addon has read live render target metadata.
+Stage 1.2 reports `supportsResourceCatalog=true`. This means the addon can publish structured rows for candidate resource names, source strings, dimensions, format labels, freshness, confidence, safety state, metadata source, and reason text. Static rows may stay neutral; runtime rows may show observed debug candidate state.
 
 ## Developer Resource Shape Probe
 
@@ -177,9 +182,54 @@ The addon-side bridge currently uploads only a generated synthetic checker/gradi
 Dalapad_DebugTexture
 ```
 
-This validates the addon-to-FX texture update path without copying, sampling, registering, or exposing XIV render targets. The control pipe and status file report this under `debugVisualization`, including whether the shader texture was found, whether synthetic pixels were uploaded, dimensions, frame age, and safety flags.
+This validates the addon-to-FX texture update path. The control pipe and status file report this under `debugVisualization`, including whether the shader texture was found, whether synthetic pixels were uploaded, dimensions, frame age, safety flags, scan slots, and pinned candidates.
 
-This is not a render-layer bridge yet. Real `GBuffers[0]`, `GBuffers[2]`, or `DepthStencil` copies should come only after the synthetic texture path is stable across reload and lifecycle tests.
+The bridge now has a render-layer discovery path, but it is still diagnostic and semantic-pinning driven. Debug scan slots remain discovery surfaces. First-party shaders should consume only pinned semantic resources through `Dalashade_Dalapad.fxh`, not raw group/MRT slots.
+
+Current pinned meanings are observational and may change as captures improve:
+
+| Semantic | Current role | Production guidance |
+| --- | --- | --- |
+| `DALAPAD_PINNED_NORMAL` | Dense normal-like surface/detail candidate. | Use as confidence-weighted structure/contact support, not as authoritative world normals. |
+| `DALAPAD_PINNED_ALBEDO` | Albedo/luma-like scene color candidate. | Debug/evidence only until stable albedo behavior is proven. |
+| `DALAPAD_PINNED_MASK` | Surface/object/material-like mask candidate. | Debug/evidence only until classes are identified. |
+| `DALAPAD_PINNED_NORMAL_ALT` | Alternate dense surface/detail candidate. | Reserve for comparison and fallback. |
+| `DALAPAD_PINNED_EMISSIVE` | Emissive/lighting-like candidate. | Reserve for source confidence experiments. |
+
+## First-Party Shader Integration
+
+`shaders/Dalashade_Dalapad.fxh` is the only supported first-party shader entry point for Dalapad data. It defines:
+
+- pinned texture bindings and samplers
+- pinned availability and dimension uniforms
+- a global `Dalashade_DalapadEnabled` gate
+- normal-like decode helpers
+- raw evidence helpers for albedo, mask, and emissive pins
+- confidence-weighted result structs for shader-local use
+
+Every production shader consumer must use all three gates:
+
+```text
+global Dalapad shader additions enabled
+  AND shader-specific Dalapad feature enabled
+  AND pinned resource availability flag is true
+```
+
+If any gate is false, helpers return zero confidence. Shader debug masks that visualize Dalapad contribution should then be blank because there is no authorized Dalapad data for that shader path.
+
+`Dalashade_FrameData.fxh` currently consumes `DALAPAD_PINNED_NORMAL` through the include. The pinned candidate is treated as strong normal-like/structure-like surface evidence when gates and confidence checks pass. It can lift surface normal confidence, contact support, AO receiver support, ground support, structure support, detail support, and reflection receiver support for first-party shaders that use `FrameSurfaceData`. It does not create effects where the consuming shader's own sky/skin/water/material safety model rejects them.
+
+Production first-party shaders should prefer these fields:
+
+| Field | Use |
+| --- | --- |
+| `surface.SurfaceDataInfluence` | Main opt-in amount for surface-aware shaping, regardless of whether NormalField, Dalapad, or both provided the evidence. |
+| `surface.Normal` | Merged normal-like direction for effects that already use surface direction. |
+| `surface.NormalConfidence` | Merged stability confidence. |
+| `surface.DalapadInfluence` | Debug and tuning signal showing how much authorized Dalapad data reached the surface merge. |
+| `surface.DalapadConfidence` | Debug and tuning signal for pinned-normal confidence before downstream effect safety. |
+
+When Dalapad shader additions or Dalapad surface data are off, `surface.DalapadInfluence` and `surface.DalapadConfidence` are zero. Debug masks should show a true no-data state, not a simulated black sample.
 
 The realtime message family remains reserved only:
 
@@ -205,7 +255,7 @@ Developer Mode includes a `Dalapad` diagnostics page. It is intentionally plain:
 - inspect diagnostic route rows
 - read the safety and removal boundaries
 
-There is no User Mode control because this pass does not provide a visual feature.
+User Mode exposes the global `Enable Dalapad shader additions` toggle and the shared `Use Dalapad surface data in first-party shaders` controls. When the global toggle is off, shader variables resolve to disabling values and first-party shaders behave as if Dalapad does not exist. When the global toggle is on but surface data is off, the addon/debug bridge may still be inspected, but production shader influence remains zero.
 
 ## Removal Boundary
 
@@ -216,22 +266,29 @@ Dalapad should stay easy to remove. Current cleanup is limited to:
 - remove the diagnostics calls from `Plugin`, `CompatibilityReportExporter`, `DebugBundleExporter`, and `ConfigWindow`
 - remove this doc and index links
 
-No shader cleanup should be required because this pass does not touch shader files, shader uniforms, FrameData, MaterialMasks, NormalField, or preset output.
+Shader cleanup is now required if the integration is removed:
+
+- delete `shaders/Dalashade_Dalapad.fxh`
+- remove `#include "Dalashade_Dalapad.fxh"` and Dalapad merge logic from `Dalashade_FrameData.fxh`
+- remove `surface.SurfaceDataInfluence` Dalapad use assumptions from first-party production shaders if needed
+- remove Dalapad shader variables from preset writer/mapper configuration
+- remove User Mode and Developer Mode Dalapad shader-addition controls
 
 ## Next Safe Prototype
 
-Only proceed if the metadata probe is useful in real debug bundles.
+Only proceed if the render-layer and shader-helper evidence is useful in real debug bundles.
 
-The next safe prototype should still be diagnostic-only:
+The next safe prototype should still be conservative:
 
 - load `DalapadAddon/build/Dalapad.addon64` through ReShade and prove the status-file handshake plus control-pipe capability negotiation in-game
 - verify metadata-only candidate resource catalog rows are stable across status-file and control-pipe IPC
 - then run the developer-only resource shape probe and report whether candidate render-target manager rows can be observed safely in the plugin diagnostics
 - collect lifecycle evidence across login, zone change, resolution change, ReShade reload, plugin reload, and debug shader reload
-- do not copy GPU resources until the load/IPC handshake is stable
-- do not expose textures to ReShade until resource lifetime, size, and format are proven
-- do not change generated output
-- keep all behavior behind developer diagnostics
+- do not expand copied GPU resources until the load/IPC/debug-shader lifecycle is stable
+- expose only semantic pinned resources to first-party production shaders
+- keep every consumer behind global and per-shader opt-in gates
+- keep generated output disabling by default
+- keep debug scan/group/MRT discovery separate from production shader consumption
 
 ## Implementation Route
 
@@ -242,22 +299,24 @@ Recommended stages:
 1. Metadata inventory: keep the current reflection-only probe and collect real debug bundles across zones and sessions.
 2. Diagnostic pointer probe: implemented as a developer-only opt-in plugin probe that invokes `RenderTargetManager.Instance` and reports whether candidate `GBuffer[0]`, `GBuffer[2]`, and depth/stencil resources are observable and plausibly shaped. It still does not copy, sample, register, or expose them.
 3. Dalapad diagnostic control pipe: prove the separate native/ReShade addon can answer ping, self-test, status, and capability queries without touching render targets.
-4. Metadata-only resource catalog: report candidate names, dimensions, formats, freshness, confidence, and disabled reasons without sending texture handles or changing shaders. Stage 1.2 implements the schema with neutral unavailable values only.
+4. Diagnostic resource catalog: report candidate names, dimensions, formats, freshness, confidence, and reasons without sending raw handles or changing shaders by itself.
 5. Synthetic debug visualization bridge: implemented through `Dalapad_Debug.fx` and addon-side synthetic texture upload into `Dalapad_DebugTexture`.
-6. Dalapad bridge addon spike: prototype optional named diagnostic textures plus availability flags only after metadata, shape, synthetic visualization, and lifecycle observations are stable.
-6. Shader contract guard: add compile-guarded `.fx` access such as `DALAPAD_SURFACE_DATA_AVAILABLE`. When unavailable, shaders must compile and behave exactly as they do now.
-7. FrameSurfaceData merge: let `FrameData` choose external surface normals only when the bridge is present and confidence is high; otherwise use `NormalField` fallback.
-8. Compare and calibrate: add debug views comparing external normal/diffuse/depth confidence against NormalField, screenshot material evidence, and MaterialIntent.
-9. Realtime value bridge: after render-layer reliability is proven, prototype bounded live first-party shader deltas over the reserved control channel while keeping generated presets as fallback authority.
-10. Opt-in production influence: only after diagnostics prove stability, add an experimental user/developer toggle that lets production shaders consume the external backend through the existing `FrameSurfaceData` contract.
+6. Dalapad bridge addon spike: implemented as optional named diagnostic textures, scan slots, semantic pinned candidates, and availability flags after metadata, shape, synthetic visualization, and lifecycle observations became useful.
+7. Shader contract guard: implemented as `Dalashade_Dalapad.fxh` with global, local, and availability gates. When unavailable, helpers return zero confidence and shaders must behave exactly as they do now.
+8. FrameSurfaceData merge: implemented. `FrameData` chooses gated Dalapad surface normals only when the bridge is present and confidence is high; otherwise it falls back to NormalField/default behavior.
+9. SceneGI consumer: implemented through the shared FrameData surface contract with debug modes for contribution and raw evidence.
+10. Broader first-party consumption: implemented as shared `surface.SurfaceDataInfluence` use in WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SceneGI, ContactTone, and SurfaceReflection where the shader already has a surface-aware reason.
+11. Compare and calibrate: add more debug views comparing external normal/diffuse/depth confidence against NormalField, screenshot material evidence, and MaterialIntent.
+12. Realtime value bridge: after render-layer reliability is proven, prototype bounded live first-party shader deltas over the reserved control channel while keeping generated presets as fallback authority.
+13. Opt-in production influence: continue tightening user/developer controls and per-shader debug masks before treating Dalapad as more than an experimental backend.
 
 The intended shader-side shape is:
 
 ```text
-if external surface data is available and confidence is high:
-    FrameSurfaceData normal/material hints come from Dalapad
+if external surface data is enabled, available, and confidence is high:
+    FrameSurfaceData normal/surface support is merged with Dalapad
 else:
-    FrameSurfaceData normal/material hints come from NormalField and existing masks
+    FrameSurfaceData normal/surface support comes from NormalField and existing masks
 ```
 
 This keeps Dalapad removable. Production shaders should not grow direct dependencies on FFXIVClientStructs, unmanaged pointers, or a required addon package.

@@ -534,7 +534,7 @@ float4 Dalashade_WeatherAtmospherePS(float4 position : SV_Position, float2 texco
     float skinAtmosphereProtect = Dalashade_Saturate(max(materialSkin, frame.SafetySkinReject));
     float highlightAtmosphereProtect = Dalashade_Saturate(max(frame.SafetyHighlightProtect, max(frame.SafetyBrightSandProtect, frame.SafetySnowProtect) * 0.55));
     float foliageNoiseProtect = Dalashade_Saturate(frame.SafetyFoliageNoiseReject);
-    float normalFieldInfluence = Dalashade_Saturate(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence);
+    float normalFieldInfluence = Dalashade_Saturate(max(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence, surface.SurfaceDataInfluence));
     float normalGroundAnchor = Dalashade_Saturate(
         normalFieldInfluence
         * surface.GroundCandidate

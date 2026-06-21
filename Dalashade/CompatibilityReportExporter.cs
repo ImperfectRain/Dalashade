@@ -725,7 +725,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Night light strength {writeLabel}: {Math.Clamp(configuration.DalashadeSceneGINightLightStrength, 0f, 1f):0.###}");
         builder.AppendLine($"- Material influence {writeLabel}: {Math.Clamp(configuration.DalashadeSceneGIMaterialInfluence, 0f, 1f):0.###}");
         var sceneGIDebugWriteLabel = configuration.EnableDalashadeSceneGIShaderVariables ? "written" : "configured";
-        builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 18)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
+        builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 19)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
         builder.AppendLine($"- SceneGI debug output mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugOutputMode, 0, 4)} ({FormatSceneGIDebugOutputMode(configuration.DalashadeSceneGIDebugOutputMode)}).");
         builder.AppendLine($"- SceneGI debug opacity {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugOpacity, 0f, 1f):0.###}.");
         builder.AppendLine($"- SceneGI debug boost {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f):0.###}. Debug boost affects diagnostic masks only, not normal GI output.");
@@ -1450,7 +1450,7 @@ public sealed class CompatibilityReportExporter
             return new[]
             {
                 "Status-file IPC and control-pipe capability negotiation are healthy.",
-                "Next safe step is a metadata-only resource catalog; do not send texture handles or shader values yet."
+                "Next safe step is a diagnostic resource catalog; do not send raw handles or shader values yet."
             };
         }
 
@@ -1463,8 +1463,8 @@ public sealed class CompatibilityReportExporter
         {
             return new[]
             {
-                "Status-file IPC, control-pipe capability negotiation, and metadata-only resource catalog are healthy.",
-                "Enable and run the developer-only resource shape probe next; keep texture copies, shader resources, IPC handles, and FrameData disabled."
+                "Status-file IPC, control-pipe capability negotiation, and diagnostic resource catalog are healthy.",
+                "Enable and run the developer-only resource shape probe next; keep raw handles, realtime shader values, and FrameData influence disabled."
             };
         }
 
@@ -1499,8 +1499,8 @@ public sealed class CompatibilityReportExporter
 
         return new[]
         {
-            "Status-file IPC, control-pipe capability negotiation, metadata-only resource catalog, developer resource shape probe, and debug render-layer copies are healthy enough for repeated observation.",
-            "Next safe step is lifecycle testing across login, zone change, resolution change, and reload; keep FrameData and generated preset behavior disabled."
+            "Status-file IPC, control-pipe capability negotiation, resource catalog, developer resource shape probe, and debug render-layer copies are healthy enough for repeated observation.",
+            "Next safe step is lifecycle testing across login, zone change, resolution change, and reload; keep broader FrameData influence and realtime values disabled."
         };
     }
 
@@ -2445,7 +2445,7 @@ public sealed class CompatibilityReportExporter
 
     private static string FormatSceneGIDebugMode(int mode)
     {
-        return ClampInt(mode, 0, 18) switch
+        return ClampInt(mode, 0, 19) switch
         {
             0 => "Off / normal output",
             1 => "AO only",
@@ -2465,7 +2465,8 @@ public sealed class CompatibilityReportExporter
             15 => "Material bounce lanes",
             16 => "Sky-safe receivers",
             17 => "Emissive pooling lanes",
-            18 => "Dalapad normal assist",
+            18 => "Dalapad contribution",
+            19 => "Dalapad raw evidence",
             _ => "Unknown"
         };
     }

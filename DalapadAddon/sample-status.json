@@ -1,11 +1,11 @@
 {
   "ipcContractVersion": "0.1-ipc-diagnostic",
   "contractVersion": "0.1-diagnostic",
-  "resourceCatalogVersion": "0.1-metadata-only",
-  "bridgeVersion": "0.1.2-stage1-resource-catalog",
+  "resourceCatalogVersion": "0.2-debug-candidates",
+  "bridgeVersion": "0.1.4-stage1-debug-candidates",
   "addonProcess": "DalapadAddon",
   "status": "Loaded",
-  "summary": "Dalapad addon loaded and registered with ReShade. Render-target resources are intentionally unavailable in Stage 1.",
+  "summary": "Dalapad addon loaded and registered with ReShade. Debug scan/pinned candidates may be visible, but production shader use remains optional and gated.",
   "lastUpdateUtc": "2026-06-19T00:00:00Z",
   "reshade": {
     "headerCompiled": true,
@@ -26,7 +26,7 @@
       "confidence": 0,
       "safetyState": "metadata-only-unavailable",
       "metadataSource": "static-contract",
-      "reason": "Stage 1.2 catalog names the normal candidate only; it does not read, copy, or register the render target."
+      "reason": "Static sample row only. Runtime status may report observed debug candidate dimensions or pinned availability when the addon can safely inspect and copy an addon-owned diagnostic view."
     },
     {
       "name": "Dalapad_SurfaceDiffuse",
@@ -41,7 +41,7 @@
       "confidence": 0,
       "safetyState": "metadata-only-unavailable",
       "metadataSource": "static-contract",
-      "reason": "Stage 1.2 catalog names the diffuse candidate only; it does not read, copy, or register the render target."
+      "reason": "Static sample row only. Runtime status may report observed debug candidate dimensions or pinned availability when the addon can safely inspect and copy an addon-owned diagnostic view."
     },
     {
       "name": "Dalapad_SurfaceDepth",
@@ -56,11 +56,11 @@
       "confidence": 0,
       "safetyState": "metadata-only-unavailable",
       "metadataSource": "static-contract",
-      "reason": "Stage 1.2 catalog names the depth/stencil candidate only; it does not read, copy, or register the render target."
+      "reason": "Static sample row only. Runtime status may report observed debug candidate dimensions or pinned availability when the addon can safely inspect and copy an addon-owned diagnostic view."
     }
   ],
   "debugVisualization": {
-    "version": "0.1-synthetic-texture",
+    "version": "0.1-debug-visualization",
     "enabled": true,
     "status": "WaitingForShader",
     "source": "synthetic",
@@ -76,7 +76,7 @@
     "readsRenderTargets": false,
     "copiesRenderTargets": false,
     "registersGameResources": false,
-    "reason": "Dalapad_DebugTexture has not been discovered in a loaded ReShade effect yet."
+    "reason": "Dalapad_DebugTexture or debug candidate aliases have not been discovered in a loaded ReShade effect yet."
   },
   "ipc": {
     "statusFileName": "dalapad-status.json",
@@ -93,7 +93,7 @@
     "copiesRenderTargets": false,
     "registersShaderResources": false,
     "movesRealtimeShaderValues": false,
-    "changesGeneratedPresets": false
+    "changesGeneratedPresets": "only when global and shader-local Dalapad options are enabled"
   },
   "capabilities": {
     "supportsStatusFile": true,
@@ -107,10 +107,10 @@
     "movesRealtimeShaderValues": false
   },
   "warnings": [
-    "Render-target bridge is disabled in Stage 1; resources intentionally report unavailable.",
+    "Production render-target dependency is disabled by default; debug candidates are optional evidence only.",
     "Diagnostic control pipe can answer ping, self-test, status, and capability queries only.",
-    "Resource catalog is metadata-only; width, height, format, freshness, and confidence remain neutral until a later opt-in resource probe.",
-    "Debug visualization currently uploads a synthetic ReShade texture only; it does not copy or bind XIV render targets.",
+    "Resource catalog rows are diagnostic; width, height, format, freshness, and confidence must not be treated as production guarantees.",
+    "Debug visualization can upload synthetic pixels or bind addon-owned diagnostic candidate copies; it must not expose raw game handles over IPC.",
     "Realtime uniform movement is reserved but disabled until render-layer validation succeeds."
   ]
 }

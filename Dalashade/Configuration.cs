@@ -121,6 +121,8 @@ public class Configuration : IPluginConfiguration
     public bool SyncDalashadeTechniqueActivation { get; set; } = false;
     public bool EnableDalapadResourceShapeProbe { get; set; } = false;
     public bool EnableDalapadShaderIntegration { get; set; } = false;
+    public bool EnableDalapadSurfaceData { get; set; } = false;
+    public float DalapadSurfaceDataStrength { get; set; } = 0.75f;
     public bool EnableDalapadSceneGINormalAssist { get; set; } = false;
     public float DalapadSceneGINormalAssistStrength { get; set; } = 0.35f;
     public bool EnableDalashadeSceneGIShaderVariables { get; set; } = false;

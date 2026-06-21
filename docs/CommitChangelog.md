@@ -31,6 +31,24 @@ Use Unix timestamps so entries are easy to sort and compare across local time zo
 
 ## Entries
 
+### 1782005872 - Route Dalapad surface data through FrameData
+
+- Changed: Stabilized the Dalapad shader-consumption path so first-party production shaders use gated Dalapad surface data through `Dalashade_FrameData.fxh` instead of sampling pinned resources directly. Added shared Dalapad surface-data settings, merged authorized pinned normal evidence into `FrameSurfaceData`, exposed zero-confidence fallback fields, updated SceneGI debug modes to read the FrameData merge, and let existing surface-aware first-party shaders use `surface.SurfaceDataInfluence`.
+- Why: Shader consumption needed a clear, maintainable contract where Dalapad is used when available and explicitly enabled, while normal/default behavior remains intact when the addon is absent or gates are off.
+- Related goals: Treat useful render-layer candidates as strong optional surface evidence without making Dalapad mandatory or spreading raw addon semantics across shaders.
+- Documentation: Updated `README.md`, `docs/Dalapad.md`, `docs/GenerationPipeline.md`, `docs/CodebaseIndex.md`, `docs/CodexSessionHandoff.md`, `docs/Shaders/FrameData.md`, `docs/Shaders/SceneGI.md`, `docs/Shaders/ShaderSystemOverview.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `git diff --check` passed with LF-to-CRLF warnings only. ReShade shader compilation and in-game Dalapad debug validation still need manual testing after reload.
+- Next steps: In-game, verify FrameDataDebug Dalapad modes and SceneGI debug modes 18/19 with Dalapad off, surface data off, addon unloaded, and pinned normal available.
+
+### 1781976000 - Add shared Dalapad shader include and SceneGI debug split
+
+- Changed: Added `shaders/Dalashade_Dalapad.fxh` as the shared first-party shader integration surface for semantic pinned Dalapad resources. The include binds pinned normal, albedo, mask, alternate-normal, and emissive candidates, exposes availability/dimension uniforms, and returns zero-confidence helper structs unless the global Dalapad gate, shader-local gate, and resource availability all agree. Refactored SceneGI to consume Dalapad normal-like data through this include instead of owning local sampler/decode logic.
+- Why: First-party shaders need a stable, optional, removable way to consume addon-provided render-layer candidates without depending on raw scan slots or group/MRT guesses.
+- Related goals: Let SceneGI begin using addon data safely while preserving default shader behavior when Dalapad is off or unavailable.
+- Documentation: Updated `docs/Dalapad.md`, `docs/Shaders/SceneGI.md`, `docs/Shaders/ShaderSystemOverview.md`, `docs/ShaderAuthoring.md`, `docs/CodebaseIndex.md`, `docs/CompatibilityAndDiagnostics.md`, `docs/DebugBundles.md`, `docs/GenerationPipeline.md`, `docs/CodexSessionHandoff.md`, `DalapadAddon/README.md`, `DalapadAddon/CONTRACT.md`, `DalapadAddon/dalapad-addon-contract.json`, `DalapadAddon/sample-status.json`, and this changelog.
+- Verification: `Get-Content -Raw DalapadAddon\dalapad-addon-contract.json | ConvertFrom-Json` and `Get-Content -Raw DalapadAddon\sample-status.json | ConvertFrom-Json` passed; `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `git diff --check` passed with LF-to-CRLF warnings only. ReShade shader compilation still needs in-game validation after installing/reloading the shader files.
+- Next steps: Validate SceneGI debug modes 18 and 19 in-game with Dalapad off, Dalapad on but SceneGI assist off, assist on with pinned normal available, and assist on with the addon unloaded.
+
 ### 1781919472 - Add Dalapad synthetic debug visualization bridge
 
 - Changed: Added `shaders/Dalapad_Debug.fx` and extended the Dalapad addon to upload a synthetic 256x256 RGBA debug texture into `Dalapad_DebugTexture` through ReShade's effect runtime. The addon now reports `debugVisualization` status over the status file and control pipe, and the plugin surfaces that status in Developer Mode, compatibility reports, and debug bundles.

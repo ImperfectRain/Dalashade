@@ -447,11 +447,11 @@ public sealed class MainWindow : Window, IDisposable
             configuration.EnableMaterialIntentShaderMapping,
             configuration.EnableNormalFieldShaderMapping,
             configuration.EnableFirstPartyDepthAssist,
-            configuration.EnableDalapadShaderIntegration
+            configuration.EnableDalapadShaderIntegration && configuration.EnableDalapadSurfaceData
         }.Count(value => value);
 
         var hints = configuration.EnableScreenshotMaterialEvidenceInfluence ? ", screenshot hints on" : string.Empty;
-        hints += configuration.EnableDalapadShaderIntegration ? ", Dalapad opt-in on" : string.Empty;
+        hints += configuration.EnableDalapadShaderIntegration && configuration.EnableDalapadSurfaceData ? ", Dalapad surface data on" : string.Empty;
         return $"{enabled} optional effect systems enabled{hints}";
     }
 
@@ -461,6 +461,15 @@ public sealed class MainWindow : Window, IDisposable
 
         DrawCheckbox("Enable Dalashade custom shader variables", configuration.EnableDalashadeCustomShaders, value => configuration.EnableDalashadeCustomShaders = value);
         DrawCheckbox("Enable Dalapad shader additions", configuration.EnableDalapadShaderIntegration, value => configuration.EnableDalapadShaderIntegration = value);
+        if (configuration.EnableDalapadShaderIntegration)
+        {
+            DrawCheckbox("Use Dalapad surface data###UserDalapadSurfaceData", configuration.EnableDalapadSurfaceData, value => configuration.EnableDalapadSurfaceData = value);
+            DrawFloatSlider("Dalapad surface influence###UserDalapadSurfaceStrength", configuration.DalapadSurfaceDataStrength, 0f, 1f, value => configuration.DalapadSurfaceDataStrength = value);
+        }
+        else
+        {
+            ImGui.TextWrapped("Dalapad surface data resolves to zero until Dalapad shader additions are enabled.");
+        }
         DrawCheckbox("Auto-inject known Dalashade shader sections", configuration.AutoInjectDalashadeCustomShaderSections, value => configuration.AutoInjectDalashadeCustomShaderSections = value);
         DrawCheckbox("Sync Dalashade technique activation", configuration.SyncDalashadeTechniqueActivation, value => configuration.SyncDalashadeTechniqueActivation = value);
         DrawCheckbox("Enable depth assist for first-party Dalashade shaders", configuration.EnableFirstPartyDepthAssist, value => configuration.EnableFirstPartyDepthAssist = value);
@@ -540,15 +549,7 @@ public sealed class MainWindow : Window, IDisposable
         DrawFloatSlider("Indirect lighting strength###UserSceneGIStrength", configuration.DalashadeSceneGIStrength, 0f, 1f, value => configuration.DalashadeSceneGIStrength = value);
         DrawFloatSlider("Contact grounding###UserSceneGIAO", configuration.DalashadeSceneGIAOIntensity, 0f, 1f, value => configuration.DalashadeSceneGIAOIntensity = value);
         DrawFloatSlider("Color bounce###UserSceneGIBounce", configuration.DalashadeSceneGIBounceStrength, 0f, 1f, value => configuration.DalashadeSceneGIBounceStrength = value);
-        if (configuration.EnableDalapadShaderIntegration)
-        {
-            DrawCheckbox("Use Dalapad normals for SceneGI###UserSceneGIDalapadNormals", configuration.EnableDalapadSceneGINormalAssist, value => configuration.EnableDalapadSceneGINormalAssist = value);
-            DrawFloatSlider("Dalapad normal assist###UserSceneGIDalapadNormalStrength", configuration.DalapadSceneGINormalAssistStrength, 0f, 1f, value => configuration.DalapadSceneGINormalAssistStrength = value);
-        }
-        else
-        {
-            ImGui.TextWrapped("Dalapad SceneGI normal assist resolves to zero until Dalapad shader additions are enabled.");
-        }
+        ImGui.TextWrapped("SceneGI uses Dalapad surface data through FrameData when the global Dalapad surface-data option is enabled.");
     }
 
     private void DrawContactToneCard()
@@ -691,6 +692,7 @@ public sealed class MainWindow : Window, IDisposable
         configuration.EnableDalashadeContactToneShaderVariables = false;
         configuration.EnableDalashadeSurfaceReflectionShaderVariables = false;
         configuration.EnableDalapadShaderIntegration = false;
+        configuration.EnableDalapadSurfaceData = false;
         configuration.EnableDalapadSceneGINormalAssist = false;
         configuration.EnableMaterialIntentShaderMapping = false;
         configuration.EnableScreenshotMaterialEvidenceInfluence = false;

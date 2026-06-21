@@ -1,9 +1,9 @@
 {
   "contractVersion": "0.1-diagnostic",
   "ipcContractVersion": "0.1-ipc-diagnostic",
-  "resourceCatalogVersion": "0.1-metadata-only",
+  "resourceCatalogVersion": "0.2-debug-candidates",
   "displayName": "Dalapad",
-  "productionBehavior": "none",
+  "productionBehavior": "optional-gated-first-party-shader-assist",
   "ipc": {
     "statusFileName": "dalapad-status.json",
     "statusFileRelativePath": "Dalashade/Dalapad/dalapad-status.json",
@@ -24,11 +24,11 @@
     "stage1PluginPipeBehavior": "short-timeout diagnostic probe only"
   },
   "resourceCatalog": {
-    "behavior": "metadata-only",
+    "behavior": "diagnostic-candidates",
     "containsTextureHandles": false,
     "readsRenderTargets": false,
-    "copiesRenderTargets": false,
-    "registersShaderResources": false,
+    "copiesRenderTargets": "debug-only-addon-owned-copies",
+    "registersShaderResources": "debug-semantic-aliases-only",
     "fields": [
       "name",
       "kind",
@@ -46,15 +46,27 @@
     ]
   },
   "debugVisualization": {
-    "version": "0.1-synthetic-texture",
+    "version": "0.1-debug-visualization",
     "shader": "Dalapad_Debug.fx",
     "textureName": "Dalapad_DebugTexture",
-    "behavior": "synthetic-texture-only",
+    "behavior": "synthetic-scan-and-pinned-candidate-views",
     "usesSyntheticTexture": true,
     "readsRenderTargets": false,
-    "copiesRenderTargets": false,
-    "registersGameResources": false,
-    "purpose": "prove addon-to-ReShade texture update path before any XIV render target copy or registration"
+    "copiesRenderTargets": "debug-only-when-format-and-lifetime-allow",
+    "registersGameResources": "addon-owned-debug-textures-only",
+    "purpose": "prove addon-to-ReShade visibility, candidate selection, dimensions, and freshness before broad production use"
+  },
+  "shaderIntegration": {
+    "include": "shaders/Dalashade_Dalapad.fxh",
+    "globalGate": "Dalashade_DalapadEnabled",
+    "requiredBehaviorWhenDisabled": "zero-confidence-no-data",
+    "currentConsumers": [
+      "Dalashade_SceneGI.fx"
+    ],
+    "currentSceneGIDebugModes": {
+      "18": "Dalapad contribution",
+      "19": "Dalapad raw evidence"
+    }
   },
   "resources": [
     {
@@ -93,27 +105,28 @@
     "control-pipe self-test",
     "control-pipe capability negotiation",
     "bridge addon self-test",
-    "metadata-only resource catalog",
+    "diagnostic resource catalog",
+    "debug scan and pinned candidates",
     "bridge resource probe",
-    "shader diagnostic compare",
+    "optional first-party shader diagnostic compare",
     "default-off FrameSurfaceData backend",
     "future bounded realtime uniform bridge"
   ],
   "safety": {
     "defaultEnabled": false,
-    "changesGeneratedPresets": false,
-    "changesShaders": false,
+    "changesGeneratedPresets": "only when global and shader-local Dalapad options are enabled",
+    "changesShaders": "first-party shader source can include Dalashade_Dalapad.fxh",
     "movesRealtimeShaderValues": false,
     "opensNamedPipeInStage1": true,
     "stage1NamedPipePurpose": "ping, self-test, status, and capability diagnostics only",
     "supportsResourceCatalogInStage1": true,
-    "stage1ResourceCatalogPurpose": "metadata-only candidate rows with neutral dimensions, format, freshness, and confidence until a later opt-in resource probe",
+    "stage1ResourceCatalogPurpose": "diagnostic candidate rows with dimensions, format, freshness, confidence, and reasons when observable",
     "supportsDebugVisualizationInStage1": true,
-    "stage1DebugVisualizationPurpose": "synthetic ReShade texture upload only; no game render-target resource access",
+    "stage1DebugVisualizationPurpose": "synthetic texture upload plus debug-only scan/pinned candidate aliases when safe",
     "readsRenderTargetsInStage1": false,
-    "copiesRenderTargetsInStage1": false,
-    "registersShaderResourcesInStage1": false,
+    "copiesRenderTargetsInStage1": "debug-only-addon-owned-copies",
+    "registersShaderResourcesInStage1": "debug-semantic-aliases-only",
     "requiresBridgeForSampling": true,
-    "fallback": "NormalField through FrameData"
+    "fallback": "zero-confidence Dalapad helpers plus NormalField/FrameData shader behavior"
   }
 }

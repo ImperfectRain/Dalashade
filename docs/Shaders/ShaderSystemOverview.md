@@ -50,7 +50,9 @@ Dalashade_FrameDataDebug
 
 `Dalashade_NormalField.fxh` is the optional inferred surface-field contract. It consumes material/water/safety resolves and produces conservative screen-space normal, structure, receiver, and safety diagnostics. It is not true engine normal data.
 
-`Dalashade_FrameData.fxh` is an internal experimental wrapper over `MaterialMasks` and `NormalField`. It packages canonical resolver output and shared scene/tag interpretation into first-party shader-facing structs, but it does not own formulas, add a prepass, create render targets, or define a public third-party API. WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SceneGI, ContactTone, and SurfaceReflection currently consume inline FrameData fields. Surface data is still optional and only used where the shader already has a NormalField-backed reason to pay that cost.
+`Dalashade_FrameData.fxh` is an internal experimental wrapper over `MaterialMasks`, `NormalField`, and optional gated Dalapad surface data. It packages canonical resolver output, shared scene/tag interpretation, and `FrameSurfaceData` into first-party shader-facing structs, but it does not own base material formulas, add a prepass, create render targets, or define a public third-party API. WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SceneGI, ContactTone, and SurfaceReflection currently consume inline FrameData fields. Surface data is optional and exposed through `surface.SurfaceDataInfluence` so shaders can benefit from NormalField and/or Dalapad without duplicating backend gates.
+
+`Dalashade_Dalapad.fxh` is the optional first-party entry point for addon-provided pinned render-layer candidates. It binds semantic `DALAPAD_PINNED_*` resources, exposes availability uniforms, and returns zero-confidence helper structs unless the global Dalapad shader-addition gate, a shader-local gate, and the resource availability flag are all enabled. Production shaders should normally consume Dalapad through `Dalashade_FrameData.fxh`; direct calls to Dalapad helpers should stay limited to bridge/debug experiments or a consciously isolated shader-local feature.
 
 Production shaders may apply role-specific gates after the shared resolves, but should not reinvent base water, sky, skin, sand, specular, foliage, or receiver classification independently.
 
@@ -75,7 +77,7 @@ Debug modes are diagnostic views, not material IDs. A cyan mask in one mode does
 
 Use `MaterialDebug` first when checking material semantics. Use `NormalDebug` when checking whether the inferred normal/receiver field is safe enough to feed future effects.
 
-Use `FrameDataDebug` when checking whether the wrapper contract preserves canonical resolver output, keeps source and receiver roles separate, and exposes optional NormalField data without forcing every shader to consume it.
+Use `FrameDataDebug` when checking whether the wrapper contract preserves canonical resolver output, keeps source and receiver roles separate, exposes optional NormalField data, and shows Dalapad surface normal/confidence only when authorized data exists.
 
 ## Safety Boundaries
 
@@ -92,4 +94,4 @@ First-party shaders must keep these boundaries:
 
 ## Current Limitation
 
-These shaders work from ReShade backbuffer, depth, and plugin-provided priors. They do not have FFXIV G-buffer material IDs, true normals, motion vectors, or off-screen scene data. Reflection, GI, normals, and weather effects are therefore controlled screen-space impressions, not physically complete rendering systems.
+These shaders work from ReShade backbuffer, depth, plugin-provided priors, and optional Dalapad pinned render-layer candidates when the separate addon bridge provides them and the user opts in. They still do not have a public FFXIV G-buffer contract, material IDs, motion vectors, or off-screen scene data. Reflection, GI, normals, and weather effects are therefore controlled screen-space impressions with optional stronger surface evidence, not physically complete rendering systems.

@@ -477,7 +477,7 @@ float4 Dalashade_SmartSharpenPS(float4 position : SV_Position, float2 texcoord :
         + frame.MaterialSurfaceHardness * 0.22
         + frame.MaterialStoneRuins * 0.22
         + frame.MaterialMetalIndustrial * 0.22);
-    float normalFieldInfluence = saturate(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence);
+    float normalFieldInfluence = saturate(max(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence, surface.SurfaceDataInfluence));
     float normalStableStructure = saturate(
         normalFieldInfluence
         * surface.StructureCandidate

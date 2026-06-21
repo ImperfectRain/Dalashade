@@ -4,6 +4,7 @@
 #include "ReShade.fxh"
 #include "Dalashade_MaterialMasks.fxh"
 #include "Dalashade_NormalField.fxh"
+#include "Dalashade_Dalapad.fxh"
 
 // Dalashade FrameData is an internal contract wrapper over the existing
 // inline resolvers. It does not own material, water, safety, receiver, or
@@ -120,7 +121,18 @@ struct Dalashade_FrameBaseData
 struct Dalashade_FrameSurfaceData
 {
     float3 Normal;
+    float3 NormalFieldNormal;
+    float3 DalapadNormal;
     float NormalConfidence;
+    float NormalFieldConfidence;
+    float DalapadConfidence;
+    float DalapadInfluence;
+    float DalapadPresence;
+    float DalapadChroma;
+    float DalapadNeighborDelta;
+    float DalapadFlatSupport;
+    float DalapadStructureSupport;
+    float SurfaceDataInfluence;
     float OrientationConfidence;
     float DepthConfidence;
     float EdgeDiscontinuity;
@@ -175,6 +187,9 @@ struct Dalashade_FrameDataSettings
     float NormalWaterSuppression;
     float NormalSkinSuppression;
     float NormalSkySuppression;
+
+    float DalapadSurfaceDataEnabled;
+    float DalapadSurfaceDataStrength;
 };
 
 struct Dalashade_FrameSceneSettings
@@ -391,6 +406,8 @@ Dalashade_FrameDataSettings Dalashade_FrameData_DefaultSettings()
     settings.NormalWaterSuppression = 0.80;
     settings.NormalSkinSuppression = 0.90;
     settings.NormalSkySuppression = 0.95;
+    settings.DalapadSurfaceDataEnabled = Dalashade_DalapadSurfaceDataEnabled;
+    settings.DalapadSurfaceDataStrength = Dalashade_DalapadSurfaceDataStrength;
 
     return settings;
 }
@@ -551,26 +568,54 @@ Dalashade_FrameSurfaceData Dalashade_ResolveFrameSurfaceData(
         settings.NormalWaterSuppression,
         settings.NormalSkinSuppression,
         settings.NormalSkySuppression);
+    Dalashade_DalapadNormalResult dalapadNormal = Dalashade_DalapadPinnedNormalAssist(
+        uv,
+        field.CombinedNormal,
+        settings.DalapadSurfaceDataEnabled,
+        settings.DalapadSurfaceDataStrength);
+    float dalapadSafety = saturate(
+        (1.0 - safety.SkyReject * 0.50)
+        * (1.0 - safety.SkinReject * 0.42)
+        * (1.0 - water.HorizonOnlyConfidence * 0.22)
+        * (1.0 - safety.UIDepthRisk * 0.25));
+    float dalapadInfluence = saturate(
+        dalapadNormal.Confidence
+        * dalapadSafety
+        * (0.68 + saturate(settings.DalapadSurfaceDataStrength) * 0.32));
+    float3 resolvedNormal = normalize(lerp(field.CombinedNormal, dalapadNormal.DecodedNormal, dalapadInfluence));
+    float normalFieldInfluence = saturate(settings.NormalFieldEnabled * settings.NormalFieldStrength * field.NormalConfidence);
+    float surfaceDataInfluence = saturate(max(normalFieldInfluence, dalapadInfluence));
 
     Dalashade_FrameSurfaceData surface;
-    surface.Normal = field.CombinedNormal;
-    surface.NormalConfidence = field.NormalConfidence;
-    surface.OrientationConfidence = field.OrientationConfidence;
+    surface.Normal = resolvedNormal;
+    surface.NormalFieldNormal = field.CombinedNormal;
+    surface.DalapadNormal = dalapadNormal.DecodedNormal;
+    surface.NormalConfidence = saturate(max(field.NormalConfidence, dalapadNormal.Confidence * 0.95));
+    surface.NormalFieldConfidence = field.NormalConfidence;
+    surface.DalapadConfidence = dalapadNormal.Confidence;
+    surface.DalapadInfluence = dalapadInfluence;
+    surface.DalapadPresence = dalapadNormal.Presence;
+    surface.DalapadChroma = dalapadNormal.Chroma;
+    surface.DalapadNeighborDelta = dalapadNormal.NeighborDelta;
+    surface.DalapadFlatSupport = dalapadNormal.FlatSupport;
+    surface.DalapadStructureSupport = dalapadNormal.StructureSupport;
+    surface.SurfaceDataInfluence = surfaceDataInfluence;
+    surface.OrientationConfidence = saturate(max(field.OrientationConfidence, dalapadNormal.Confidence * (0.62 + dalapadNormal.FlatSupport * 0.24)));
     surface.DepthConfidence = field.DepthConfidence;
-    surface.EdgeDiscontinuity = field.EdgeDiscontinuity;
-    surface.DetailStrength = field.DetailStrength;
-    surface.TextureReliefStrength = field.TextureReliefStrength;
+    surface.EdgeDiscontinuity = saturate(max(field.EdgeDiscontinuity, dalapadNormal.NeighborDelta * dalapadNormal.Gate * 3.5));
+    surface.DetailStrength = saturate(max(field.DetailStrength, dalapadNormal.Chroma * dalapadNormal.Confidence * 1.8));
+    surface.TextureReliefStrength = saturate(max(field.TextureReliefStrength, dalapadNormal.Chroma * dalapadNormal.Confidence * 1.4));
     surface.TextureGrooveLine = field.TextureGrooveLine;
     surface.TextureCurvatureRidge = field.TextureCurvatureRidge;
     surface.TextureCurvatureValley = field.TextureCurvatureValley;
-    surface.TextureCoherence = field.TextureCoherence;
-    surface.TextureCompositeConfidence = field.TextureCompositeConfidence;
+    surface.TextureCoherence = saturate(max(field.TextureCoherence, dalapadNormal.FlatSupport * 0.72 + dalapadNormal.StructureSupport * 0.26));
+    surface.TextureCompositeConfidence = saturate(max(field.TextureCompositeConfidence, dalapadNormal.Confidence * 0.86));
     surface.TextureReliefSafety = field.TextureReliefSafety;
-    surface.GroundCandidate = field.GroundPlaneCandidate;
-    surface.StructureCandidate = field.StructureCandidate;
-    surface.WallCandidate = field.WallPlaneCandidate;
-    surface.ReflectionReceiverSupport = field.ReflectionReceiver;
-    surface.AOReceiverSupport = field.AOReceiver;
+    surface.GroundCandidate = saturate(max(field.GroundPlaneCandidate, dalapadNormal.FlatSupport * (0.52 + max(resolvedNormal.z, 0.0) * 0.30)));
+    surface.StructureCandidate = saturate(max(field.StructureCandidate, dalapadNormal.StructureSupport + dalapadNormal.FlatSupport * 0.24));
+    surface.WallCandidate = saturate(max(field.WallPlaneCandidate, dalapadNormal.FlatSupport * smoothstep(0.08, 0.62, 1.0 - abs(resolvedNormal.z))));
+    surface.ReflectionReceiverSupport = saturate(max(field.ReflectionReceiver, dalapadNormal.FlatSupport * (0.46 + max(resolvedNormal.z, 0.0) * 0.18)));
+    surface.AOReceiverSupport = saturate(max(field.AOReceiver, max(dalapadNormal.StructureSupport * 0.72, dalapadNormal.FlatSupport * 0.42)));
 
     return surface;
 }

@@ -25,7 +25,7 @@ Material bounce now has explicit GI-local lanes for foliage, hard stone, metal/i
 - Material uniforms and water context.
 - Shared `Dalashade_FrameData.fxh` base fields for canonical material/water/safety/receiver data.
 - Shared FrameData scene tags for readability, atmosphere, combat, wetness, cold, heat, aether/neon, day/night lighting, and Standalone mode strength.
-- Optional FrameData surface fields from NormalField for conservative contact/structure shaping.
+- Optional FrameData surface fields from NormalField and gated Dalapad pinned surface data for conservative contact/structure shaping.
 - GI/AO strength/radius/debug controls.
 
 ## Outputs
@@ -38,7 +38,7 @@ Normal output is source color plus conservative AO/bounce modifications. Debug m
 2. Build GI scene lanes from shared FrameData derived tags: day/open air, night/local light, wet, heat, cold, aether/high-tech, forest/canopy, industrial, and interior.
 3. Build GI sources from light/glint/aether/neon/fire and local luminance. `frame.SourceLightConfidence` can strengthen source/light pooling, but it does not authorize receivers by itself.
 4. Build receivers from shared AO/structure receiver helpers, material hardness, water/sky/skin gates, surface support, and scene lanes.
-5. Optionally add NormalField structure, AO, ground/contact, and edge-discontinuity support behind the same safety gates.
+5. Optionally add FrameData surface structure, AO, ground/contact, and edge-discontinuity support behind the same safety gates. That surface data may come from NormalField, Dalapad, or both.
 6. Estimate local occlusion with layered depth taps.
 7. Estimate screen-space diffuse bounce from depth-aware visible-color gathers.
 8. Apply lane-shaped darkening/lighting with safety clamps.
@@ -50,7 +50,9 @@ SceneGI consumes inline FrameData fields. The shared material confidence path pr
 
 SceneGI consumes the complete FrameData day/night scene contract: `Night`, `Moonlight`, `ArtificialLight`, `AmbientDarkness`, `NightAtmosphere`, `Daylight`, `Sunlight`, `OpenSkyLight`, `SurfaceHeat`, `DayAtmosphere`, `DayReflection`, and `DayHighlightPressure`. The generated preset can inject these keys for SceneGI, and the shader folds them into shared derived lanes instead of maintaining a separate night/day interpretation.
 
-Optional FrameData surface support uses `surface.StructureCandidate` as structure grounding, `surface.AOReceiverSupport` as AO/contact support, `surface.GroundCandidate` as ground/contact shaping, `surface.EdgeDiscontinuity` as localized contact support only under safety gates, and `surface.NormalConfidence`/`surface.OrientationConfidence` as stability terms. NormalField cannot override sky, skin, water AO, or material safety rejects.
+Optional FrameData surface support uses `surface.StructureCandidate` as structure grounding, `surface.AOReceiverSupport` as AO/contact support, `surface.GroundCandidate` as ground/contact shaping, `surface.EdgeDiscontinuity` as localized contact support only under safety gates, and `surface.NormalConfidence`/`surface.OrientationConfidence` as stability terms. FrameData owns the merge between NormalField and Dalapad. SceneGI consumes the merged fields and `surface.SurfaceDataInfluence`; it does not sample raw scan slots, group/MRT indices, or pinned resources directly.
+
+When Dalapad surface data is enabled and the pinned normal candidate is available, FrameData treats it as strong normal-like and structure-like surface evidence. It can lift depth-normal confidence, structure/contact support, AO receiver support, and ground support after SceneGI's existing sky/skin/water/material safety gates. If global Dalapad shader additions are off, Dalapad surface data is off, strength is zero, or the pinned resource is unavailable, FrameData returns zero Dalapad confidence and SceneGI follows the NormalField/default path.
 
 The current visibility pass deliberately gives more weight to valid GI lanes instead of using a broad global multiplier. Interior, industrial, forest, heat, cold, wet, and aether/high-tech lanes can now lift bounce, contact, and night pooling when FrameData receiver/safety fields agree. Standalone mode adds extra bounce/night visibility behind the same gates.
 
@@ -84,6 +86,8 @@ SceneGI debug modes are intended to show shared material usage, sources, receive
 | 15 | Material bounce lanes | Shows foliage, stone, metal, climate, and wet material lanes used to shape low-frequency bounce. |
 | 16 | Sky-safe receivers | Shows receiver sky safety, material safety, and final bounce receiver confidence. |
 | 17 | Emissive pooling lanes | Shows base emissive pooling, propagated/source-supported pooling, and propagated source pressure. |
+| 18 | Dalapad contribution | Shows the Dalapad contribution actually allowed into SceneGI through FrameData after global/surface/availability gates and receiver safety. Red is normal confidence contribution, green is structure/contact contribution, blue is resulting depth-normal confidence. Blank means no authorized Dalapad contribution. |
+| 19 | Dalapad raw evidence | Shows the gated FrameData Dalapad normal direction and evidence channels. Blank means Dalapad shader additions are off, Dalapad surface data is off, strength is zero, or the pinned normal resource is unavailable. |
 
 `Dalashade_GIDebugOutputMode`:
 
@@ -97,7 +101,7 @@ SceneGI debug modes are intended to show shared material usage, sources, receive
 
 ## Safety and suppression rules
 
-Sky rejects AO/GI. Skin rejects dirty AO/tinting. Water suppresses dirty AO. Foliage uses foliage/noise damping. Combat/readability dampens heavy output. Snow and bright sand are protected from muddy darkening. NormalField is multiplied by the same sky/skin/water safety gates and remains a secondary shaping input.
+Sky rejects AO/GI. Skin rejects dirty AO/tinting. Water suppresses dirty AO. Foliage uses foliage/noise damping. Combat/readability dampens heavy output. Snow and bright sand are protected from muddy darkening. FrameData surface contribution is multiplied by the same sky/skin/water safety gates and remains a shaping input, even when Dalapad provides strong normal-like evidence.
 
 Source-vs-receiver separation is required: `frame.SourceLightConfidence` and emissive material fields may source local light/bounce, but `frame.ReceiverAO`, `frame.ReceiverStructure`, material support, and optional surface support decide where GI can land.
 
@@ -114,6 +118,7 @@ EmissiveAtmosphere should be standalone instead of folded into AtmosphereBloom. 
 - AO can only approximate contact and crevice behavior.
 - Diffuse gather can only use visible current-frame color; it cannot know hidden geometry, true albedo, or off-camera emitters.
 - It cannot infer true light direction or material albedo.
+- Dalapad pinned normal data is useful enough to treat as strong normal-like surface evidence, but it is still not a public or guaranteed FFXIV world-space normal contract.
 
 ## Future direction
 

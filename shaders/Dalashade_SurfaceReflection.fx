@@ -757,7 +757,7 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     skinProtect = saturate(max(skinProtect, frame.SafetySkinReject * Dalashade_SurfaceReflectionSkinProtect));
     safeSurface = (1.0 - skyReject) * (1.0 - skinProtect * 0.92) * gameplayDampen;
     highlightSafety = saturate(max(max(highlightSafety, scene.DayHighlightPressure), frame.SafetyHighlightProtect));
-    float normalFieldInfluence = saturate(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence);
+    float normalFieldInfluence = saturate(max(Dalashade_NormalFieldEnabled * Dalashade_NormalFieldStrength * Dalashade_NormalMaterialInfluence, surface.SurfaceDataInfluence));
     float normalReceiverSafety = saturate(
         safeSurface
         * (1.0 - frame.SafetySkyReject * 0.96)

@@ -100,10 +100,12 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_GIDebugBoost"] = configuration => configuration.DalashadeSceneGIDebugBoost
         };
 
-    private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> DalapadSceneGIVariables =
+    private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> DalapadSurfaceVariables =
         new Dictionary<string, Func<Configuration, float>>(StringComparer.OrdinalIgnoreCase)
         {
             ["Dalashade_DalapadEnabled"] = configuration => configuration.EnableDalapadShaderIntegration ? 1f : 0f,
+            ["Dalashade_DalapadSurfaceDataEnabled"] = configuration => configuration.EnableDalapadShaderIntegration && configuration.EnableDalapadSurfaceData ? 1f : 0f,
+            ["Dalashade_DalapadSurfaceDataStrength"] = configuration => configuration.EnableDalapadShaderIntegration && configuration.EnableDalapadSurfaceData ? configuration.DalapadSurfaceDataStrength : 0f,
             ["Dalashade_DalapadSceneGINormalAssist"] = configuration => configuration.EnableDalapadShaderIntegration && configuration.EnableDalapadSceneGINormalAssist ? 1f : 0f,
             ["Dalashade_DalapadSceneGINormalStrength"] = configuration => configuration.EnableDalapadShaderIntegration && configuration.EnableDalapadSceneGINormalAssist ? configuration.DalapadSceneGINormalAssistStrength : 0f
         };
@@ -369,7 +371,7 @@ public sealed class CustomShaderVariableMapper
         .Concat(FirstPartyModeVariables.Keys)
         .Concat(FirstPartyDepthAssistVariables.Keys)
         .Concat(SceneGIVariables.Keys)
-        .Concat(DalapadSceneGIVariables.Keys)
+        .Concat(DalapadSurfaceVariables.Keys)
         .Concat(ContactToneVariables.Keys)
         .Concat(SurfaceReflectionVariables.Keys)
         .Concat(NormalFieldVariables.Keys)
@@ -430,13 +432,13 @@ public sealed class CustomShaderVariableMapper
             return true;
         }
 
-        if (IsSceneGISection(section)
-            && DalapadSceneGIVariables.TryGetValue(key, out var dalapadAccessor))
+        if (IsDalapadSurfaceSection(section)
+            && DalapadSurfaceVariables.TryGetValue(key, out var dalapadAccessor))
         {
             adjustment = new ShaderAdjustment(
-                _ => FormatDalapadSceneGIValue(key, dalapadAccessor(configuration)),
+                _ => FormatDalapadSurfaceValue(key, dalapadAccessor(configuration)),
                 DalapadReasonCategory,
-                EffectRole.AoGi,
+                IsSceneGISection(section) ? EffectRole.AoGi : EffectRole.UiUtility,
                 1f);
             return true;
         }
@@ -516,7 +518,7 @@ public sealed class CustomShaderVariableMapper
                    || FirstPartyModeVariables.ContainsKey(key)
                    || FirstPartyDepthAssistVariables.ContainsKey(key)
                    || SceneGIVariables.ContainsKey(key)
-                   || DalapadSceneGIVariables.ContainsKey(key)
+                   || DalapadSurfaceVariables.ContainsKey(key)
                    || ContactToneVariables.ContainsKey(key)
                    || SurfaceReflectionVariables.ContainsKey(key)
                    || NormalFieldVariables.ContainsKey(key)
@@ -563,8 +565,8 @@ public sealed class CustomShaderVariableMapper
         if (string.Equals(key, "Dalashade_GIDebugMode", StringComparison.OrdinalIgnoreCase))
         {
             var rounded = (int)MathF.Round(value);
-            var clamped = Math.Min(18, Math.Max(0, rounded));
-            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 18);
+            var clamped = Math.Min(19, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 19);
         }
 
         if (string.Equals(key, "Dalashade_GIDebugOutputMode", StringComparison.OrdinalIgnoreCase))
@@ -626,9 +628,16 @@ public sealed class CustomShaderVariableMapper
         return new ShaderAdjustmentResult(Format(normalized), value < 0f, value > 1f);
     }
 
-    private static ShaderAdjustmentResult FormatDalapadSceneGIValue(string key, float value)
+    public static bool IsKnownDalapadSurfaceVariable(string key)
+    {
+        return !string.IsNullOrWhiteSpace(key)
+               && DalapadSurfaceVariables.ContainsKey(key);
+    }
+
+    private static ShaderAdjustmentResult FormatDalapadSurfaceValue(string key, float value)
     {
         if (string.Equals(key, "Dalashade_DalapadEnabled", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "Dalashade_DalapadSurfaceDataEnabled", StringComparison.OrdinalIgnoreCase)
             || string.Equals(key, "Dalashade_DalapadSceneGINormalAssist", StringComparison.OrdinalIgnoreCase))
         {
             var enabled = value >= 0.5f ? 1 : 0;
@@ -766,6 +775,12 @@ public sealed class CustomShaderVariableMapper
                    || IsSurfaceReflectionSection(section)
                    || IsNormalDebugSection(section)
                    || IsMaterialDebugSection(section));
+    }
+
+    private static bool IsDalapadSurfaceSection(string section)
+    {
+        return IsFirstPartyProductionSection(section)
+               || IsFrameDataDebugSection(section);
     }
 
     private static bool IsFirstPartyDepthAssistSection(string section)
