@@ -57,3 +57,7 @@ It also consumes scene/material uniforms written by Dalashade when enabled:
 ContactTone suppresses sky, skin, water receiver risk, snow, bright sand, strong highlights, and UI/depth uncertainty. It treats material and screenshot-derived intent as scene-level permission only; shader-side FrameData still decides where contact tone can appear.
 
 Technique sync is optional. When `SyncDalashadeTechniqueActivation` is enabled, the generated preset can add `Dalashade_ContactTone` only when `EnableDalashadeContactToneShaderVariables` is enabled. Otherwise users enable the ReShade technique manually.
+
+## First-party performance tiers
+
+`Dalashade_FirstPartyPerformanceTier` records the selected tier. Quality keeps the existing generated radius and NormalField influence. Balanced modestly reduces generated contact radius and shared NormalField detail/relief influence. Performance reduces those values further so contact tone leans on cheaper depth/material evidence first. Contact strength, safety gates, and debug modes are not boosted to compensate.

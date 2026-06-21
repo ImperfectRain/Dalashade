@@ -43,6 +43,8 @@ texture2D Dalapad_PinnedNormalAltTexture : DALAPAD_PINNED_NORMAL_ALT;
 sampler Dalapad_PinnedNormalAltSampler { Texture = Dalapad_PinnedNormalAltTexture; AddressU = Clamp; AddressV = Clamp; MinFilter = Point; MagFilter = Point; MipFilter = Point; };
 texture2D Dalapad_PinnedEmissiveTexture : DALAPAD_PINNED_EMISSIVE;
 sampler Dalapad_PinnedEmissiveSampler { Texture = Dalapad_PinnedEmissiveTexture; AddressU = Clamp; AddressV = Clamp; MinFilter = Point; MagFilter = Point; MipFilter = Point; };
+texture2D Dalapad_PinnedWaterSurfaceTexture : DALAPAD_PINNED_WATER_SURFACE;
+sampler Dalapad_PinnedWaterSurfaceSampler { Texture = Dalapad_PinnedWaterSurfaceTexture; AddressU = Clamp; AddressV = Clamp; MinFilter = Point; MagFilter = Point; MipFilter = Point; };
 
 uniform int Dalapad_DebugMode <
     ui_type = "combo";
@@ -53,7 +55,7 @@ uniform int Dalapad_DebugMode <
 
 uniform int Dalapad_DebugSource <
     ui_type = "combo";
-    ui_items = "Synthetic bridge test\0Scan slot 0\0Scan slot 1\0Scan slot 2\0Scan slot 3\0Depth candidate\0Pinned dense surface detail\0Pinned albedo/luma\0Pinned surface/object mask\0Pinned alternate surface detail\0Pinned emissive/lighting\0";
+    ui_items = "Synthetic bridge test\0Scan slot 0\0Scan slot 1\0Scan slot 2\0Scan slot 3\0Depth candidate\0Pinned dense surface detail\0Pinned albedo/luma\0Pinned surface/object mask\0Pinned alternate surface detail\0Pinned emissive/lighting\0Pinned water/reflection surface\0";
     ui_label = "Dalapad Debug Source";
 > = 0;
 
@@ -79,6 +81,7 @@ uniform int Dalapad_PinnedAlbedoAvailable < ui_label = "Dalapad Pinned Albedo Av
 uniform int Dalapad_PinnedMaskAvailable < ui_label = "Dalapad Pinned Mask Available"; > = 0;
 uniform int Dalapad_PinnedNormalAltAvailable < ui_label = "Dalapad Pinned Normal Alt Available"; > = 0;
 uniform int Dalapad_PinnedEmissiveAvailable < ui_label = "Dalapad Pinned Emissive Available"; > = 0;
+uniform int Dalapad_PinnedWaterSurfaceAvailable < ui_label = "Dalapad Pinned Water Surface Available"; > = 0;
 
 uniform int Dalapad_Scan0Width < ui_label = "Dalapad Scan0 Width"; > = 0;
 uniform int Dalapad_Scan0Height < ui_label = "Dalapad Scan0 Height"; > = 0;
@@ -100,6 +103,8 @@ uniform int Dalapad_PinnedNormalAltWidth < ui_label = "Dalapad Pinned Normal Alt
 uniform int Dalapad_PinnedNormalAltHeight < ui_label = "Dalapad Pinned Normal Alt Height"; > = 0;
 uniform int Dalapad_PinnedEmissiveWidth < ui_label = "Dalapad Pinned Emissive Width"; > = 0;
 uniform int Dalapad_PinnedEmissiveHeight < ui_label = "Dalapad Pinned Emissive Height"; > = 0;
+uniform int Dalapad_PinnedWaterSurfaceWidth < ui_label = "Dalapad Pinned Water Surface Width"; > = 0;
+uniform int Dalapad_PinnedWaterSurfaceHeight < ui_label = "Dalapad Pinned Water Surface Height"; > = 0;
 
 uniform int Dalapad_ScanPageStart < ui_label = "Dalapad Scan Page Start"; > = 0;
 
@@ -129,6 +134,7 @@ int Dalapad_DebugSourceAvailable(int source)
     if (source == 8) return Dalapad_PinnedMaskAvailable;
     if (source == 9) return Dalapad_PinnedNormalAltAvailable;
     if (source == 10) return Dalapad_PinnedEmissiveAvailable;
+    if (source == 11) return Dalapad_PinnedWaterSurfaceAvailable;
     return 0;
 }
 
@@ -148,6 +154,7 @@ float4 Dalapad_DebugSourceSample(float2 uv, int source)
     if (source == 8) return tex2D(Dalapad_PinnedMaskSampler, uv);
     if (source == 9) return tex2D(Dalapad_PinnedNormalAltSampler, uv);
     if (source == 10) return tex2D(Dalapad_PinnedEmissiveSampler, uv);
+    if (source == 11) return tex2D(Dalapad_PinnedWaterSurfaceSampler, uv);
     return tex2D(Dalapad_DebugSampler, uv);
 }
 
@@ -226,7 +233,7 @@ float4 Dalapad_DebugPass(float4 pos : SV_Position, float2 uv : TEXCOORD) : SV_Ta
     else if (mode >= 11 && mode <= 13)
         debugColor = Dalapad_DebugQuadVisualize(uv, mode);
     else
-        debugColor = Dalapad_DebugVisualize(uv, clamp(Dalapad_DebugSource, 0, 10), mode);
+        debugColor = Dalapad_DebugVisualize(uv, clamp(Dalapad_DebugSource, 0, 11), mode);
 
     return float4(lerp(backbuffer.rgb, saturate(debugColor), saturate(Dalapad_DebugOpacity)), backbuffer.a);
 }

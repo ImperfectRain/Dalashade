@@ -43,6 +43,10 @@ Stable structure support comes from `frame.ReceiverStructure`, `frame.MaterialSu
 
 `Dalashade_StandaloneStrength` is `0` in Supportive mode and `1` in Standalone mode. SmartSharpen uses it to add a modest stable-structure boost and slightly higher safe delta limits while also increasing unsafe material dampening. It does not increase sharpening on sky, water shimmer, foliage noise, skin, snow/sand highlights, glints, or aether/neon halos.
 
+## First-party performance tiers
+
+`Dalashade_FirstPartyPerformanceTier` records the selected tier for diagnostics. Quality preserves current SmartSharpen behavior. Balanced and Performance do not change sharpen strength, radius, thresholds, or safety dampening directly; they only reduce shared optional NormalField detail/relief influence consumed through FrameData. This lowers expensive inferred-surface support without making sharpening stronger to compensate.
+
 ## Debug modes
 
 `Dalashade_MaterialDebugMode` is used when `ShowDebugMask` is enabled:

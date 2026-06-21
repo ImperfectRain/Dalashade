@@ -12,6 +12,8 @@ SceneGI should own conservative contact shading, low-frequency material bounce, 
 
 The shader samples nearby color/depth, builds receiver/source masks from inline FrameData material/water/safety/receiver and scene fields, then applies layered AO and restrained bounce/light pooling. Water and sky are protected from dirty AO; aether/neon/fire/glint sources can contribute localized light. Optional FrameData surface support adds contact/structure grounding only after material and safety gates allow it.
 
+For shader-author rules, see [../ShaderContractQuickReference.md](../ShaderContractQuickReference.md). SceneGI should consume Dalapad only through FrameData fields and must keep the no-data debug state blank when Dalapad gates are off or unavailable.
+
 The current GI path now includes a bounded screen-space diffuse gather. It samples visible nearby scene color in multiple directions, weights those samples by depth continuity, approximate facing, source brightness/chroma, emissive confidence, and receiver safety, then feeds the result into the material bounce lane. This is still screen-space GI, not world-space GI: it can only bounce color from visible current-frame pixels.
 
 SceneGI routes its major scene decisions through shared FrameData scene lanes before applying GI-specific math. `DayOpenAir`, `NightLocalLight`, `WetAir`, `HeatAir`, `ColdAir`, `AetherTech`, `ForestCanopy`, `Industrial`, and `InteriorMood` are the first stage for environment-sensitive AO, bounce, and local-light behavior. Shader-local terms still shape the final GI role, but they should not redefine scene tags independently.
@@ -60,6 +62,18 @@ The current visibility pass deliberately gives more weight to valid GI lanes ins
 
 `Dalashade_StandaloneStrength` is `0` in Supportive mode and `1` in Standalone mode. SceneGI uses it to modestly increase AO/contact, bounce, night light pooling, and final contribution allowances after combat/readability and material/safety gates. It does not make reflection receivers into AO receivers, dirty water, or create GI where sky/skin/water safety rejects it.
 
+## First-party performance tiers
+
+`Dalashade_FirstPartyPerformanceTier` records the selected tier and generated `Dalashade_GISampleCountScale` / `Dalashade_GISampleDistanceScale` control optional work.
+
+| Tier | SceneGI behavior |
+| --- | --- |
+| Quality | Preserves the current full diffuse-gather path and generated GI/AO radii. The shader uses all cardinal, mid diagonal, and far diagonal gather taps. |
+| Balanced | Keeps the cardinal and mid diagonal gather taps, skips the far diagonal pair, and modestly reduces generated GI sample distance/radii. This targets the expensive optional visible-color gather work without changing receiver/source gates. |
+| Performance | Uses the cardinal gather taps only, further reduces generated GI sample distance/radii, and relies more on already-authorized FrameData/Dalapad surface evidence when available instead of expanding inferred screen-space work. |
+
+Lower tiers must not increase AO, bounce, or night-light intensity to compensate for fewer samples. Blank Dalapad debug masks remain correct when Dalapad shader additions, surface data, strength, or pinned resources are unavailable.
+
 ## Debug modes
 
 SceneGI debug modes are intended to show shared material usage, sources, receivers, AO, bounce, and final influence. Treat them as effect diagnostics, not material truth; use MaterialDebug for base material classification.
@@ -86,8 +100,10 @@ SceneGI debug modes are intended to show shared material usage, sources, receive
 | 15 | Material bounce lanes | Shows foliage, stone, metal, climate, and wet material lanes used to shape low-frequency bounce. |
 | 16 | Sky-safe receivers | Shows receiver sky safety, material safety, and final bounce receiver confidence. |
 | 17 | Emissive pooling lanes | Shows base emissive pooling, propagated/source-supported pooling, and propagated source pressure. |
-| 18 | Dalapad contribution | Shows the Dalapad contribution actually allowed into SceneGI through FrameData after global/surface/availability gates and receiver safety. Red is normal confidence contribution, green is structure/contact contribution, blue is resulting depth-normal confidence. Blank means no authorized Dalapad contribution. |
-| 19 | Dalapad raw evidence | Shows the gated FrameData Dalapad normal direction and evidence channels. Blank means Dalapad shader additions are off, Dalapad surface data is off, strength is zero, or the pinned normal resource is unavailable. |
+| 18 | Dalapad used contribution | Shows the Dalapad contribution actually allowed into SceneGI through FrameData after global/surface/availability gates and receiver safety. Red is normal confidence contribution, green is structure/contact contribution, blue is resulting depth-normal confidence. Blank means no authorized Dalapad contribution survived SceneGI safety. |
+| 19 | Dalapad FrameData evidence | Shows the gated FrameData Dalapad normal direction and evidence channels before SceneGI receiver safety. Blank means Dalapad shader additions are off, Dalapad surface data is off, strength is zero, or the pinned normal resource is unavailable. |
+| 20 | Dalapad bridge gate | Shows direct shader-side gate state for the pinned normal. Red is the global/surface/availability gate, green is sampled presence, blue means dimensions are known. Blank means there is no authorized Dalapad data for SceneGI. |
+| 21 | Dalapad raw normal sample | Shows the direct pinned-normal texture sample behind the same gate. Blank means the gate is closed; visible color with mode 18 blank means the bridge works but SceneGI safety/confidence rejected contribution. |
 
 `Dalashade_GIDebugOutputMode`:
 

@@ -11,6 +11,7 @@
 | Generation | Target style, performance budget, compatibility mode, backup count, generation behavior. |
 | Shader mapping | Known shader matching mode, inactive writes, iMMERSE Pro/Ultimate support, custom shader support. |
 | First-party shader mode | Supportive vs standalone behavior for production Dalashade shaders. |
+| First-party performance tier | Quality, Balanced, and Performance helper budgets for production Dalashade shaders. |
 | First-party depth assist | Optional global generated-preset write that enables depth assist for production Dalashade first-party shaders. |
 | Scene and style | Screenshot analysis, master style mode, tuning preset, style strengths. |
 | MaterialIntent | Material profile/intent diagnostics and shader mapping controls. |
@@ -116,6 +117,14 @@ Generated preset load-order optimization is also optional and disabled by defaul
 
 Debug shaders are intentionally unaffected by `FirstPartyShaderMode`.
 
+`FirstPartyPerformanceTier` controls optional helper budgets for production first-party Dalashade shaders:
+
+- `Quality` is the default and preserves current behavior. Generated helper scales are `1.0`, SceneGI keeps the full diffuse gather, SurfaceReflection keeps all projection/pseudo-SSR helpers, and AtmosphereBloom keeps the full bloom gather.
+- `Balanced` trims expensive optional helpers while keeping the look close to Quality. It modestly reduces generated NormalField detail/relief/material influence, SceneGI sample distance/count, ContactTone radius, SurfaceReflection helper sampling/reach, and AtmosphereBloom far-ring sampling.
+- `Performance` favors cheaper paths. It reduces inferred NormalField work further, lets authorized Dalapad surface data carry more relative influence when available, lowers SceneGI gather work, skips more optional reflection helper samples, and keeps bloom/contact budgets lower.
+
+The tier does not enable shader techniques, install `.fx` files, force Dalapad on, or bypass shader safety gates. Lower tiers must not increase visual intensity to compensate for reduced helper work.
+
 `EnableFirstPartyDepthAssist` is an opt-in generation behavior switch. When enabled, generated presets write:
 
 - `Dalashade_EnableDepthAssist=1`
@@ -143,6 +152,7 @@ Exporters and writers must resolve safe defaults before calling path APIs. Empty
 - Do not remove serialized fields without a migration.
 - Do not make experimental systems enabled by default.
 - Do not change the default `FirstPartyShaderMode` away from `Supportive` without a migration and explicit review.
+- Do not change the default `FirstPartyPerformanceTier` away from `Quality` without a migration and explicit review.
 - Do not enable first-party depth assist by default; it must remain an explicit generation behavior opt-in.
 - Do not write NormalField or MaterialIntent shader variables unless their mapping settings allow it.
 - Do not store sensitive external paths beyond what the user configured.

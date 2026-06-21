@@ -16,6 +16,13 @@ These docs are for users who want to understand what Dalashade is doing, maintai
 | Topic | Doc |
 | --- | --- |
 | Code map and ownership | [CodebaseIndex.md](CodebaseIndex.md) |
+| Architecture, quality, UX, and performance audit | [Audits/ArchitectureQualityPerformanceAudit.md](Audits/ArchitectureQualityPerformanceAudit.md) |
+| Current risk roadmap | [Current Risk Roadmap](#current-risk-roadmap) |
+| Configuration/UI/diagnostic parity | [ConfigurationParity.md](ConfigurationParity.md) |
+| Shader author quick contract | [ShaderContractQuickReference.md](ShaderContractQuickReference.md) |
+| First-party shader registry | [FirstPartyShaderRegistry.md](FirstPartyShaderRegistry.md) |
+| Diagnostics model plan | [DiagnosticsModelPlan.md](DiagnosticsModelPlan.md) |
+| Architecture refactor plan | [ArchitectureRefactorPlan.md](ArchitectureRefactorPlan.md) |
 | Generate button to written preset flow | [GenerationPipeline.md](GenerationPipeline.md) |
 | Territory, weather, time, combat tags | [SceneTagsAndIntent.md](SceneTagsAndIntent.md) |
 | Zone tag coverage audit | [ZoneTagCoverageAudit.md](ZoneTagCoverageAudit.md) |
@@ -40,6 +47,17 @@ These docs are for users who want to understand what Dalashade is doing, maintai
 | Release checklist | [ReleaseChecklist.md](ReleaseChecklist.md) |
 | Codex editing rules | [CodexEditingGuide.md](CodexEditingGuide.md) |
 | Codex commit changelog | [CommitChangelog.md](CommitChangelog.md) |
+
+## Current Risk Roadmap
+
+Use these docs together before broad feature work:
+
+1. [ArchitectureQualityPerformanceAudit.md](Audits/ArchitectureQualityPerformanceAudit.md) is the current architecture, parity, safety, diagnostics, and release-readiness audit.
+2. [ConfigurationParity.md](ConfigurationParity.md) tracks whether major settings are visible, generated, reported, bundled, shader-facing, and Dalapad-facing.
+3. [ShaderContractQuickReference.md](ShaderContractQuickReference.md) is the short rule set for first-party shader authors.
+4. [FirstPartyShaderRegistry.md](FirstPartyShaderRegistry.md) describes the read-only first-party shader metadata layer used by parity diagnostics, bundle summaries, and UI labels.
+5. [DiagnosticsModelPlan.md](DiagnosticsModelPlan.md) records the shared diagnostic DTO seam for future exporter cleanup.
+6. [ArchitectureRefactorPlan.md](ArchitectureRefactorPlan.md) gives the behavior-preserving migration order for larger refactors.
 
 ## For Codex Agents
 

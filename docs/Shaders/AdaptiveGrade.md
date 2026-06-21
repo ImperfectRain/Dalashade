@@ -47,6 +47,10 @@ NormalField is optional and secondary through FrameData surface fields. When `Da
 
 Standalone identity starts in AdaptiveGrade because this shader owns the broad tone/color foundation before GI, reflections, bloom, weather, and sharpening. Later standalone work can expand to WeatherAtmosphere air-layer identity, AtmosphereBloom source-class response, and only then SurfaceReflection or SceneGI after receiver validation.
 
+## First-party performance tiers
+
+`Dalashade_FirstPartyPerformanceTier` records the selected tier for diagnostics. Quality preserves current AdaptiveGrade behavior. Balanced and Performance do not change tonal intensity, standalone lanes, or grade formulas directly; they only reduce the shared optional NormalField surface influence that AdaptiveGrade can consume through FrameData when NormalField mapping is enabled. If NormalField and Dalapad surface data are both disabled, lower tiers do not change AdaptiveGrade output.
+
 ## Standalone identity lanes
 
 Each lane is Standalone-weighted, uses existing SceneIntent/MaterialIntent uniforms plus shared FrameData material/water/safety fields, and remains bounded by the current clamp and source-relative delta guardrails.

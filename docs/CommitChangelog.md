@@ -31,6 +31,24 @@ Use Unix timestamps so entries are easy to sort and compare across local time zo
 
 ## Entries
 
+### 1782066562 - Add read-only first-party shader registry
+
+- Changed: Added `FirstPartyShaderRegistry` metadata for first-party shader families, sections, techniques, production/manual debug flags, known generated uniforms, debug uniforms, and performance-tier uniforms. Routed parity diagnostics, compatibility report summaries, debug bundle registry output, and User Mode first-party shader labels through the registry where safe.
+- Why: The P2 follow-up needed a single read-only metadata seam before later refactors move any preset planning or writer behavior onto shared shader metadata.
+- Related goals: Reduce drift between shader docs, diagnostics, debug bundles, UI labels, and future first-party shader parity checks without changing generated preset output.
+- Documentation: Added `docs/FirstPartyShaderRegistry.md` and updated `docs/README.md`, `docs/CodebaseIndex.md`, `docs/CompatibilityAndDiagnostics.md`, `docs/DebugBundles.md`, `docs/ConfigurationParity.md`, `docs/DiagnosticsModelPlan.md`, `docs/ArchitectureRefactorPlan.md`, and this changelog.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output and no test project output; `git diff --check` passed with LF-to-CRLF warnings only.
+- Next steps: Add generated-output regression tests before moving any section injection, technique sync, or mapper output behavior onto the registry.
+
+### 1782074919 - Add P2 parity and stabilization docs
+
+- Changed: Added configuration parity, shader contract, diagnostics model, and architecture refactor planning docs; linked them from the docs index and handoff; clarified MaterialIntent, scene tag, Dalapad, FrameData, and SceneGI truth boundaries; tightened User/Developer UI labels for inferred material/normal data, Dalapad production assist, and first-party shader controls.
+- Why: The P2 audit pass needed clearer parity documentation, safer wording, and low-risk refactor seams without changing visuals or generated preset behavior.
+- Related goals: Make Dalashade easier to reason about before future feature work, especially around diagnostics, shader contracts, Dalapad optionality, and UI consistency.
+- Documentation: Updated `docs/README.md`, `docs/CodebaseIndex.md`, `docs/ShaderAuthoring.md`, `docs/CodexSessionHandoff.md`, `docs/MaterialIntent.md`, `docs/SceneTagsAndIntent.md`, `docs/CompatibilityAndDiagnostics.md`, `docs/Dalapad.md`, `docs/Shaders/FrameData.md`, `docs/Shaders/SceneGI.md`, `DalapadAddon/README.md`, `DalapadAddon/CONTRACT.md`, and added `docs/ConfigurationParity.md`, `docs/DiagnosticsModelPlan.md`, `docs/ShaderContractQuickReference.md`, and `docs/ArchitectureRefactorPlan.md`.
+- Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output and no test projects to execute; `git diff --check` passed with LF-to-CRLF warnings only.
+- Next steps: Convert debug integer sliders to named dropdowns after first-party shader metadata is centralized.
+
 ### 1782005872 - Route Dalapad surface data through FrameData
 
 - Changed: Stabilized the Dalapad shader-consumption path so first-party production shaders use gated Dalapad surface data through `Dalashade_FrameData.fxh` instead of sampling pinned resources directly. Added shared Dalapad surface-data settings, merged authorized pinned normal evidence into `FrameSurfaceData`, exposed zero-confidence fallback fields, updated SceneGI debug modes to read the FrameData merge, and let existing surface-aware first-party shaders use `surface.SurfaceDataInfluence`.
@@ -38,7 +56,7 @@ Use Unix timestamps so entries are easy to sort and compare across local time zo
 - Related goals: Treat useful render-layer candidates as strong optional surface evidence without making Dalapad mandatory or spreading raw addon semantics across shaders.
 - Documentation: Updated `README.md`, `docs/Dalapad.md`, `docs/GenerationPipeline.md`, `docs/CodebaseIndex.md`, `docs/CodexSessionHandoff.md`, `docs/Shaders/FrameData.md`, `docs/Shaders/SceneGI.md`, `docs/Shaders/ShaderSystemOverview.md`, and this changelog.
 - Verification: `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `git diff --check` passed with LF-to-CRLF warnings only. ReShade shader compilation and in-game Dalapad debug validation still need manual testing after reload.
-- Next steps: In-game, verify FrameDataDebug Dalapad modes and SceneGI debug modes 18/19 with Dalapad off, surface data off, addon unloaded, and pinned normal available.
+- Next steps: In-game, verify FrameDataDebug Dalapad modes and SceneGI debug modes 18 through 21 with Dalapad off, surface data off, addon unloaded, and pinned normal available.
 
 ### 1781976000 - Add shared Dalapad shader include and SceneGI debug split
 
@@ -47,7 +65,7 @@ Use Unix timestamps so entries are easy to sort and compare across local time zo
 - Related goals: Let SceneGI begin using addon data safely while preserving default shader behavior when Dalapad is off or unavailable.
 - Documentation: Updated `docs/Dalapad.md`, `docs/Shaders/SceneGI.md`, `docs/Shaders/ShaderSystemOverview.md`, `docs/ShaderAuthoring.md`, `docs/CodebaseIndex.md`, `docs/CompatibilityAndDiagnostics.md`, `docs/DebugBundles.md`, `docs/GenerationPipeline.md`, `docs/CodexSessionHandoff.md`, `DalapadAddon/README.md`, `DalapadAddon/CONTRACT.md`, `DalapadAddon/dalapad-addon-contract.json`, `DalapadAddon/sample-status.json`, and this changelog.
 - Verification: `Get-Content -Raw DalapadAddon\dalapad-addon-contract.json | ConvertFrom-Json` and `Get-Content -Raw DalapadAddon\sample-status.json | ConvertFrom-Json` passed; `dotnet build Dalashade.sln` passed with 0 warnings and 0 errors; `dotnet test Dalashade.sln` exited successfully with restore/up-to-date output; `git diff --check` passed with LF-to-CRLF warnings only. ReShade shader compilation still needs in-game validation after installing/reloading the shader files.
-- Next steps: Validate SceneGI debug modes 18 and 19 in-game with Dalapad off, Dalapad on but SceneGI assist off, assist on with pinned normal available, and assist on with the addon unloaded.
+- Next steps: Validate SceneGI debug modes 18 through 21 in-game with Dalapad off, Dalapad on but SceneGI assist off, assist on with pinned normal available, and assist on with the addon unloaded.
 
 ### 1781919472 - Add Dalapad synthetic debug visualization bridge
 

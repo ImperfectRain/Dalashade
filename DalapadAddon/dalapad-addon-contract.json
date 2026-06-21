@@ -46,11 +46,12 @@
     ]
   },
   "debugVisualization": {
-    "version": "0.1-debug-visualization",
+    "version": "0.7-pinned-water-candidate",
     "shader": "Dalapad_Debug.fx",
     "textureName": "Dalapad_DebugTexture",
     "behavior": "synthetic-scan-and-pinned-candidate-views",
     "usesSyntheticTexture": true,
+    "copyFrameInterval": "integer; frame cadence for debug render-layer copies when reported",
     "readsRenderTargets": false,
     "copiesRenderTargets": "debug-only-when-format-and-lifetime-allow",
     "registersGameResources": "addon-owned-debug-textures-only",
@@ -64,10 +65,20 @@
       "Dalashade_SceneGI.fx"
     ],
     "currentSceneGIDebugModes": {
-      "18": "Dalapad contribution",
-      "19": "Dalapad raw evidence"
+      "18": "Dalapad used contribution",
+      "19": "Dalapad FrameData evidence",
+      "20": "Dalapad bridge gate",
+      "21": "Dalapad raw normal sample"
     }
   },
+  "pinnedSemanticResources": [
+    "DALAPAD_PINNED_NORMAL",
+    "DALAPAD_PINNED_ALBEDO",
+    "DALAPAD_PINNED_MASK",
+    "DALAPAD_PINNED_NORMAL_ALT",
+    "DALAPAD_PINNED_EMISSIVE",
+    "DALAPAD_PINNED_WATER_SURFACE"
+  ],
   "resources": [
     {
       "name": "Dalapad_SurfaceNormal",

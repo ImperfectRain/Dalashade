@@ -20,17 +20,6 @@ public sealed class CompatibilityReportExporter
     private sealed record MaterialParityChannel(string Uniform, string Label);
     private sealed record MaterialParityShader(string FileName, string Technique, string Role, IReadOnlySet<string> WrittenUniforms, IReadOnlySet<string> ExpectedUniforms, IReadOnlySet<string> DebugUniforms);
 
-    private static readonly string[] ProductionShaderFiles =
-    [
-        "Dalashade_AdaptiveGrade.fx",
-        "Dalashade_AtmosphereBloom.fx",
-        "Dalashade_WeatherAtmosphere.fx",
-        "Dalashade_SmartSharpen.fx",
-        "Dalashade_SceneGI.fx",
-        "Dalashade_ContactTone.fx",
-        "Dalashade_SurfaceReflection.fx"
-    ];
-
     private static readonly string[] FrameDataDebugVariables =
     [
         "Dalashade_FrameDataDebugMode",
@@ -543,6 +532,7 @@ public sealed class CompatibilityReportExporter
         AppendSurfaceReflectionDiagnostics(builder, configuration, analysis, writeResult, tagStackDiagnostics, currentImage, screenshotMaterialEvidence);
         builder.AppendLine("- Material debug controls: shader-owned in ReShade UI; Dalashade does not write debug mode, overlay mode, opacity, or strength.");
         builder.AppendLine($"- First-party custom shader status: {FormatFirstPartyCustomShaderStatus(analysis)}");
+        AppendFirstPartyShaderRegistryDiagnostics(builder);
         builder.AppendLine("- Variable ownership: SceneIntent variables are Dalashade-controlled, MaterialIntent channel uniforms are Dalashade-controlled only when material shader mapping is enabled, NormalField uniforms are Dalashade-controlled only when NormalField shader mapping is enabled, SceneGI, ContactTone, and SurfaceReflection debug controls can be written by their separate generated-variable toggles, and other shader-owned controls are recognized/injected but not actively written by Dalashade.");
         builder.AppendLine("- Manual shader install/activation: Dalashade does not copy `.fx` files into ReShade or enable techniques. Install needed Dalashade `.fx` files in a ReShade shader search folder separately, then enable wanted custom shader techniques in ReShade.");
         builder.AppendLine("- Variable writes require matching Dalashade custom shader section/key lines in generated preset content. Those lines can come from the base preset or from generated-preset-only injection.");
@@ -701,6 +691,15 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine();
     }
 
+    private static void AppendFirstPartyShaderRegistryDiagnostics(StringBuilder builder)
+    {
+        builder.AppendLine("- First-party shader registry metadata:");
+        builder.AppendLine($"  - Production shaders: {FormatInlineList(FirstPartyShaderRegistry.ProductionShaders.Select(shader => shader.TechniqueName).ToArray())}");
+        builder.AppendLine($"  - Manual/debug-only shaders excluded from technique sync: {FormatInlineList(FirstPartyShaderRegistry.ManualDebugShaders.Select(shader => shader.TechniqueName).ToArray())}");
+        builder.AppendLine($"  - Performance-tier uniforms tracked: {FirstPartyShaderRegistry.KnownPerformanceTierUniforms.Count}");
+        builder.AppendLine("  - Registry mode: read-only diagnostics/UI metadata; preset writing still uses the existing mapper/writer path.");
+    }
+
     private static void AppendSceneGIDiagnostics(
         StringBuilder builder,
         Configuration configuration,
@@ -725,7 +724,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine($"- Night light strength {writeLabel}: {Math.Clamp(configuration.DalashadeSceneGINightLightStrength, 0f, 1f):0.###}");
         builder.AppendLine($"- Material influence {writeLabel}: {Math.Clamp(configuration.DalashadeSceneGIMaterialInfluence, 0f, 1f):0.###}");
         var sceneGIDebugWriteLabel = configuration.EnableDalashadeSceneGIShaderVariables ? "written" : "configured";
-        builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 19)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
+        builder.AppendLine($"- SceneGI debug mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugMode, 0, 21)} ({FormatSceneGIDebugMode(configuration.DalashadeSceneGIDebugMode)}).");
         builder.AppendLine($"- SceneGI debug output mode {sceneGIDebugWriteLabel} value: {ClampInt(configuration.DalashadeSceneGIDebugOutputMode, 0, 4)} ({FormatSceneGIDebugOutputMode(configuration.DalashadeSceneGIDebugOutputMode)}).");
         builder.AppendLine($"- SceneGI debug opacity {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugOpacity, 0f, 1f):0.###}.");
         builder.AppendLine($"- SceneGI debug boost {sceneGIDebugWriteLabel} value: {Math.Clamp(configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f):0.###}. Debug boost affects diagnostic masks only, not normal GI output.");
@@ -1141,7 +1140,7 @@ public sealed class CompatibilityReportExporter
         builder.AppendLine();
         builder.AppendLine("### Production Shader FrameData Scan");
         builder.AppendLine();
-        foreach (var fileName in ProductionShaderFiles)
+        foreach (var fileName in FirstPartyShaderRegistry.ProductionShaderFiles)
         {
             builder.AppendLine($"- {fileName}: {FormatFrameDataProductionConsumption(configuration, fileName)}");
         }
@@ -2271,7 +2270,7 @@ public sealed class CompatibilityReportExporter
 
     private static string[] GetFrameDataProductionConsumerFiles(Configuration configuration)
     {
-        return ProductionShaderFiles
+        return FirstPartyShaderRegistry.ProductionShaderFiles
             .Where(fileName => IsFrameDataProductionConsumer(configuration, fileName))
             .OrderBy(fileName => fileName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -2445,7 +2444,7 @@ public sealed class CompatibilityReportExporter
 
     private static string FormatSceneGIDebugMode(int mode)
     {
-        return ClampInt(mode, 0, 19) switch
+        return ClampInt(mode, 0, 21) switch
         {
             0 => "Off / normal output",
             1 => "AO only",
@@ -2465,8 +2464,10 @@ public sealed class CompatibilityReportExporter
             15 => "Material bounce lanes",
             16 => "Sky-safe receivers",
             17 => "Emissive pooling lanes",
-            18 => "Dalapad contribution",
-            19 => "Dalapad raw evidence",
+            18 => "Dalapad used contribution",
+            19 => "Dalapad FrameData evidence",
+            20 => "Dalapad bridge gate",
+            21 => "Dalapad raw normal sample",
             _ => "Unknown"
         };
     }

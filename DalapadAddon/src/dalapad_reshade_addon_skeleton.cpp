@@ -3,8 +3,8 @@
 // This file is intentionally not included in Dalashade.sln. Build it only in a
 // separate experimental DLL project. It reports status to Dalashade through a
 // small JSON file and control pipe. The debug visualization bridge may copy
-// render-layer candidates into addon-owned textures, but production shader data
-// flow remains disabled.
+// render-layer candidates into addon-owned textures. First-party production
+// shader use remains optional, default-off, and gated through Dalashade_Dalapad.fxh.
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -46,9 +46,9 @@ namespace dalapad
     constexpr std::string_view ContractVersion = "0.1-diagnostic";
     constexpr std::string_view IpcContractVersion = "0.1-ipc-diagnostic";
     constexpr std::string_view ControlPipeContract = "Dalapad.Control.v1";
-    constexpr std::string_view BridgeVersion = "0.1.9-pinned-candidate-map";
+    constexpr std::string_view BridgeVersion = "0.1.10-uniform-consumer-sync-pinned-water";
     constexpr std::string_view ResourceCatalogVersion = "0.1-metadata-only";
-    constexpr std::string_view DebugVisualizationVersion = "0.6-pinned-candidate-map";
+    constexpr std::string_view DebugVisualizationVersion = "0.7-pinned-water-candidate";
     constexpr std::string_view StatusFileName = "dalapad-status.json";
     constexpr std::string_view ControlPipeName = R"(\\.\pipe\Dalapad.Control.v1)";
     constexpr std::string_view RealtimeUniformsChannel = "Dalapad.RealtimeUniforms.v1";
@@ -64,7 +64,9 @@ namespace dalapad
     constexpr uint32_t DebugMrtSlotCount = 8;
     constexpr uint32_t DebugMrtSourceCount = DebugMrtGroupCount * DebugMrtSlotCount;
     constexpr uint32_t DebugScanSlotCount = 4;
-    constexpr uint32_t DebugPinnedCandidateCount = 5;
+    constexpr uint32_t DebugPinnedCandidateCount = 6;
+    constexpr uint32_t DebugLayerCopyFrameInterval = 2;
+    constexpr uint32_t DebugSyntheticUploadFrameInterval = 15;
     constexpr uint32_t ReShadeApiVersion = 18;
 
     using ReShadeRegisterAddonFn = bool (*)(void*, uint32_t);
@@ -265,6 +267,16 @@ namespace dalapad
                 MrtLayer(4, 1),
                 "candidate-emissive-lighting-g4m1",
                 0.58f },
+            DebugPinnedCandidate{
+                "pinned_water_surface",
+                "Pinned water/reflection surface candidate",
+                "DALAPAD_PINNED_WATER_SURFACE",
+                "Dalapad_PinnedWaterSurfaceAvailable",
+                "Dalapad_PinnedWaterSurfaceWidth",
+                "Dalapad_PinnedWaterSurfaceHeight",
+                MrtLayer(7, 0),
+                "candidate-water-reflection-surface-g7m0-page14-top-left",
+                0.62f },
         };
         return candidates;
     }
@@ -465,6 +477,8 @@ namespace dalapad
     static std::atomic<uint32_t> g_debugCaptureGroupIndex = 0;
     static std::atomic<bool> g_debugInsideReShadeEffects = false;
 
+    static int32_t GetIntUniform(reshade::api::effect_runtime* runtime, const char* name, int32_t fallback);
+
     static bool IsEligibleDebugLayerDesc(const reshade::api::resource_desc& desc)
     {
         return desc.type == reshade::api::resource_type::texture_2d &&
@@ -648,15 +662,55 @@ namespace dalapad
         g_debugLayerSamples[LayerIndex(source)] = candidate.desc.texture.samples;
     }
 
-    static void CopyDebugLayerCandidates(reshade::api::command_list* cmdList)
+    static void CopyDebugScanPageCandidates(reshade::api::command_list* cmdList, reshade::api::effect_runtime* runtime)
     {
-        for (uint32_t group = 0; group < DebugMrtGroupCount; ++group)
+        int32_t page = GetIntUniform(runtime, "Dalapad_QuadPage", 0);
+        const int32_t maxPage = static_cast<int32_t>((DebugMrtSourceCount / DebugScanSlotCount) - 1);
+        if (page < 0)
+            page = 0;
+        if (page > maxPage)
+            page = maxPage;
+
+        const uint32_t pageStart = static_cast<uint32_t>(page) * DebugScanSlotCount;
+        for (uint32_t slot = 0; slot < DebugScanSlotCount; ++slot)
+            CopyDebugLayerCandidate(cmdList, static_cast<DebugLayerSource>(pageStart + slot));
+    }
+
+    static void CopyPinnedDebugCandidates(reshade::api::command_list* cmdList)
+    {
+        for (const auto& candidate : PinnedCandidates())
+            CopyDebugLayerCandidate(cmdList, candidate.source);
+    }
+
+    static void CopyDebugLayerCandidates(reshade::api::command_list* cmdList, reshade::api::effect_runtime* runtime)
+    {
+        const uint32_t frame = g_debugFrameCounter.load();
+        if (frame > 0 && (frame % DebugLayerCopyFrameInterval) != 0)
+            return;
+
+        CopyPinnedDebugCandidates(cmdList);
+
+        const bool debugShaderLoaded = g_debugShaderTextureFound.load();
+        const int32_t debugSource = GetIntUniform(runtime, "Dalapad_DebugSource", 0);
+        const int32_t debugMode = GetIntUniform(runtime, "Dalapad_DebugMode", 0);
+        const bool debugViewActive = debugShaderLoaded && debugMode > 0;
+        if (!debugViewActive)
+            return;
+
+        if (debugMode >= 11 && debugMode <= 13)
         {
-            for (uint32_t slot = 0; slot < DebugMrtSlotCount; ++slot)
-                CopyDebugLayerCandidate(cmdList, MrtLayer(group, slot));
+            CopyDebugScanPageCandidates(cmdList, runtime);
+            return;
         }
 
-        CopyDebugLayerCandidate(cmdList, DebugLayerSource::Depth);
+        if (debugSource >= 1 && debugSource <= 4)
+        {
+            CopyDebugScanPageCandidates(cmdList, runtime);
+        }
+        else if (debugSource == 5)
+        {
+            CopyDebugLayerCandidate(cmdList, DebugLayerSource::Depth);
+        }
     }
 
     static void ResetDebugLayerCandidatesForNextFrame()
@@ -718,18 +772,79 @@ namespace dalapad
         return pixels;
     }
 
-    static void SetIntUniform(reshade::api::effect_runtime* runtime, const char* name, int32_t value)
+    static const std::array<const char*, 9>& UniformConsumerEffects()
     {
-        const auto variable = runtime->find_uniform_variable(nullptr, name);
-        if (variable.handle != 0)
-            runtime->set_uniform_value_int(variable, &value, 1);
+        static constexpr std::array<const char*, 9> effects = {
+            "Dalapad_Debug.fx",
+            "Dalashade_SceneGI.fx",
+            "Dalashade_FrameDataDebug.fx",
+            "Dalashade_AdaptiveGrade.fx",
+            "Dalashade_WeatherAtmosphere.fx",
+            "Dalashade_AtmosphereBloom.fx",
+            "Dalashade_ContactTone.fx",
+            "Dalashade_SurfaceReflection.fx",
+            "Dalashade_SmartSharpen.fx",
+        };
+
+        return effects;
     }
 
-    static void SetFloatUniform(reshade::api::effect_runtime* runtime, const char* name, float value)
+    static bool SetIntUniform(reshade::api::effect_runtime* runtime, const char* name, int32_t value)
     {
-        const auto variable = runtime->find_uniform_variable(nullptr, name);
-        if (variable.handle != 0)
+        if (runtime == nullptr || name == nullptr)
+            return false;
+
+        bool updated = false;
+        for (const char* effectName : UniformConsumerEffects())
+        {
+            const auto variable = runtime->find_uniform_variable(effectName, name);
+            if (variable.handle == 0)
+                continue;
+
+            runtime->set_uniform_value_int(variable, &value, 1);
+            updated = true;
+        }
+
+        if (!updated)
+        {
+            const auto variable = runtime->find_uniform_variable(nullptr, name);
+            if (variable.handle != 0)
+            {
+                runtime->set_uniform_value_int(variable, &value, 1);
+                updated = true;
+            }
+        }
+
+        return updated;
+    }
+
+    static bool SetFloatUniform(reshade::api::effect_runtime* runtime, const char* name, float value)
+    {
+        if (runtime == nullptr || name == nullptr)
+            return false;
+
+        bool updated = false;
+        for (const char* effectName : UniformConsumerEffects())
+        {
+            const auto variable = runtime->find_uniform_variable(effectName, name);
+            if (variable.handle == 0)
+                continue;
+
             runtime->set_uniform_value_float(variable, &value, 1);
+            updated = true;
+        }
+
+        if (!updated)
+        {
+            const auto variable = runtime->find_uniform_variable(nullptr, name);
+            if (variable.handle != 0)
+            {
+                runtime->set_uniform_value_float(variable, &value, 1);
+                updated = true;
+            }
+        }
+
+        return updated;
     }
 
     static int32_t GetIntUniform(reshade::api::effect_runtime* runtime, const char* name, int32_t fallback)
@@ -750,20 +865,6 @@ namespace dalapad
     {
         if (runtime == nullptr)
             return;
-
-        for (size_t sourceIndex = 0; sourceIndex < DebugLayerCount; ++sourceIndex)
-        {
-            const auto source = static_cast<DebugLayerSource>(sourceIndex);
-            const auto index = LayerIndex(source);
-            const auto& copy = g_debugLayerCopies[index];
-            const bool copied = g_debugLayerCopied[index].load() && copy.valid && copy.srv.handle != 0;
-            const reshade::api::resource_view view = copied ? copy.srv : reshade::api::resource_view{ 0 };
-
-            runtime->update_texture_bindings(LayerSemantic(source).data(), view, view);
-            SetIntUniform(runtime, LayerAvailabilityUniform(source).data(), copied ? 1 : 0);
-            SetIntUniform(runtime, LayerWidthUniform(source).data(), copied ? static_cast<int32_t>(g_debugLayerWidth[index].load()) : 0);
-            SetIntUniform(runtime, LayerHeightUniform(source).data(), copied ? static_cast<int32_t>(g_debugLayerHeight[index].load()) : 0);
-        }
 
         for (const auto& candidate : PinnedCandidates())
         {
@@ -803,6 +904,15 @@ namespace dalapad
             SetIntUniform(runtime, binding.widthUniform.data(), copied ? static_cast<int32_t>(g_debugLayerWidth[sourceIndex].load()) : 0);
             SetIntUniform(runtime, binding.heightUniform.data(), copied ? static_cast<int32_t>(g_debugLayerHeight[sourceIndex].load()) : 0);
         }
+
+        const auto depthIndex = LayerIndex(DebugLayerSource::Depth);
+        const auto& depthCopy = g_debugLayerCopies[depthIndex];
+        const bool depthCopied = g_debugLayerCopied[depthIndex].load() && depthCopy.valid && depthCopy.srv.handle != 0;
+        const reshade::api::resource_view depthView = depthCopied ? depthCopy.srv : reshade::api::resource_view{ 0 };
+        runtime->update_texture_bindings(DebugDepthSemantic.data(), depthView, depthView);
+        SetIntUniform(runtime, "Dalapad_DepthAvailable", depthCopied ? 1 : 0);
+        SetIntUniform(runtime, "Dalapad_DepthWidth", depthCopied ? static_cast<int32_t>(g_debugLayerWidth[depthIndex].load()) : 0);
+        SetIntUniform(runtime, "Dalapad_DepthHeight", depthCopied ? static_cast<int32_t>(g_debugLayerHeight[depthIndex].load()) : 0);
     }
 
     static void UpdateDebugRuntime(reshade::api::effect_runtime* runtime)
@@ -815,7 +925,8 @@ namespace dalapad
         const bool textureFound = texture.handle != 0;
         g_debugShaderTextureFound = textureFound;
 
-        if (textureFound)
+        const uint32_t lastUploadBeforeUpdate = g_debugLastUploadFrame.load();
+        if (textureFound && (!g_debugSyntheticUploaded.load() || frame - lastUploadBeforeUpdate >= DebugSyntheticUploadFrameInterval))
         {
             const auto pixels = BuildSyntheticDebugPixels(frame);
             runtime->update_texture(texture, DebugTextureWidth, DebugTextureHeight, pixels.data());
@@ -871,7 +982,7 @@ namespace dalapad
         reshade::api::resource_view,
         reshade::api::resource_view)
     {
-        CopyDebugLayerCandidates(cmdList);
+        CopyDebugLayerCandidates(cmdList, runtime);
         ResetDebugLayerCandidatesForNextFrame();
         UpdateDebugRuntime(runtime);
         g_debugInsideReShadeEffects = true;
@@ -1302,6 +1413,7 @@ namespace dalapad
         json << "\"height\":" << debug.height << ",";
         json << "\"frameCounter\":" << debug.frameCounter << ",";
         json << "\"frameAge\":" << debug.frameAge << ",";
+        json << "\"copyFrameInterval\":" << DebugLayerCopyFrameInterval << ",";
         json << "\"observedSourceCount\":" << debug.observedSourceCount << ",";
         json << "\"copiedSourceCount\":" << debug.copiedSourceCount << ",";
         json << "\"readsRenderTargets\":" << (debug.readsRenderTargets ? "true" : "false") << ",";

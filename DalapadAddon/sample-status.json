@@ -73,6 +73,7 @@
     "height": 256,
     "frameCounter": 0,
     "frameAge": 9999,
+    "copyFrameInterval": 2,
     "readsRenderTargets": false,
     "copiesRenderTargets": false,
     "registersGameResources": false,

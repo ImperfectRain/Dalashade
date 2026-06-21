@@ -37,32 +37,12 @@ public sealed class DebugBundleExporter
         Converters = { new JsonStringEnumConverter() }
     };
 
-    private static readonly string[] FirstPartyShaderFiles =
+    private static readonly string[] FirstPartyIncludeFiles =
     [
-        "Dalashade_AdaptiveGrade.fx",
-        "Dalashade_AtmosphereBloom.fx",
-        "Dalashade_WeatherAtmosphere.fx",
-        "Dalashade_SmartSharpen.fx",
-        "Dalashade_MaterialDebug.fx",
-        "Dalashade_NormalDebug.fx",
-        "Dalashade_FrameDataDebug.fx",
-        "Dalashade_SceneGI.fx",
-        "Dalashade_ContactTone.fx",
-        "Dalashade_SurfaceReflection.fx",
         "Dalashade_MaterialMasks.fxh",
         "Dalashade_NormalField.fxh",
-        "Dalashade_FrameData.fxh"
-    ];
-
-    private static readonly string[] ProductionShaderFiles =
-    [
-        "Dalashade_AdaptiveGrade.fx",
-        "Dalashade_AtmosphereBloom.fx",
-        "Dalashade_WeatherAtmosphere.fx",
-        "Dalashade_SmartSharpen.fx",
-        "Dalashade_SceneGI.fx",
-        "Dalashade_ContactTone.fx",
-        "Dalashade_SurfaceReflection.fx"
+        "Dalashade_FrameData.fxh",
+        "Dalashade_Dalapad.fxh"
     ];
 
     private static readonly string[] FrameDataDebugVariables =
@@ -143,8 +123,14 @@ public sealed class DebugBundleExporter
             TryBundleStep("write material-intent.json", () => WriteJson(Path.Combine(folderPath, "material-intent.json"), BuildMaterialIntentDump(configuration, diagnostics, imageAnalysis, screenshotMaterialEvidence, materialIntent, activeTagRegistry, shaderSupport, writeResult), included), log, skipped);
             TryBundleStep("write normal-field-diagnostics.json", () => WriteJson(Path.Combine(folderPath, "normal-field-diagnostics.json"), BuildNormalFieldDiagnosticsDump(configuration, analysis, writeResult), included), log, skipped);
             TryBundleStep("write frame-data-diagnostics.json", () => WriteJson(Path.Combine(folderPath, "frame-data-diagnostics.json"), BuildFrameDataDiagnosticsDump(configuration, analysis, writeResult), included), log, skipped);
-            TryBundleStep("write dalapad-diagnostics.json", () => WriteJson(Path.Combine(folderPath, "dalapad-diagnostics.json"), BuildDalapadDiagnosticsDump(dalapadDiagnostics), included), log, skipped);
+            TryBundleStep("write dalapad-diagnostics.json", () => WriteJson(Path.Combine(folderPath, "dalapad-diagnostics.json"), BuildDalapadDiagnosticsDump(configuration, dalapadDiagnostics), included), log, skipped);
             TryBundleStep("write first-party-depth-assist.json", () => WriteJson(Path.Combine(folderPath, "first-party-depth-assist.json"), BuildFirstPartyDepthAssistDump(configuration, writeResult), included), log, skipped);
+            TryBundleStep("write first-party-performance.json", () => WriteJson(Path.Combine(folderPath, "first-party-performance.json"), BuildFirstPartyPerformanceDump(configuration, writeResult), included), log, skipped);
+            TryBundleStep("write first-party-shader-registry.json", () => WriteJson(Path.Combine(folderPath, "first-party-shader-registry.json"), BuildFirstPartyShaderRegistryDump(), included), log, skipped);
+            TryBundleStep("write performance-summary.json", () => WriteJson(Path.Combine(folderPath, "performance-summary.json"), BuildPerformanceSummary(configuration, dalapadDiagnostics, writeResult), included), log, skipped);
+            TryBundleStep("write generated-variable-summary.json", () => WriteJson(Path.Combine(folderPath, "generated-variable-summary.json"), BuildGeneratedVariableSummary(configuration, shaderSupport, writeResult), included), log, skipped);
+            TryBundleStep("write shader-uniform-parity.json", () => WriteJson(Path.Combine(folderPath, "shader-uniform-parity.json"), ShaderUniformParityDiagnosticsBuilder.Build(configuration), included), log, skipped);
+            TryBundleStep("write health-summary.json", () => WriteJson(Path.Combine(folderPath, "health-summary.json"), BuildHealthSummary(configuration, dalapadDiagnostics, shaderSupport, writeResult, freshReport), included), log, skipped);
             TryBundleStep("write material-parity-audit.md", () => WriteText(Path.Combine(folderPath, "material-parity-audit.md"), BuildMaterialParityAudit(freshReport), included), log, skipped);
             TryBundleStep("write shader-stack-summary.md", () => WriteText(Path.Combine(folderPath, "shader-stack-summary.md"), BuildShaderStackSummary(analysis), included), log, skipped);
             TryBundleStep("write installed-dalashade-shaders.txt", () => WriteText(Path.Combine(folderPath, "installed-dalashade-shaders.txt"), BuildInstalledShaderStatus(configuration, included, skipped), included), log, skipped);
@@ -739,8 +725,13 @@ public sealed class DebugBundleExporter
         };
     }
 
-    private static object BuildDalapadDiagnosticsDump(DalapadDiagnostics diagnostics)
+    private static object BuildDalapadDiagnosticsDump(Configuration configuration, DalapadDiagnostics diagnostics)
     {
+        var debugVisualization = diagnostics.ControlPipeStatus.DebugVisualization;
+        var productionAssistEnabled = configuration.EnableDalapadShaderIntegration
+            && (configuration.EnableDalapadSurfaceData || configuration.EnableDalapadSceneGINormalAssist);
+        var debugCopyActive = debugVisualization.CopiesRenderTargets && debugVisualization.CopiedSourceCount > 0;
+
         return new
         {
             diagnostics.DisplayName,
@@ -769,6 +760,51 @@ public sealed class DebugBundleExporter
             diagnostics.Capabilities,
             diagnostics.Notes,
             diagnostics.RemovalNotes,
+            CostReporting = new
+            {
+                Summary = debugCopyActive
+                    ? "Dalapad debug visualization is reporting addon-owned render-layer copies. Treat this as the expensive/debug path, not the cost of production shader assist alone."
+                    : productionAssistEnabled
+                        ? "Dalapad production shader assist is enabled, but the debug-copy path is not reporting active copied sources."
+                        : "Dalapad production shader assist is disabled. Any reported debug visualization state is separate from normal first-party shader behavior.",
+                ProductionShaderAssist = new
+                {
+                    Enabled = productionAssistEnabled,
+                    GlobalShaderGate = configuration.EnableDalapadShaderIntegration,
+                    SurfaceDataGate = configuration.EnableDalapadSurfaceData,
+                    SurfaceDataStrength = configuration.DalapadSurfaceDataStrength,
+                    SceneGINormalAssistGate = configuration.EnableDalapadSceneGINormalAssist,
+                    SceneGINormalAssistStrength = configuration.DalapadSceneGINormalAssistStrength,
+                    ExpectedCost = productionAssistEnabled
+                        ? "Shader-side sampling only after global/local gates and availability flags pass."
+                        : "No production shader Dalapad sampling should be authorized by generated gates."
+                },
+                DebugVisualization = new
+                {
+                    debugVisualization.Enabled,
+                    debugVisualization.Status,
+                    debugVisualization.Source,
+                    debugVisualization.ShaderTextureFound,
+                    debugVisualization.UsesSyntheticTexture,
+                    debugVisualization.ReadsRenderTargets,
+                    debugVisualization.CopiesRenderTargets,
+                    debugVisualization.ObservedSourceCount,
+                    debugVisualization.CopiedSourceCount,
+                    debugVisualization.CopyFrameInterval,
+                    debugVisualization.FrameAge,
+                    PinnedCandidateCount = debugVisualization.PinnedCandidates.Count,
+                    CopiedPinnedCandidateCount = debugVisualization.PinnedCandidates.Count(candidate => candidate.Copied),
+                    CostBucket = debugCopyActive
+                        ? "DebugCopyActive"
+                        : debugVisualization.ReadsRenderTargets
+                            ? "DebugMetadataOrObservation"
+                            : "NoDebugRenderTargetCopyReported",
+                    ExpectedCost = debugCopyActive
+                        ? "Potentially expensive. Broad render-layer debug copies can cost FPS and should stay developer/debug-only."
+                        : "No active copied render-layer sources were reported by the debug visualization status."
+                },
+                Boundary = "IPC reports health/status. Production shaders consume only gated semantic resources through shader uniforms/textures; raw game resource handles are not sent over IPC."
+            },
             Contract = new
             {
                 DiagnosticOnly = true,
@@ -853,6 +889,478 @@ public sealed class DebugBundleExporter
         };
     }
 
+    private static object BuildFirstPartyPerformanceDump(Configuration configuration, PresetWriteResult writeResult)
+    {
+        var performanceReasonCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            CustomShaderVariableMapper.FirstPartyPerformanceReasonCategory,
+            CustomShaderVariableMapper.SceneGIReasonCategory,
+            CustomShaderVariableMapper.SurfaceReflectionReasonCategory,
+            CustomShaderVariableMapper.AtmosphereBloomReasonCategory,
+            CustomShaderVariableMapper.ContactToneReasonCategory,
+            CustomShaderVariableMapper.NormalFieldReasonCategory
+        };
+        var performanceKeys = new HashSet<string>(FirstPartyShaderRegistry.KnownPerformanceTierUniforms, StringComparer.OrdinalIgnoreCase);
+        var written = writeResult.Changes
+            .Where(change => performanceKeys.Contains(change.Key)
+                             && performanceReasonCategories.Contains(change.ReasonCategory))
+            .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var generatedValues = ReadGeneratedPresetVariables(configuration.GeneratedPresetPath, FirstPartyShaderRegistry.KnownPerformanceTierUniforms);
+
+        return new
+        {
+            SelectedTier = configuration.FirstPartyPerformanceTier,
+            GeneratedPresetWritesEnabled = configuration.EnableDalashadeCustomShaders,
+            CustomShaderSectionInjectionEnabled = configuration.AutoInjectDalashadeCustomShaderSections,
+            QualityPreservesCurrentBehavior = true,
+            KnownVariables = FirstPartyShaderRegistry.KnownPerformanceTierUniforms,
+            ExpectedBehaviorSummary = new[]
+            {
+                "Quality preserves the current first-party shader behavior and writes full-cost helper values.",
+                "Balanced trims expensive optional helpers only: NormalField influence/detail, SceneGI sample count/distance, reflection projection extras, ContactTone radius, and bloom outer-ring samples.",
+                "Performance favors cheaper paths and Dalapad-provided surface data when the Dalapad gates are enabled, while lowering inferred screen-space work further."
+            },
+            PerShaderTierBehavior = new[]
+            {
+                new
+                {
+                    Shader = "Dalashade_AdaptiveGrade.fx",
+                    Quality = "No tier change.",
+                    Balanced = "Uses lower generated NormalField influence if NormalField shader mapping is enabled.",
+                    Performance = "Uses still lower inferred NormalField influence; Dalapad surface data remains available through FrameData when enabled."
+                },
+                new
+                {
+                    Shader = "Dalashade_WeatherAtmosphere.fx",
+                    Quality = "No tier change.",
+                    Balanced = "Uses lower generated NormalField influence if NormalField shader mapping is enabled.",
+                    Performance = "Uses still lower inferred NormalField influence; Dalapad surface data remains available through FrameData when enabled."
+                },
+                new
+                {
+                    Shader = "Dalashade_SmartSharpen.fx",
+                    Quality = "No tier change.",
+                    Balanced = "Uses lower generated NormalField influence if NormalField shader mapping is enabled.",
+                    Performance = "Uses still lower inferred NormalField influence to reduce surface-helper cost and halo risk."
+                },
+                new
+                {
+                    Shader = "Dalashade_AtmosphereBloom.fx",
+                    Quality = "Center, near-ring, and far-ring bloom source samples are active.",
+                    Balanced = "Far-ring diffusion samples are skipped; center and near-ring samples remain active.",
+                    Performance = "Far-ring diffusion samples are skipped; center and near-ring samples remain active with lower shared inferred surface influence."
+                },
+                new
+                {
+                    Shader = "Dalashade_SceneGI.fx",
+                    Quality = "Full 8-tap screen diffuse gather and full generated GI radii.",
+                    Balanced = "6-tap screen diffuse gather with modestly reduced GI distance/radius.",
+                    Performance = "4-tap screen diffuse gather with shorter GI distance/radius and lower inferred NormalField influence."
+                },
+                new
+                {
+                    Shader = "Dalashade_ContactTone.fx",
+                    Quality = "Full generated ContactTone radius.",
+                    Balanced = "Modestly reduced generated ContactTone radius and lower shared inferred NormalField influence.",
+                    Performance = "Further reduced generated ContactTone radius and lower shared inferred NormalField influence."
+                },
+                new
+                {
+                    Shader = "Dalashade_SurfaceReflection.fx",
+                    Quality = "Full projection, pseudo-SSR, and water-column helper paths.",
+                    Balanced = "Skips far planar/water projection extras while retaining near and mid helper paths.",
+                    Performance = "Keeps near/local projection paths and skips wide/far wet, hard, mirror-column, and extra pseudo-SSR helper paths."
+                }
+            },
+            SectionsReceivingPerformanceValues = written
+                .Select(change => change.Section)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(section => section, StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            SectionsWithGeneratedPresetPerformanceValues = generatedValues
+                .Select(value => value.Section)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(section => section, StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            VariablesBySection = written
+                .GroupBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new
+                {
+                    Section = group.Key,
+                    Variables = group.Select(change => new
+                    {
+                        change.Key,
+                        change.NewValue,
+                        change.ReasonCategory,
+                        change.ActivationState,
+                        change.Warning
+                    }).ToArray()
+                })
+                .ToArray(),
+            GeneratedPresetValuesBySection = generatedValues
+                .GroupBy(value => value.Section, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new
+                {
+                    Section = group.Key,
+                    Variables = group
+                        .OrderBy(value => value.Key, StringComparer.OrdinalIgnoreCase)
+                        .Select(value => new { value.Key, value.Value })
+                        .ToArray()
+                })
+                .ToArray(),
+            Notes = new[]
+            {
+                "This tier does not enable first-party techniques by itself.",
+                "Dalapad preference in Performance depends on EnableDalapadShaderIntegration and the per-feature Dalapad gates.",
+                "Quality should be used as the comparison baseline when checking for visual regressions."
+            }
+        };
+    }
+
+    private static object BuildPerformanceSummary(Configuration configuration, DalapadDiagnostics dalapadDiagnostics, PresetWriteResult writeResult)
+    {
+        var generatedPerformanceValues = ReadGeneratedPresetVariables(configuration.GeneratedPresetPath, FirstPartyShaderRegistry.KnownPerformanceTierUniforms);
+        var debugVisualization = dalapadDiagnostics.ControlPipeStatus.DebugVisualization;
+        var dalapadProductionEnabled = configuration.EnableDalapadShaderIntegration
+            && (configuration.EnableDalapadSurfaceData || configuration.EnableDalapadSceneGINormalAssist);
+        var debugCopyActive = debugVisualization.CopiesRenderTargets && debugVisualization.CopiedSourceCount > 0;
+
+        return new
+        {
+            SelectedFirstPartyPerformanceTier = configuration.FirstPartyPerformanceTier,
+            QualityPreservesCurrentBehavior = true,
+            GeneratedPresetWritesEnabled = configuration.EnableDalashadeCustomShaders,
+            CustomShaderSectionInjectionEnabled = configuration.AutoInjectDalashadeCustomShaderSections,
+            TechniqueActivationSyncEnabled = configuration.SyncDalashadeTechniqueActivation,
+            FirstPartyFeatureGates = new
+            {
+                SceneGI = configuration.EnableDalashadeSceneGIShaderVariables,
+                ContactTone = configuration.EnableDalashadeContactToneShaderVariables,
+                SurfaceReflection = configuration.EnableDalashadeSurfaceReflectionShaderVariables,
+                AtmosphereBloom = configuration.EnableDalashadeCustomShaders,
+                NormalField = configuration.EnableNormalField,
+                NormalFieldShaderMapping = configuration.EnableNormalFieldShaderMapping,
+                MaterialIntentShaderMapping = configuration.EnableMaterialIntentShaderMapping,
+                FirstPartyDepthAssist = configuration.EnableFirstPartyDepthAssist
+            },
+            DalapadProductionAssist = new
+            {
+                Enabled = dalapadProductionEnabled,
+                GlobalShaderGate = configuration.EnableDalapadShaderIntegration,
+                SurfaceDataGate = configuration.EnableDalapadSurfaceData,
+                SurfaceDataStrength = configuration.DalapadSurfaceDataStrength,
+                SceneGINormalAssistGate = configuration.EnableDalapadSceneGINormalAssist,
+                SceneGINormalAssistStrength = configuration.DalapadSceneGINormalAssistStrength,
+                ExpectedCostClass = dalapadProductionEnabled ? "ShaderSamplingAfterGates" : "DisabledNeutralFallback"
+            },
+            DalapadDebugVisualizationCost = new
+            {
+                debugVisualization.Enabled,
+                debugVisualization.Status,
+                debugVisualization.ReadsRenderTargets,
+                debugVisualization.CopiesRenderTargets,
+                debugVisualization.ObservedSourceCount,
+                debugVisualization.CopiedSourceCount,
+                debugVisualization.CopyFrameInterval,
+                debugVisualization.FrameAge,
+                CopiedPinnedCandidateCount = debugVisualization.PinnedCandidates.Count(candidate => candidate.Copied),
+                CostClass = debugCopyActive
+                    ? "PotentiallyExpensiveDebugCopy"
+                    : debugVisualization.ReadsRenderTargets
+                        ? "DebugObservationNoActiveCopy"
+                        : "NoDebugRenderTargetCopyReported"
+            },
+            GeneratedPerformanceValues = generatedPerformanceValues
+                .GroupBy(value => value.Section, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new
+                {
+                    Section = group.Key,
+                    Variables = group
+                        .OrderBy(value => value.Key, StringComparer.OrdinalIgnoreCase)
+                        .Select(value => new { value.Key, value.Value })
+                        .ToArray()
+                })
+                .ToArray(),
+            WrittenPerformanceVariables = writeResult.Changes
+                .Where(change => FirstPartyShaderRegistry.KnownPerformanceTierUniforms.Contains(change.Key, StringComparer.OrdinalIgnoreCase))
+                .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(change => new
+                {
+                    change.Section,
+                    change.Key,
+                    change.NewValue,
+                    change.ReasonCategory,
+                    change.ActivationState,
+                    change.Warning
+                })
+                .ToArray(),
+            Notes = new[]
+            {
+                "Quality tier is the visual baseline and should not change current shader behavior.",
+                "Balanced and Performance are generated-uniform policies for optional helpers; this summary records the gates and values but does not profile GPU time.",
+                "Dalapad production assist and Dalapad debug visualization are reported separately because debug render-layer copies can cost FPS even when production shader assist is neutral."
+            }
+        };
+    }
+
+    private static object BuildHealthSummary(
+        Configuration configuration,
+        DalapadDiagnostics dalapadDiagnostics,
+        ShaderSupportScan shaderSupport,
+        PresetWriteResult writeResult,
+        CompatibilityReportExportResult freshReport)
+    {
+        var parity = ShaderUniformParityDiagnosticsBuilder.Build(configuration);
+        var debugVisualization = dalapadDiagnostics.ControlPipeStatus.DebugVisualization;
+        var dalapadProductionEnabled = configuration.EnableDalapadShaderIntegration
+            && (configuration.EnableDalapadSurfaceData || configuration.EnableDalapadSceneGINormalAssist);
+        var debugCopyActive = debugVisualization.CopiesRenderTargets && debugVisualization.CopiedSourceCount > 0;
+        var activeFeatureCount = new[]
+        {
+            configuration.EnableDalashadeSceneGIShaderVariables,
+            configuration.EnableDalashadeContactToneShaderVariables,
+            configuration.EnableDalashadeSurfaceReflectionShaderVariables,
+            configuration.EnableNormalField,
+            configuration.EnableNormalFieldShaderMapping,
+            configuration.EnableMaterialIntentShaderMapping,
+            configuration.EnableFirstPartyDepthAssist,
+            dalapadProductionEnabled
+        }.Count(enabled => enabled);
+
+        var warnings = new List<string>();
+        if (!writeResult.Success)
+        {
+            warnings.Add("Generated preset write did not report success; inspect generated-variable-summary.json and bundle-export-log.txt.");
+        }
+
+        if (!shaderSupport.Success)
+        {
+            warnings.Add("Shader support scan did not report success; inspect compatibility-report.md and generated-variable-summary.json.");
+        }
+
+        if (!freshReport.Success)
+        {
+            warnings.Add("Compatibility report was not generated for this bundle; inspect compatibility-report-missing.txt if present.");
+        }
+
+        if (!string.Equals(parity.Status, "Pass", StringComparison.OrdinalIgnoreCase))
+        {
+            warnings.Add($"Shader uniform parity status is {parity.Status}; inspect shader-uniform-parity.json.");
+        }
+
+        if (debugCopyActive)
+        {
+            warnings.Add("Dalapad debug visualization is copying render layers; this can cost FPS independently of production shader assist.");
+        }
+
+        var overallStatus = warnings.Count == 0
+            ? "Pass"
+            : debugCopyActive || !writeResult.Success || !freshReport.Success
+                ? "Attention"
+                : "Warnings";
+
+        return new
+        {
+            OverallStatus = overallStatus,
+            Summary = warnings.Count == 0
+                ? "No high-level debug bundle health warnings were detected."
+                : $"{warnings.Count} high-level item(s) need review.",
+            FirstFilesToOpen = new[]
+            {
+                "health-summary.json",
+                "performance-summary.json",
+                "generated-variable-summary.json",
+                "shader-uniform-parity.json",
+                "dalapad-diagnostics.json",
+                "compatibility-report.md"
+            },
+            GeneratedPreset = new
+            {
+                Path = configuration.GeneratedPresetPath,
+                WriteSucceeded = writeResult.Success,
+                writeResult.Message,
+                writeResult.ChangedVariables,
+                CustomShaderSectionInjection = new
+                {
+                    writeResult.CustomShaderInjection.Attempted,
+                    writeResult.CustomShaderInjection.SectionInjected,
+                    writeResult.CustomShaderInjection.VariablesInjected,
+                    writeResult.CustomShaderInjection.TechniqueInjected,
+                    writeResult.CustomShaderInjection.TechniqueDeactivated,
+                    writeResult.CustomShaderInjection.Message
+                }
+            },
+            FirstPartyShaders = new
+            {
+                PerformanceTier = configuration.FirstPartyPerformanceTier,
+                GeneratedPresetWritesEnabled = configuration.EnableDalashadeCustomShaders,
+                CustomShaderSectionInjectionEnabled = configuration.AutoInjectDalashadeCustomShaderSections,
+                TechniqueActivationSyncEnabled = configuration.SyncDalashadeTechniqueActivation,
+                ActiveFeatureGateCount = activeFeatureCount,
+                ShaderSupportScanStatus = shaderSupport.Success ? "Pass" : "Unavailable",
+                ShaderSupportItemCount = shaderSupport.Items.Count,
+                UniformParityStatus = parity.Status,
+                UniformParityWarningCount = parity.Issues.Count
+            },
+            Dalapad = new
+            {
+                dalapadDiagnostics.Status,
+                dalapadDiagnostics.Summary,
+                ProductionAssistEnabled = dalapadProductionEnabled,
+                DebugVisualizationEnabled = debugVisualization.Enabled,
+                DebugVisualizationStatus = debugVisualization.Status,
+                debugVisualization.ReadsRenderTargets,
+                debugVisualization.CopiesRenderTargets,
+                debugVisualization.ObservedSourceCount,
+                debugVisualization.CopiedSourceCount,
+                debugVisualization.CopyFrameInterval,
+                debugVisualization.FrameAge,
+                DebugCostClass = debugCopyActive
+                    ? "PotentiallyExpensiveDebugCopy"
+                    : debugVisualization.ReadsRenderTargets
+                        ? "DebugObservationNoActiveCopy"
+                        : "NoDebugRenderTargetCopyReported"
+            },
+            CompatibilityReport = new
+            {
+                freshReport.Success,
+                freshReport.Message,
+                freshReport.Path
+            },
+            Warnings = warnings,
+            Notes = new[]
+            {
+                "This is a compact routing summary. It does not replace the detailed JSON/Markdown reports in the bundle.",
+                "Dalapad production assist and Dalapad debug visualization are separate health/cost paths.",
+                "A warning here is not automatically a visual regression; it points to the next detailed file to inspect."
+            }
+        };
+    }
+
+    private static object BuildFirstPartyShaderRegistryDump()
+    {
+        return new
+        {
+            Contract = new
+            {
+                ReadOnly = true,
+                ChangesGeneratedPresetOutput = false,
+                ChangesTechniqueActivation = false,
+                ChangesShaderVisuals = false,
+                Purpose = "Shared first-party shader metadata for diagnostics, documentation, and UI labels."
+            },
+            ShaderCount = FirstPartyShaderRegistry.All.Count,
+            ProductionShaderCount = FirstPartyShaderRegistry.ProductionShaders.Count,
+            ManualDebugShaderCount = FirstPartyShaderRegistry.ManualDebugShaders.Count,
+            ProductionTechniqueSyncEligible = FirstPartyShaderRegistry.ProductionShaders
+                .Where(shader => shader.TechniqueSyncEligible)
+                .Select(shader => shader.TechniqueName)
+                .ToArray(),
+            ManualDebugTechniquesExcludedFromSync = FirstPartyShaderRegistry.ManualDebugShaders
+                .Select(shader => shader.TechniqueName)
+                .ToArray(),
+            KnownPerformanceTierUniforms = FirstPartyShaderRegistry.KnownPerformanceTierUniforms,
+            Shaders = FirstPartyShaderRegistry.All
+                .Select(shader => new
+                {
+                    shader.Family,
+                    shader.DisplayName,
+                    shader.FileName,
+                    shader.TechniqueName,
+                    shader.SectionName,
+                    shader.Role,
+                    shader.ProductionShader,
+                    shader.ManualDebugShader,
+                    shader.TechniqueSyncEligible,
+                    shader.IncludeFiles,
+                    shader.KnownGeneratedUniforms,
+                    shader.PerformanceTierUniforms,
+                    shader.DebugUniforms,
+                    shader.Notes
+                })
+                .ToArray(),
+            Notes = new[]
+            {
+                "This registry is intentionally read-only in this pass.",
+                "Preset writing still uses the existing mapper/writer paths; this file only exposes the metadata those systems should eventually share.",
+                "Manual debug shaders are tracked here so diagnostics can prove they are not production technique-sync targets."
+            }
+        };
+    }
+
+    private static object BuildGeneratedVariableSummary(Configuration configuration, ShaderSupportScan shaderSupport, PresetWriteResult writeResult)
+    {
+        var knownVariables = CustomShaderVariableMapper.KnownVariableNames
+            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var generatedValues = ReadGeneratedPresetVariables(configuration.GeneratedPresetPath, knownVariables);
+        var generatedKeys = generatedValues
+            .Select(value => value.Key)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var written = writeResult.Changes
+            .Where(change => CustomShaderVariableMapper.IsKnownCustomShaderVariable(change.Key))
+            .OrderBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(change => change.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return new
+        {
+            GeneratedPresetPath = configuration.GeneratedPresetPath,
+            GeneratedPresetWritesEnabled = configuration.EnableDalashadeCustomShaders,
+            KnownGeneratedVariableCount = knownVariables.Length,
+            GeneratedPresetKnownVariableCount = generatedValues.Length,
+            ChangedKnownVariableCount = written.Length,
+            ShaderSupportItemCount = shaderSupport.Items.Count,
+            KnownVariables = knownVariables,
+            GeneratedKeys = generatedKeys,
+            MissingFromGeneratedPreset = knownVariables
+                .Where(variable => !generatedKeys.Contains(variable, StringComparer.OrdinalIgnoreCase))
+                .ToArray(),
+            GeneratedValuesBySection = generatedValues
+                .GroupBy(value => value.Section, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new
+                {
+                    Section = group.Key,
+                    Variables = group
+                        .OrderBy(value => value.Key, StringComparer.OrdinalIgnoreCase)
+                        .Select(value => new { value.Key, value.Value })
+                        .ToArray()
+                })
+                .ToArray(),
+            ChangedVariablesBySection = written
+                .GroupBy(change => change.Section, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new
+                {
+                    Section = group.Key,
+                    Variables = group.Select(change => new
+                    {
+                        change.Key,
+                        change.NewValue,
+                        change.ReasonCategory,
+                        change.ActivationState,
+                        change.Warning
+                    }).ToArray()
+                })
+                .ToArray(),
+            Notes = new[]
+            {
+                "This file summarizes generated-preset variable evidence only. It does not write or rewrite the preset.",
+                "A known variable missing from the generated preset can be normal when its shader section is not installed, not injected, disabled, or inactive under the current write mode.",
+                "Use shader-uniform-parity.json to compare generated-variable names against installed first-party shader uniforms."
+            }
+        };
+    }
+
     private static object BuildShaderFilePresence(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -928,7 +1436,7 @@ public sealed class DebugBundleExporter
 
     private static object[] BuildNormalFieldShaderConsumption(Configuration configuration)
     {
-        return FirstPartyShaderFiles
+        return FirstPartyShaderRegistry.AllShaderFiles.Concat(FirstPartyIncludeFiles)
             .Where(fileName => fileName.EndsWith(".fx", StringComparison.OrdinalIgnoreCase))
             .Select(fileName =>
             {
@@ -956,7 +1464,7 @@ public sealed class DebugBundleExporter
 
     private static object[] BuildFrameDataProductionShaderScan(Configuration configuration)
     {
-        return ProductionShaderFiles
+        return FirstPartyShaderRegistry.ProductionShaderFiles
             .Select(fileName =>
             {
                 var source = ReadShaderSource(configuration, fileName, out var sourceStatus);
@@ -989,7 +1497,7 @@ public sealed class DebugBundleExporter
 
     private static string[] GetFrameDataProductionConsumerFiles(Configuration configuration)
     {
-        return ProductionShaderFiles
+        return FirstPartyShaderRegistry.ProductionShaderFiles
             .Where(fileName => IsFrameDataProductionConsumer(configuration, fileName))
             .OrderBy(fileName => fileName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -1097,7 +1605,7 @@ public sealed class DebugBundleExporter
         var shaderPaths = FindReShadeShaderPaths(configuration).ToArray();
         builder.AppendLine($"Detected shader search paths: {(shaderPaths.Length == 0 ? "none" : string.Join("; ", shaderPaths))}");
         builder.AppendLine();
-        foreach (var fileName in FirstPartyShaderFiles)
+        foreach (var fileName in FirstPartyShaderRegistry.AllShaderFiles.Concat(FirstPartyIncludeFiles))
         {
             var found = shaderPaths
                 .Select(path => TryCombine(path, fileName))
@@ -1247,11 +1755,13 @@ public sealed class DebugBundleExporter
         return """
 Dalashade Debug Bundle
 
-This folder was generated by Export Debug Bundle. It contains current Dalashade diagnostics, preset copies, scene context, SceneIntent, MaterialIntent, shader stack summaries, and first-party shader install status.
+This folder was generated by Export Debug Bundle. It contains current Dalashade diagnostics, preset copies, scene context, SceneIntent, MaterialIntent, shader stack summaries, a top-level health summary, generated-variable summaries, shader-uniform parity checks, performance summaries, and first-party shader install status.
 
 The material and water entries are inferred heuristics, not true FFXIV engine material IDs. Debug shader modes should be used in ReShade to inspect pixel-level mask behavior.
 
-dalapad-diagnostics.json records the diagnostic-only Dalapad surface-data probe. It reports runtime metadata, optional status-file IPC availability, optional short-timeout control-pipe capability negotiation, an explicitly enabled developer-only resource shape probe, synthetic debug visualization status, scan/pinned candidate status, and debug-only addon-owned render-layer copy status when available. The shape probe may invoke RenderTargetManager.Instance, and the addon may upload generated pixels or copied diagnostic textures into Dalapad_Debug.fx, but this build does not send raw handles over IPC or move realtime shader values. First-party shader use remains optional, generated-preset gated, shader-local gated, and zero-confidence when unavailable.
+dalapad-diagnostics.json records the diagnostic-only Dalapad surface-data probe. It reports runtime metadata, optional status-file IPC availability, optional short-timeout control-pipe capability negotiation, an explicitly enabled developer-only resource shape probe, synthetic debug visualization status, scan/pinned candidate status, and debug-only addon-owned render-layer copy status when available. The CostReporting section separates production first-party shader assist from debug visualization copies, including copyFrameInterval, observed source count, copied source count, and copied pinned candidate count when reported. Copied debug layers can cost FPS independently of whether production shader gates are enabled. The shape probe may invoke RenderTargetManager.Instance, and the addon may upload generated pixels or copied diagnostic textures into Dalapad_Debug.fx, but this build does not send raw handles over IPC or move realtime shader values. First-party shader use remains optional, generated-preset gated, shader-local gated, and zero-confidence when unavailable.
+
+health-summary.json is the first file to open for broad triage. performance-summary.json records the active first-party tier, first-party feature gates, generated performance values, and Dalapad production/debug cost buckets. generated-variable-summary.json records known generated variables, observed generated preset values, and changed values from the last write. shader-uniform-parity.json compares known generated-variable names against installed first-party shader uniforms and reports warnings without changing generation behavior.
 
 Preset and plugin config files are included intentionally for debugging. Full ReShade/Dalamud logs are not included by default.
 """;

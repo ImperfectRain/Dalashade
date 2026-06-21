@@ -192,6 +192,11 @@ public sealed class PresetWriter
         "Dalashade_StandaloneStrength"
     ];
 
+    private static readonly IReadOnlyList<string> FirstPartyPerformanceShaderVariables =
+    [
+        "Dalashade_FirstPartyPerformanceTier"
+    ];
+
     private static readonly IReadOnlyList<string> DalapadSurfaceShaderVariables =
     [
         "Dalashade_DalapadEnabled",
@@ -311,6 +316,7 @@ public sealed class PresetWriter
                 "Dalashade_DepthAssistConfidenceFloor",
                 "Dalashade_DepthConfidenceFloor")
                 .Concat(FirstPartyShaderModeVariables)
+                .Concat(FirstPartyPerformanceShaderVariables)
                 .Concat(DalapadSurfaceShaderVariables)
                 .Concat(NormalFieldShaderVariables)
                 .ToArray()),
@@ -350,6 +356,7 @@ public sealed class PresetWriter
                 "Dalashade_DepthAssistConfidenceFloor",
                 "Dalashade_DepthConfidenceFloor")
                 .Concat(FirstPartyShaderModeVariables)
+                .Concat(FirstPartyPerformanceShaderVariables)
                 .Concat(DalapadSurfaceShaderVariables)
                 .Concat(NormalFieldShaderVariables)
                 .ToArray()),
@@ -386,6 +393,7 @@ public sealed class PresetWriter
                 "CombatDampenStrength",
                 "LumaOnlyStrength")
                 .Concat(FirstPartyShaderModeVariables)
+                .Concat(FirstPartyPerformanceShaderVariables)
                 .Concat(DalapadSurfaceShaderVariables)
                 .Concat(NormalFieldShaderVariables)
                 .Concat([
@@ -425,6 +433,9 @@ public sealed class PresetWriter
                 "Dalashade_DepthAssistConfidenceFloor",
                 "Dalashade_DepthConfidenceFloor")
                 .Concat(FirstPartyShaderModeVariables)
+                .Concat(FirstPartyPerformanceShaderVariables)
+                .Concat([
+                "Dalashade_BloomSampleQuality"])
                 .Concat(DalapadSurfaceShaderVariables)
                 .Concat(NormalFieldShaderVariables)
                 .ToArray()),
@@ -499,6 +510,10 @@ public sealed class PresetWriter
                 "Dalashade_IntentCombatPressure",
                 "Dalashade_IntentCinematicPermission")
                 .Concat(FirstPartyShaderModeVariables)
+                .Concat(FirstPartyPerformanceShaderVariables)
+                .Concat([
+                "Dalashade_GISampleCountScale",
+                "Dalashade_GISampleDistanceScale"])
                 .Concat(DalapadSurfaceShaderVariables)
                 .Concat(NormalFieldShaderVariables)
                 .Concat(DepthAssistShaderOwnedVariables)
@@ -527,6 +542,7 @@ public sealed class PresetWriter
                 "Dalashade_CombatPressure",
                 "Dalashade_CinematicPermission")
                 .Concat(FirstPartyShaderModeVariables)
+                .Concat(FirstPartyPerformanceShaderVariables)
                 .Concat(DalapadSurfaceShaderVariables)
                 .Concat(NormalFieldShaderVariables)
                 .Concat(DepthAssistShaderOwnedVariables)
@@ -575,6 +591,9 @@ public sealed class PresetWriter
                 "Dalashade_DayHighlightPressure",
                 "Dalashade_CinematicPermission")
                 .Concat(FirstPartyShaderModeVariables)
+                .Concat(FirstPartyPerformanceShaderVariables)
+                .Concat([
+                "Dalashade_ReflectionSampleQuality"])
                 .Concat(DalapadSurfaceShaderVariables)
                 .Concat(NormalFieldShaderVariables)
                 .Concat(DepthAssistShaderOwnedVariables)

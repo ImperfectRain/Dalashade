@@ -43,6 +43,18 @@ When NormalField mapping is enabled, AtmosphereBloom uses FrameData surface fiel
 
 `Dalashade_StandaloneStrength` is `0` in Supportive mode and `1` in Standalone mode. AtmosphereBloom uses it to slightly increase qualified source glow and clamp headroom after source safety, combat/readability dampening, and material highlight protection have already agreed. It does not lower bloom thresholds globally and does not make NormalField, water, sky, skin, or broad highlights into new glow sources.
 
+## First-party performance tiers
+
+`Dalashade_FirstPartyPerformanceTier` records the selected tier and `Dalashade_BloomSampleQuality` controls optional blur-ring work.
+
+| Tier | AtmosphereBloom behavior |
+| --- | --- |
+| Quality | Preserves the current full bloom gather: center, near ring, and far ring samples. |
+| Balanced | Keeps center and near ring samples, skipping the far ring. Bloom eligibility, safety gates, and strengths are unchanged. |
+| Performance | Uses the same cheap center-plus-near path as Balanced and relies on existing source qualification instead of adding extra gather reach. |
+
+Lower tiers do not boost bloom strength, threshold, or tint to compensate for fewer samples.
+
 ## Debug modes
 
 | Mode | Label | Meaning |

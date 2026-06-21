@@ -7,6 +7,18 @@ Dalashade has two material layers:
 
 These layers solve different problems and should not be collapsed.
 
+## Truth Boundary Summary
+
+Use these terms carefully:
+
+- Scene tags describe context such as biome, weather, time, mood, and gameplay state. They are not material IDs.
+- `MaterialProfile` is broad plausibility. It answers whether a scene could contain a family such as foliage, water, snow, stone, metal, or aether.
+- `ScreenshotMaterialEvidence` is inferred visible evidence from screenshots. It can be wrong when UI, cropping, lighting, or camera angle dominates the screenshot.
+- `MaterialIntent` is a scene-level shader prior. It makes matching shader masks more or less eligible; it is not per-pixel material truth.
+- `Dalashade_MaterialMasks.fxh` still decides per-pixel shader behavior from local color, depth, water, safety, and conflict checks.
+
+None of these layers are engine material IDs, and none of them should be described as guaranteed albedo, roughness, metallic, or material-class data.
+
 ## Plugin-side MaterialProfile
 
 Files:

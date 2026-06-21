@@ -16,6 +16,8 @@ Subject to field-name changes until first-party migration proves stable
 
 FrameData does not add a prepass, render target, motion vector path, temporal accumulation, or native XIV buffer access. It currently runs inline in the consuming shader and packages canonical resolver outputs into clearer role-based structs.
 
+For the short shader-author contract, see [../ShaderContractQuickReference.md](../ShaderContractQuickReference.md). FrameData is the first-party shader-facing surface; production shaders should not bypass it to sample raw Dalapad candidates or duplicate shared MaterialMasks/NormalField classifiers.
+
 ## Purpose
 
 FrameData gives first-party shaders one canonical vocabulary for scene tags, material, water, safety, receiver, and optional surface/normal data. `Dalashade_WeatherAtmosphere.fx`, `Dalashade_AdaptiveGrade.fx`, `Dalashade_SmartSharpen.fx`, `Dalashade_AtmosphereBloom.fx`, `Dalashade_SceneGI.fx`, `Dalashade_ContactTone.fx`, and `Dalashade_SurfaceReflection.fx` are the current production consumers. The migrations are intended to keep output visually stable while replacing shader-local material/water/safety resolver consumption with FrameData field names.
@@ -31,6 +33,10 @@ FrameData is split into two paths:
 - `Dalashade_ResolveFrameSceneData(...)`: shared scene/tag normalization and derived scene lanes.
 
 Shaders that only need material or safety data should call the base path. The surface path calls NormalField and may sample Dalapad pinned resources, so it should only be used when the effect actually needs surface information.
+
+When first-party performance tiers lower NormalField strength, detail, material influence, or shader-specific sample budgets, FrameData remains the gatekeeper for surface data. Quality keeps existing surface values. Balanced reduces optional inferred surface influence. Performance reduces inferred NormalField influence further so shaders can prefer authorized Dalapad pinned normals/albedo-like evidence when those gates are open. If NormalField and Dalapad surface data are both disabled, the surface path returns default/zero influence rather than fake blank data.
+
+Dalapad status-file and control-pipe IPC do not feed FrameData directly. Only shader-visible semantic resources behind generated-preset and shader-local gates may contribute, and missing/stale/disabled Dalapad data returns zero Dalapad confidence.
 
 ## Settings
 
@@ -165,7 +171,7 @@ Neither path is a public FFXIV G-buffer contract, material ID path, motion-vecto
 | `DalapadNormal` | Surface/confidence | Gated Dalapad pinned normal-like direction, or neutral fallback when unavailable. |
 | `NormalConfidence` | Confidence | Stability confidence for the inferred normal. |
 | `NormalFieldConfidence` | Confidence | NormalField-only confidence before any Dalapad merge. |
-| `DalapadConfidence` | Confidence | Dalapad pinned normal confidence after global, feature, availability, dimension, and evidence gates. |
+| `DalapadConfidence` | Confidence | Dalapad pinned normal confidence after global, feature, availability, strength, and evidence gates. Dimensions are diagnostic metadata. |
 | `DalapadInfluence` | Confidence | Final Dalapad influence applied to the merged surface fields. Zero means no authorized Dalapad data reached the shader. |
 | `DalapadPresence` | Confidence | Presence/validity support from the pinned resource sample. |
 | `DalapadChroma` | Confidence | Chroma/variation support from the pinned resource sample. |
@@ -203,7 +209,7 @@ Neither path is a public FFXIV G-buffer contract, material ID path, motion-vecto
 - `LightSourceConfidence` is source support, not receiver support.
 - `NormalConfidence` is stability evidence, not material identity.
 - `SurfaceDataInfluence` is the safe shader-facing surface-data amount. First-party shaders should prefer it over direct Dalapad or NormalField gate duplication.
-- `DalapadConfidence` and `DalapadInfluence` must remain zero when global Dalapad shader additions are disabled, Dalapad surface data is disabled, the pinned resource is unavailable, dimensions are invalid, or evidence confidence fails.
+- `DalapadConfidence` and `DalapadInfluence` must remain zero when global Dalapad shader additions are disabled, Dalapad surface data is disabled, the pinned resource is unavailable, strength is zero, or evidence confidence fails. Pinned dimensions should be reported for health checks, but stale dimensions must not by themselves shut off an available semantic texture.
 - Dalapad pinned normals can strongly influence surface-aware effects after gates pass, but they must not override sky, skin, water, UI/depth, highlight, or material safety rejects.
 - `TextureReliefStrength` is local surface relief evidence, not a recovered game normal map or material truth.
 - `TextureGrooveLine` is seam/groove evidence only. It can support contact, AO, or clarity decisions, but it must not become material identity by itself.

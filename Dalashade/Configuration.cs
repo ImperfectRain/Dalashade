@@ -74,6 +74,13 @@ public enum FirstPartyShaderMode
     Standalone
 }
 
+public enum FirstPartyPerformanceTier
+{
+    Quality,
+    Balanced,
+    Performance
+}
+
 public enum InterfaceMode
 {
     User,
@@ -117,6 +124,7 @@ public class Configuration : IPluginConfiguration
     public bool UsePremiumImmerseEffects { get; set; } = false;
     public bool EnableDalashadeCustomShaders { get; set; } = false;
     public FirstPartyShaderMode FirstPartyShaderMode { get; set; } = FirstPartyShaderMode.Supportive;
+    public FirstPartyPerformanceTier FirstPartyPerformanceTier { get; set; } = FirstPartyPerformanceTier.Quality;
     public bool AutoInjectDalashadeCustomShaderSections { get; set; } = false;
     public bool SyncDalashadeTechniqueActivation { get; set; } = false;
     public bool EnableDalapadResourceShapeProbe { get; set; } = false;

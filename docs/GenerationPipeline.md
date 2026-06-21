@@ -61,7 +61,7 @@ Generated preset uniforms
 
 `Dalashade_MaterialMasks.fxh` owns raw pixel evidence, scene-gated candidates, material competition, final material masks, water resolve, material resolve, and safety resolve. `Dalashade_NormalField.fxh` optionally consumes those resolves to produce inferred screen-space normal/structure/receiver diagnostics.
 
-`Dalashade_Dalapad.fxh` is the optional first-party bridge for addon-provided debug/pinned data. It owns the ReShade semantic texture declarations, availability gates, normal-like decode helpers, scalar evidence helpers, and zero-confidence fallback behavior. `Dalashade_FrameData.fxh` is the production-facing consumer and merges Dalapad pinned normal evidence into `FrameSurfaceData` only when the global Dalapad shader additions setting, shared surface-data setting, pinned availability, dimensions, confidence, and strength are all active.
+`Dalashade_Dalapad.fxh` is the optional first-party bridge for addon-provided debug/pinned data. It owns the ReShade semantic texture declarations, availability gates, normal-like decode helpers, scalar evidence helpers, and zero-confidence fallback behavior. `Dalashade_FrameData.fxh` is the production-facing consumer and merges Dalapad pinned normal evidence into `FrameSurfaceData` only when the global Dalapad shader additions setting, shared surface-data setting, pinned availability, confidence, and strength are all active. Pinned dimensions are diagnostic metadata; stale dimension uniforms should be reported, but should not make an available semantic texture behave as disabled.
 
 See:
 

@@ -283,7 +283,7 @@ public sealed class MainWindow : Window, IDisposable
     private string UserHomeSummary()
     {
         var configuration = plugin.Configuration;
-        return $"{configuration.Style}, {configuration.PerformanceBudget}, {configuration.FirstPartyShaderMode}";
+        return $"{configuration.Style}, {configuration.PerformanceBudget}, {configuration.FirstPartyShaderMode}, {configuration.FirstPartyPerformanceTier}";
     }
 
     private void DrawUserHome()
@@ -298,7 +298,7 @@ public sealed class MainWindow : Window, IDisposable
 
         ImGui.TextUnformatted($"{context.TerritoryName} - {context.WeatherName} - {context.TimeBucket}");
         ImGui.TextWrapped($"Active tags: {(plugin.CurrentTags.MoodTags.Count == 0 ? "none" : string.Join(", ", plugin.CurrentTags.MoodTags))}");
-        ImGui.TextUnformatted($"Current look: {configuration.Style} / {configuration.PerformanceBudget} / {configuration.FirstPartyShaderMode}");
+        ImGui.TextUnformatted($"Current look: {configuration.Style} / {configuration.PerformanceBudget} / {configuration.FirstPartyShaderMode} / {configuration.FirstPartyPerformanceTier}");
         ImGui.Separator();
         DrawSetupItem("Ready to generate", readyToGenerate);
         DrawSetupItem("Generated preset updated", plugin.LastWriteResult.Success);
@@ -339,7 +339,7 @@ public sealed class MainWindow : Window, IDisposable
     {
         var configuration = plugin.Configuration;
         var master = configuration.MatchMasterPresetStyle ? $", master {configuration.MasterPresetStyleStrength}%" : string.Empty;
-        return $"{configuration.Style}, {configuration.PerformanceBudget}, {configuration.FirstPartyShaderMode}{master}";
+        return $"{configuration.Style}, {configuration.PerformanceBudget}, {configuration.FirstPartyShaderMode}, {configuration.FirstPartyPerformanceTier}{master}";
     }
 
     private void DrawUserLook()
@@ -370,6 +370,15 @@ public sealed class MainWindow : Window, IDisposable
             configuration.FirstPartyShaderMode = (FirstPartyShaderMode)firstPartyMode;
             configuration.Save();
         }
+
+        var firstPartyPerformanceTier = (int)configuration.FirstPartyPerformanceTier;
+        if (ImGui.Combo("Dalashade shader quality", ref firstPartyPerformanceTier, "Quality\0Balanced\0Performance\0"))
+        {
+            configuration.FirstPartyPerformanceTier = (FirstPartyPerformanceTier)firstPartyPerformanceTier;
+            configuration.Save();
+        }
+
+        ImGui.TextWrapped(GetFirstPartyPerformanceTierHelp(configuration.FirstPartyPerformanceTier));
 
         DrawCheckbox("Match master preset style", configuration.MatchMasterPresetStyle, value => configuration.MatchMasterPresetStyle = value);
         if (configuration.MatchMasterPresetStyle)
@@ -455,6 +464,16 @@ public sealed class MainWindow : Window, IDisposable
         return $"{enabled} optional effect systems enabled{hints}";
     }
 
+    private static string GetFirstPartyPerformanceTierHelp(FirstPartyPerformanceTier tier)
+    {
+        return tier switch
+        {
+            FirstPartyPerformanceTier.Balanced => "Balanced keeps the look close to Quality while trimming expensive optional helpers like inferred normals, reflection extras, bloom diffusion, and SceneGI sampling.",
+            FirstPartyPerformanceTier.Performance => "Performance favors cheaper paths, uses Dalapad-provided data when available, and lowers inferred screen-space work without boosting visual intensity to compensate.",
+            _ => "Quality preserves current first-party shader behavior and keeps the full helper sampling path."
+        };
+    }
+
     private void DrawUserEffects()
     {
         var configuration = plugin.Configuration;
@@ -482,8 +501,8 @@ public sealed class MainWindow : Window, IDisposable
                 configuration.EnableMaterialIntentDiagnostics = true;
             }
         });
-        DrawCheckbox("Enable Normal Field", configuration.EnableNormalField, value => configuration.EnableNormalField = value);
-        DrawCheckbox("Enable Normal Field Shader Mapping", configuration.EnableNormalFieldShaderMapping, value => configuration.EnableNormalFieldShaderMapping = value);
+        DrawCheckbox("Enable inferred Normal Field", configuration.EnableNormalField, value => configuration.EnableNormalField = value);
+        DrawCheckbox("Allow inferred Normal Field in first-party shaders", configuration.EnableNormalFieldShaderMapping, value => configuration.EnableNormalFieldShaderMapping = value);
         if (ImGui.Button("Turn Off Optional First-Party Systems###MainUserDisableOptionalFirstParty"))
         {
             DisableOptionalFirstPartySystems();
@@ -541,11 +560,11 @@ public sealed class MainWindow : Window, IDisposable
         var configuration = plugin.Configuration;
         FeatureStatusCardRenderer.Draw(BuildFeatureStatusCard(
             "Indirect Lighting",
-            "SceneGI adds material-aware contact grounding, bounce, and local-light pooling.",
+            GetFirstPartyShaderRole("Dalashade_SceneGI", "SceneGI adds material-aware contact grounding, bounce, and local-light pooling."),
             "Dalashade_SceneGI",
             frameData: true));
 
-        DrawCheckbox("Enable indirect lighting variable writes###UserSceneGIEnabled", configuration.EnableDalashadeSceneGIShaderVariables, value => configuration.EnableDalashadeSceneGIShaderVariables = value);
+        DrawCheckbox("Enable SceneGI first-party controls###UserSceneGIEnabled", configuration.EnableDalashadeSceneGIShaderVariables, value => configuration.EnableDalashadeSceneGIShaderVariables = value);
         DrawFloatSlider("Indirect lighting strength###UserSceneGIStrength", configuration.DalashadeSceneGIStrength, 0f, 1f, value => configuration.DalashadeSceneGIStrength = value);
         DrawFloatSlider("Contact grounding###UserSceneGIAO", configuration.DalashadeSceneGIAOIntensity, 0f, 1f, value => configuration.DalashadeSceneGIAOIntensity = value);
         DrawFloatSlider("Color bounce###UserSceneGIBounce", configuration.DalashadeSceneGIBounceStrength, 0f, 1f, value => configuration.DalashadeSceneGIBounceStrength = value);
@@ -557,11 +576,11 @@ public sealed class MainWindow : Window, IDisposable
         var configuration = plugin.Configuration;
         FeatureStatusCardRenderer.Draw(BuildFeatureStatusCard(
             "Contact Tone",
-            "ContactTone strengthens grounded edges and local material readability without changing GI or bloom.",
+            GetFirstPartyShaderRole("Dalashade_ContactTone", "ContactTone strengthens grounded edges and local material readability without changing GI or bloom."),
             "Dalashade_ContactTone",
             frameData: true));
 
-        DrawCheckbox("Enable contact tone variable writes###UserContactToneEnabled", configuration.EnableDalashadeContactToneShaderVariables, value => configuration.EnableDalashadeContactToneShaderVariables = value);
+        DrawCheckbox("Enable ContactTone first-party controls###UserContactToneEnabled", configuration.EnableDalashadeContactToneShaderVariables, value => configuration.EnableDalashadeContactToneShaderVariables = value);
         DrawFloatSlider("Contact tone strength###UserContactToneStrength", configuration.DalashadeContactToneStrength, 0f, 1f, value => configuration.DalashadeContactToneStrength = value);
         DrawFloatSlider("Contact edge strength###UserContactToneEdges", configuration.DalashadeContactToneEdgeStrength, 0f, 1f, value => configuration.DalashadeContactToneEdgeStrength = value);
         DrawFloatSlider("Surface separation###UserContactToneStructure", configuration.DalashadeContactToneStructureStrength, 0f, 1f, value => configuration.DalashadeContactToneStructureStrength = value);
@@ -572,11 +591,11 @@ public sealed class MainWindow : Window, IDisposable
         var configuration = plugin.Configuration;
         FeatureStatusCardRenderer.Draw(BuildFeatureStatusCard(
             "Reflections",
-            "SurfaceReflection controls water sheen, wetness, and material glints.",
+            GetFirstPartyShaderRole("Dalashade_SurfaceReflection", "SurfaceReflection controls water sheen, wetness, and material glints."),
             "Dalashade_SurfaceReflection",
             frameData: true));
 
-        DrawCheckbox("Enable reflection variable writes###UserReflectionEnabled", configuration.EnableDalashadeSurfaceReflectionShaderVariables, value => configuration.EnableDalashadeSurfaceReflectionShaderVariables = value);
+        DrawCheckbox("Enable SurfaceReflection first-party controls###UserReflectionEnabled", configuration.EnableDalashadeSurfaceReflectionShaderVariables, value => configuration.EnableDalashadeSurfaceReflectionShaderVariables = value);
         DrawFloatSlider("Reflection strength###UserReflectionStrength", configuration.DalashadeSurfaceReflectionStrength, 0f, 1f, value => configuration.DalashadeSurfaceReflectionStrength = value);
         DrawFloatSlider("Water sheen###UserReflectionWater", configuration.DalashadeSurfaceReflectionWaterSheenStrength, 0f, 1f, value => configuration.DalashadeSurfaceReflectionWaterSheenStrength = value);
         DrawFloatSlider("Wet surface response###UserReflectionWet", configuration.DalashadeSurfaceReflectionWetStrength, 0f, 1f, value => configuration.DalashadeSurfaceReflectionWetStrength = value);
@@ -586,7 +605,7 @@ public sealed class MainWindow : Window, IDisposable
     {
         FeatureStatusCardRenderer.Draw(BuildFeatureStatusCard(
             "Bloom and Glow",
-            "AtmosphereBloom handles restrained bloom, glow, and source-class response.",
+            GetFirstPartyShaderRole("Dalashade_AtmosphereBloom", "AtmosphereBloom handles restrained bloom, glow, and source-class response."),
             "Dalashade_AtmosphereBloom",
             frameData: true));
 
@@ -597,7 +616,7 @@ public sealed class MainWindow : Window, IDisposable
     {
         FeatureStatusCardRenderer.Draw(BuildFeatureStatusCard(
             "Sharpening",
-            "SmartSharpen preserves clarity while respecting sky, skin, water, foliage, and highlight safety.",
+            GetFirstPartyShaderRole("Dalashade_SmartSharpen", "SmartSharpen preserves clarity while respecting sky, skin, water, foliage, and highlight safety."),
             "Dalashade_SmartSharpen",
             frameData: true));
 
@@ -614,7 +633,8 @@ public sealed class MainWindow : Window, IDisposable
     {
         var diagnostics = CustomShaderBridgeDiagnosticsBuilder.Build(plugin.Configuration, plugin.LastShaderSupportScan, plugin.LastWriteResult, plugin.LastPresetAnalysis);
         var technique = FindTechnique(family);
-        var shaderFile = ShaderFileLocator.Find(plugin.Configuration, $"{family}.fx");
+        var metadata = FirstPartyShaderRegistry.FindByTechnique(family);
+        var shaderFile = ShaderFileLocator.Find(plugin.Configuration, metadata?.FileName ?? $"{family}.fx");
         var generatedSectionPresent = GeneratedSectionMatches(family);
         var generatedVariablesPresent = GeneratedVariablesMatch(family);
         var generatedTechniquePresent = GeneratedTechniqueMatches(family);
@@ -642,6 +662,11 @@ public sealed class MainWindow : Window, IDisposable
             VariablesWritten: variablesWritten,
             UsesFrameData: frameData,
             DepthAssistEnabled: plugin.Configuration.EnableFirstPartyDepthAssist);
+    }
+
+    private static string GetFirstPartyShaderRole(string techniqueName, string fallback)
+    {
+        return FirstPartyShaderRegistry.FindByTechnique(techniqueName)?.Role ?? fallback;
     }
 
     private bool GeneratedSectionMatches(string family)
@@ -699,6 +724,7 @@ public sealed class MainWindow : Window, IDisposable
         configuration.EnableNormalField = false;
         configuration.EnableNormalFieldShaderMapping = false;
         configuration.EnableFirstPartyDepthAssist = false;
+        configuration.FirstPartyPerformanceTier = FirstPartyPerformanceTier.Quality;
         configuration.Save();
     }
 

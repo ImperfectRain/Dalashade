@@ -48,6 +48,13 @@ uniform float Dalashade_StandaloneStrength <
     ui_tooltip = "0 keeps ContactTone supportive. 1 makes grounding stronger while retaining sky, skin, water, snow, and highlight safety.";
 > = 0.0;
 
+uniform int Dalashade_FirstPartyPerformanceTier <
+    ui_type = "combo";
+    ui_items = "Quality\0Balanced\0Performance\0";
+    ui_label = "First-Party Performance Tier";
+    ui_tooltip = "Quality preserves current behavior. Balanced and Performance modestly reduce generated ContactTone radius and shared inferred normal influence.";
+> = 0;
+
 uniform int Dalashade_ContactToneDebugMode <
     ui_type = "combo";
     ui_items = "Off\0Contact mask\0Depth edge component\0Surface/normal edge component\0Receiver/safety mask\0Suppression mask\0Final contribution\0";

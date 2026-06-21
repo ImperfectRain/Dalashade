@@ -1,6 +1,13 @@
 #include "ReShade.fxh"
 #include "Dalashade_FrameData.fxh"
 
+uniform int Dalashade_FirstPartyPerformanceTier <
+    ui_type = "combo";
+    ui_items = "Quality\0Balanced\0Performance\0";
+    ui_label = "First-Party Performance Tier";
+    ui_tooltip = "Quality preserves current behavior. Balanced and Performance lower shared inferred surface-helper influence through generated Dalashade values.";
+> = 0;
+
 uniform float Dalashade_Readability <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;

@@ -67,6 +67,10 @@ Standalone weather identity lanes:
 
 WeatherAtmosphere still does not change weather detection, turn all sky/fog into haze, or apply dampness uniformly.
 
+## First-party performance tiers
+
+`Dalashade_FirstPartyPerformanceTier` records the selected tier for diagnostics. Quality preserves current WeatherAtmosphere behavior. Balanced and Performance do not change weather-air intensity, standalone lanes, or weather detection directly; they only reduce shared optional NormalField surface influence used for mild ground/structure anchoring when NormalField mapping is enabled. If NormalField and Dalapad surface data are both disabled, lower tiers do not change WeatherAtmosphere output.
+
 ## Debug modes
 
 `Dalashade_MaterialDebugMode` is used when `Dalashade_ShowDebugMask` is enabled:

@@ -81,6 +81,18 @@ Never use source-only color fields as receiver masks. Horizon water may color wa
 
 `Dalashade_StandaloneStrength` is `0` in Supportive mode and `1` in Standalone mode. SurfaceReflection uses it to make existing valid water, wet hard-surface, metal/glass/aether, and pseudo-SSR contributions modestly more visible while preserving source/receiver separation. It never lets `WaterSource`, `SkySource`, `HorizonOnlyConfidence`, sky/fog, skin, foliage noise, or NormalField alone grant receiver permission.
 
+## First-party performance tiers
+
+`Dalashade_FirstPartyPerformanceTier` records the selected tier. `Dalashade_ReflectionSampleQuality` controls optional projection and pseudo-SSR helper samples, while generated reflection offset/softness values are scaled by the tier.
+
+| Tier | SurfaceReflection behavior |
+| --- | --- |
+| Quality | Preserves all current projection helpers: near/mid/far water projection, planar water trace, wet/hard wide and tight projections, water mirror projection, and pseudo-SSR support samples. |
+| Balanced | Keeps near/mid projection and the main pseudo-SSR path, but skips far/planar extras that are most likely to cost more than they visibly return. Receiver/source separation is unchanged. |
+| Performance | Favors near/local projection paths and the cheapest water pseudo sample. Wide/far wet/hard, mirror-column, and extra pseudo-SSR helper paths are skipped unless the tier is raised. |
+
+Lower tiers do not raise reflection strength, water sheen, or glint intensity to hide the cheaper path. They only reduce optional helper sampling and generated reach/softness.
+
 ## Debug modes
 
 | Mode | Label | Meaning |

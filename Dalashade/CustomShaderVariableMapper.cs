@@ -16,6 +16,24 @@ public sealed class CustomShaderVariableMapper
     public const string DalapadReasonCategory = "Dalapad shader integration";
     public const string FirstPartyModeReasonCategory = "Dalashade first-party shader mode";
     public const string FirstPartyDepthAssistReasonCategory = "Dalashade first-party depth assist";
+    public const string FirstPartyPerformanceReasonCategory = "Dalashade first-party performance tier";
+    public const string AtmosphereBloomReasonCategory = "Dalashade custom shader AtmosphereBloom tuning";
+
+    private sealed record FirstPartyPerformanceProfile(
+        float Tier,
+        float NormalFieldStrengthScale,
+        float NormalDepthStrengthScale,
+        float NormalDetailStrengthScale,
+        float NormalMaterialInfluenceScale,
+        float SceneGIRadiusScale,
+        float SceneGIAORadiusScale,
+        float SceneGISampleCountScale,
+        float SceneGISampleDistanceScale,
+        float ContactToneRadiusScale,
+        float ReflectionSampleQuality,
+        float ReflectionSampleOffsetScale,
+        float ReflectionSoftnessScale,
+        float BloomSampleQuality);
 
     private static readonly IReadOnlyDictionary<string, Func<SceneIntent, float>> Variables =
         new Dictionary<string, Func<SceneIntent, float>>(StringComparer.OrdinalIgnoreCase)
@@ -81,19 +99,27 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_DepthConfidenceFloor"] = _ => 0f
         };
 
+    private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> FirstPartyPerformanceVariables =
+        new Dictionary<string, Func<Configuration, float>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Dalashade_FirstPartyPerformanceTier"] = configuration => GetFirstPartyPerformanceProfile(configuration).Tier
+        };
+
     private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> SceneGIVariables =
         new Dictionary<string, Func<Configuration, float>>(StringComparer.OrdinalIgnoreCase)
         {
             ["Dalashade_GIEnabled"] = configuration => configuration.EnableDalashadeSceneGIShaderVariables ? 1f : 0f,
             ["Dalashade_GIStrength"] = configuration => configuration.DalashadeSceneGIStrength,
-            ["Dalashade_GIRadius"] = _ => 0.65f,
+            ["Dalashade_GIRadius"] = configuration => 0.65f * GetFirstPartyPerformanceProfile(configuration).SceneGIRadiusScale,
             ["Dalashade_GIBounceStrength"] = configuration => configuration.DalashadeSceneGIBounceStrength,
             ["Dalashade_GIAOIntensity"] = configuration => configuration.DalashadeSceneGIAOIntensity,
-            ["Dalashade_GIAORadius"] = _ => 0.45f,
+            ["Dalashade_GIAORadius"] = configuration => 0.45f * GetFirstPartyPerformanceProfile(configuration).SceneGIAORadiusScale,
             ["Dalashade_GINightLightStrength"] = configuration => configuration.DalashadeSceneGINightLightStrength,
             ["Dalashade_GIMaterialInfluence"] = configuration => configuration.DalashadeSceneGIMaterialInfluence,
             ["Dalashade_GISkyReject"] = _ => 1.0f,
             ["Dalashade_GISkinProtect"] = _ => 1.0f,
+            ["Dalashade_GISampleCountScale"] = configuration => GetFirstPartyPerformanceProfile(configuration).SceneGISampleCountScale,
+            ["Dalashade_GISampleDistanceScale"] = configuration => GetFirstPartyPerformanceProfile(configuration).SceneGISampleDistanceScale,
             ["Dalashade_GIDebugMode"] = configuration => configuration.DalashadeSceneGIDebugMode,
             ["Dalashade_GIDebugOutputMode"] = configuration => configuration.DalashadeSceneGIDebugOutputMode,
             ["Dalashade_GIDebugOpacity"] = configuration => configuration.DalashadeSceneGIDebugOpacity,
@@ -126,8 +152,9 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_IceSheenStrength"] = _ => 0.24f,
             ["Dalashade_SurfaceReflectionSkyReject"] = _ => 1.0f,
             ["Dalashade_SurfaceReflectionSkinProtect"] = _ => 1.0f,
-            ["Dalashade_ReflectionSampleOffset"] = _ => 0.018f,
-            ["Dalashade_ReflectionSoftness"] = _ => 0.50f,
+            ["Dalashade_ReflectionSampleOffset"] = configuration => 0.018f * GetFirstPartyPerformanceProfile(configuration).ReflectionSampleOffsetScale,
+            ["Dalashade_ReflectionSoftness"] = configuration => 0.50f * GetFirstPartyPerformanceProfile(configuration).ReflectionSoftnessScale,
+            ["Dalashade_ReflectionSampleQuality"] = configuration => GetFirstPartyPerformanceProfile(configuration).ReflectionSampleQuality,
             ["Dalashade_ReflectionDepthReject"] = _ => 0.65f,
             ["Dalashade_SurfaceReflectionDebugMode"] = configuration => configuration.DalashadeSurfaceReflectionDebugMode,
             ["Dalashade_SurfaceReflectionDebugOutputMode"] = _ => 0f,
@@ -140,12 +167,18 @@ public sealed class CustomShaderVariableMapper
         {
             ["Dalashade_ContactToneEnabled"] = configuration => configuration.EnableDalashadeContactToneShaderVariables ? 1f : 0f,
             ["Dalashade_ContactToneStrength"] = configuration => configuration.DalashadeContactToneStrength,
-            ["Dalashade_ContactToneRadius"] = configuration => configuration.DalashadeContactToneRadius,
+            ["Dalashade_ContactToneRadius"] = configuration => configuration.DalashadeContactToneRadius * GetFirstPartyPerformanceProfile(configuration).ContactToneRadiusScale,
             ["Dalashade_ContactToneEdgeStrength"] = configuration => configuration.DalashadeContactToneEdgeStrength,
             ["Dalashade_ContactToneStructureStrength"] = configuration => configuration.DalashadeContactToneStructureStrength,
             ["Dalashade_ContactToneContrastStrength"] = configuration => configuration.DalashadeContactToneContrastStrength,
             ["Dalashade_ContactToneDebugMode"] = configuration => configuration.DalashadeContactToneDebugMode,
             ["Dalashade_ContactToneDebugOpacity"] = configuration => configuration.DalashadeContactToneDebugOpacity
+        };
+
+    private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> AtmosphereBloomVariables =
+        new Dictionary<string, Func<Configuration, float>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Dalashade_BloomSampleQuality"] = configuration => GetFirstPartyPerformanceProfile(configuration).BloomSampleQuality
         };
 
     private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> NormalFieldVariables =
@@ -155,16 +188,16 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_NormalDebugMode"] = configuration => configuration.NormalFieldDebugMode,
             ["Dalashade_NormalDebugBoost"] = configuration => configuration.NormalFieldDebugBoost,
             ["Dalashade_NormalFieldEnabled"] = configuration => configuration.EnableNormalField && configuration.EnableNormalFieldShaderMapping ? 1f : 0f,
-            ["Dalashade_NormalFieldStrength"] = configuration => configuration.NormalFieldStrength,
-            ["Dalashade_NormalDepthStrength"] = configuration => configuration.NormalFieldDepthStrength,
-            ["Dalashade_NormalDetailStrength"] = configuration => configuration.NormalFieldDetailStrength,
-            ["Dalashade_NormalMaterialInfluence"] = configuration => configuration.NormalFieldMaterialInfluence,
+            ["Dalashade_NormalFieldStrength"] = configuration => configuration.NormalFieldStrength * GetFirstPartyPerformanceProfile(configuration).NormalFieldStrengthScale,
+            ["Dalashade_NormalDepthStrength"] = configuration => configuration.NormalFieldDepthStrength * GetFirstPartyPerformanceProfile(configuration).NormalDepthStrengthScale,
+            ["Dalashade_NormalDetailStrength"] = configuration => configuration.NormalFieldDetailStrength * GetFirstPartyPerformanceProfile(configuration).NormalDetailStrengthScale,
+            ["Dalashade_NormalMaterialInfluence"] = configuration => configuration.NormalFieldMaterialInfluence * GetFirstPartyPerformanceProfile(configuration).NormalMaterialInfluenceScale,
             ["Dalashade_NormalWaterSuppression"] = configuration => configuration.NormalFieldWaterSuppression,
             ["Dalashade_NormalSkinSuppression"] = configuration => configuration.NormalFieldSkinSuppression,
             ["Dalashade_NormalSkySuppression"] = configuration => configuration.NormalFieldSkySuppression,
-            ["Dalashade_NormalFieldDepthStrength"] = configuration => configuration.NormalFieldDepthStrength,
-            ["Dalashade_NormalFieldDetailStrength"] = configuration => configuration.NormalFieldDetailStrength,
-            ["Dalashade_NormalFieldMaterialInfluence"] = configuration => configuration.NormalFieldMaterialInfluence,
+            ["Dalashade_NormalFieldDepthStrength"] = configuration => configuration.NormalFieldDepthStrength * GetFirstPartyPerformanceProfile(configuration).NormalDepthStrengthScale,
+            ["Dalashade_NormalFieldDetailStrength"] = configuration => configuration.NormalFieldDetailStrength * GetFirstPartyPerformanceProfile(configuration).NormalDetailStrengthScale,
+            ["Dalashade_NormalFieldMaterialInfluence"] = configuration => configuration.NormalFieldMaterialInfluence * GetFirstPartyPerformanceProfile(configuration).NormalMaterialInfluenceScale,
             ["Dalashade_NormalFieldWaterSuppression"] = configuration => configuration.NormalFieldWaterSuppression,
             ["Dalashade_NormalFieldSkinSuppression"] = configuration => configuration.NormalFieldSkinSuppression,
             ["Dalashade_NormalFieldSkySuppression"] = configuration => configuration.NormalFieldSkySuppression,
@@ -370,10 +403,12 @@ public sealed class CustomShaderVariableMapper
     public static IReadOnlyCollection<string> KnownVariableNames => Variables.Keys
         .Concat(FirstPartyModeVariables.Keys)
         .Concat(FirstPartyDepthAssistVariables.Keys)
+        .Concat(FirstPartyPerformanceVariables.Keys)
         .Concat(SceneGIVariables.Keys)
         .Concat(DalapadSurfaceVariables.Keys)
         .Concat(ContactToneVariables.Keys)
         .Concat(SurfaceReflectionVariables.Keys)
+        .Concat(AtmosphereBloomVariables.Keys)
         .Concat(NormalFieldVariables.Keys)
         .Concat(MaterialVariables.Keys)
         .Concat(ShaderOwnedVariables)
@@ -405,6 +440,17 @@ public sealed class CustomShaderVariableMapper
             adjustment = new ShaderAdjustment(
                 _ => new ShaderAdjustmentResult(Format(Clamp01(firstPartyModeAccessor(configuration))), false, false),
                 FirstPartyModeReasonCategory,
+                EffectRole.UiUtility,
+                1f);
+            return true;
+        }
+
+        if (IsFirstPartyProductionSection(section)
+            && FirstPartyPerformanceVariables.TryGetValue(key, out var firstPartyPerformanceAccessor))
+        {
+            adjustment = new ShaderAdjustment(
+                _ => FormatFirstPartyPerformanceValue(key, firstPartyPerformanceAccessor(configuration)),
+                FirstPartyPerformanceReasonCategory,
                 EffectRole.UiUtility,
                 1f);
             return true;
@@ -465,6 +511,17 @@ public sealed class CustomShaderVariableMapper
             return true;
         }
 
+        if (IsAtmosphereBloomSection(section)
+            && AtmosphereBloomVariables.TryGetValue(key, out var atmosphereBloomAccessor))
+        {
+            adjustment = new ShaderAdjustment(
+                _ => FormatAtmosphereBloomValue(key, atmosphereBloomAccessor(configuration)),
+                AtmosphereBloomReasonCategory,
+                EffectRole.Diffusion,
+                1f);
+            return true;
+        }
+
         if (IsSupportedNormalFieldSectionVariable(section, key)
             && NormalFieldVariables.TryGetValue(key, out var normalFieldAccessor))
         {
@@ -517,10 +574,12 @@ public sealed class CustomShaderVariableMapper
                && (Variables.ContainsKey(key)
                    || FirstPartyModeVariables.ContainsKey(key)
                    || FirstPartyDepthAssistVariables.ContainsKey(key)
+                   || FirstPartyPerformanceVariables.ContainsKey(key)
                    || SceneGIVariables.ContainsKey(key)
                    || DalapadSurfaceVariables.ContainsKey(key)
                    || ContactToneVariables.ContainsKey(key)
                    || SurfaceReflectionVariables.ContainsKey(key)
+                   || AtmosphereBloomVariables.ContainsKey(key)
                    || NormalFieldVariables.ContainsKey(key)
                    || MaterialVariables.ContainsKey(key)
                    || ShaderOwnedVariables.Contains(key)
@@ -550,10 +609,63 @@ public sealed class CustomShaderVariableMapper
         return !string.IsNullOrWhiteSpace(key)
                && (ShaderOwnedVariables.Contains(key)
                    || FirstPartyDepthAssistVariables.ContainsKey(key)
+                   || FirstPartyPerformanceVariables.ContainsKey(key)
                    || SmartSharpenAuthority.WritableVariables.Contains(key, StringComparer.OrdinalIgnoreCase));
     }
 
     private static float Clamp01(float value) => MathF.Min(1f, MathF.Max(0f, value));
+
+    private static FirstPartyPerformanceProfile GetFirstPartyPerformanceProfile(Configuration configuration)
+    {
+        return configuration.FirstPartyPerformanceTier switch
+        {
+            FirstPartyPerformanceTier.Balanced => new FirstPartyPerformanceProfile(
+                Tier: 1f,
+                NormalFieldStrengthScale: 0.90f,
+                NormalDepthStrengthScale: 0.90f,
+                NormalDetailStrengthScale: 0.70f,
+                NormalMaterialInfluenceScale: 0.85f,
+                SceneGIRadiusScale: 0.90f,
+                SceneGIAORadiusScale: 0.90f,
+                SceneGISampleCountScale: 0.75f,
+                SceneGISampleDistanceScale: 0.88f,
+                ContactToneRadiusScale: 0.88f,
+                ReflectionSampleQuality: 0.75f,
+                ReflectionSampleOffsetScale: 0.92f,
+                ReflectionSoftnessScale: 0.92f,
+                BloomSampleQuality: 0.75f),
+            FirstPartyPerformanceTier.Performance => new FirstPartyPerformanceProfile(
+                Tier: 2f,
+                NormalFieldStrengthScale: 0.70f,
+                NormalDepthStrengthScale: 0.75f,
+                NormalDetailStrengthScale: 0.45f,
+                NormalMaterialInfluenceScale: 0.65f,
+                SceneGIRadiusScale: 0.72f,
+                SceneGIAORadiusScale: 0.75f,
+                SceneGISampleCountScale: 0.50f,
+                SceneGISampleDistanceScale: 0.70f,
+                ContactToneRadiusScale: 0.72f,
+                ReflectionSampleQuality: 0.45f,
+                ReflectionSampleOffsetScale: 0.78f,
+                ReflectionSoftnessScale: 0.78f,
+                BloomSampleQuality: 0.55f),
+            _ => new FirstPartyPerformanceProfile(
+                Tier: 0f,
+                NormalFieldStrengthScale: 1.0f,
+                NormalDepthStrengthScale: 1.0f,
+                NormalDetailStrengthScale: 1.0f,
+                NormalMaterialInfluenceScale: 1.0f,
+                SceneGIRadiusScale: 1.0f,
+                SceneGIAORadiusScale: 1.0f,
+                SceneGISampleCountScale: 1.0f,
+                SceneGISampleDistanceScale: 1.0f,
+                ContactToneRadiusScale: 1.0f,
+                ReflectionSampleQuality: 1.0f,
+                ReflectionSampleOffsetScale: 1.0f,
+                ReflectionSoftnessScale: 1.0f,
+                BloomSampleQuality: 1.0f)
+        };
+    }
 
     private static float MaterialOutput(string key, float value, Configuration configuration)
     {
@@ -565,8 +677,8 @@ public sealed class CustomShaderVariableMapper
         if (string.Equals(key, "Dalashade_GIDebugMode", StringComparison.OrdinalIgnoreCase))
         {
             var rounded = (int)MathF.Round(value);
-            var clamped = Math.Min(19, Math.Max(0, rounded));
-            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 19);
+            var clamped = Math.Min(21, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 21);
         }
 
         if (string.Equals(key, "Dalashade_GIDebugOutputMode", StringComparison.OrdinalIgnoreCase))
@@ -600,7 +712,7 @@ public sealed class CustomShaderVariableMapper
             return new ShaderAdjustmentResult(Format(clamped), value < 0.25f, value > 8f);
         }
 
-            return new ShaderAdjustmentResult(Format(value), false, false);
+        return new ShaderAdjustmentResult(Format(value), false, false);
     }
 
     private static ShaderAdjustmentResult FormatContactToneValue(string key, float value)
@@ -688,6 +800,19 @@ public sealed class CustomShaderVariableMapper
         return new ShaderAdjustmentResult(Format(normalized), value < 0f, value > 1f);
     }
 
+    private static ShaderAdjustmentResult FormatFirstPartyPerformanceValue(string key, float value)
+    {
+        if (string.Equals(key, "Dalashade_FirstPartyPerformanceTier", StringComparison.OrdinalIgnoreCase))
+        {
+            var rounded = (int)MathF.Round(value);
+            var clamped = Math.Min(2, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 2);
+        }
+
+        var normalized = Clamp01(value);
+        return new ShaderAdjustmentResult(Format(normalized), value < 0f, value > 1f);
+    }
+
     private static bool IsSceneGINormalizedVariable(string key)
     {
         return string.Equals(key, "Dalashade_GIStrength", StringComparison.OrdinalIgnoreCase)
@@ -697,6 +822,8 @@ public sealed class CustomShaderVariableMapper
                || string.Equals(key, "Dalashade_GIMaterialInfluence", StringComparison.OrdinalIgnoreCase)
                || string.Equals(key, "Dalashade_GISkyReject", StringComparison.OrdinalIgnoreCase)
                || string.Equals(key, "Dalashade_GISkinProtect", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(key, "Dalashade_GISampleCountScale", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(key, "Dalashade_GISampleDistanceScale", StringComparison.OrdinalIgnoreCase)
                || string.Equals(key, "Dalashade_GIDebugOpacity", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -746,6 +873,12 @@ public sealed class CustomShaderVariableMapper
             return new ShaderAdjustmentResult(Format(clamped), value < 0.25f, value > 8f);
         }
 
+        var normalized = Clamp01(value);
+        return new ShaderAdjustmentResult(Format(normalized), value < 0f, value > 1f);
+    }
+
+    private static ShaderAdjustmentResult FormatAtmosphereBloomValue(string key, float value)
+    {
         var normalized = Clamp01(value);
         return new ShaderAdjustmentResult(Format(normalized), value < 0f, value > 1f);
     }

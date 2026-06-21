@@ -6,6 +6,16 @@ IPC contract version: `0.1-ipc-diagnostic`
 
 This contract defines the current Dalapad bridge boundary. Dalashade can report addon diagnostics, inspect debug scan/pinned candidates through `Dalapad_Debug.fx`, and optionally let first-party shaders consume gated pinned data through `shaders/Dalashade_Dalapad.fxh`. Missing, stale, or disabled Dalapad data must always resolve to neutral shader behavior.
 
+## Boundary Summary
+
+IPC/status-file data is health and capability reporting. It is not shader sampling authority.
+
+Semantic textures are shader-visible candidates. They are exposed only by name, availability, confidence, and safety state, and must be consumed through approved helper paths.
+
+Debug visualization is manual developer inspection. It may use synthetic pixels, scan pages, or addon-owned candidate copies and can have performance cost.
+
+Production assist is optional first-party shader behavior. It requires generated-preset gates, shader-local gates, semantic resource availability, and neutral fallback. Third-party shaders do not automatically consume Dalapad.
+
 ## IPC Status File
 
 Stage 1 uses a status-file handshake before any production shader dependency:
@@ -114,7 +124,7 @@ When the shader is loaded, the addon can upload generated synthetic pixels into 
 
 `debugVisualization` should include:
 
-- `version`: currently `0.1-debug-visualization`
+- `version`: currently `0.7-pinned-water-candidate`
 - `enabled`
 - `status`: `WaitingForShader`, `TextureFound`, `SyntheticUploaded`, or `NoReShadeRuntime`
 - `source`: `synthetic`, `scan`, `pinned`, or equivalent diagnostic source label
@@ -128,6 +138,7 @@ When the shader is loaded, the addon can upload generated synthetic pixels into 
 - `height`
 - `frameCounter`
 - `frameAge`
+- `copyFrameInterval`: frame cadence for debug render-layer copies when the addon reports one; `0` means not reported
 - `readsRenderTargets`
 - `copiesRenderTargets`
 - `registersGameResources`: must remain `false`
@@ -149,7 +160,8 @@ The required gates are:
 
 - global generated-preset gate: `Dalashade_DalapadEnabled`
 - shader-local feature gate, for example `Dalashade_DalapadSceneGINormalAssist`
-- resource availability and valid dimensions, for example `Dalapad_PinnedNormalAvailable`
+- resource availability, for example `Dalapad_PinnedNormalAvailable`
+- resource dimensions for diagnostics; stale dimensions must not override a true availability flag
 - shader-local strength greater than zero
 
 When any gate is closed, helper confidence, presence, and contribution masks must resolve to zero. Debug masks must therefore be blank because there is no authorized Dalapad data to show, not because the debug technique silently hid a valid signal.
@@ -157,8 +169,10 @@ When any gate is closed, helper confidence, presence, and contribution masks mus
 Current first-party consumer:
 
 - `Dalashade_SceneGI.fx` can optionally use the pinned normal-like candidate as a conservative structure/normal assist.
-- SceneGI debug mode `18` shows the authorized Dalapad contribution mask.
-- SceneGI debug mode `19` shows gated raw/evidence data.
+- SceneGI debug mode `18` shows the authorized Dalapad contribution that survived FrameData and SceneGI receiver safety.
+- SceneGI debug mode `19` shows gated FrameData Dalapad evidence.
+- SceneGI debug mode `20` shows the direct bridge gate and dimension-known state.
+- SceneGI debug mode `21` shows the direct raw pinned-normal sample behind the same gate.
 
 ## Diagnostic Control Channel
 

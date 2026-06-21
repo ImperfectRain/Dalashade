@@ -34,6 +34,12 @@ Current bundle contents include:
 - `frame-data-diagnostics.json`
 - `dalapad-diagnostics.json`
 - `first-party-depth-assist.json`
+- `first-party-performance.json`
+- `health-summary.json`
+- `performance-summary.json`
+- `generated-variable-summary.json`
+- `shader-uniform-parity.json`
+- `first-party-shader-registry.json`
 - `material-parity-audit.md`
 - `shader-stack-summary.md`
 - `installed-dalashade-shaders.txt`
@@ -62,16 +68,22 @@ Do not include credentials, tokens, or unrelated folders.
 
 Start with:
 
-1. `manifest.json`: what succeeded and what was skipped.
-2. `bundle-export-log.txt`: exact stage-level failures.
-3. `compatibility-report.md`: preset stack, material parity, NormalField diagnostics, shader support.
-4. `plugin-config.json`: settings that controlled the generation.
-5. `scene-context.json`, `scene-authoring.json`, `scene-intent.json`, `screenshot-material-evidence.json`, `material-tag-registry.json`, `material-calibration.json`, `material-intent.json`: scene, override, visible material evidence, registry tuning, calibration, and material reasoning.
-6. `normal-field-diagnostics.json`: NormalField settings, shader presence, debug technique state, and first-party consumption.
-7. `frame-data-diagnostics.json`: FrameData include/debug shader presence, FrameDataDebug section/variables, inline/prepass status, and production migration status.
-8. `dalapad-diagnostics.json`: Dalapad runtime metadata probe status plus addon contract version, IPC status-file/control-pipe diagnostics, optional resource rows, scan/pinned candidate status, debug visualization state, shader integration gates, diagnostic routes, implementation options, and backend steps for the optional surface-data addon path.
-9. `first-party-depth-assist.json`: opt-in depth-assist setting state and known first-party sections that received depth-assist writes.
-10. `installed-dalashade-shaders.txt`: installed first-party shader files and hashes.
+1. `health-summary.json`: compact pass/warning routing summary and the first detailed files to open next.
+2. `manifest.json`: what succeeded and what was skipped.
+3. `bundle-export-log.txt`: exact stage-level failures.
+4. `compatibility-report.md`: preset stack, material parity, NormalField diagnostics, shader support.
+5. `plugin-config.json`: settings that controlled the generation.
+6. `scene-context.json`, `scene-authoring.json`, `scene-intent.json`, `screenshot-material-evidence.json`, `material-tag-registry.json`, `material-calibration.json`, `material-intent.json`: scene, override, visible material evidence, registry tuning, calibration, and material reasoning.
+7. `normal-field-diagnostics.json`: NormalField settings, shader presence, debug technique state, and first-party consumption.
+8. `frame-data-diagnostics.json`: FrameData include/debug shader presence, FrameDataDebug section/variables, inline/prepass status, and production migration status.
+9. `dalapad-diagnostics.json`: Dalapad runtime metadata probe status plus addon contract version, IPC status-file/control-pipe diagnostics, optional resource rows, scan/pinned candidate status, debug visualization state, shader integration gates, diagnostic routes, implementation options, backend steps, and separate production-vs-debug cost reporting for the optional surface-data addon path.
+10. `first-party-depth-assist.json`: opt-in depth-assist setting state and known first-party sections that received depth-assist writes.
+11. `first-party-performance.json`: selected Quality/Balanced/Performance tier, expected per-shader behavior, known performance uniforms, sections that received generated tier values, and generated preset values for relevant first-party shader sections.
+12. `performance-summary.json`: compact first-party tier, feature-gate, generated performance value, and Dalapad production/debug cost summary.
+13. `generated-variable-summary.json`: known generated variables, generated preset values, and changed generated variables grouped by shader section.
+14. `shader-uniform-parity.json`: installed first-party shader uniform scan comparing known generated variables against shader-side uniforms.
+15. `first-party-shader-registry.json`: read-only first-party shader metadata used by parity diagnostics, report summaries, and UI labels.
+16. `installed-dalashade-shaders.txt`: installed first-party shader files and hashes.
 
 `scene-authoring.json` records whether scene authoring was enabled, the override file path, active territory override metadata, detected area/weather/biome/mood tags, effective area/weather/biome/mood tags, added/removed override maps, suppressed diagnostic tags, and authoring warnings. This file is the first place to check when a user says tags were removed but still appeared to influence the generated profile.
 
@@ -87,7 +99,19 @@ FrameData is currently inline only. `frame-data-diagnostics.json` should report 
 
 `normal-field-diagnostics.json` reports NormalDebug technique state from analyzed preset text only. It cannot observe whether the live ReShade UI checkbox is currently enabled after the report was generated.
 
-`dalapad-diagnostics.json` records the diagnostic-only Dalapad surface-data probe. It reports runtime metadata availability, addon contract version, optional Stage 1 status-file/control-pipe IPC state, resource rows, availability flags, scan/pinned candidate status, debug visualization state, diagnostic routes, implementation options, realtime-contract placeholders, and staged backend steps. The addon may upload synthetic pixels or addon-owned diagnostic copies for debug visualization. It must not expose raw game handles over IPC, move realtime shader values, or make shader/preset behavior depend on Dalapad unless the global shader-additions gate and shared surface-data gate are enabled.
+`dalapad-diagnostics.json` records the diagnostic-only Dalapad surface-data probe. It reports runtime metadata availability, addon contract version, optional Stage 1 status-file/control-pipe IPC state, resource rows, availability flags, scan/pinned candidate status, debug visualization state, diagnostic routes, implementation options, realtime-contract placeholders, and staged backend steps. Its `CostReporting` section separates production shader assist from debug visualization copies, because copied debug layers can cost FPS independently of whether production shader gates are enabled. Debug visualization cost buckets include `CopyFrameInterval`, observed source count, copied source count, copied pinned candidate count, and frame age when the addon reports them. The addon may upload synthetic pixels or addon-owned diagnostic copies for debug visualization. It must not expose raw game handles over IPC, move realtime shader values, or make shader/preset behavior depend on Dalapad unless the global shader-additions gate and shared surface-data gate are enabled.
+
+`health-summary.json` is the first stop for broad triage. It summarizes generated preset write health, first-party shader feature gates, shader-uniform parity status, compatibility report availability, and Dalapad production/debug cost status. It intentionally points to deeper files instead of duplicating every report.
+
+`first-party-performance.json` is the first stop when a user reports that Balanced or Performance did not change shader cost. It should show `SelectedTier`, whether custom shader writing/injection were enabled, `QualityPreservesCurrentBehavior`, the expected behavior summary, per-shader tier notes, and the exact generated uniforms written to sections such as SceneGI, SurfaceReflection, AtmosphereBloom, ContactTone, and NormalField consumers. Missing section values usually mean the shader section or expected key was absent from the generated preset, custom shader support was disabled, or injection was off.
+
+`performance-summary.json` is the first stop when a user reports a broad FPS drop. It records the selected first-party performance tier, first-party feature gates, generated performance values, and Dalapad production/debug cost buckets. Use `DalapadDebugVisualizationCost` to tell whether render-layer debug copies were active, how often the addon reports copies through `CopyFrameInterval`, and `DalapadProductionAssist` to tell whether production first-party shaders were allowed to sample Dalapad data.
+
+`generated-variable-summary.json` is the first stop when a generated control appears dead. It records the known generated-variable list, values observed in the generated preset, changed variables from the last write, and missing known variables. Missing known variables are not automatically bugs; they can mean the related shader section was not installed, not injected, disabled, inactive under the current write mode, or unchanged.
+
+`shader-uniform-parity.json` is the first stop when a shader uniform/generation mismatch is suspected. It scans installed first-party shader files from inferred ReShade shader search paths and reports warnings when known generated variables have no installed shader uniform or when an installed first-party shader exposes a Dalashade-managed uniform that the mapper does not know how to write. The file is diagnostic-only and does not change preset generation.
+
+`first-party-shader-registry.json` records the read-only shader registry snapshot for production and manual debug shaders. It includes family names, files, sections, techniques, sync eligibility, manual-debug flags, known generated uniforms, debug uniforms, and performance-tier uniforms. It is a diagnostic contract snapshot only; generated preset writing still comes from the mapper/writer path.
 
 ## Do Not Do
 

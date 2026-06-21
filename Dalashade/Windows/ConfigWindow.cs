@@ -426,27 +426,29 @@ public sealed class ConfigWindow : Window, IDisposable
 
     private void DrawUserEffects()
     {
-        DrawCheckbox("Enable Dalashade custom shader variables", configuration.EnableDalashadeCustomShaders, value => configuration.EnableDalashadeCustomShaders = value);
-        DrawItemTooltip("Allows Dalashade to write known first-party shader variables into generated presets. Techniques still must be enabled manually in ReShade.");
-        DrawCheckbox("Enable Dalapad shader additions", configuration.EnableDalapadShaderIntegration, value => configuration.EnableDalapadShaderIntegration = value);
-        DrawItemTooltip("Global opt-in for shader features that consume Dalapad bridge textures. Off means Dalapad-specific shader variables resolve to disabling values.");
+        DrawCheckbox("Enable first-party Dalashade shader support", configuration.EnableDalashadeCustomShaders, value => configuration.EnableDalashadeCustomShaders = value);
+        DrawItemTooltip("Allows Dalashade to write known variables for Dalashade first-party shaders into the generated preset. It does not edit third-party shaders.");
+        DrawCheckbox("Allow Dalapad data in first-party shaders", configuration.EnableDalapadShaderIntegration, value => configuration.EnableDalapadShaderIntegration = value);
+        DrawItemTooltip("Global opt-in for production shader features that can consume gated Dalapad bridge textures. Debug visualization and layer-copy tests are separate developer tools.");
         if (configuration.EnableDalapadShaderIntegration)
         {
-            DrawCheckbox("Use Dalapad surface data in first-party shaders", configuration.EnableDalapadSurfaceData, value => configuration.EnableDalapadSurfaceData = value);
+            DrawCheckbox("Use Dalapad surface candidates in first-party effects", configuration.EnableDalapadSurfaceData, value => configuration.EnableDalapadSurfaceData = value);
             DrawFloatSlider("Dalapad surface data strength", configuration.DalapadSurfaceDataStrength, 0f, 1f, value => configuration.DalapadSurfaceDataStrength = value);
         }
         else
         {
-            ImGui.TextWrapped("Dalapad surface data resolves to zero until Dalapad shader additions are enabled.");
+            ImGui.TextWrapped("Dalapad surface candidates stay neutral until production Dalapad shader support is enabled.");
         }
         DrawCheckbox("Auto-inject known Dalashade shader sections", configuration.AutoInjectDalashadeCustomShaderSections, value => configuration.AutoInjectDalashadeCustomShaderSections = value);
+        DrawItemTooltip("Adds missing known Dalashade first-party shader sections to the generated preset only. The base preset is not modified.");
         DrawCheckbox("Sync Dalashade technique activation", configuration.SyncDalashadeTechniqueActivation, value => configuration.SyncDalashadeTechniqueActivation = value);
-        DrawCheckbox("Enable SceneGI variable writes", configuration.EnableDalashadeSceneGIShaderVariables, value => configuration.EnableDalashadeSceneGIShaderVariables = value);
-        DrawCheckbox("Enable ContactTone variable writes", configuration.EnableDalashadeContactToneShaderVariables, value => configuration.EnableDalashadeContactToneShaderVariables = value);
-        DrawCheckbox("Enable SurfaceReflection variable writes", configuration.EnableDalashadeSurfaceReflectionShaderVariables, value => configuration.EnableDalashadeSurfaceReflectionShaderVariables = value);
+        DrawItemTooltip("Optional generated-preset management for production Dalashade techniques. Manual debug shaders, including Dalapad_Debug, are not auto-enabled.");
+        DrawCheckbox("SceneGI first-party controls", configuration.EnableDalashadeSceneGIShaderVariables, value => configuration.EnableDalashadeSceneGIShaderVariables = value);
+        DrawCheckbox("ContactTone first-party controls", configuration.EnableDalashadeContactToneShaderVariables, value => configuration.EnableDalashadeContactToneShaderVariables = value);
+        DrawCheckbox("SurfaceReflection first-party controls", configuration.EnableDalashadeSurfaceReflectionShaderVariables, value => configuration.EnableDalashadeSurfaceReflectionShaderVariables = value);
         DrawCheckbox("Enable depth assist for first-party Dalashade shaders", configuration.EnableFirstPartyDepthAssist, value => configuration.EnableFirstPartyDepthAssist = value);
         DrawItemTooltip("Opt-in helper for first-party shader masks when ReShade depth is reliable. It does not enable techniques.");
-        DrawCheckbox("Allow material-aware shader hints", configuration.EnableMaterialIntentShaderMapping, value =>
+        DrawCheckbox("Allow inferred material hints in first-party shaders", configuration.EnableMaterialIntentShaderMapping, value =>
         {
             configuration.EnableMaterialIntentShaderMapping = value;
             if (value)
@@ -455,13 +457,13 @@ public sealed class ConfigWindow : Window, IDisposable
                 configuration.EnableMaterialIntentDiagnostics = true;
             }
         });
-        DrawCheckbox("Enable Normal Field", configuration.EnableNormalField, value => configuration.EnableNormalField = value);
-        DrawCheckbox("Enable Normal Field Shader Mapping", configuration.EnableNormalFieldShaderMapping, value => configuration.EnableNormalFieldShaderMapping = value);
-        if (ImGui.Button("Turn Off Optional First-Party Systems###ConfigUserDisableOptionalFirstParty"))
+        DrawCheckbox("Enable inferred Normal Field", configuration.EnableNormalField, value => configuration.EnableNormalField = value);
+        DrawCheckbox("Allow Normal Field in first-party shaders", configuration.EnableNormalFieldShaderMapping, value => configuration.EnableNormalFieldShaderMapping = value);
+        if (ImGui.Button("Turn Off Optional First-Party Shader Assists###ConfigUserDisableOptionalFirstParty"))
         {
             DisableOptionalFirstPartySystems();
         }
-        ImGui.TextWrapped("Effect controls write generated-preset values. ReShade still owns final technique order, shader compile state, and any manual debug modes.");
+        ImGui.TextWrapped("These controls write generated-preset values for Dalashade first-party shaders. ReShade still owns shader compile state, final order, and manual debug techniques.");
     }
 
     private string UserHealthSummary()
@@ -626,9 +628,9 @@ public sealed class ConfigWindow : Window, IDisposable
 
     private void DrawMaterialIntent()
     {
-        DrawCheckbox("Enable MaterialIntent inference", configuration.EnableMaterialIntent, value => configuration.EnableMaterialIntent = value);
+        DrawCheckbox("Enable inferred MaterialIntent", configuration.EnableMaterialIntent, value => configuration.EnableMaterialIntent = value);
         DrawCheckbox("Show MaterialIntent diagnostics in reports/UI", configuration.EnableMaterialIntentDiagnostics, value => configuration.EnableMaterialIntentDiagnostics = value);
-        DrawCheckbox("Allow MaterialIntent shader variable writes", configuration.EnableMaterialIntentShaderMapping, value => configuration.EnableMaterialIntentShaderMapping = value);
+        DrawCheckbox("Allow inferred MaterialIntent in first-party shaders", configuration.EnableMaterialIntentShaderMapping, value => configuration.EnableMaterialIntentShaderMapping = value);
         DrawFloatSlider("MaterialIntent strength", configuration.MaterialIntentStrength, 0f, 1f, value => configuration.MaterialIntentStrength = value);
         DrawCheckbox("Let screenshot material evidence influence MaterialIntent", configuration.EnableScreenshotMaterialEvidenceInfluence, value => configuration.EnableScreenshotMaterialEvidenceInfluence = value);
         DrawFloatSlider("Screenshot material evidence strength", configuration.ScreenshotMaterialEvidenceStrength, 0f, 1f, value => configuration.ScreenshotMaterialEvidenceStrength = value);
@@ -654,11 +656,11 @@ public sealed class ConfigWindow : Window, IDisposable
 
     private void DrawNormalField()
     {
-        DrawCheckbox("Enable Normal Field", configuration.EnableNormalField, value => configuration.EnableNormalField = value);
+        DrawCheckbox("Enable inferred Normal Field", configuration.EnableNormalField, value => configuration.EnableNormalField = value);
         DrawItemTooltip("Enables Dalashade's optional screen-space inferred normal/surface field. This is not true game material normals and does not access FFXIV's G-buffer.");
 
         DrawCheckbox("Enable Normal Field Diagnostics", configuration.EnableNormalFieldDiagnostics, value => configuration.EnableNormalFieldDiagnostics = value);
-        DrawCheckbox("Enable Normal Field Shader Mapping", configuration.EnableNormalFieldShaderMapping, value => configuration.EnableNormalFieldShaderMapping = value);
+        DrawCheckbox("Allow inferred Normal Field in first-party shaders", configuration.EnableNormalFieldShaderMapping, value => configuration.EnableNormalFieldShaderMapping = value);
         DrawItemTooltip("Allows Dalashade to write NormalField uniforms into known first-party shader sections. Disabled by default.");
 
         DrawFloatSlider("Normal Field Strength", configuration.NormalFieldStrength, 0f, 1f, value => configuration.NormalFieldStrength = value);
@@ -676,13 +678,13 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawFloatSlider("Sky/Fog Suppression", configuration.NormalFieldSkySuppression, 0f, 1f, value => configuration.NormalFieldSkySuppression = value);
 
         var debugMode = Math.Clamp(configuration.NormalFieldDebugMode, 0, 20);
-        if (ImGui.SliderInt("Normal Field Debug Mode", ref debugMode, 0, 20))
+        if (ImGui.SliderInt("Debug mode (Normal Field)", ref debugMode, 0, 20))
         {
             configuration.NormalFieldDebugMode = debugMode;
             configuration.Save();
         }
 
-        DrawFloatSlider("Normal Field Debug Boost", configuration.NormalFieldDebugBoost, 0.25f, 8f, value => configuration.NormalFieldDebugBoost = value);
+        DrawFloatSlider("Debug boost (Normal Field)", configuration.NormalFieldDebugBoost, 0.25f, 8f, value => configuration.NormalFieldDebugBoost = value);
 
         ImGui.TextWrapped("NormalField is optional and inferred from screen-space depth, luma/color gradients, material context, water context, and safety gates. It is not true FFXIV material normal detection.");
         ImGui.TextWrapped("When disabled, NormalField writes are skipped and production shader output is unchanged. Missing shader sections or uniforms are skipped safely.");
@@ -772,11 +774,11 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TextWrapped("This does not install .fx shader files. Install needed Dalashade shaders in ReShade separately so ReShade can compile injected generated-preset sections.");
         DrawCheckbox("Sync Dalashade technique activation", configuration.SyncDalashadeTechniqueActivation, value => configuration.SyncDalashadeTechniqueActivation = value);
         ImGui.TextWrapped("When enabled, generated presets add or remove Dalashade production techniques from Techniques= based on the plugin shader options. Debug techniques stay manual, and third-party effects are not disabled.");
-        DrawCheckbox("Enable Dalapad shader additions", configuration.EnableDalapadShaderIntegration, value => configuration.EnableDalapadShaderIntegration = value);
+        DrawCheckbox("Enable Dalapad production shader assist", configuration.EnableDalapadShaderIntegration, value => configuration.EnableDalapadShaderIntegration = value);
         DrawItemTooltip("Global opt-in for shader features that consume Dalapad bridge textures. When off, Dalapad-specific generated-preset values resolve to disabling values.");
         if (configuration.EnableDalapadShaderIntegration)
         {
-            DrawCheckbox("Use Dalapad surface data in first-party shaders", configuration.EnableDalapadSurfaceData, value => configuration.EnableDalapadSurfaceData = value);
+            DrawCheckbox("Use Dalapad semantic surface candidates in first-party shaders", configuration.EnableDalapadSurfaceData, value => configuration.EnableDalapadSurfaceData = value);
             DrawFloatSlider("Dalapad surface data strength", configuration.DalapadSurfaceDataStrength, 0f, 1f, value => configuration.DalapadSurfaceDataStrength = value);
         }
         else
@@ -794,19 +796,19 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawFloatSlider("SceneGI material influence", configuration.DalashadeSceneGIMaterialInfluence, 0f, 1f, value => configuration.DalashadeSceneGIMaterialInfluence = value);
         ImGui.TextWrapped("SceneGI uses Dalapad surface data through FrameData when the global Dalapad surface-data option is enabled.");
         var sceneGIDebugMode = configuration.DalashadeSceneGIDebugMode;
-        if (ImGui.SliderInt("SceneGI debug mode", ref sceneGIDebugMode, 0, 19))
+        if (ImGui.SliderInt("Debug mode (SceneGI)", ref sceneGIDebugMode, 0, 21))
         {
             configuration.DalashadeSceneGIDebugMode = sceneGIDebugMode;
             configuration.Save();
         }
         var sceneGIDebugOutputMode = configuration.DalashadeSceneGIDebugOutputMode;
-        if (ImGui.SliderInt("SceneGI debug output mode", ref sceneGIDebugOutputMode, 0, 4))
+        if (ImGui.SliderInt("Debug output (SceneGI)", ref sceneGIDebugOutputMode, 0, 4))
         {
             configuration.DalashadeSceneGIDebugOutputMode = sceneGIDebugOutputMode;
             configuration.Save();
         }
-        DrawFloatSlider("SceneGI debug opacity", configuration.DalashadeSceneGIDebugOpacity, 0f, 1f, value => configuration.DalashadeSceneGIDebugOpacity = value);
-        DrawFloatSlider("SceneGI debug boost", configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f, value => configuration.DalashadeSceneGIDebugBoost = value);
+        DrawFloatSlider("Debug opacity (SceneGI)", configuration.DalashadeSceneGIDebugOpacity, 0f, 1f, value => configuration.DalashadeSceneGIDebugOpacity = value);
+        DrawFloatSlider("Debug boost (SceneGI)", configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f, value => configuration.DalashadeSceneGIDebugBoost = value);
         ImGui.TextWrapped("SceneGI variable writes require Dalashade custom shader variables and matching generated preset keys. If technique sync is enabled, SceneGI is added to the generated preset when these writes are enabled.");
 
         ImGui.Separator();
@@ -818,12 +820,12 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawFloatSlider("ContactTone structure", configuration.DalashadeContactToneStructureStrength, 0f, 1f, value => configuration.DalashadeContactToneStructureStrength = value);
         DrawFloatSlider("ContactTone local contrast", configuration.DalashadeContactToneContrastStrength, 0f, 1f, value => configuration.DalashadeContactToneContrastStrength = value);
         var contactToneDebugMode = configuration.DalashadeContactToneDebugMode;
-        if (ImGui.SliderInt("ContactTone debug mode", ref contactToneDebugMode, 0, 6))
+        if (ImGui.SliderInt("Debug mode (ContactTone)", ref contactToneDebugMode, 0, 6))
         {
             configuration.DalashadeContactToneDebugMode = contactToneDebugMode;
             configuration.Save();
         }
-        DrawFloatSlider("ContactTone debug opacity", configuration.DalashadeContactToneDebugOpacity, 0f, 1f, value => configuration.DalashadeContactToneDebugOpacity = value);
+        DrawFloatSlider("Debug opacity (ContactTone)", configuration.DalashadeContactToneDebugOpacity, 0f, 1f, value => configuration.DalashadeContactToneDebugOpacity = value);
         ImGui.TextWrapped("ContactTone is separate from GI: it darkens and clarifies contact edges and grounded material transitions, without color bounce, emissive pooling, reflections, or atmospheric bloom. If technique sync is enabled, it follows this variable-write option.");
 
         ImGui.Separator();
@@ -835,12 +837,13 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawFloatSlider("SurfaceReflection wet response", configuration.DalashadeSurfaceReflectionWetStrength, 0f, 1f, value => configuration.DalashadeSurfaceReflectionWetStrength = value);
         DrawFloatSlider("SurfaceReflection aether/neon response", configuration.DalashadeSurfaceReflectionAetherNeonStrength, 0f, 1f, value => configuration.DalashadeSurfaceReflectionAetherNeonStrength = value);
         var surfaceReflectionDebugMode = configuration.DalashadeSurfaceReflectionDebugMode;
-        if (ImGui.SliderInt("SurfaceReflection debug mode", ref surfaceReflectionDebugMode, 0, 14))
+        if (ImGui.SliderInt("Debug mode (SurfaceReflection)", ref surfaceReflectionDebugMode, 0, 14))
         {
             configuration.DalashadeSurfaceReflectionDebugMode = surfaceReflectionDebugMode;
             configuration.Save();
         }
-        DrawFloatSlider("SurfaceReflection debug opacity", configuration.DalashadeSurfaceReflectionDebugOpacity, 0f, 1f, value => configuration.DalashadeSurfaceReflectionDebugOpacity = value);
+        DrawFloatSlider("Debug opacity (SurfaceReflection)", configuration.DalashadeSurfaceReflectionDebugOpacity, 0f, 1f, value => configuration.DalashadeSurfaceReflectionDebugOpacity = value);
+        ImGui.TextWrapped("Debug controls are developer diagnostics. Current sliders write the same integer modes exposed by the shader docs; named dropdown metadata is tracked as a future parity cleanup.");
         ImGui.TextWrapped("SurfaceReflection is a separate optional first-party shader for water sheen, wet glints, and material-aware reflection impressions. If technique sync is enabled, it follows this variable-write option.");
         ImGui.TextWrapped("Debug modes show inferred shader-side masks, not true engine material IDs.");
     }

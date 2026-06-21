@@ -542,18 +542,132 @@ Dalashade_FrameBaseData Dalashade_ResolveFrameBaseData(
     return data;
 }
 
+Dalashade_MaterialResolve Dalashade_FrameData_MaterialFromBase(Dalashade_FrameBaseData data)
+{
+    Dalashade_MaterialResolve material;
+
+    material.Foliage = data.MaterialFoliage;
+    material.WaterPlane = data.MaterialWaterPlane;
+    material.SpecularGlint = data.WaterSpecularGlint;
+    material.WaterSpecular = data.MaterialWaterSpecular;
+    material.SandDust = data.MaterialSandDust;
+    material.SnowIce = data.MaterialSnowIce;
+    material.StoneRuins = data.MaterialStoneRuins;
+    material.MetalIndustrial = data.MaterialMetalIndustrial;
+    material.CrystalAether = data.MaterialCrystalAether;
+    material.NeonGlass = data.MaterialNeonGlass;
+    material.FireLavaHeat = data.MaterialFireLavaHeat;
+    material.SkyCloudFog = data.MaterialSkyCloudFog;
+    material.SkinProtection = data.MaterialSkinProtection;
+    material.VoidDarkness = data.MaterialVoidDarkness;
+    material.SurfaceSmoothness = data.MaterialSurfaceSmoothness;
+    material.SurfaceHardness = data.MaterialSurfaceHardness;
+    material.ReceiverConfidence = data.ReceiverBroad;
+    material.ReflectionReceiverConfidence = data.ReceiverReflection;
+    material.AOReceiverConfidence = data.ReceiverAO;
+    material.StructureReceiverConfidence = data.ReceiverStructure;
+    material.LightSourceConfidence = data.SourceLightConfidence;
+
+    return material;
+}
+
+Dalashade_WaterResolve Dalashade_FrameData_WaterFromBase(Dalashade_FrameBaseData data)
+{
+    Dalashade_WaterResolve water;
+
+    water.RawCyanWater = data.WaterShallow;
+    water.RawDeepWater = data.WaterSurface;
+    water.ShallowWater = data.WaterShallow;
+    water.DeepWater = saturate(data.WaterSurface - data.WaterShallow * 0.35);
+    water.WaterHorizon = data.WaterHorizon;
+    water.WetShoreline = data.WaterWetShoreline;
+    water.FoamOrEdge = data.WaterFoamOrEdge;
+    water.WaterSurface = data.WaterSurface;
+    water.WaterReceiver = data.WaterReceiver;
+    water.WaterSource = data.WaterSource;
+    water.SkySource = data.WaterSkySource;
+    water.SkyReject = data.SafetySkyReject;
+    water.SandReject = data.WaterSandReject;
+    water.SkinReject = data.SafetySkinReject;
+    water.WaterCoherence = data.WaterConfidence;
+    water.WaterPixelConfidence = data.WaterPixelConfidence;
+    water.HorizonOnlyConfidence = data.WaterHorizonOnly;
+    water.WaterSkyConflict = data.WaterSkyConflict;
+    water.Confidence = data.WaterConfidence;
+
+    return water;
+}
+
+Dalashade_SafetyResolve Dalashade_FrameData_SafetyFromBase(Dalashade_FrameBaseData data)
+{
+    Dalashade_SafetyResolve safety;
+
+    safety.SkyReject = data.SafetySkyReject;
+    safety.SkinReject = data.SafetySkinReject;
+    safety.HighlightProtect = data.SafetyHighlightProtect;
+    safety.BrightSandProtect = data.SafetyBrightSandProtect;
+    safety.SnowProtect = data.SafetySnowProtect;
+    safety.WaterAOReject = data.SafetyWaterAOReject;
+    safety.FoliageNoiseReject = data.SafetyFoliageNoiseReject;
+    safety.UIDepthRisk = data.SafetyUIDepthRisk;
+    safety.DepthConfidence = data.SafetyDepthConfidence;
+
+    return safety;
+}
+
+Dalashade_FrameSurfaceData Dalashade_FrameData_DefaultSurfaceData()
+{
+    Dalashade_FrameSurfaceData surface;
+
+    surface.Normal = float3(0.0, 0.0, 1.0);
+    surface.NormalFieldNormal = float3(0.0, 0.0, 1.0);
+    surface.DalapadNormal = float3(0.0, 0.0, 1.0);
+    surface.NormalConfidence = 0.0;
+    surface.NormalFieldConfidence = 0.0;
+    surface.DalapadConfidence = 0.0;
+    surface.DalapadInfluence = 0.0;
+    surface.DalapadPresence = 0.0;
+    surface.DalapadChroma = 0.0;
+    surface.DalapadNeighborDelta = 0.0;
+    surface.DalapadFlatSupport = 0.0;
+    surface.DalapadStructureSupport = 0.0;
+    surface.SurfaceDataInfluence = 0.0;
+    surface.OrientationConfidence = 0.0;
+    surface.DepthConfidence = 0.0;
+    surface.EdgeDiscontinuity = 0.0;
+    surface.DetailStrength = 0.0;
+    surface.TextureReliefStrength = 0.0;
+    surface.TextureGrooveLine = 0.0;
+    surface.TextureCurvatureRidge = 0.0;
+    surface.TextureCurvatureValley = 0.0;
+    surface.TextureCoherence = 0.0;
+    surface.TextureCompositeConfidence = 0.0;
+    surface.TextureReliefSafety = 0.0;
+    surface.GroundCandidate = 0.0;
+    surface.StructureCandidate = 0.0;
+    surface.WallCandidate = 0.0;
+    surface.ReflectionReceiverSupport = 0.0;
+    surface.AOReceiverSupport = 0.0;
+
+    return surface;
+}
+
 Dalashade_FrameSurfaceData Dalashade_ResolveFrameSurfaceData(
     float3 color,
     float2 uv,
     Dalashade_FrameBaseData baseData,
     Dalashade_FrameDataSettings settings)
 {
-    // Keep baseData in the signature for future API symmetry. This first pass
-    // intentionally recomputes canonical resolves so surface parity can catch
-    // wrapper assignment mistakes without depending on cached aggregate fields.
-    Dalashade_MaterialResolve material = Dalashade_FrameData_ResolveCanonicalMaterial(color, uv, settings);
-    Dalashade_WaterResolve water = Dalashade_FrameData_ResolveCanonicalWater(color, uv, material, settings);
-    Dalashade_SafetyResolve safety = Dalashade_FrameData_ResolveCanonicalSafety(color, uv, material, water, settings);
+    float normalSurfaceGate = saturate(settings.NormalFieldEnabled) * saturate(settings.NormalFieldStrength);
+    float dalapadSurfaceGate = saturate(settings.DalapadSurfaceDataEnabled) * saturate(settings.DalapadSurfaceDataStrength);
+    if (normalSurfaceGate <= 0.0001 && dalapadSurfaceGate <= 0.0001)
+    {
+        return Dalashade_FrameData_DefaultSurfaceData();
+    }
+
+    Dalashade_MaterialResolve material = Dalashade_FrameData_MaterialFromBase(baseData);
+    Dalashade_WaterResolve water = Dalashade_FrameData_WaterFromBase(baseData);
+    Dalashade_SafetyResolve safety = Dalashade_FrameData_SafetyFromBase(baseData);
     Dalashade_NormalField field = Dalashade_ResolveNormalField(
         color,
         uv,

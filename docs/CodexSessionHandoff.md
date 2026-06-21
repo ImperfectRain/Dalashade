@@ -136,6 +136,13 @@ Avoid unrelated refactors. Visual behavior changes can be hard to validate, so k
 
 ## Current Maintainability Notes
 
+Current risk roadmap docs:
+
+- `docs/Audits/ArchitectureQualityPerformanceAudit.md` is the broad audit and release-readiness roadmap.
+- `docs/ConfigurationParity.md` tracks config, UI, report, bundle, shader, and Dalapad parity.
+- `docs/ShaderContractQuickReference.md` is the short shader-author contract.
+- `docs/DiagnosticsModelPlan.md` and `docs/ArchitectureRefactorPlan.md` are planning docs for exporter/model and architecture refactor seams.
+
 The docs are mostly accurate, but the scene authoring and tag registry system should be treated as implemented rather than architecturally mature. Scene overrides and registry tuning exist, and the UI is usable, but `SceneAuthoringService` currently owns storage, registry defaults, override resolution, tuning validation, import/export, and reset behavior. The best next move is a behavior-preserving split with tests around tag behavior before adding more scene authoring UI features.
 
 FrameData is currently inline-only. All first-party production shaders consume `Dalashade_FrameData.fxh`, but there is no prepass, render target, temporal accumulation, production G-buffer path, native XIV buffer path, or ReShade resource bridge. `Dalashade_MaterialMasks.fxh` and `Dalashade_NormalField.fxh` remain the canonical formula owners; FrameData is a contract/wrapper, not a formula owner.
@@ -165,7 +172,7 @@ Still not implemented as production behavior:
 - no live uniform movement over `\\.\pipe\Dalapad.Control.v1`; current pipe commands are diagnostic-only `Ping`, `BridgeSelfTest`, `QueryStatus`, `QueryCapabilities`, `QueryDebugVisualization`, and `SetDebugVisualization`.
 - no required FrameData, NormalField, MaterialMasks, or first-party shader behavior change from Dalapad when its gates are disabled. FrameData is the shared optional gated consumer; first-party shaders should not sample raw pinned resources directly.
 
-The next Dalapad validation step is to reload this plugin build, install/reload `Dalapad_Debug.fx`, `Dalashade_FrameDataDebug.fx`, and the first-party production shaders, load the built addon in ReShade, confirm it writes `dalapad-status.json`, and confirm Developer Mode > Dalapad reports status-file IPC, control-pipe capability negotiation, resource rows, typed shape probe result, scan/pinned candidate status, and debug visualization. Then verify FrameDataDebug Dalapad modes and SceneGI debug modes `18` and `19`: they should be blank when global or shared surface-data gates are off, and should show contribution/evidence only when pinned normal data is available and enabled.
+The next Dalapad validation step is to reload this plugin build, install/reload `Dalapad_Debug.fx`, `Dalashade_FrameDataDebug.fx`, and the first-party production shaders, load the built addon in ReShade, confirm it writes `dalapad-status.json`, and confirm Developer Mode > Dalapad reports status-file IPC, control-pipe capability negotiation, resource rows, typed shape probe result, scan/pinned candidate status, and debug visualization. Then verify FrameDataDebug Dalapad modes and SceneGI debug modes `18` through `21`: they should be blank when global or shared surface-data gates are off. Mode `20` should show the SceneGI bridge gate, mode `21` should show the raw pinned-normal sample when available, and mode `18` should only show contribution that survives SceneGI safety.
 
 In-game validation on ReShade `6.7.3.2148` showed that API version `20` registration is rejected because the runtime supports add-on API `18`. The addon source now requests API `18` directly for Stage 1 registration instead of relying on the vendored SDK helper constant.
 

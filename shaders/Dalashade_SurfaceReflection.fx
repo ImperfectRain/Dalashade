@@ -26,6 +26,13 @@ uniform float Dalashade_StandaloneStrength <
     ui_tooltip = "0 keeps SurfaceReflection supportive for an existing preset. 1 makes valid water, wet, metal, and aether receivers more visible without weakening source/receiver safety.";
 > = 0.0;
 
+uniform int Dalashade_FirstPartyPerformanceTier <
+    ui_type = "combo";
+    ui_items = "Quality\0Balanced\0Performance\0";
+    ui_label = "First-Party Performance Tier";
+    ui_tooltip = "Quality preserves all reflection helper paths. Balanced skips far projection extras. Performance keeps near/local projection paths only.";
+> = 0;
+
 uniform float Dalashade_WaterSheenStrength <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -103,6 +110,12 @@ uniform float Dalashade_ReflectionSoftness <
     ui_min = 0.0; ui_max = 1.0;
     ui_label = "Reflection Softness";
 > = 0.50;
+
+uniform float Dalashade_ReflectionSampleQuality <
+    ui_type = "slider";
+    ui_min = 0.25; ui_max = 1.0;
+    ui_label = "Reflection Sample Quality";
+> = 1.0;
 
 uniform float Dalashade_ReflectionDepthReject <
     ui_type = "slider";
@@ -961,15 +974,40 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float normalProjectionStability = saturate(0.82 + normalFieldInfluence * (surface.NormalConfidence * 0.10 + surface.OrientationConfidence * 0.08 - normalEdgeLeakRisk * 0.18));
     float2 wetFloorDirection = normalize(float2(normal.x * (0.18 + normalGroundStability * 0.05), -0.62 - normal.y * 0.08));
     float2 hardProjectionDirection = normalize(float2(0.92 + normal.x * (0.22 + normalStructureSupport * 0.04), -0.22 - normal.y * 0.18));
+    float reflectionSampleQuality = saturate(Dalashade_ReflectionSampleQuality);
     float3 projectedWaterNear = Dalashade_SampleQualifiedReflectionSource(texcoord, depth, verticalReflectDirection, reflectionOffset * 1.20, reflectionSoftness, reflectionDepthReject, waterQualifiedSourceBias, 0.08, 0.06, 0.03);
-    float3 projectedWaterMid = Dalashade_SampleQualifiedReflectionSource(texcoord, depth, verticalReflectDirection, reflectionOffset * 1.72, saturate(reflectionSoftness + 0.08), reflectionDepthReject, waterQualifiedSourceBias, 0.07, 0.06, 0.03);
-    float3 projectedWaterFar = Dalashade_SampleQualifiedReflectionSource(texcoord, depth, verticalReflectDirection, reflectionOffset * 2.50, saturate(reflectionSoftness + 0.20), reflectionDepthReject, waterQualifiedSourceBias, 0.06, 0.06, 0.03);
+    float3 projectedWaterMid = projectedWaterNear;
+    float3 projectedWaterFar = projectedWaterNear;
+    if (reflectionSampleQuality >= 0.625)
+    {
+        projectedWaterMid = Dalashade_SampleQualifiedReflectionSource(texcoord, depth, verticalReflectDirection, reflectionOffset * 1.72, saturate(reflectionSoftness + 0.08), reflectionDepthReject, waterQualifiedSourceBias, 0.07, 0.06, 0.03);
+    }
+
+    if (reflectionSampleQuality >= 0.875)
+    {
+        projectedWaterFar = Dalashade_SampleQualifiedReflectionSource(texcoord, depth, verticalReflectDirection, reflectionOffset * 2.50, saturate(reflectionSoftness + 0.20), reflectionDepthReject, waterQualifiedSourceBias, 0.06, 0.06, 0.03);
+    }
+
     float3 projectedWaterStack = projectedWaterNear * 0.42 + projectedWaterMid * 0.34 + projectedWaterFar * 0.24;
-    float4 planarWaterTrace = Dalashade_SamplePlanarApproxTrace(texcoord, depth, verticalReflectDirection, reflectionOffset * (1.18 + waterFresnel * 0.18), reflectionDepthReject, waterQualifiedSourceBias, waterStructureSourceBias, reflectionSoftness);
+    float4 planarWaterTrace = float4(projectedWaterNear, 0.0);
+    if (reflectionSampleQuality >= 0.875)
+    {
+        planarWaterTrace = Dalashade_SamplePlanarApproxTrace(texcoord, depth, verticalReflectDirection, reflectionOffset * (1.18 + waterFresnel * 0.18), reflectionDepthReject, waterQualifiedSourceBias, waterStructureSourceBias, reflectionSoftness);
+    }
+
     float3 projectedWetFloorSource = Dalashade_SampleQualifiedReflectionSource(texcoord, depth, wetFloorDirection, reflectionOffset * (0.76 + wetFresnel * 0.10), saturate(reflectionSoftness * 0.74), reflectionDepthReject, 0.06, hardQualifiedSourceBias, aetherQualifiedSourceBias * 0.55, fireQualifiedSourceBias * 0.55);
-    float3 projectedWetFloorWide = Dalashade_SampleQualifiedReflectionSource(texcoord, depth, wetFloorDirection, reflectionOffset * (1.18 + wetFresnel * 0.16), saturate(reflectionSoftness * 0.92 + 0.08), reflectionDepthReject, 0.05, hardQualifiedSourceBias, aetherQualifiedSourceBias * 0.45, fireQualifiedSourceBias * 0.45);
+    float3 projectedWetFloorWide = projectedWetFloorSource;
+    if (reflectionSampleQuality >= 0.625)
+    {
+        projectedWetFloorWide = Dalashade_SampleQualifiedReflectionSource(texcoord, depth, wetFloorDirection, reflectionOffset * (1.18 + wetFresnel * 0.16), saturate(reflectionSoftness * 0.92 + 0.08), reflectionDepthReject, 0.05, hardQualifiedSourceBias, aetherQualifiedSourceBias * 0.45, fireQualifiedSourceBias * 0.45);
+    }
+
     float3 projectedHardAetherSource = Dalashade_SampleQualifiedReflectionSource(texcoord, depth, hardProjectionDirection, reflectionOffset * (0.90 + hardFresnel * 0.10), saturate(reflectionSoftness * 0.44), reflectionDepthReject, 0.04, hardQualifiedSourceBias, aetherQualifiedSourceBias, fireQualifiedSourceBias);
-    float3 projectedHardTight = Dalashade_SampleQualifiedReflectionSource(texcoord, depth, hardProjectionDirection, reflectionOffset * 0.58, saturate(reflectionSoftness * 0.30), reflectionDepthReject, 0.03, hardQualifiedSourceBias, aetherQualifiedSourceBias, fireQualifiedSourceBias);
+    float3 projectedHardTight = projectedHardAetherSource;
+    if (reflectionSampleQuality >= 0.625)
+    {
+        projectedHardTight = Dalashade_SampleQualifiedReflectionSource(texcoord, depth, hardProjectionDirection, reflectionOffset * 0.58, saturate(reflectionSoftness * 0.30), reflectionDepthReject, 0.03, hardQualifiedSourceBias, aetherQualifiedSourceBias, fireQualifiedSourceBias);
+    }
     float projectedWaterEnergy = Dalashade_SurfaceReflectionSourceEnergy(projectedWaterStack, waterQualifiedSourceBias, 0.08, 0.06, 0.03);
     float projectedWetEnergy = Dalashade_SurfaceReflectionSourceEnergy(projectedWetFloorSource, 0.06, hardQualifiedSourceBias, aetherQualifiedSourceBias * 0.55, fireQualifiedSourceBias * 0.55);
     float projectedHardEnergy = max(
@@ -984,11 +1022,15 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
     float waterMirrorRoughness = saturate(reflectionSoftness * 0.55 + waterMicroRipple * 0.35 + frame.WaterFoamOrEdge * 0.18);
     float waterMirrorSourceBias = saturate(waterSourceColorSupport * 0.42 + waterTraceObjectBias * 0.44 + scene.OpenSkyLight * 0.10 + scene.ArtificialLight * 0.08);
     float waterMirrorStructureBias = saturate(waterTraceObjectBias * 0.70 + frame.ReceiverStructure * waterSurfaceReceiver * 0.18 + normalStructureSupport * waterSurfaceReceiver * 0.18);
-    float4 waterMirrorProjection = Dalashade_SampleWaterColumnProjection(
-        texcoord,
-        waterMirrorRoughness,
-        waterMirrorSourceBias,
-        waterMirrorStructureBias);
+    float4 waterMirrorProjection = float4(qualifiedWaterSourceColor, 0.0);
+    if (reflectionSampleQuality >= 0.625)
+    {
+        waterMirrorProjection = Dalashade_SampleWaterColumnProjection(
+            texcoord,
+            waterMirrorRoughness,
+            waterMirrorSourceBias,
+            waterMirrorStructureBias);
+    }
     float waterMirrorDistanceFade = smoothstep(waterMirrorLine + 0.012, waterMirrorLine + 0.18, texcoord.y) * (1.0 - smoothstep(0.94, 1.0, texcoord.y));
     float waterMirrorMask = saturate(
         waterSurfaceReceiver
@@ -1080,8 +1122,13 @@ float4 Dalashade_SurfaceReflectionPS(float4 position : SV_Position, float2 texco
         * Dalashade_WaterReflectionStrength
         * (0.12 + waterFresnel * 0.05);
     float4 pseudoWaterSample = Dalashade_SamplePseudoSSR(texcoord, depth, verticalReflectDirection, reflectionOffset * (1.34 + waterFresnel * 0.10), reflectionDepthReject, saturate(waterQualifiedSourceBias + frame.WaterPixelConfidence * 0.28), waterStructureSourceBias);
-    float4 pseudoWetSample = Dalashade_SamplePseudoSSR(texcoord, depth, wetFloorDirection, reflectionOffset * (0.92 + wetFresnel * 0.10), reflectionDepthReject, saturate(hardQualifiedSourceBias + receiverWetness * 0.22 + wetPolish * 0.12), wetStructureSourceBias);
-    float4 pseudoHardSample = Dalashade_SamplePseudoSSR(texcoord, depth, hardProjectionDirection, reflectionOffset * (1.06 + hardFresnel * 0.12), reflectionDepthReject, saturate(aetherQualifiedSourceBias + hardQualifiedSourceBias * 0.42 + max(metalPolish, aetherPolish) * 0.12), hardStructureSourceBias);
+    float4 pseudoWetSample = float4(projectedWetFloorSource, 0.0);
+    float4 pseudoHardSample = float4(projectedHardAetherSource, 0.0);
+    if (reflectionSampleQuality >= 0.625)
+    {
+        pseudoWetSample = Dalashade_SamplePseudoSSR(texcoord, depth, wetFloorDirection, reflectionOffset * (0.92 + wetFresnel * 0.10), reflectionDepthReject, saturate(hardQualifiedSourceBias + receiverWetness * 0.22 + wetPolish * 0.12), wetStructureSourceBias);
+        pseudoHardSample = Dalashade_SamplePseudoSSR(texcoord, depth, hardProjectionDirection, reflectionOffset * (1.06 + hardFresnel * 0.12), reflectionDepthReject, saturate(aetherQualifiedSourceBias + hardQualifiedSourceBias * 0.42 + max(metalPolish, aetherPolish) * 0.12), hardStructureSourceBias);
+    }
     float pseudoWaterMask = saturate(
         waterSurfaceReceiver
         * pseudoWaterSample.a

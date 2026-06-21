@@ -2,6 +2,12 @@
 
 This page documents the implemented scene-tag and scene-intent behavior in Dalashade.
 
+## Boundary Summary
+
+Scene tags describe context, not material IDs. A tag can say that a scene is coastal, snowy, industrial, wet, or aetherial, but shader-side `MaterialMasks` still decides whether a pixel is a water receiver, sky/fog, skin-safe, foliage-like, stone-like, or a valid reflection/GI receiver.
+
+Scene authoring edits the effective tag context and optional tag tuning rows. It should not be treated as direct shader material painting. Screenshot material evidence and MaterialIntent can add capped scene-level priors, but per-pixel shader behavior remains owned by the shared shader contracts.
+
 ## Implemented
 
 Scene context is collected in `Dalashade/GameContext.cs`.

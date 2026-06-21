@@ -2,6 +2,13 @@
 
 This page documents how Dalashade reports preset compatibility and generation diagnostics.
 
+## Current Roadmap Docs
+
+- [Audits/ArchitectureQualityPerformanceAudit.md](Audits/ArchitectureQualityPerformanceAudit.md) is the current architecture, quality, UX parity, diagnostics, release, and performance audit.
+- [ConfigurationParity.md](ConfigurationParity.md) tracks config/UI/report/bundle/shader/Dalapad parity.
+- [DiagnosticsModelPlan.md](DiagnosticsModelPlan.md) records the future shared diagnostic section model.
+- [ShaderContractQuickReference.md](ShaderContractQuickReference.md) summarizes first-party shader contract boundaries.
+
 ## Implemented Files
 
 | File | Owns |
@@ -111,6 +118,8 @@ Material diagnostics are split into plugin-side scene plausibility and shader-si
 
 Custom shader variable diagnostics separate three ownership classes. SceneIntent variables are Dalashade-controlled when custom shader support is enabled. MaterialIntent channel uniforms are Dalashade-controlled only when MaterialIntent shader mapping is enabled and section-scoped keys exist. Shader-owned controls may be known or injected with safe defaults. The bulk first-party depth-assist toggle writes only known depth-assist uniforms in production first-party Dalashade shader sections, including SceneGI, ContactTone, and SurfaceReflection; debug UI controls remain shader-owned/manual.
 
+First-party shader registry diagnostics list the read-only production shader techniques, manual/debug-only techniques excluded from technique sync, and tracked performance-tier uniform count. This registry powers parity diagnostics and labels only; generated preset output still comes from the existing mapper/writer path.
+
 NormalField diagnostics report optional debug shader presence, generated/active preset technique state, shader source consumption, written NormalField uniforms, and suppression settings. NormalDebug technique activity is preset-analysis-only; Dalashade cannot inspect the live ReShade UI checkbox state after a report or bundle is generated.
 
 FrameData diagnostics report the internal resolver contract state. Current expected status is `FrameDataMode: Inline`, `FrameDataPrepass: NotImplemented`, and production consumers for WeatherAtmosphere, AdaptiveGrade, SmartSharpen, AtmosphereBloom, SceneGI, ContactTone, and SurfaceReflection. The report also shows whether `Dalashade_FrameData.fxh` and `Dalashade_FrameDataDebug.fx` are available to the source scan, whether the generated preset contains a FrameDataDebug section, whether the technique appears active, and the FrameDataDebug debug variables. Production first-party shaders use inline FrameData; no prepass or render target exists.
@@ -130,6 +139,8 @@ Depth assist remains disabled by default. It can help material masks when ReShad
 Material calibration failures should be traced in this order: scene profile plausibility, MaterialIntent strength/gating, raw pixel heuristic, final conflict suppression, optional depth assist, then production shader behavior. The master `Dalashade_MaterialDebug.fx` answers what Dalashade thinks a pixel might be; each production shader's local debug mode answers why that shader is affecting or suppressing the pixel.
 
 Screenshot material evidence adds an earlier report-only check before changing formulas. It can warn when visible foliage/grass, water, sand, snow, aether/neon, or sky evidence conflicts with the current MaterialIntent. Treat those warnings as calibration leads, not as proof of true material identity.
+
+When debugging material mismatches, keep the layers separate: SceneTags are context, MaterialProfile is plausibility, ScreenshotMaterialEvidence is inferred visible evidence, MaterialIntent is a scene prior, and MaterialMasks is the shader-side per-pixel classifier. A report can say a scene is likely coastal or snowy without proving that any specific pixel is water or snow.
 
 The Material Calibration scene matrix uses these expected patterns:
 

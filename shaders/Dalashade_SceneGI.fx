@@ -60,6 +60,25 @@ uniform float Dalashade_StandaloneStrength <
     ui_tooltip = "0 keeps SceneGI supportive for an existing preset. 1 lets it provide more visible GI/contact/bounce while retaining safety gates.";
 > = 0.0;
 
+uniform int Dalashade_FirstPartyPerformanceTier <
+    ui_type = "combo";
+    ui_items = "Quality\0Balanced\0Performance\0";
+    ui_label = "First-Party Performance Tier";
+    ui_tooltip = "Quality preserves the full SceneGI path. Balanced trims far optional taps. Performance uses the shortest optional screen-space path.";
+> = 0;
+
+uniform float Dalashade_GISampleCountScale <
+    ui_type = "slider";
+    ui_min = 0.25; ui_max = 1.0;
+    ui_label = "GI Sample Count Scale";
+> = 1.0;
+
+uniform float Dalashade_GISampleDistanceScale <
+    ui_type = "slider";
+    ui_min = 0.25; ui_max = 1.0;
+    ui_label = "GI Sample Distance Scale";
+> = 1.0;
+
 uniform float Dalashade_GISkyReject <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -74,7 +93,7 @@ uniform float Dalashade_GISkinProtect <
 
 uniform int Dalashade_GIDebugMode <
     ui_type = "combo";
-    ui_items = "Off\0AO only\0Bounce only\0Night light pooling\0Material influence\0Sky rejection\0Skin protection\0Final GI influence\0Depth-normal confidence\0Emissive source\0Bounce receiver\0Adaptive limits/safety\0Layered AO breakdown\0Clamp pressure\0SSGI diffuse gather\0Material bounce lanes\0Sky-safe receivers\0Emissive pooling lanes\0Dalapad contribution\0Dalapad raw evidence\0";
+    ui_items = "Off\0AO only\0Bounce only\0Night light pooling\0Material influence\0Sky rejection\0Skin protection\0Final GI influence\0Depth-normal confidence\0Emissive source\0Bounce receiver\0Adaptive limits/safety\0Layered AO breakdown\0Clamp pressure\0SSGI diffuse gather\0Material bounce lanes\0Sky-safe receivers\0Emissive pooling lanes\0Dalapad used contribution\0Dalapad FrameData evidence\0Dalapad bridge gate\0Dalapad raw normal sample\0";
     ui_label = "Dalashade GI Debug Mode";
 > = 0;
 
@@ -312,14 +331,23 @@ float4 Dalashade_SceneGISSGISample(float2 uv, float depth, float3 normal, float2
 float4 Dalashade_SceneGIScreenDiffuseGather(float2 uv, float depth, float3 normal, float radius, float materialEmissiveBias, float sourceLightBias, float receiverConfidence)
 {
     float4 gathered = float4(0.0, 0.0, 0.0, 0.0001);
+    float sampleCountScale = saturate(Dalashade_GISampleCountScale);
     gathered += Dalashade_SceneGISSGISample(uv, depth, normal, normalize(float2(1.0, 0.0)), radius * 1.15, materialEmissiveBias, sourceLightBias, receiverConfidence);
     gathered += Dalashade_SceneGISSGISample(uv, depth, normal, normalize(float2(-1.0, 0.0)), radius * 1.15, materialEmissiveBias, sourceLightBias, receiverConfidence);
     gathered += Dalashade_SceneGISSGISample(uv, depth, normal, normalize(float2(0.0, 1.0)), radius * 1.00, materialEmissiveBias, sourceLightBias, receiverConfidence);
     gathered += Dalashade_SceneGISSGISample(uv, depth, normal, normalize(float2(0.0, -1.0)), radius * 1.00, materialEmissiveBias, sourceLightBias, receiverConfidence);
-    gathered += Dalashade_SceneGISSGISample(uv, depth, normal, normalize(float2(0.76, 0.52)), radius * 1.75, materialEmissiveBias, sourceLightBias, receiverConfidence);
-    gathered += Dalashade_SceneGISSGISample(uv, depth, normal, normalize(float2(-0.76, 0.52)), radius * 1.75, materialEmissiveBias, sourceLightBias, receiverConfidence);
-    gathered += Dalashade_SceneGISSGISample(uv, depth, normal, normalize(float2(0.62, -0.78)), radius * 2.30, materialEmissiveBias, sourceLightBias, receiverConfidence);
-    gathered += Dalashade_SceneGISSGISample(uv, depth, normal, normalize(float2(-0.62, -0.78)), radius * 2.30, materialEmissiveBias, sourceLightBias, receiverConfidence);
+
+    if (sampleCountScale >= 0.625)
+    {
+        gathered += Dalashade_SceneGISSGISample(uv, depth, normal, normalize(float2(0.76, 0.52)), radius * 1.75, materialEmissiveBias, sourceLightBias, receiverConfidence);
+        gathered += Dalashade_SceneGISSGISample(uv, depth, normal, normalize(float2(-0.76, 0.52)), radius * 1.75, materialEmissiveBias, sourceLightBias, receiverConfidence);
+    }
+
+    if (sampleCountScale >= 0.875)
+    {
+        gathered += Dalashade_SceneGISSGISample(uv, depth, normal, normalize(float2(0.62, -0.78)), radius * 2.30, materialEmissiveBias, sourceLightBias, receiverConfidence);
+        gathered += Dalashade_SceneGISSGISample(uv, depth, normal, normalize(float2(-0.62, -0.78)), radius * 2.30, materialEmissiveBias, sourceLightBias, receiverConfidence);
+    }
 
     float3 color = gathered.rgb / gathered.a;
     float confidence = saturate(gathered.a * 0.42);
@@ -526,7 +554,9 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     laneMaterialTint = saturate(laneMaterialTint);
     float aoMaterialBoost = saturate(1.08 + hardSurface * 0.48 + forestCanopyGILane * 0.10 + interiorGILane * 0.16 + frame.MaterialVoidDarkness * 0.18 - coldGILane * 0.18 - frame.MaterialSnowIce * 0.34 - frame.MaterialSandDust * bright * 0.42 - frame.WaterSurface * 0.68 - skinProtect * 0.82);
 
-    float aoRadius = Dalashade_GIAORadius * (1.0 + Dalashade_GIRadius);
+    float giDistanceScale = max(Dalashade_GISampleDistanceScale, 0.25);
+    float giRadius = Dalashade_GIRadius * giDistanceScale;
+    float aoRadius = Dalashade_GIAORadius * giDistanceScale * (1.0 + giRadius);
     float aoMicro = Dalashade_SceneGIAO(texcoord, depth, aoRadius * 0.58, normalConfidence) * 1.42;
     float aoMedium = Dalashade_SceneGIAO(texcoord, depth, aoRadius * 1.18, normalConfidence) * (0.82 + hardSurface * 0.38);
     float aoBroad = Dalashade_SceneGIAO(texcoord, depth, aoRadius * 2.15, normalConfidence) * (0.34 + hardSurface * 0.16 + frame.MaterialFoliage * 0.08);
@@ -539,7 +569,7 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     ao *= 1.0 - highlightGuard * 0.82;
     ao *= 1.0 - skinProtect * 0.78;
 
-    float3 neighbor = Dalashade_SceneGINeighborAverage(texcoord, 1.25 + Dalashade_GIRadius * 1.35);
+    float3 neighbor = Dalashade_SceneGINeighborAverage(texcoord, 1.25 + giRadius * 1.35);
     float3 materialTint = float3(0.0, 0.0, 0.0);
     materialTint += frame.MaterialFoliage * float3(0.16, 0.34, 0.10) * (1.0 + forestCanopyGILane * 0.18);
     materialTint += frame.SafetyFoliageNoiseReject * float3(0.08, 0.16, 0.05);
@@ -578,10 +608,10 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     bounceMask *= 1.0 - frame.WaterSpecularGlint * 0.20;
     bounceMask *= 1.0 - frame.MaterialVoidDarkness * 0.82;
     float ssgiReceiverConfidence = saturate((frame.ReceiverAO * 0.36 + frame.ReceiverStructure * 0.30 + hardSurface * 0.22 + lowFrequencyMaterialRegion * 0.18 + wetGILane * 0.12 + materialBounceLaneEnergy * 0.10) * bounceReceiverMask * receiverMaterialSafety * (1.0 - highlightGuard * 0.54));
-    float4 ssgiGather = Dalashade_SceneGIScreenDiffuseGather(texcoord, depth, normal, 2.8 + Dalashade_GIRadius * 4.2, emissiveMaterial, sourceLightLane, ssgiReceiverConfidence);
+    float4 ssgiGather = Dalashade_SceneGIScreenDiffuseGather(texcoord, depth, normal, 2.8 + giRadius * 4.2, emissiveMaterial, sourceLightLane, ssgiReceiverConfidence);
     float3 screenDiffuseSource = ssgiGather.rgb;
     float screenDiffuseMask = ssgiGather.a;
-    float3 propagatedSource = Dalashade_SceneGIPropagatedSource(texcoord, depth, 2.0 + Dalashade_GIRadius * 2.2, 5.0 + Dalashade_GIRadius * 4.2, emissiveMaterial);
+    float3 propagatedSource = Dalashade_SceneGIPropagatedSource(texcoord, depth, 2.0 + giRadius * 2.2, 5.0 + giRadius * 4.2, emissiveMaterial);
     propagatedSource = lerp(propagatedSource, max(propagatedSource, screenDiffuseSource), screenDiffuseMask * (0.32 + sourceLightLane * 0.26 + materialBounceAllowance * 0.18));
     float propagatedSourceMask = saturate(Dalashade_SceneGIEmissiveCandidate(propagatedSource, emissiveMaterial) + sourceLightLane * 0.18 + screenDiffuseMask * (0.22 + materialBounceAllowance * 0.18));
     float emissivePoolingLane = saturate(baseEmissivePoolingLane + propagatedSourceMask * bounceReceiverMask * 0.34 + screenDiffuseMask * sourceLightLane * 0.16);
@@ -765,11 +795,36 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
         }
         else if (mode == 19)
         {
-            float evidenceMask = saturate(max(surface.DalapadConfidence, max(surface.DalapadFlatSupport, surface.DalapadStructureSupport)));
+            float evidenceMask = saturate(max(surface.DalapadConfidence, max(max(surface.DalapadPresence, surface.DalapadChroma), max(surface.DalapadFlatSupport, surface.DalapadStructureSupport))));
             debugColor = saturate(surface.DalapadNormal * 0.5 + 0.5);
             debugColor = lerp(float3(0.0, 0.0, 0.0), debugColor, evidenceMask);
             debugColor = max(debugColor, float3(surface.DalapadChroma, surface.DalapadNeighborDelta * 4.0, surface.DalapadPresence) * evidenceMask * 0.45);
             debugMask = evidenceMask;
+        }
+        else if (mode == 20)
+        {
+            float bridgeGate = Dalashade_DalapadFeatureGate(
+                frameSettings.DalapadSurfaceDataEnabled,
+                frameSettings.DalapadSurfaceDataStrength,
+                Dalapad_PinnedNormalAvailable,
+                Dalapad_PinnedNormalWidth,
+                Dalapad_PinnedNormalHeight);
+            float dimensionKnown = Dalashade_DalapadDimensionsKnown(Dalapad_PinnedNormalWidth, Dalapad_PinnedNormalHeight);
+            debugColor = float3(bridgeGate, surface.DalapadPresence * bridgeGate, dimensionKnown * bridgeGate);
+            debugMask = bridgeGate;
+        }
+        else if (mode == 21)
+        {
+            float bridgeGate = Dalashade_DalapadFeatureGate(
+                frameSettings.DalapadSurfaceDataEnabled,
+                frameSettings.DalapadSurfaceDataStrength,
+                Dalapad_PinnedNormalAvailable,
+                Dalapad_PinnedNormalWidth,
+                Dalapad_PinnedNormalHeight);
+            float3 rawNormal = Dalashade_DalapadPinnedNormal(texcoord).rgb;
+            float3 decodedNormal = Dalashade_DalapadDecodeNormalLike(rawNormal) * 0.5 + 0.5;
+            debugColor = lerp(rawNormal, decodedNormal, 0.72) * bridgeGate;
+            debugMask = bridgeGate;
         }
 
         return float4(Dalashade_SceneGIDebugOutput(texcoord, color, result, debugColor, debugMask), 1.0);

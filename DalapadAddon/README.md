@@ -4,6 +4,17 @@ DalapadAddon is the removable, experimental bridge direction for Dalashade exter
 
 This folder is not part of the Dalashade plugin build. It is a first-pass addon scaffold and contract package for future ReShade/native addon work.
 
+## Boundary Summary
+
+DalapadAddon has separate diagnostic and shader-facing surfaces:
+
+- status-file and control-pipe IPC report health and capability only.
+- semantic ReShade texture bindings provide shader-visible pinned candidates.
+- `Dalapad_Debug.fx` is a manual developer inspection surface and may use diagnostic copy paths.
+- production first-party assist is optional and must go through `shaders/Dalashade_Dalapad.fxh` and `shaders/Dalashade_FrameData.fxh`.
+
+Pinned candidates are not guaranteed truth. Normal, albedo/diffuse, depth, material/mask, emissive, and water/reflection candidates are evidence rows until repeated captures prove stable semantics. Missing or stale data must resolve neutral, and third-party shaders do not automatically consume any Dalapad output.
+
 ## Goal
 
 The addon should eventually answer one narrow question:
@@ -19,10 +30,11 @@ This first pass is intentionally non-production:
 - runtime loading only if a developer builds the DLL in a separate addon project
 - no production render-target reads
 - debug-only addon-owned render-layer candidate copies may occur after ReShade bind observations
+- debug scan/copy can cost frame time and must remain developer-only
 - no game render-target handles are sent over IPC
 - no generated preset changes
-- no required production shader contract changes
-- no live uniform writes
+- optional first-party shader contract changes only through `shaders/Dalashade_Dalapad.fxh`
+- live shader uniform writes are limited to diagnostic availability/dimension/status values
 
 The source file now implements the first testable behavior:
 
@@ -31,9 +43,10 @@ The source file now implements the first testable behavior:
 - writes `dalapad-status.json` on DLL load and unload
 - opens a diagnostic control pipe for ping, self-test, status, and capability negotiation
 - reports resource catalog rows for normal, diffuse, depth, scan slots, and pinned candidates
-- uploads a synthetic 256x256 debug texture into `Dalapad_Debug.fx` when `Dalapad_DebugTexture` is loaded
-- can bind scan and pinned debug aliases only after an addon-owned copy succeeds
-- reports that live realtime uniform movement is reserved but disabled
+- uploads a synthetic 256x256 debug texture into `Dalapad_Debug.fx` when `Dalapad_DebugTexture` is loaded, throttled so the debug heartbeat does not rebuild every frame
+- can bind scan and pinned debug aliases only after an addon-owned copy succeeds; scan copies are limited to the active debug page while pinned copies are the only production-facing candidates
+- updates shared Dalapad availability/dimension uniforms in known first-party consumer effects
+- reports that arbitrary realtime uniform movement is reserved but disabled
 - supports `DALAPAD_STATUS_DIR` as an override for local IPC testing
 
 The current local build artifact is:
@@ -71,14 +84,15 @@ A real Dalapad addon should do only these jobs:
 4. Answer diagnostic control-pipe requests for ping, self-test, status, capability negotiation, and resource catalog rows with short, local responses.
 5. Publish optional resource/status names, scan slots, pinned candidates, dimensions, freshness, confidence, and reason text that match `dalapad-addon-contract.json`.
 6. In synthetic diagnostic mode, upload a generated test texture into `Dalapad_Debug.fx`.
-7. In diagnostic mode, expose copied addon-owned candidates for:
+7. In diagnostic mode, expose only the active scan-page candidates plus copied addon-owned pinned candidates for:
    - surface normal candidate
    - diffuse/albedo-like candidate
    - depth candidate
-8. Report dimensions, format, freshness, confidence, scan slots, and pinned semantic candidates.
-9. Fail closed when resources are missing, stale, wrong-sized, or unsafe.
-10. Let first-party shaders and any future FrameData merge fall back to existing behavior when the bridge is absent.
-11. Reserve live value movement for a later bounded channel after the surface bridge works.
+8. Avoid full catalog GPU copies in the per-frame ReShade path; broad scan metadata may be reported, but texture copies must stay page-scoped or semantic-pinned.
+9. Report dimensions, format, freshness, confidence, scan slots, and pinned semantic candidates, including the current water/reflection candidate.
+10. Fail closed when resources are missing, stale, or unsafe; dimensions are diagnostic metadata for semantic textures and must not by themselves disable an available pinned resource.
+11. Let first-party shaders and any future FrameData merge fall back to existing behavior when the bridge is absent.
+12. Reserve live value movement for a later bounded channel after the surface bridge works.
 
 ## Non-Responsibilities
 
@@ -136,7 +150,7 @@ Dalashade opens this pipe only during explicit diagnostic probes, with short tim
 
 Stage 1.2 reports `supportsResourceCatalog=true`. This means the addon can publish structured catalog rows with candidate names, sources, dimensions, format labels, freshness, confidence, safety state, metadata source, and reason text. Static rows may stay neutral; runtime rows may report observed scan or pinned candidate state.
 
-Stage 1.3 reports `supportsDebugVisualization=true`. The current debug visualization path can look for `Dalapad_DebugTexture`, upload generated synthetic pixels, observe candidate render-layer bindings, create addon-owned copies when formats/lifetimes allow, and bind those copies to scan or pinned debug aliases. It does not mean the resources are production-stable or required.
+Stage 1.3 reports `supportsDebugVisualization=true`. The current debug visualization path can look for `Dalapad_DebugTexture`, upload generated synthetic pixels, observe candidate render-layer bindings, create addon-owned copies when formats/lifetimes allow, and bind those copies to scan or pinned debug aliases. For performance, it must not copy the full scan catalog every frame: pinned semantic candidates are copied on a throttled cadence, and scan aliases are populated only for the active debug page or selected debug source. It does not mean the resources are production-stable or required.
 
 ## Removal
 

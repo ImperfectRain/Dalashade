@@ -61,6 +61,17 @@ sampler Dalashade_DalapadPinnedEmissiveSampler
     AddressV = Clamp;
 };
 
+texture2D Dalashade_DalapadPinnedWaterSurfaceTexture : DALAPAD_PINNED_WATER_SURFACE;
+sampler Dalashade_DalapadPinnedWaterSurfaceSampler
+{
+    Texture = Dalashade_DalapadPinnedWaterSurfaceTexture;
+    MinFilter = POINT;
+    MagFilter = POINT;
+    MipFilter = POINT;
+    AddressU = Clamp;
+    AddressV = Clamp;
+};
+
 uniform float Dalashade_DalapadEnabled < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalapad Shader Additions"; > = 0.0;
 uniform float Dalashade_DalapadSurfaceDataEnabled < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalapad Surface Data"; > = 0.0;
 uniform float Dalashade_DalapadSurfaceDataStrength < ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_label = "Dalapad Surface Data Strength"; > = 0.75;
@@ -70,6 +81,7 @@ uniform int Dalapad_PinnedAlbedoAvailable < ui_label = "Dalapad Pinned Albedo Av
 uniform int Dalapad_PinnedMaskAvailable < ui_label = "Dalapad Pinned Mask Available"; > = 0;
 uniform int Dalapad_PinnedNormalAltAvailable < ui_label = "Dalapad Pinned Normal Alt Available"; > = 0;
 uniform int Dalapad_PinnedEmissiveAvailable < ui_label = "Dalapad Pinned Emissive Available"; > = 0;
+uniform int Dalapad_PinnedWaterSurfaceAvailable < ui_label = "Dalapad Pinned Water Surface Available"; > = 0;
 
 uniform int Dalapad_PinnedNormalWidth < ui_label = "Dalapad Pinned Normal Width"; > = 0;
 uniform int Dalapad_PinnedNormalHeight < ui_label = "Dalapad Pinned Normal Height"; > = 0;
@@ -81,6 +93,8 @@ uniform int Dalapad_PinnedNormalAltWidth < ui_label = "Dalapad Pinned Normal Alt
 uniform int Dalapad_PinnedNormalAltHeight < ui_label = "Dalapad Pinned Normal Alt Height"; > = 0;
 uniform int Dalapad_PinnedEmissiveWidth < ui_label = "Dalapad Pinned Emissive Width"; > = 0;
 uniform int Dalapad_PinnedEmissiveHeight < ui_label = "Dalapad Pinned Emissive Height"; > = 0;
+uniform int Dalapad_PinnedWaterSurfaceWidth < ui_label = "Dalapad Pinned Water Surface Width"; > = 0;
+uniform int Dalapad_PinnedWaterSurfaceHeight < ui_label = "Dalapad Pinned Water Surface Height"; > = 0;
 
 struct Dalashade_DalapadNormalResult
 {
@@ -121,18 +135,22 @@ float Dalashade_DalapadAvailability(int available)
     return available > 0 ? 1.0 : 0.0;
 }
 
-float Dalashade_DalapadDimensionsValid(int width, int height)
+float Dalashade_DalapadDimensionsKnown(int width, int height)
 {
     return width > 0 && height > 0 ? 1.0 : 0.0;
 }
 
 float Dalashade_DalapadFeatureGate(float featureEnabled, float featureStrength, int available, int width, int height)
 {
-    return saturate(Dalashade_DalapadEnabled)
+    // Semantic texture bindings sample through normalized UVs, so dimensions
+    // are diagnostic metadata. Availability and user gates decide authorization.
+    float dimensionsKnown = Dalashade_DalapadDimensionsKnown(width, height);
+    float gate = saturate(Dalashade_DalapadEnabled)
         * saturate(featureEnabled)
         * saturate(featureStrength)
-        * Dalashade_DalapadAvailability(available)
-        * Dalashade_DalapadDimensionsValid(width, height);
+        * Dalashade_DalapadAvailability(available);
+
+    return gate + dimensionsKnown * 0.0;
 }
 
 float3 Dalashade_DalapadDecodeNormalLike(float3 encodedNormal)
@@ -156,6 +174,11 @@ Dalashade_DalapadNormalResult Dalashade_DalapadEmptyNormalResult(float3 fallback
     return result;
 }
 
+float4 Dalashade_DalapadPinnedNormal(float2 uv)
+{
+    return tex2D(Dalashade_DalapadPinnedNormalSampler, uv);
+}
+
 float4 Dalashade_DalapadPinnedAlbedo(float2 uv)
 {
     return tex2D(Dalashade_DalapadPinnedAlbedoSampler, uv);
@@ -169,6 +192,11 @@ float4 Dalashade_DalapadPinnedMask(float2 uv)
 float4 Dalashade_DalapadPinnedEmissive(float2 uv)
 {
     return tex2D(Dalashade_DalapadPinnedEmissiveSampler, uv);
+}
+
+float4 Dalashade_DalapadPinnedWaterSurface(float2 uv)
+{
+    return tex2D(Dalashade_DalapadPinnedWaterSurfaceSampler, uv);
 }
 
 Dalashade_DalapadScalarResult Dalashade_DalapadBuildScalarResult(float4 raw, float3 right, float3 down, float gate)
@@ -285,6 +313,21 @@ Dalashade_DalapadScalarResult Dalashade_DalapadPinnedEmissiveEvidence(float2 uv,
     float4 raw = tex2D(Dalashade_DalapadPinnedEmissiveSampler, uv);
     float3 right = tex2D(Dalashade_DalapadPinnedEmissiveSampler, saturate(uv + float2(texel.x, 0.0))).rgb;
     float3 down = tex2D(Dalashade_DalapadPinnedEmissiveSampler, saturate(uv + float2(0.0, texel.y))).rgb;
+    return Dalashade_DalapadBuildScalarResult(raw, right, down, gate);
+}
+
+Dalashade_DalapadScalarResult Dalashade_DalapadPinnedWaterSurfaceEvidence(float2 uv, float featureEnabled, float featureStrength)
+{
+    float gate = Dalashade_DalapadFeatureGate(featureEnabled, featureStrength, Dalapad_PinnedWaterSurfaceAvailable, Dalapad_PinnedWaterSurfaceWidth, Dalapad_PinnedWaterSurfaceHeight);
+    if (gate <= 0.0)
+    {
+        return Dalashade_DalapadEmptyScalarResult();
+    }
+
+    float2 texel = BUFFER_PIXEL_SIZE;
+    float4 raw = tex2D(Dalashade_DalapadPinnedWaterSurfaceSampler, uv);
+    float3 right = tex2D(Dalashade_DalapadPinnedWaterSurfaceSampler, saturate(uv + float2(texel.x, 0.0))).rgb;
+    float3 down = tex2D(Dalashade_DalapadPinnedWaterSurfaceSampler, saturate(uv + float2(0.0, texel.y))).rgb;
     return Dalashade_DalapadBuildScalarResult(raw, right, down, gate);
 }
 
