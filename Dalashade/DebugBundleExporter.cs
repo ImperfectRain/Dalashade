@@ -1024,18 +1024,16 @@ public sealed class DebugBundleExporter
     private static object BuildPerformanceSummary(Configuration configuration, DalapadDiagnostics dalapadDiagnostics, PresetWriteResult writeResult)
     {
         var generatedPerformanceValues = ReadGeneratedPresetVariables(configuration.GeneratedPresetPath, FirstPartyShaderRegistry.KnownPerformanceTierUniforms);
-        var debugVisualization = dalapadDiagnostics.ControlPipeStatus.DebugVisualization;
-        var dalapadProductionEnabled = configuration.EnableDalapadShaderIntegration
-            && (configuration.EnableDalapadSurfaceData || configuration.EnableDalapadSceneGINormalAssist);
-        var debugCopyActive = debugVisualization.CopiesRenderTargets && debugVisualization.CopiedSourceCount > 0;
+        var diagnosticSummary = DiagnosticSummaryBuilder.BuildPerformanceSummary(configuration, dalapadDiagnostics);
+        var dalapadCostStatus = diagnosticSummary.DalapadCostStatus;
 
         return new
         {
-            SelectedFirstPartyPerformanceTier = configuration.FirstPartyPerformanceTier,
-            QualityPreservesCurrentBehavior = true,
-            GeneratedPresetWritesEnabled = configuration.EnableDalashadeCustomShaders,
-            CustomShaderSectionInjectionEnabled = configuration.AutoInjectDalashadeCustomShaderSections,
-            TechniqueActivationSyncEnabled = configuration.SyncDalashadeTechniqueActivation,
+            diagnosticSummary.SelectedFirstPartyPerformanceTier,
+            diagnosticSummary.QualityPreservesCurrentBehavior,
+            diagnosticSummary.GeneratedPresetWritesEnabled,
+            diagnosticSummary.CustomShaderSectionInjectionEnabled,
+            diagnosticSummary.TechniqueActivationSyncEnabled,
             FirstPartyFeatureGates = new
             {
                 SceneGI = configuration.EnableDalashadeSceneGIShaderVariables,
@@ -1047,33 +1045,8 @@ public sealed class DebugBundleExporter
                 MaterialIntentShaderMapping = configuration.EnableMaterialIntentShaderMapping,
                 FirstPartyDepthAssist = configuration.EnableFirstPartyDepthAssist
             },
-            DalapadProductionAssist = new
-            {
-                Enabled = dalapadProductionEnabled,
-                GlobalShaderGate = configuration.EnableDalapadShaderIntegration,
-                SurfaceDataGate = configuration.EnableDalapadSurfaceData,
-                SurfaceDataStrength = configuration.DalapadSurfaceDataStrength,
-                SceneGINormalAssistGate = configuration.EnableDalapadSceneGINormalAssist,
-                SceneGINormalAssistStrength = configuration.DalapadSceneGINormalAssistStrength,
-                ExpectedCostClass = dalapadProductionEnabled ? "ShaderSamplingAfterGates" : "DisabledNeutralFallback"
-            },
-            DalapadDebugVisualizationCost = new
-            {
-                debugVisualization.Enabled,
-                debugVisualization.Status,
-                debugVisualization.ReadsRenderTargets,
-                debugVisualization.CopiesRenderTargets,
-                debugVisualization.ObservedSourceCount,
-                debugVisualization.CopiedSourceCount,
-                debugVisualization.CopyFrameInterval,
-                debugVisualization.FrameAge,
-                CopiedPinnedCandidateCount = debugVisualization.PinnedCandidates.Count(candidate => candidate.Copied),
-                CostClass = debugCopyActive
-                    ? "PotentiallyExpensiveDebugCopy"
-                    : debugVisualization.ReadsRenderTargets
-                        ? "DebugObservationNoActiveCopy"
-                        : "NoDebugRenderTargetCopyReported"
-            },
+            DalapadProductionAssist = dalapadCostStatus.ProductionAssist,
+            DalapadDebugVisualizationCost = dalapadCostStatus.DebugVisualizationCost,
             GeneratedPerformanceValues = generatedPerformanceValues
                 .GroupBy(value => value.Section, StringComparer.OrdinalIgnoreCase)
                 .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)

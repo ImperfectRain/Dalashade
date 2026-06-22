@@ -186,6 +186,11 @@ float4 Dalashade_ContactTonePS(float4 position : SV_Position, float2 texcoord : 
     frameSettings.NormalWaterSuppression = Dalashade_NormalWaterSuppression;
     frameSettings.NormalSkinSuppression = Dalashade_NormalSkinSuppression;
     frameSettings.NormalSkySuppression = Dalashade_NormalSkySuppression;
+    // ContactTone is a grounding/readability pass. Raw Dalapad surface edges can
+    // turn normal-map and alpha-card detail into heavy outline masks, so keep
+    // this shader on the established depth/material/NormalField path.
+    frameSettings.DalapadSurfaceDataEnabled = 0.0;
+    frameSettings.DalapadSurfaceDataStrength = 0.0;
 
     Dalashade_FrameBaseData frame = Dalashade_ResolveFrameBaseData(color, texcoord, frameSettings);
     Dalashade_FrameSurfaceData surface = Dalashade_ResolveFrameSurfaceData(color, texcoord, frame, frameSettings);

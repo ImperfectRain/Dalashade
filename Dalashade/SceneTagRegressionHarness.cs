@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Dalashade.SceneAuthoring;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -52,6 +53,9 @@ public static class SceneTagRegressionHarness
         ValidateMaterialTagRegistryTuningSafety(failures);
         ValidateGeneratedPresetLoadOrderOptimization(failures);
         ValidateGeneratedPresetDalashadeTechniqueSync(failures);
+        ValidateFirstPartyShaderRegistryParity(failures);
+        ValidateGeneratedPresetRepresentativeOutputStability(failures);
+        ValidateDalapadNeutralFallback(failures);
 
         foreach (var testCase in cases)
         {
@@ -687,6 +691,16 @@ public static class SceneTagRegressionHarness
                 failures.Add(new SceneTagRegressionFailure("Generated preset Dalashade technique sync", $"Expected Dalashade production technique order, got: {string.Join(",", enabledTechniques)}"));
             }
 
+            var manualDebugTechniques = FirstPartyShaderRegistry.ManualDebugShaders
+                .Select(shader => shader.TechniqueName)
+                .ToArray();
+            var syncedManualDebugTechnique = enabledTechniques.FirstOrDefault(entry =>
+                manualDebugTechniques.Any(debugTechnique => entry.Contains(debugTechnique, StringComparison.OrdinalIgnoreCase)));
+            if (!string.IsNullOrWhiteSpace(syncedManualDebugTechnique))
+            {
+                failures.Add(new SceneTagRegressionFailure("Generated preset Dalashade technique sync", $"Manual debug technique was auto-enabled by technique sync: {syncedManualDebugTechnique}"));
+            }
+
             var disableResult = writer.WriteGeneratedPreset(
                 new Configuration
                 {
@@ -717,6 +731,12 @@ public static class SceneTagRegressionHarness
             {
                 failures.Add(new SceneTagRegressionFailure("Generated preset Dalashade technique sync", "Third-party active technique was removed during Dalashade deactivation sync."));
             }
+
+            var plan = writer.CreatePlan();
+            if (plan.ManualDebugTechniqueEntries.Any(debugEntry => plan.ProductionTechniqueEntries.Contains(debugEntry, StringComparer.OrdinalIgnoreCase)))
+            {
+                failures.Add(new SceneTagRegressionFailure("Generated preset plan", "Read-only generated preset plan overlaps manual debug and production technique entries."));
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
@@ -734,6 +754,180 @@ public static class SceneTagRegressionHarness
             catch
             {
                 // Regression cleanup is best-effort.
+            }
+        }
+    }
+
+    private static void ValidateFirstPartyShaderRegistryParity(List<SceneTagRegressionFailure> failures)
+    {
+        var mapperVariables = new HashSet<string>(CustomShaderVariableMapper.KnownVariableNames, StringComparer.OrdinalIgnoreCase);
+        foreach (var shader in FirstPartyShaderRegistry.All)
+        {
+            foreach (var variable in shader.KnownGeneratedUniforms)
+            {
+                if (!mapperVariables.Contains(variable))
+                {
+                    failures.Add(new SceneTagRegressionFailure("First-party shader registry parity", $"{shader.Family} lists generated uniform '{variable}' but CustomShaderVariableMapper does not know it."));
+                }
+            }
+
+            if (shader.ManualDebugShader && shader.TechniqueSyncEligible)
+            {
+                failures.Add(new SceneTagRegressionFailure("First-party shader registry parity", $"{shader.Family} is manual debug but is marked technique-sync eligible."));
+            }
+
+            if (shader.ProductionShader && !shader.TechniqueSyncEligible)
+            {
+                failures.Add(new SceneTagRegressionFailure("First-party shader registry parity", $"{shader.Family} is production but is not technique-sync eligible."));
+            }
+        }
+
+        var dalapadDebug = FirstPartyShaderRegistry.FindByTechnique("Dalapad_Debug");
+        if (dalapadDebug is null || !dalapadDebug.ManualDebugShader || dalapadDebug.TechniqueSyncEligible)
+        {
+            failures.Add(new SceneTagRegressionFailure("First-party shader registry parity", "Dalapad_Debug must remain a manual debug shader and excluded from technique sync."));
+        }
+
+        var shaderRoot = FindShaderSourceRoot();
+        if (shaderRoot is null)
+        {
+            return;
+        }
+
+        foreach (var shader in FirstPartyShaderRegistry.All)
+        {
+            var sourceText = ReadShaderSourceWithIncludes(shaderRoot, shader);
+            if (sourceText is null)
+            {
+                continue;
+            }
+
+            var uniforms = ExtractUniforms(sourceText);
+            foreach (var variable in uniforms.Where(IsDalashadeManagedHarnessUniform))
+            {
+                if (shader.ProductionShader
+                    && !mapperVariables.Contains(variable)
+                    && !shader.DebugUniforms.Contains(variable, StringComparer.OrdinalIgnoreCase))
+                {
+                    failures.Add(new SceneTagRegressionFailure("First-party shader registry parity", $"{shader.Family} shader declares managed uniform '{variable}', but CustomShaderVariableMapper does not know it."));
+                }
+            }
+        }
+    }
+
+    private static void ValidateGeneratedPresetRepresentativeOutputStability(List<SceneTagRegressionFailure> failures)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "DalashadePresetOutputStability", Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(root);
+            var basePath = Path.Combine(root, "base.ini");
+            var firstPath = Path.Combine(root, "generated-a.ini");
+            var secondPath = Path.Combine(root, "generated-b.ini");
+            File.WriteAllLines(basePath, new[]
+            {
+                "Techniques=ThirdPartyBloom@qUINT_bloom.fx",
+                "TechniqueSorting=ThirdPartyBloom@qUINT_bloom.fx",
+                "[ThirdPartyBloom.fx]",
+                "BloomStrength=0.500000",
+                "[Dalashade_SceneGI.fx]",
+                "Dalashade_GIStrength=0.250000",
+                "[Dalashade_SurfaceReflection.fx]",
+                "Dalashade_SurfaceReflectionStrength=0.250000"
+            });
+
+            var configuration = new Configuration
+            {
+                BasePresetPath = basePath,
+                GeneratedPresetPath = firstPath,
+                EnableDalashadeCustomShaders = true,
+                AutoInjectDalashadeCustomShaderSections = true,
+                SyncDalashadeTechniqueActivation = true,
+                EnableDalashadeSceneGIShaderVariables = true,
+                EnableDalashadeContactToneShaderVariables = true,
+                EnableDalashadeSurfaceReflectionShaderVariables = true,
+                EnableMaterialIntent = true,
+                EnableMaterialIntentShaderMapping = true,
+                EnableNormalField = true,
+                EnableNormalFieldShaderMapping = true,
+                EnableDalapadShaderIntegration = true,
+                EnableDalapadSurfaceData = true,
+                EnableDalapadSceneGINormalAssist = true,
+                FirstPartyPerformanceTier = FirstPartyPerformanceTier.Balanced,
+                WriteBackups = false,
+                CompatibilityMode = PresetCompatibilityMode.AdaptiveBalanced
+            };
+
+            var writer = new PresetWriter();
+            var firstResult = writer.WriteGeneratedPreset(configuration, VisualProfile.Neutral, SceneIntent.Neutral, MaterialIntent.Neutral);
+            configuration.GeneratedPresetPath = secondPath;
+            var secondResult = writer.WriteGeneratedPreset(configuration, VisualProfile.Neutral, SceneIntent.Neutral, MaterialIntent.Neutral);
+            if (!firstResult.Success || !secondResult.Success)
+            {
+                failures.Add(new SceneTagRegressionFailure("Generated preset representative output stability", $"Expected both representative writes to succeed, got first='{firstResult.Message}', second='{secondResult.Message}'."));
+                return;
+            }
+
+            var firstText = File.ReadAllText(firstPath);
+            var secondText = File.ReadAllText(secondPath);
+            if (!string.Equals(firstText, secondText, StringComparison.Ordinal))
+            {
+                failures.Add(new SceneTagRegressionFailure("Generated preset representative output stability", "Representative generated preset output changed between identical writes."));
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            failures.Add(new SceneTagRegressionFailure("Generated preset representative output stability", $"Generated output stability validation failed: {ex.Message}"));
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(root))
+                {
+                    Directory.Delete(root, true);
+                }
+            }
+            catch
+            {
+                // Regression cleanup is best-effort.
+            }
+        }
+    }
+
+    private static void ValidateDalapadNeutralFallback(List<SceneTagRegressionFailure> failures)
+    {
+        var mapper = new CustomShaderVariableMapper();
+        var configuration = new Configuration
+        {
+            EnableDalashadeCustomShaders = true,
+            EnableDalapadShaderIntegration = false,
+            EnableDalapadSurfaceData = true,
+            EnableDalapadSceneGINormalAssist = true,
+            DalapadSurfaceDataStrength = 1f,
+            DalapadSceneGINormalAssistStrength = 1f
+        };
+        var expectedNeutralVariables = new[]
+        {
+            "Dalashade_DalapadEnabled",
+            "Dalashade_DalapadSurfaceDataEnabled",
+            "Dalashade_DalapadSurfaceDataStrength",
+            "Dalashade_DalapadSceneGINormalAssist",
+            "Dalashade_DalapadSceneGINormalStrength"
+        };
+
+        foreach (var variable in expectedNeutralVariables)
+        {
+            if (!mapper.TryGetAdjustment(configuration, "Dalashade_SceneGI", variable, SceneIntent.Neutral, MaterialIntent.Neutral, out var adjustment))
+            {
+                failures.Add(new SceneTagRegressionFailure("Dalapad neutral fallback", $"Expected Dalapad variable '{variable}' to be mapped for first-party shaders."));
+                continue;
+            }
+
+            var result = adjustment.Apply("1.000000");
+            if (result is null || (result.NewValue != "0" && !string.Equals(result.NewValue, "0.000000", StringComparison.OrdinalIgnoreCase)))
+            {
+                failures.Add(new SceneTagRegressionFailure("Dalapad neutral fallback", $"Expected '{variable}' to resolve neutral when Dalapad integration is disabled, got '{result?.NewValue ?? "<null>"}'."));
             }
         }
     }
@@ -1102,6 +1296,59 @@ public static class SceneTagRegressionHarness
         }
 
         return line[(separatorIndex + 1)..].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+
+    private static string? FindShaderSourceRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var shaderRoot = Path.Combine(directory.FullName, "shaders");
+            if (Directory.Exists(shaderRoot))
+            {
+                return shaderRoot;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return null;
+    }
+
+    private static string? ReadShaderSourceWithIncludes(string shaderRoot, FirstPartyShaderMetadata shader)
+    {
+        var files = new[] { shader.FileName }
+            .Concat(shader.IncludeFiles)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var chunks = new List<string>();
+        foreach (var file in files)
+        {
+            var path = Path.Combine(shaderRoot, file);
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            chunks.Add(File.ReadAllText(path));
+        }
+
+        return string.Join(Environment.NewLine, chunks);
+    }
+
+    private static HashSet<string> ExtractUniforms(string sourceText)
+    {
+        return Regex.Matches(sourceText, @"\buniform\s+(?:bool|int|uint|float|float2|float3|float4)\s+([A-Za-z_][A-Za-z0-9_]*)\b", RegexOptions.CultureInvariant)
+            .Select(match => match.Groups[1].Value)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool IsDalashadeManagedHarnessUniform(string uniform)
+    {
+        return uniform.StartsWith("Dalashade_", StringComparison.OrdinalIgnoreCase)
+            || uniform.StartsWith("CanopyGap", StringComparison.OrdinalIgnoreCase)
+            || uniform.StartsWith("Sharpen", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void ExpectOpinion(List<SceneTagRegressionFailure> failures, string caseName, ImageAnalysisResult image, string opinionKey, float minimum)

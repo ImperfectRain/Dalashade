@@ -66,6 +66,8 @@ public sealed class PresetWriter
     private sealed record KnownCustomShaderDefinition(string Section, string Technique, string TechniqueEntry, IReadOnlyList<string> Variables);
     private sealed record TechniqueSyncResult(bool Attempted, bool Activated, bool Deactivated, IReadOnlyList<string> ActiveTechniques, IReadOnlyList<string> KeysChanged);
 
+    public GeneratedPresetPlan CreatePlan() => GeneratedPresetPlan.Create();
+
     private static readonly IReadOnlyList<string> SmartSharpenMaterialIntentShaderVariables =
     [
         "Dalashade_MaterialFoliage",
