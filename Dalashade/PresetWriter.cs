@@ -478,6 +478,10 @@ public sealed class PresetWriter
                 "Dalashade_GIAORadius",
                 "Dalashade_GINightLightStrength",
                 "Dalashade_GIMaterialInfluence",
+                "Dalashade_GIContactShadowsEnabled",
+                "Dalashade_GIContactShadowStrength",
+                "Dalashade_GIContactShadowRadius",
+                "Dalashade_GIContactShadowSoftness",
                 "Dalashade_GISkyReject",
                 "Dalashade_GISkinProtect",
                 "Dalashade_GIDebugMode",
@@ -516,6 +520,48 @@ public sealed class PresetWriter
                 .Concat([
                 "Dalashade_GISampleCountScale",
                 "Dalashade_GISampleDistanceScale"])
+                .Concat(DalapadSurfaceShaderVariables)
+                .Concat(NormalFieldShaderVariables)
+                .Concat(DepthAssistShaderOwnedVariables)
+                .ToArray()),
+        new(
+            "Dalashade_ScreenShadows.fx",
+            "Dalashade_ScreenShadows",
+            "Dalashade_ScreenShadows@Dalashade_ScreenShadows.fx",
+            WithMaterialIntentVariables(
+                SceneGIMaterialIntentShaderVariables,
+                "Dalashade_ScreenShadowsEnabled",
+                "Dalashade_ScreenShadowsStrength",
+                "Dalashade_ScreenShadowsReach",
+                "Dalashade_ScreenShadowsSoftness",
+                "Dalashade_ScreenShadowsSourceSensitivity",
+                "Dalashade_ScreenShadowsDalapadInfluence",
+                "Dalashade_ScreenShadowsDebugMode",
+                "Dalashade_ScreenShadowsDebugOutputMode",
+                "Dalashade_ScreenShadowsDebugOpacity",
+                "Dalashade_ScreenShadowsDebugBoost",
+                "Dalashade_IntentReadability",
+                "Dalashade_IntentAtmosphere",
+                "Dalashade_IntentHighlightProtection",
+                "Dalashade_IntentShadowProtection",
+                "Dalashade_IntentWetness",
+                "Dalashade_IntentMagicGlow",
+                "Dalashade_IntentNeonGlow",
+                "Dalashade_IntentFoliageDensity",
+                "Dalashade_IntentIndustrialHardness",
+                "Dalashade_Night",
+                "Dalashade_Moonlight",
+                "Dalashade_ArtificialLight",
+                "Dalashade_AmbientDarkness",
+                "Dalashade_NightAtmosphere",
+                "Dalashade_Daylight",
+                "Dalashade_Sunlight",
+                "Dalashade_OpenSkyLight",
+                "Dalashade_DayHighlightPressure",
+                "Dalashade_IntentCombatPressure",
+                "Dalashade_IntentCinematicPermission")
+                .Concat(FirstPartyShaderModeVariables)
+                .Concat(FirstPartyPerformanceShaderVariables)
                 .Concat(DalapadSurfaceShaderVariables)
                 .Concat(NormalFieldShaderVariables)
                 .Concat(DepthAssistShaderOwnedVariables)
@@ -1081,6 +1127,24 @@ public sealed class PresetWriter
             };
         }
 
+        if (section.Contains("Dalashade_ScreenShadows", StringComparison.OrdinalIgnoreCase))
+        {
+            return variable switch
+            {
+                "Dalashade_ScreenShadowsEnabled" => "0.000000",
+                "Dalashade_ScreenShadowsStrength" => "0.280000",
+                "Dalashade_ScreenShadowsReach" => "0.620000",
+                "Dalashade_ScreenShadowsSoftness" => "0.550000",
+                "Dalashade_ScreenShadowsSourceSensitivity" => "0.520000",
+                "Dalashade_ScreenShadowsDalapadInfluence" => "0.450000",
+                "Dalashade_ScreenShadowsDebugMode" => "0",
+                "Dalashade_ScreenShadowsDebugOutputMode" => "0",
+                "Dalashade_ScreenShadowsDebugOpacity" => "0.750000",
+                "Dalashade_ScreenShadowsDebugBoost" => "2.500000",
+                _ => "0.000000"
+            };
+        }
+
         if (section.Contains("Dalashade_AtmosphereBloom", StringComparison.OrdinalIgnoreCase))
         {
             return variable switch
@@ -1115,6 +1179,10 @@ public sealed class PresetWriter
             "Dalashade_GIAORadius" => "0.450000",
             "Dalashade_GINightLightStrength" => "0.420000",
             "Dalashade_GIMaterialInfluence" => "0.580000",
+            "Dalashade_GIContactShadowsEnabled" => "0.000000",
+            "Dalashade_GIContactShadowStrength" => "0.300000",
+            "Dalashade_GIContactShadowRadius" => "0.620000",
+            "Dalashade_GIContactShadowSoftness" => "0.550000",
             "Dalashade_GISkyReject" => "1.000000",
             "Dalashade_GISkinProtect" => "1.000000",
             "Dalashade_GIDebugOutputMode" => "0",
@@ -1298,6 +1366,11 @@ public sealed class PresetWriter
             return configuration.EnableDalashadeSceneGIShaderVariables;
         }
 
+        if (shader.Section.Contains("ScreenShadows", StringComparison.OrdinalIgnoreCase))
+        {
+            return configuration.EnableDalashadeScreenShadowsShaderVariables;
+        }
+
         if (shader.Section.Contains("ContactTone", StringComparison.OrdinalIgnoreCase))
         {
             return configuration.EnableDalashadeContactToneShaderVariables;
@@ -1476,6 +1549,11 @@ public sealed class PresetWriter
         if (ContainsAny(text, "dalashade_scenegi"))
         {
             return 32;
+        }
+
+        if (ContainsAny(text, "dalashade_screenshadows"))
+        {
+            return 34;
         }
 
         if (ContainsAny(text, "dalashade_contacttone"))

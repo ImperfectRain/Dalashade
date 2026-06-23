@@ -451,6 +451,8 @@ public sealed class MainWindow : Window, IDisposable
         var enabled = new[]
         {
             configuration.EnableDalashadeSceneGIShaderVariables,
+            configuration.EnableDalashadeSceneGIContactShadows,
+            configuration.EnableDalashadeScreenShadowsShaderVariables,
             configuration.EnableDalashadeContactToneShaderVariables,
             configuration.EnableDalashadeSurfaceReflectionShaderVariables,
             configuration.EnableMaterialIntentShaderMapping,
@@ -513,6 +515,7 @@ public sealed class MainWindow : Window, IDisposable
         DrawAtmosphereCard();
         DrawContactToneCard();
         DrawIndirectLightingCard();
+        DrawScreenShadowsCard();
         DrawReflectionCard();
         DrawBloomCard();
         DrawSharpeningCard();
@@ -568,7 +571,37 @@ public sealed class MainWindow : Window, IDisposable
         DrawFloatSlider("Indirect lighting strength###UserSceneGIStrength", configuration.DalashadeSceneGIStrength, 0f, 1f, value => configuration.DalashadeSceneGIStrength = value);
         DrawFloatSlider("Contact grounding###UserSceneGIAO", configuration.DalashadeSceneGIAOIntensity, 0f, 1f, value => configuration.DalashadeSceneGIAOIntensity = value);
         DrawFloatSlider("Color bounce###UserSceneGIBounce", configuration.DalashadeSceneGIBounceStrength, 0f, 1f, value => configuration.DalashadeSceneGIBounceStrength = value);
+        DrawCheckbox("Enable SceneGI contact shadows###UserSceneGIContactShadows", configuration.EnableDalashadeSceneGIContactShadows, value => configuration.EnableDalashadeSceneGIContactShadows = value);
+        if (configuration.EnableDalashadeSceneGIContactShadows)
+        {
+            DrawFloatSlider("Contact shadow strength###UserSceneGIContactShadowStrength", configuration.DalashadeSceneGIContactShadowStrength, 0f, 1f, value => configuration.DalashadeSceneGIContactShadowStrength = value);
+            DrawFloatSlider("Contact shadow radius###UserSceneGIContactShadowRadius", configuration.DalashadeSceneGIContactShadowRadius, 0.2f, 2f, value => configuration.DalashadeSceneGIContactShadowRadius = value);
+            DrawFloatSlider("Contact shadow softness###UserSceneGIContactShadowSoftness", configuration.DalashadeSceneGIContactShadowSoftness, 0f, 1f, value => configuration.DalashadeSceneGIContactShadowSoftness = value);
+        }
+        ImGui.TextWrapped("SceneGI contact shadows are local AO/contact grounding. Screen Shadows is the separate source-aware shadow technique.");
         ImGui.TextWrapped("SceneGI uses Dalapad surface data through FrameData when the global Dalapad surface-data option is enabled.");
+    }
+
+    private void DrawScreenShadowsCard()
+    {
+        var configuration = plugin.Configuration;
+        FeatureStatusCardRenderer.Draw(BuildFeatureStatusCard(
+            "Screen Shadows",
+            GetFirstPartyShaderRole("Dalashade_ScreenShadows", "ScreenShadows adds optional source-aware soft shadow impressions."),
+            "Dalashade_ScreenShadows",
+            frameData: true));
+
+        DrawCheckbox("Enable ScreenShadows first-party controls###UserScreenShadowsEnabled", configuration.EnableDalashadeScreenShadowsShaderVariables, value => configuration.EnableDalashadeScreenShadowsShaderVariables = value);
+        DrawFloatSlider("Shadow strength###UserScreenShadowsStrength", configuration.DalashadeScreenShadowsStrength, 0f, 1f, value => configuration.DalashadeScreenShadowsStrength = value);
+        DrawFloatSlider("Shadow reach###UserScreenShadowsReach", configuration.DalashadeScreenShadowsReach, 0.2f, 2f, value => configuration.DalashadeScreenShadowsReach = value);
+        DrawFloatSlider("Shadow softness###UserScreenShadowsSoftness", configuration.DalashadeScreenShadowsSoftness, 0f, 1f, value => configuration.DalashadeScreenShadowsSoftness = value);
+        DrawFloatSlider("Source sensitivity###UserScreenShadowsSourceSensitivity", configuration.DalashadeScreenShadowsSourceSensitivity, 0f, 1f, value => configuration.DalashadeScreenShadowsSourceSensitivity = value);
+        if (configuration.EnableDalapadShaderIntegration && configuration.EnableDalapadSurfaceData)
+        {
+            DrawFloatSlider("Dalapad source assist###UserScreenShadowsDalapad", configuration.DalashadeScreenShadowsDalapadInfluence, 0f, 1f, value => configuration.DalashadeScreenShadowsDalapadInfluence = value);
+        }
+
+        ImGui.TextWrapped("Screen Shadows approximates visible-light cast shadows in screen space. It stays neutral when disabled or when required data is missing.");
     }
 
     private void DrawContactToneCard()
@@ -642,9 +675,7 @@ public sealed class MainWindow : Window, IDisposable
                              || generatedSectionPresent
                              || generatedVariablesPresent
                              || diagnostics.Sections.Any(section => SectionMatches(section.Section, family));
-        var activation = technique?.ActivationState
-                         ?? diagnostics.Sections.FirstOrDefault(section => SectionMatches(section.Section, family))?.ActivationState
-                         ?? (generatedTechniquePresent ? TechniqueActivationState.Active : TechniqueActivationState.Unknown);
+        var activation = ResolveFeatureActivation(family, diagnostics, generatedTechniquePresent);
         var variablesDetected = generatedVariablesPresent
                                 || diagnostics.KnownVariables.Any(variable => SectionMatches(variable.Section, family));
         var variablesWritten = diagnostics.WrittenVariables.Any(variable => SectionMatches(variable.Section, family));
@@ -714,6 +745,8 @@ public sealed class MainWindow : Window, IDisposable
         var configuration = plugin.Configuration;
         configuration.EnableDalashadeCustomShaders = true;
         configuration.EnableDalashadeSceneGIShaderVariables = false;
+        configuration.EnableDalashadeSceneGIContactShadows = false;
+        configuration.EnableDalashadeScreenShadowsShaderVariables = false;
         configuration.EnableDalashadeContactToneShaderVariables = false;
         configuration.EnableDalashadeSurfaceReflectionShaderVariables = false;
         configuration.EnableDalapadShaderIntegration = false;
@@ -730,10 +763,46 @@ public sealed class MainWindow : Window, IDisposable
 
     private PresetTechnique? FindTechnique(string family)
     {
-        return plugin.LastPresetAnalysis.Techniques.FirstOrDefault(technique =>
-            SectionMatches(technique.Section, family)
-            || SectionMatches(technique.ShaderFile, family)
-            || SectionMatches(technique.TechniqueName, family));
+        return plugin.LastPresetAnalysis.Techniques
+            .Where(technique => TechniqueMatchesFamily(technique, family))
+            .OrderByDescending(technique => technique.ActivationState == TechniqueActivationState.Active)
+            .ThenByDescending(technique => technique.ActivationState == TechniqueActivationState.Inactive)
+            .FirstOrDefault();
+    }
+
+    private TechniqueActivationState ResolveFeatureActivation(string family, CustomShaderBridgeDiagnostics diagnostics, bool generatedTechniquePresent)
+    {
+        var activationStates = plugin.LastPresetAnalysis.Techniques
+            .Where(technique => TechniqueMatchesFamily(technique, family))
+            .Select(technique => technique.ActivationState)
+            .Concat(diagnostics.Sections
+                .Where(section => SectionMatches(section.Section, family))
+                .Select(section => section.ActivationState))
+            .ToArray();
+
+        if (activationStates.Any(activation => activation == TechniqueActivationState.Active))
+        {
+            return TechniqueActivationState.Active;
+        }
+
+        if (generatedTechniquePresent)
+        {
+            return TechniqueActivationState.Active;
+        }
+
+        if (activationStates.Any(activation => activation == TechniqueActivationState.Inactive))
+        {
+            return TechniqueActivationState.Inactive;
+        }
+
+        return TechniqueActivationState.Unknown;
+    }
+
+    private static bool TechniqueMatchesFamily(PresetTechnique technique, string family)
+    {
+        return SectionMatches(technique.Section, family)
+               || SectionMatches(technique.ShaderFile, family)
+               || SectionMatches(technique.TechniqueName, family);
     }
 
     private static bool SectionMatches(string value, string family)

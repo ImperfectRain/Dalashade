@@ -53,6 +53,30 @@ uniform float Dalashade_GIMaterialInfluence <
     ui_label = "Dalashade GI Material Influence";
 > = 0.58;
 
+uniform float Dalashade_GIContactShadowsEnabled <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade GI Contact Shadows";
+> = 0.0;
+
+uniform float Dalashade_GIContactShadowStrength <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade GI Contact Shadow Strength";
+> = 0.30;
+
+uniform float Dalashade_GIContactShadowRadius <
+    ui_type = "slider";
+    ui_min = 0.20; ui_max = 2.0;
+    ui_label = "Dalashade GI Contact Shadow Radius";
+> = 0.62;
+
+uniform float Dalashade_GIContactShadowSoftness <
+    ui_type = "slider";
+    ui_min = 0.0; ui_max = 1.0;
+    ui_label = "Dalashade GI Contact Shadow Softness";
+> = 0.55;
+
 uniform float Dalashade_StandaloneStrength <
     ui_type = "slider";
     ui_min = 0.0; ui_max = 1.0;
@@ -93,7 +117,7 @@ uniform float Dalashade_GISkinProtect <
 
 uniform int Dalashade_GIDebugMode <
     ui_type = "combo";
-    ui_items = "Off\0AO only\0Bounce only\0Night light pooling\0Material influence\0Sky rejection\0Skin protection\0Final GI influence\0Depth-normal confidence\0Emissive source\0Bounce receiver\0Adaptive limits/safety\0Layered AO breakdown\0Clamp pressure\0SSGI diffuse gather\0Material bounce lanes\0Sky-safe receivers\0Emissive pooling lanes\0Dalapad used contribution\0Dalapad FrameData evidence\0Dalapad bridge gate\0Dalapad raw normal sample\0";
+    ui_items = "Off\0AO only\0Bounce only\0Night light pooling\0Material influence\0Sky rejection\0Skin protection\0Final GI influence\0Depth-normal confidence\0Emissive source\0Bounce receiver\0Adaptive limits/safety\0Layered AO breakdown\0Clamp pressure\0SSGI diffuse gather\0Material bounce lanes\0Sky-safe receivers\0Emissive pooling lanes\0Dalapad used contribution\0Dalapad FrameData evidence\0Dalapad bridge gate\0Dalapad raw normal sample\0Contact shadow mask\0";
     ui_label = "Dalashade GI Debug Mode";
 > = 0;
 
@@ -218,6 +242,33 @@ float Dalashade_SceneGIAO(float2 uv, float depth, float radius, float normalConf
     ao += saturate((depth - d3 - bias) * 24.0);
     ao += saturate((depth - d4 - bias) * 24.0);
     return saturate(ao * 0.25 * normalConfidence);
+}
+
+float Dalashade_SceneGIContactShadowSample(float2 uv, float depth, float2 dir, float radius, float softness)
+{
+    float2 texel = BUFFER_PIXEL_SIZE * radius;
+    float2 nearUv = saturate(uv + dir * texel * 0.75);
+    float2 midUv = saturate(uv + dir * texel * 1.55);
+    float nearDepth = ReShade::GetLinearizedDepth(nearUv);
+    float midDepth = ReShade::GetLinearizedDepth(midUv);
+    float bias = 0.0008 + depth * 0.0018;
+    float edgeWidth = lerp(0.012, 0.038, saturate(softness));
+    float nearOcc = smoothstep(bias, bias + edgeWidth, depth - nearDepth);
+    float midOcc = smoothstep(bias, bias + edgeWidth * 1.55, depth - midDepth) * 0.62;
+    float continuity = saturate(1.0 - abs(nearDepth - midDepth) * lerp(18.0, 8.0, saturate(softness)));
+    return saturate((nearOcc + midOcc) * continuity);
+}
+
+float Dalashade_SceneGIContactShadow(float2 uv, float depth, float radius, float softness, float normalConfidence)
+{
+    float mask = 0.0;
+    mask += Dalashade_SceneGIContactShadowSample(uv, depth, normalize(float2(1.0, 0.0)), radius, softness);
+    mask += Dalashade_SceneGIContactShadowSample(uv, depth, normalize(float2(-1.0, 0.0)), radius, softness);
+    mask += Dalashade_SceneGIContactShadowSample(uv, depth, normalize(float2(0.0, 1.0)), radius, softness);
+    mask += Dalashade_SceneGIContactShadowSample(uv, depth, normalize(float2(0.0, -1.0)), radius, softness);
+    mask += Dalashade_SceneGIContactShadowSample(uv, depth, normalize(float2(0.72, 0.72)), radius * 1.35, softness) * 0.55;
+    mask += Dalashade_SceneGIContactShadowSample(uv, depth, normalize(float2(-0.72, 0.72)), radius * 1.35, softness) * 0.55;
+    return saturate(mask * 0.205 * normalConfidence);
 }
 
 float3 Dalashade_SceneGINeighborAverage(float2 uv, float radius)
@@ -564,6 +615,19 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     float laneContactAO = saturate((frame.ReceiverAO * 0.36 + frame.ReceiverStructure * 0.28 + surface.AOReceiverSupport * normalFieldInfluence * 0.22 + surface.GroundCandidate * normalFieldInfluence * 0.12) * (hardSurface * 0.28 + interiorGILane * 0.22 + forestCanopyGILane * 0.10 + industrialGILane * 0.12) * normalReceiverSafety);
     float ao = saturate(aoMicro * 0.44 + aoMedium * 0.34 + aoBroad * 0.15 + aoStructureBroad * 0.07);
     ao = saturate(ao + normalAOContactSupport * 0.070 + normalGroundContactSupport * 0.042 + normalEdgeContact * 0.034 + laneContactAO * 0.050);
+    float contactShadowMask = 0.0;
+    if (Dalashade_GIContactShadowsEnabled > 0.0 && Dalashade_GIContactShadowStrength > 0.0)
+    {
+        float contactRadius = max(Dalashade_GIContactShadowRadius, 0.20) * giDistanceScale * (1.0 + giRadius * 0.42);
+        float contactSoftness = saturate(Dalashade_GIContactShadowSoftness);
+        float contactBase = Dalashade_SceneGIContactShadow(texcoord, depth, contactRadius, contactSoftness, normalConfidence);
+        float contactSafety = normalReceiverSafety * receiverMaterialSafety * receiverSkySafety;
+        contactSafety *= 1.0 - skinProtect * 0.82;
+        contactSafety *= 1.0 - frame.MaterialWaterPlane * 0.46;
+        contactSafety *= 1.0 - bright * (0.30 + highlightGuard * 0.42);
+        contactShadowMask = saturate(contactBase * contactSafety * (0.62 + hardSurface * 0.28 + normalAOContactSupport * 0.18 + laneContactAO * 0.16));
+        ao = saturate(ao + contactShadowMask * Dalashade_GIContactShadowStrength * 0.16);
+    }
     ao *= Dalashade_GIAOIntensity * aoMaterialBoost * combatDampen * readabilityDampen * lerp(1.0, 1.18, standaloneGI) * expressiveGILift;
     ao *= 1.0 - skyReject;
     ao *= 1.0 - highlightGuard * 0.82;
@@ -669,7 +733,7 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
     float rawPositivePressure = max(max(delta.r / max(positiveGIAllowance, 0.001), delta.g / max(positiveGIAllowance, 0.001)), delta.b / max(positiveGIAllowance, 0.001));
     float rawNegativePressure = max(max(-delta.r / max(negativeAOAllowance, 0.001), -delta.g / max(negativeAOAllowance, 0.001)), -delta.b / max(negativeAOAllowance, 0.001));
     float clampPressure = saturate(max(rawPositivePressure, rawNegativePressure));
-    float finalGIContribution = saturate(Dalashade_SceneGILuma(abs(result - color)) * 9.0 + ao * 0.80 + Dalashade_SceneGILuma(bounce) * 4.2 + nightPool * 0.85 + materialBounceLaneEnergy * 0.12 + emissivePoolingLane * 0.18);
+    float finalGIContribution = saturate(Dalashade_SceneGILuma(abs(result - color)) * 9.0 + ao * 0.80 + contactShadowMask * 0.42 + Dalashade_SceneGILuma(bounce) * 4.2 + nightPool * 0.85 + materialBounceLaneEnergy * 0.12 + emissivePoolingLane * 0.18);
     float finalInfluence = saturate(finalGIContribution);
     int mode = Dalashade_GIDebugMode;
     if (mode > 0)
@@ -825,6 +889,11 @@ float4 Dalashade_SceneGIPS(float4 position : SV_Position, float2 texcoord : TEXC
             float3 decodedNormal = Dalashade_DalapadDecodeNormalLike(rawNormal) * 0.5 + 0.5;
             debugColor = lerp(rawNormal, decodedNormal, 0.72) * bridgeGate;
             debugMask = bridgeGate;
+        }
+        else if (mode == 22)
+        {
+            debugColor = float3(contactShadowMask, contactShadowMask * 0.68, contactShadowMask * 0.22);
+            debugMask = contactShadowMask;
         }
 
         return float4(Dalashade_SceneGIDebugOutput(texcoord, color, result, debugColor, debugMask), 1.0);

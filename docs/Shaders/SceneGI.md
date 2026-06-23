@@ -2,7 +2,7 @@
 
 ## Current purpose
 
-`shaders/Dalashade_SceneGI.fx` creates a cheap screen-space GI/AO impression using depth, material masks, localized source terms, and safety gates.
+`shaders/Dalashade_SceneGI.fx` creates a cheap screen-space GI/AO impression using depth, material masks, localized source terms, optional local contact shadows, and safety gates.
 
 ## Intended purpose
 
@@ -10,7 +10,7 @@ SceneGI should own conservative contact shading, low-frequency material bounce, 
 
 ## Current implementation summary
 
-The shader samples nearby color/depth, builds receiver/source masks from inline FrameData material/water/safety/receiver and scene fields, then applies layered AO and restrained bounce/light pooling. Water and sky are protected from dirty AO; aether/neon/fire/glint sources can contribute localized light. Optional FrameData surface support adds contact/structure grounding only after material and safety gates allow it.
+The shader samples nearby color/depth, builds receiver/source masks from inline FrameData material/water/safety/receiver and scene fields, then applies layered AO and restrained bounce/light pooling. Water and sky are protected from dirty AO; aether/neon/fire/glint sources can contribute localized light. Optional FrameData surface support adds contact/structure grounding only after material and safety gates allow it. The optional SceneGI contact-shadow lane is local AO/contact grounding; `Dalashade_ScreenShadows.fx` is the separate source-aware screen-space shadow technique.
 
 For shader-author rules, see [../ShaderContractQuickReference.md](../ShaderContractQuickReference.md). SceneGI should consume Dalapad only through FrameData fields and must keep the no-data debug state blank when Dalapad gates are off or unavailable.
 
@@ -29,6 +29,7 @@ Material bounce now has explicit GI-local lanes for foliage, hard stone, metal/i
 - Shared FrameData scene tags for readability, atmosphere, combat, wetness, cold, heat, aether/neon, day/night lighting, and Standalone mode strength.
 - Optional FrameData surface fields from NormalField and gated Dalapad pinned surface data for conservative contact/structure shaping.
 - GI/AO strength/radius/debug controls.
+- Optional SceneGI contact-shadow strength/radius/softness controls.
 
 ## Outputs
 
@@ -43,8 +44,9 @@ Normal output is source color plus conservative AO/bounce modifications. Debug m
 5. Optionally add FrameData surface structure, AO, ground/contact, and edge-discontinuity support behind the same safety gates. That surface data may come from NormalField, Dalapad, or both.
 6. Estimate local occlusion with layered depth taps.
 7. Estimate screen-space diffuse bounce from depth-aware visible-color gathers.
-8. Apply lane-shaped darkening/lighting with safety clamps.
-9. Expose material bounce lane, sky-safe receiver, and emissive pooling diagnostics without adding new preset variables.
+8. Optionally add local contact-shadow AO behind the same receiver/safety gates.
+9. Apply lane-shaped darkening/lighting with safety clamps.
+10. Expose material bounce lane, sky-safe receiver, emissive pooling, and contact-shadow diagnostics without adding new material truth.
 
 ## Material/Water/Normal dependencies
 
@@ -73,6 +75,8 @@ The current visibility pass deliberately gives more weight to valid GI lanes ins
 | Performance | Uses the cardinal gather taps only, further reduces generated GI sample distance/radii, and relies more on already-authorized FrameData/Dalapad surface evidence when available instead of expanding inferred screen-space work. |
 
 Lower tiers must not increase AO, bounce, or night-light intensity to compensate for fewer samples. Blank Dalapad debug masks remain correct when Dalapad shader additions, surface data, strength, or pinned resources are unavailable.
+
+SceneGI contact shadows are default-off. They reuse SceneGI's local AO/contact model and are intended for subtle receiver grounding. For visible-source cast-shadow impressions, use the separate optional [ScreenShadows](ScreenShadows.md) shader.
 
 ## Debug modes
 
@@ -104,6 +108,7 @@ SceneGI debug modes are intended to show shared material usage, sources, receive
 | 19 | Dalapad FrameData evidence | Shows the gated FrameData Dalapad normal direction and evidence channels before SceneGI receiver safety. Blank means Dalapad shader additions are off, Dalapad surface data is off, strength is zero, or the pinned normal resource is unavailable. |
 | 20 | Dalapad bridge gate | Shows direct shader-side gate state for the pinned normal. Red is the global/surface/availability gate, green is sampled presence, blue means dimensions are known. Blank means there is no authorized Dalapad data for SceneGI. |
 | 21 | Dalapad raw normal sample | Shows the direct pinned-normal texture sample behind the same gate. Blank means the gate is closed; visible color with mode 18 blank means the bridge works but SceneGI safety/confidence rejected contribution. |
+| 22 | Contact shadow mask | Shows the optional SceneGI contact-shadow mask after receiver and safety gates. Blank means the feature is disabled or no local contact-shadow evidence survived the gates. |
 
 `Dalashade_GIDebugOutputMode`:
 

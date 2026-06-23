@@ -10,6 +10,7 @@ public sealed class CustomShaderVariableMapper
     public const string ReasonCategory = "Dalashade custom shader scene intent";
     public const string MaterialReasonCategory = "Dalashade custom shader material intent";
     public const string SceneGIReasonCategory = "Dalashade custom shader SceneGI tuning";
+    public const string ScreenShadowsReasonCategory = "Dalashade custom shader ScreenShadows tuning";
     public const string ContactToneReasonCategory = "Dalashade custom shader ContactTone tuning";
     public const string SurfaceReflectionReasonCategory = "Dalashade custom shader SurfaceReflection tuning";
     public const string NormalFieldReasonCategory = "Dalashade custom shader NormalField tuning";
@@ -116,6 +117,10 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_GIAORadius"] = configuration => 0.45f * GetFirstPartyPerformanceProfile(configuration).SceneGIAORadiusScale,
             ["Dalashade_GINightLightStrength"] = configuration => configuration.DalashadeSceneGINightLightStrength,
             ["Dalashade_GIMaterialInfluence"] = configuration => configuration.DalashadeSceneGIMaterialInfluence,
+            ["Dalashade_GIContactShadowsEnabled"] = configuration => configuration.EnableDalashadeSceneGIContactShadows ? 1f : 0f,
+            ["Dalashade_GIContactShadowStrength"] = configuration => configuration.DalashadeSceneGIContactShadowStrength,
+            ["Dalashade_GIContactShadowRadius"] = configuration => configuration.DalashadeSceneGIContactShadowRadius * GetFirstPartyPerformanceProfile(configuration).SceneGIAORadiusScale,
+            ["Dalashade_GIContactShadowSoftness"] = configuration => configuration.DalashadeSceneGIContactShadowSoftness,
             ["Dalashade_GISkyReject"] = _ => 1.0f,
             ["Dalashade_GISkinProtect"] = _ => 1.0f,
             ["Dalashade_GISampleCountScale"] = configuration => GetFirstPartyPerformanceProfile(configuration).SceneGISampleCountScale,
@@ -124,6 +129,21 @@ public sealed class CustomShaderVariableMapper
             ["Dalashade_GIDebugOutputMode"] = configuration => configuration.DalashadeSceneGIDebugOutputMode,
             ["Dalashade_GIDebugOpacity"] = configuration => configuration.DalashadeSceneGIDebugOpacity,
             ["Dalashade_GIDebugBoost"] = configuration => configuration.DalashadeSceneGIDebugBoost
+        };
+
+    private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> ScreenShadowsVariables =
+        new Dictionary<string, Func<Configuration, float>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Dalashade_ScreenShadowsEnabled"] = configuration => configuration.EnableDalashadeScreenShadowsShaderVariables ? 1f : 0f,
+            ["Dalashade_ScreenShadowsStrength"] = configuration => configuration.DalashadeScreenShadowsStrength,
+            ["Dalashade_ScreenShadowsReach"] = configuration => configuration.DalashadeScreenShadowsReach * GetFirstPartyPerformanceProfile(configuration).SceneGISampleDistanceScale,
+            ["Dalashade_ScreenShadowsSoftness"] = configuration => configuration.DalashadeScreenShadowsSoftness,
+            ["Dalashade_ScreenShadowsSourceSensitivity"] = configuration => configuration.DalashadeScreenShadowsSourceSensitivity,
+            ["Dalashade_ScreenShadowsDalapadInfluence"] = configuration => configuration.EnableDalapadShaderIntegration && configuration.EnableDalapadSurfaceData ? configuration.DalashadeScreenShadowsDalapadInfluence : 0f,
+            ["Dalashade_ScreenShadowsDebugMode"] = configuration => configuration.DalashadeScreenShadowsDebugMode,
+            ["Dalashade_ScreenShadowsDebugOutputMode"] = configuration => configuration.DalashadeScreenShadowsDebugOutputMode,
+            ["Dalashade_ScreenShadowsDebugOpacity"] = configuration => configuration.DalashadeScreenShadowsDebugOpacity,
+            ["Dalashade_ScreenShadowsDebugBoost"] = configuration => configuration.DalashadeScreenShadowsDebugBoost
         };
 
     private static readonly IReadOnlyDictionary<string, Func<Configuration, float>> DalapadSurfaceVariables =
@@ -405,6 +425,7 @@ public sealed class CustomShaderVariableMapper
         .Concat(FirstPartyDepthAssistVariables.Keys)
         .Concat(FirstPartyPerformanceVariables.Keys)
         .Concat(SceneGIVariables.Keys)
+        .Concat(ScreenShadowsVariables.Keys)
         .Concat(DalapadSurfaceVariables.Keys)
         .Concat(ContactToneVariables.Keys)
         .Concat(SurfaceReflectionVariables.Keys)
@@ -485,6 +506,17 @@ public sealed class CustomShaderVariableMapper
                 _ => FormatDalapadSurfaceValue(key, dalapadAccessor(configuration)),
                 DalapadReasonCategory,
                 IsSceneGISection(section) ? EffectRole.AoGi : EffectRole.UiUtility,
+                1f);
+            return true;
+        }
+
+        if (IsScreenShadowsSection(section)
+            && ScreenShadowsVariables.TryGetValue(key, out var screenShadowsAccessor))
+        {
+            adjustment = new ShaderAdjustment(
+                _ => FormatScreenShadowsValue(key, screenShadowsAccessor(configuration)),
+                ScreenShadowsReasonCategory,
+                EffectRole.AoGi,
                 1f);
             return true;
         }
@@ -576,6 +608,7 @@ public sealed class CustomShaderVariableMapper
                    || FirstPartyDepthAssistVariables.ContainsKey(key)
                    || FirstPartyPerformanceVariables.ContainsKey(key)
                    || SceneGIVariables.ContainsKey(key)
+                   || ScreenShadowsVariables.ContainsKey(key)
                    || DalapadSurfaceVariables.ContainsKey(key)
                    || ContactToneVariables.ContainsKey(key)
                    || SurfaceReflectionVariables.ContainsKey(key)
@@ -677,8 +710,8 @@ public sealed class CustomShaderVariableMapper
         if (string.Equals(key, "Dalashade_GIDebugMode", StringComparison.OrdinalIgnoreCase))
         {
             var rounded = (int)MathF.Round(value);
-            var clamped = Math.Min(21, Math.Max(0, rounded));
-            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 21);
+            var clamped = Math.Min(22, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 22);
         }
 
         if (string.Equals(key, "Dalashade_GIDebugOutputMode", StringComparison.OrdinalIgnoreCase))
@@ -818,19 +851,61 @@ public sealed class CustomShaderVariableMapper
         return string.Equals(key, "Dalashade_GIStrength", StringComparison.OrdinalIgnoreCase)
                || string.Equals(key, "Dalashade_GIBounceStrength", StringComparison.OrdinalIgnoreCase)
                || string.Equals(key, "Dalashade_GIAOIntensity", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(key, "Dalashade_GINightLightStrength", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(key, "Dalashade_GIMaterialInfluence", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(key, "Dalashade_GISkyReject", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "Dalashade_GINightLightStrength", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "Dalashade_GIMaterialInfluence", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "Dalashade_GIContactShadowStrength", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "Dalashade_GIContactShadowSoftness", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "Dalashade_GISkyReject", StringComparison.OrdinalIgnoreCase)
                || string.Equals(key, "Dalashade_GISkinProtect", StringComparison.OrdinalIgnoreCase)
                || string.Equals(key, "Dalashade_GISampleCountScale", StringComparison.OrdinalIgnoreCase)
                || string.Equals(key, "Dalashade_GISampleDistanceScale", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(key, "Dalashade_GIDebugOpacity", StringComparison.OrdinalIgnoreCase);
+            || string.Equals(key, "Dalashade_GIDebugOpacity", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "Dalashade_GIContactShadowsEnabled", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsSceneGIRadiusVariable(string key)
     {
         return string.Equals(key, "Dalashade_GIRadius", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(key, "Dalashade_GIAORadius", StringComparison.OrdinalIgnoreCase);
+               || string.Equals(key, "Dalashade_GIAORadius", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(key, "Dalashade_GIContactShadowRadius", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static ShaderAdjustmentResult FormatScreenShadowsValue(string key, float value)
+    {
+        if (string.Equals(key, "Dalashade_ScreenShadowsDebugMode", StringComparison.OrdinalIgnoreCase))
+        {
+            var rounded = (int)MathF.Round(value);
+            var clamped = Math.Min(6, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 6);
+        }
+
+        if (string.Equals(key, "Dalashade_ScreenShadowsDebugOutputMode", StringComparison.OrdinalIgnoreCase))
+        {
+            var rounded = (int)MathF.Round(value);
+            var clamped = Math.Min(4, Math.Max(0, rounded));
+            return new ShaderAdjustmentResult(clamped.ToString(CultureInfo.InvariantCulture), rounded < 0, rounded > 4);
+        }
+
+        if (string.Equals(key, "Dalashade_ScreenShadowsEnabled", StringComparison.OrdinalIgnoreCase))
+        {
+            var enabled = value >= 0.5f ? 1 : 0;
+            return new ShaderAdjustmentResult(enabled.ToString(CultureInfo.InvariantCulture), false, false);
+        }
+
+        if (string.Equals(key, "Dalashade_ScreenShadowsReach", StringComparison.OrdinalIgnoreCase))
+        {
+            var clamped = MathF.Min(2.0f, MathF.Max(0.20f, value));
+            return new ShaderAdjustmentResult(Format(clamped), value < 0.20f, value > 2.0f);
+        }
+
+        if (string.Equals(key, "Dalashade_ScreenShadowsDebugBoost", StringComparison.OrdinalIgnoreCase))
+        {
+            var clamped = MathF.Min(8f, MathF.Max(0.25f, value));
+            return new ShaderAdjustmentResult(Format(clamped), value < 0.25f, value > 8f);
+        }
+
+        var normalized = Clamp01(value);
+        return new ShaderAdjustmentResult(Format(normalized), value < 0f, value > 1f);
     }
 
     private static ShaderAdjustmentResult FormatSurfaceReflectionValue(string key, float value)
@@ -890,6 +965,7 @@ public sealed class CustomShaderVariableMapper
                || (IsAtmosphereBloomSection(section) && AtmosphereBloomMaterialVariables.Contains(key))
                || (IsAdaptiveGradeSection(section) && AdaptiveGradeMaterialVariables.Contains(key))
                || (IsSceneGISection(section) && SceneGIMaterialVariables.Contains(key))
+               || (IsScreenShadowsSection(section) && SceneGIMaterialVariables.Contains(key))
                || (IsContactToneSection(section) && ContactToneMaterialVariables.Contains(key))
                || (IsSurfaceReflectionSection(section) && SurfaceReflectionMaterialVariables.Contains(key))
                || (IsNormalDebugSection(section) && MaterialDebugVariables.Contains(key))
@@ -904,6 +980,7 @@ public sealed class CustomShaderVariableMapper
                    || IsAtmosphereBloomSection(section)
                    || IsAdaptiveGradeSection(section)
                    || IsSceneGISection(section)
+                   || IsScreenShadowsSection(section)
                    || IsContactToneSection(section)
                    || IsSurfaceReflectionSection(section)
                    || IsNormalDebugSection(section)
@@ -928,6 +1005,7 @@ public sealed class CustomShaderVariableMapper
                || IsAtmosphereBloomSection(section)
                || IsAdaptiveGradeSection(section)
                || IsSceneGISection(section)
+               || IsScreenShadowsSection(section)
                || IsContactToneSection(section)
                || IsSurfaceReflectionSection(section);
     }
@@ -972,6 +1050,12 @@ public sealed class CustomShaderVariableMapper
     {
         return string.Equals(section, "Dalashade_SceneGI.fx", StringComparison.OrdinalIgnoreCase)
                || section.Contains("Dalashade_SceneGI", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsScreenShadowsSection(string section)
+    {
+        return string.Equals(section, "Dalashade_ScreenShadows.fx", StringComparison.OrdinalIgnoreCase)
+               || section.Contains("Dalashade_ScreenShadows", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsContactToneSection(string section)

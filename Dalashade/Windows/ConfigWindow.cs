@@ -413,6 +413,8 @@ public sealed class ConfigWindow : Window, IDisposable
         var enabled = new[]
         {
             configuration.EnableDalashadeSceneGIShaderVariables,
+            configuration.EnableDalashadeSceneGIContactShadows,
+            configuration.EnableDalashadeScreenShadowsShaderVariables,
             configuration.EnableDalashadeContactToneShaderVariables,
             configuration.EnableDalashadeSurfaceReflectionShaderVariables,
             configuration.EnableMaterialIntentShaderMapping,
@@ -444,6 +446,8 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawCheckbox("Sync Dalashade technique activation", configuration.SyncDalashadeTechniqueActivation, value => configuration.SyncDalashadeTechniqueActivation = value);
         DrawItemTooltip("Optional generated-preset management for production Dalashade techniques. Manual debug shaders, including Dalapad_Debug, are not auto-enabled.");
         DrawCheckbox("SceneGI first-party controls", configuration.EnableDalashadeSceneGIShaderVariables, value => configuration.EnableDalashadeSceneGIShaderVariables = value);
+        DrawCheckbox("SceneGI contact-shadow assist", configuration.EnableDalashadeSceneGIContactShadows, value => configuration.EnableDalashadeSceneGIContactShadows = value);
+        DrawCheckbox("ScreenShadows first-party controls", configuration.EnableDalashadeScreenShadowsShaderVariables, value => configuration.EnableDalashadeScreenShadowsShaderVariables = value);
         DrawCheckbox("ContactTone first-party controls", configuration.EnableDalashadeContactToneShaderVariables, value => configuration.EnableDalashadeContactToneShaderVariables = value);
         DrawCheckbox("SurfaceReflection first-party controls", configuration.EnableDalashadeSurfaceReflectionShaderVariables, value => configuration.EnableDalashadeSurfaceReflectionShaderVariables = value);
         DrawCheckbox("Enable depth assist for first-party Dalashade shaders", configuration.EnableFirstPartyDepthAssist, value => configuration.EnableFirstPartyDepthAssist = value);
@@ -794,9 +798,13 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawFloatSlider("SceneGI bounce strength", configuration.DalashadeSceneGIBounceStrength, 0f, 1f, value => configuration.DalashadeSceneGIBounceStrength = value);
         DrawFloatSlider("SceneGI night light strength", configuration.DalashadeSceneGINightLightStrength, 0f, 1f, value => configuration.DalashadeSceneGINightLightStrength = value);
         DrawFloatSlider("SceneGI material influence", configuration.DalashadeSceneGIMaterialInfluence, 0f, 1f, value => configuration.DalashadeSceneGIMaterialInfluence = value);
+        DrawCheckbox("Enable SceneGI contact shadows", configuration.EnableDalashadeSceneGIContactShadows, value => configuration.EnableDalashadeSceneGIContactShadows = value);
+        DrawFloatSlider("SceneGI contact shadow strength", configuration.DalashadeSceneGIContactShadowStrength, 0f, 1f, value => configuration.DalashadeSceneGIContactShadowStrength = value);
+        DrawFloatSlider("SceneGI contact shadow radius", configuration.DalashadeSceneGIContactShadowRadius, 0.2f, 2f, value => configuration.DalashadeSceneGIContactShadowRadius = value);
+        DrawFloatSlider("SceneGI contact shadow softness", configuration.DalashadeSceneGIContactShadowSoftness, 0f, 1f, value => configuration.DalashadeSceneGIContactShadowSoftness = value);
         ImGui.TextWrapped("SceneGI uses Dalapad surface data through FrameData when the global Dalapad surface-data option is enabled.");
         var sceneGIDebugMode = configuration.DalashadeSceneGIDebugMode;
-        if (ImGui.SliderInt("Debug mode (SceneGI)", ref sceneGIDebugMode, 0, 21))
+        if (ImGui.SliderInt("Debug mode (SceneGI)", ref sceneGIDebugMode, 0, 22))
         {
             configuration.DalashadeSceneGIDebugMode = sceneGIDebugMode;
             configuration.Save();
@@ -809,7 +817,32 @@ public sealed class ConfigWindow : Window, IDisposable
         }
         DrawFloatSlider("Debug opacity (SceneGI)", configuration.DalashadeSceneGIDebugOpacity, 0f, 1f, value => configuration.DalashadeSceneGIDebugOpacity = value);
         DrawFloatSlider("Debug boost (SceneGI)", configuration.DalashadeSceneGIDebugBoost, 0.25f, 8f, value => configuration.DalashadeSceneGIDebugBoost = value);
+        ImGui.TextWrapped("SceneGI contact shadows are local AO/contact grounding. ScreenShadows below is the separate source-aware shadow technique.");
         ImGui.TextWrapped("SceneGI variable writes require Dalashade custom shader variables and matching generated preset keys. If technique sync is enabled, SceneGI is added to the generated preset when these writes are enabled.");
+
+        ImGui.Separator();
+        ImGui.TextWrapped("ScreenShadows: optional source-aware screen-space shadow impressions");
+        DrawCheckbox("Enable ScreenShadows variable writes", configuration.EnableDalashadeScreenShadowsShaderVariables, value => configuration.EnableDalashadeScreenShadowsShaderVariables = value);
+        DrawFloatSlider("ScreenShadows strength", configuration.DalashadeScreenShadowsStrength, 0f, 1f, value => configuration.DalashadeScreenShadowsStrength = value);
+        DrawFloatSlider("ScreenShadows reach", configuration.DalashadeScreenShadowsReach, 0.2f, 2f, value => configuration.DalashadeScreenShadowsReach = value);
+        DrawFloatSlider("ScreenShadows softness", configuration.DalashadeScreenShadowsSoftness, 0f, 1f, value => configuration.DalashadeScreenShadowsSoftness = value);
+        DrawFloatSlider("ScreenShadows source sensitivity", configuration.DalashadeScreenShadowsSourceSensitivity, 0f, 1f, value => configuration.DalashadeScreenShadowsSourceSensitivity = value);
+        DrawFloatSlider("ScreenShadows Dalapad assist", configuration.DalashadeScreenShadowsDalapadInfluence, 0f, 1f, value => configuration.DalashadeScreenShadowsDalapadInfluence = value);
+        var screenShadowsDebugMode = configuration.DalashadeScreenShadowsDebugMode;
+        if (ImGui.SliderInt("Debug mode (ScreenShadows)", ref screenShadowsDebugMode, 0, 6))
+        {
+            configuration.DalashadeScreenShadowsDebugMode = screenShadowsDebugMode;
+            configuration.Save();
+        }
+        var screenShadowsDebugOutputMode = configuration.DalashadeScreenShadowsDebugOutputMode;
+        if (ImGui.SliderInt("Debug output (ScreenShadows)", ref screenShadowsDebugOutputMode, 0, 4))
+        {
+            configuration.DalashadeScreenShadowsDebugOutputMode = screenShadowsDebugOutputMode;
+            configuration.Save();
+        }
+        DrawFloatSlider("Debug opacity (ScreenShadows)", configuration.DalashadeScreenShadowsDebugOpacity, 0f, 1f, value => configuration.DalashadeScreenShadowsDebugOpacity = value);
+        DrawFloatSlider("Debug boost (ScreenShadows)", configuration.DalashadeScreenShadowsDebugBoost, 0.25f, 8f, value => configuration.DalashadeScreenShadowsDebugBoost = value);
+        ImGui.TextWrapped("ScreenShadows is separate from SceneGI contact shadows. It approximates visible-source cast shadows in screen space and stays neutral when disabled or when Dalapad/depth data is missing.");
 
         ImGui.Separator();
         ImGui.TextWrapped("ContactTone: local grounding, contact shadows, and readability contrast");
@@ -1475,6 +1508,8 @@ public sealed class ConfigWindow : Window, IDisposable
     {
         configuration.EnableDalashadeCustomShaders = true;
         configuration.EnableDalashadeSceneGIShaderVariables = false;
+        configuration.EnableDalashadeSceneGIContactShadows = false;
+        configuration.EnableDalashadeScreenShadowsShaderVariables = false;
         configuration.EnableDalashadeContactToneShaderVariables = false;
         configuration.EnableDalashadeSurfaceReflectionShaderVariables = false;
         configuration.EnableDalapadShaderIntegration = false;

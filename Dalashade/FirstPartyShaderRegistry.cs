@@ -90,15 +90,30 @@ public static class FirstPartyShaderRegistry
             FileName: "Dalashade_SceneGI.fx",
             TechniqueName: "Dalashade_SceneGI",
             SectionName: "Dalashade_SceneGI",
-            Role: "Screen-space AO, bounce, and light pooling",
+            Role: "Screen-space AO, optional contact shadows, bounce, and light pooling",
             ProductionShader: true,
             ManualDebugShader: false,
             TechniqueSyncEligible: true,
             IncludeFiles: ["Dalashade_FrameData.fxh", "Dalashade_MaterialMasks.fxh", "Dalashade_NormalField.fxh", "Dalashade_Dalapad.fxh"],
             KnownGeneratedUniforms: SharedProductionUniforms.Concat(SceneGIUniforms).Concat(DalapadUniforms).Concat(MaterialUniforms).Concat(DepthAssistUniforms).Concat(NormalFieldUniforms).ToArray(),
-            PerformanceTierUniforms: ["Dalashade_FirstPartyPerformanceTier", "Dalashade_GISampleCountScale", "Dalashade_GISampleDistanceScale", "Dalashade_GIRadius", "Dalashade_GIAORadius", "Dalashade_NormalFieldStrength", "Dalashade_NormalDepthStrength", "Dalashade_NormalDetailStrength", "Dalashade_NormalMaterialInfluence", "Dalashade_NormalFieldDepthStrength", "Dalashade_NormalFieldDetailStrength", "Dalashade_NormalFieldMaterialInfluence"],
+            PerformanceTierUniforms: ["Dalashade_FirstPartyPerformanceTier", "Dalashade_GISampleCountScale", "Dalashade_GISampleDistanceScale", "Dalashade_GIRadius", "Dalashade_GIAORadius", "Dalashade_GIContactShadowRadius", "Dalashade_NormalFieldStrength", "Dalashade_NormalDepthStrength", "Dalashade_NormalDetailStrength", "Dalashade_NormalMaterialInfluence", "Dalashade_NormalFieldDepthStrength", "Dalashade_NormalFieldDetailStrength", "Dalashade_NormalFieldMaterialInfluence"],
             DebugUniforms: ["Dalashade_GIDebugMode", "Dalashade_GIDebugOutputMode", "Dalashade_GIDebugOpacity", "Dalashade_GIDebugBoost"],
             Notes: ["Dalapad production assist must flow through FrameData/Dalapad gates; debug modes are diagnostic output only."]),
+        new(
+            Family: "ScreenShadows",
+            DisplayName: "Screen Shadows",
+            FileName: "Dalashade_ScreenShadows.fx",
+            TechniqueName: "Dalashade_ScreenShadows",
+            SectionName: "Dalashade_ScreenShadows",
+            Role: "Optional source-aware screen-space shadow impressions",
+            ProductionShader: true,
+            ManualDebugShader: false,
+            TechniqueSyncEligible: true,
+            IncludeFiles: ["Dalashade_FrameData.fxh", "Dalashade_MaterialMasks.fxh", "Dalashade_NormalField.fxh", "Dalashade_Dalapad.fxh"],
+            KnownGeneratedUniforms: SharedProductionUniforms.Concat(ScreenShadowsUniforms).Concat(DalapadUniforms).Concat(MaterialUniforms).Concat(DepthAssistUniforms).Concat(NormalFieldUniforms).ToArray(),
+            PerformanceTierUniforms: ["Dalashade_FirstPartyPerformanceTier", "Dalashade_ScreenShadowsReach", "Dalashade_NormalFieldStrength", "Dalashade_NormalDepthStrength", "Dalashade_NormalDetailStrength", "Dalashade_NormalMaterialInfluence", "Dalashade_NormalFieldDepthStrength", "Dalashade_NormalFieldDetailStrength", "Dalashade_NormalFieldMaterialInfluence"],
+            DebugUniforms: ["Dalashade_ScreenShadowsDebugMode", "Dalashade_ScreenShadowsDebugOutputMode", "Dalashade_ScreenShadowsDebugOpacity", "Dalashade_ScreenShadowsDebugBoost"],
+            Notes: ["ScreenShadows is optional and approximate; it should stay neutral when disabled or when Dalapad/depth data is unavailable."]),
         new(
             Family: "ContactTone",
             DisplayName: "Contact Tone",
@@ -248,6 +263,10 @@ public static class FirstPartyShaderRegistry
         "Dalashade_GIAORadius",
         "Dalashade_GINightLightStrength",
         "Dalashade_GIMaterialInfluence",
+        "Dalashade_GIContactShadowsEnabled",
+        "Dalashade_GIContactShadowStrength",
+        "Dalashade_GIContactShadowRadius",
+        "Dalashade_GIContactShadowSoftness",
         "Dalashade_GISkyReject",
         "Dalashade_GISkinProtect",
         "Dalashade_GISampleCountScale",
@@ -256,6 +275,20 @@ public static class FirstPartyShaderRegistry
         "Dalashade_GIDebugOutputMode",
         "Dalashade_GIDebugOpacity",
         "Dalashade_GIDebugBoost"
+    ];
+
+    private static string[] ScreenShadowsUniforms =>
+    [
+        "Dalashade_ScreenShadowsEnabled",
+        "Dalashade_ScreenShadowsStrength",
+        "Dalashade_ScreenShadowsReach",
+        "Dalashade_ScreenShadowsSoftness",
+        "Dalashade_ScreenShadowsSourceSensitivity",
+        "Dalashade_ScreenShadowsDalapadInfluence",
+        "Dalashade_ScreenShadowsDebugMode",
+        "Dalashade_ScreenShadowsDebugOutputMode",
+        "Dalashade_ScreenShadowsDebugOpacity",
+        "Dalashade_ScreenShadowsDebugBoost"
     ];
 
     private static string[] ContactToneUniforms =>
